@@ -25,7 +25,6 @@ export function CartSidebar() {
     }).format(value);
 
   const handleCheckout = () => {
-    // Gera a mensagem para o WhatsApp
     let message = "*Olá! Gostaria de confirmar o seguinte pedido:*\n\n";
 
     items.forEach((item, index) => {
@@ -35,7 +34,6 @@ export function CartSidebar() {
         }*\n   Valor: ${formatMoney(item.product.price * item.quantity)}\n`;
       } else if (item.type === "CUSTOM_KIT" && item.kitComponents) {
         message += `${index + 1}. *📦 ${item.kitName}*\n`;
-        // Detalha o que tem dentro do kit
         const componentNames = item.kitComponents.map((c) => c.name).join(", ");
         message += `   _Contém: ${componentNames}_\n`;
         message += `   Valor: ${formatMoney(item.kitTotalAmount || 0)}\n`;
@@ -47,7 +45,7 @@ export function CartSidebar() {
     message += "\n\nAguardo confirmação para pagamento e entrega!";
 
     const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/5595999999999?text=${encodedMessage}`; // TROQUE SEU NÚMERO AQUI
+    const whatsappUrl = `https://wa.me/5595984244194?text=${encodedMessage}`;
 
     window.open(whatsappUrl, "_blank");
   };
@@ -55,7 +53,7 @@ export function CartSidebar() {
   return (
     <Sheet open={isCartOpen} onOpenChange={(open) => !open && closeCart()}>
       <SheetContent className="flex flex-col w-full sm:max-w-md bg-slate-50 p-0">
-        <SheetHeader className="p-6 bg-white border-b">
+        <SheetHeader className="p-6 bg-white border-b flex-shrink-0">
           <SheetTitle className="flex items-center gap-2 text-xl">
             <ShoppingCart className="text-purple-600" />
             Seu Carrinho
@@ -83,14 +81,15 @@ export function CartSidebar() {
           </div>
         ) : (
           <>
-            <ScrollArea className="flex-1 p-6">
-              <div className="space-y-4">
+            {/* Scrollable Area - with fix for button cutoff */}
+            <ScrollArea className="flex-1 h-full">
+              <div className="p-4 space-y-3">
                 {items.map((item) => (
                   <div
                     key={item.cartId}
-                    className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex gap-4 relative group"
+                    className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3 group relative overflow-hidden"
                   >
-                    {/* Imagem */}
+                    {/* Image */}
                     <div className="relative w-16 h-16 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
                       {item.type === "SIMPLE" ? (
                         <Image
@@ -107,19 +106,19 @@ export function CartSidebar() {
                     </div>
 
                     {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-slate-800 truncate pr-6">
+                    <div className="flex-1 min-w-0 pr-8">
+                      {" "}
+                      {/* Right padding reserves space for delete button */}
+                      <h4 className="font-medium text-slate-800 text-sm leading-tight line-clamp-2">
                         {item.type === "SIMPLE"
                           ? item.product?.name
                           : item.kitName}
                       </h4>
-
                       {item.type === "CUSTOM_KIT" && (
-                        <p className="text-xs text-slate-500 line-clamp-1 mt-1">
+                        <p className="text-[10px] text-slate-500 line-clamp-1 mt-1">
                           {item.kitComponents?.length} itens inclusos
                         </p>
                       )}
-
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-sm font-bold text-slate-900">
                           {item.type === "SIMPLE"
@@ -130,27 +129,27 @@ export function CartSidebar() {
                         </span>
 
                         {item.type === "SIMPLE" && item.quantity > 1 && (
-                          <span className="text-xs text-slate-400">
-                            {item.quantity}x{" "}
-                            {formatMoney(item.product?.price || 0)}
+                          <span className="text-xs text-slate-400 bg-slate-50 px-1 rounded">
+                            {item.quantity}un
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Remover */}
+                    {/* Remove Button - Positioned absolutely to ensure it's always accessible */}
                     <button
                       onClick={() => removeItem(item.cartId)}
-                      className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors p-1"
+                      className="absolute top-2 right-2 text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                      title="Remover item"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 ))}
               </div>
             </ScrollArea>
 
-            <SheetFooter className="p-6 bg-white border-t space-y-4 block">
+            <SheetFooter className="p-6 bg-white border-t space-y-4 block flex-shrink-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-slate-500">Total do Pedido</span>
                 <span className="text-2xl font-bold text-slate-900">

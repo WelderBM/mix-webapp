@@ -45,9 +45,8 @@ export function KitBuilderModal() {
     resetKit,
   } = useKitStore();
 
-  // CORREÇÃO: Buscando 'allProducts' em vez de 'products', pois mudamos o nome na Store
   const { allProducts } = useProductStore();
-  const products = allProducts; // Alias para manter o código abaixo funcionando
+  const products = allProducts;
 
   const { addItem: addCartItem, openCart } = useCartStore();
 
@@ -134,7 +133,8 @@ export function KitBuilderModal() {
   const renderProductGrid = (
     items: Product[],
     onSelect: (p: Product) => void,
-    isSelected: (p: Product) => boolean
+    isSelected: (p: Product) => boolean,
+    onRemove?: (p: Product) => void
   ) => (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-4">
       {items.map((product) => (
@@ -143,6 +143,7 @@ export function KitBuilderModal() {
           product={product}
           isSelected={isSelected(product)}
           onSelect={() => onSelect(product)}
+          onRemove={onRemove ? () => onRemove(product) : undefined}
           actionLabel="Selecionar"
           disabled={
             currentStep === 2 &&
@@ -216,7 +217,6 @@ export function KitBuilderModal() {
                       {currentCapacityUsage} / {maxCapacity} slots
                     </span>
                   </div>
-
                   <div
                     className={cn(
                       "w-full h-3 rounded-full overflow-hidden border transition-colors duration-300",
@@ -255,7 +255,8 @@ export function KitBuilderModal() {
                 {renderProductGrid(
                   baseProducts,
                   selectBase,
-                  (p) => selectedBase?.id === p.id
+                  (p) => selectedBase?.id === p.id,
+                  (p) => selectBase(null as any) // Allows deselecting
                 )}
               </div>
             )}
@@ -269,7 +270,7 @@ export function KitBuilderModal() {
 
                   {selectedItems.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto pb-4 mb-4 scrollbar-hide snap-x">
-                      {/* CORREÇÃO: Usando 'index' como key para permitir itens duplicados sem erro */}
+                      {/* FIX: Using index as key to allow duplicates without error */}
                       {selectedItems.map((item, index) => (
                         <div
                           key={index}
@@ -311,7 +312,7 @@ export function KitBuilderModal() {
                     {renderProductGrid(
                       standardProducts,
                       handleAddItem,
-                      (p) => false
+                      (p) => false // Fillers don't get 'selected' state in grid
                     )}
                   </div>
 
@@ -336,10 +337,10 @@ export function KitBuilderModal() {
                   {renderProductGrid(
                     fillerProducts,
                     selectFiller,
-                    (p) => selectedFiller?.id === p.id
+                    (p) => selectedFiller?.id === p.id,
+                    (p) => selectFiller(null) // Allows deselecting
                   )}
                 </div>
-
                 <div>
                   <h3 className="font-semibold text-slate-700 text-lg mb-3">
                     Laço & Fita
@@ -347,7 +348,8 @@ export function KitBuilderModal() {
                   {renderProductGrid(
                     ribbonProducts,
                     selectRibbon,
-                    (p) => selectedRibbon?.id === p.id
+                    (p) => selectedRibbon?.id === p.id,
+                    (p) => selectRibbon(null) // Allows deselecting
                   )}
                 </div>
               </div>
@@ -364,7 +366,6 @@ export function KitBuilderModal() {
                   {formatMoney(calculateTotal())}
                 </span>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <Button
                   variant="outline"
@@ -374,7 +375,6 @@ export function KitBuilderModal() {
                 >
                   <ChevronLeft className="mr-2 h-4 w-4" /> Voltar
                 </Button>
-
                 <Button
                   className={cn(
                     "h-12 text-base shadow-lg hover:shadow-xl transition-all duration-500",

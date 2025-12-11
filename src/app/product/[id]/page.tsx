@@ -1,14 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useProductStore } from "@/store/productStore";
-import { useCartStore } from "@/store/cartStore";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
+import { useProductStore } from "@/store/productStore";
+import { useCartStore } from "@/store/cartStore";
+import { Product } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ShoppingCart, Check, Share2 } from "lucide-react";
-import { Product } from "@/lib/types";
+import {
+  ChevronLeft,
+  ShoppingCart,
+  Check,
+  Share2,
+  Box,
+  Truck,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function ProductPage() {
   const params = useParams();
@@ -17,12 +25,11 @@ export default function ProductPage() {
   const { addItem, openCart } = useCartStore();
   const [product, setProduct] = useState<Product | null>(null);
 
+  // Busca o produto (mesmo se der F5 na página)
   useEffect(() => {
-    // Garante que temos dados
     if (allProducts.length === 0) {
       fetchProducts();
     } else {
-      // Busca o produto na memória
       const found = allProducts.find((p) => p.id === params.id);
       setProduct(found || null);
     }
@@ -45,27 +52,33 @@ export default function ProductPage() {
     if (navigator.share) {
       navigator.share({
         title: product?.name,
-        text: `Olha que incrível esse ${product?.name} na Mix WebApp!`,
+        text: `Olha esse ${product?.name} que achei na Mix Novidades!`,
         url: window.location.href,
       });
     } else {
       navigator.clipboard.writeText(window.location.href);
-      alert("Link copiado!");
+      alert("Link copiado para a área de transferência!");
     }
   };
 
-  if (isLoading)
+  if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        Carregando...
+      <div className="h-[60vh] flex items-center justify-center text-slate-400 animate-pulse">
+        Carregando detalhes...
       </div>
     );
-  if (!product)
+  }
+
+  if (!product) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        Produto não encontrado.
+      <div className="h-[60vh] flex flex-col items-center justify-center gap-4 text-slate-500">
+        <p>Produto não encontrado.</p>
+        <Button variant="outline" onClick={() => router.push("/")}>
+          Voltar para a Loja
+        </Button>
       </div>
     );
+  }
 
   const formatMoney = (val: number) =>
     new Intl.NumberFormat("pt-BR", {
@@ -74,78 +87,163 @@ export default function ProductPage() {
     }).format(val);
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      {/* Navbar Simplificada */}
-      <header className="bg-white p-4 shadow-sm sticky top-0 z-40 flex items-center justify-between">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/")}>
-          <ChevronLeft />
+    <div className="bg-white min-h-screen pb-32 md:pb-20">
+      {/* Navegação Breadcrumb (Desktop) */}
+      <div className="max-w-6xl mx-auto px-4 pt-6 hidden md:block">
+        <Button
+          variant="ghost"
+          onClick={() => router.back()}
+          className="text-slate-500 hover:text-purple-700 pl-0"
+        >
+          <ChevronLeft className="mr-1 h-4 w-4" /> Voltar para a loja
         </Button>
-        <span className="font-semibold text-slate-800">
-          Detalhes do Produto
-        </span>
-        <Button variant="ghost" size="icon" onClick={handleShare}>
-          <Share2 size={20} />
-        </Button>
-      </header>
+      </div>
 
-      <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8">
-        <div className="grid md:grid-cols-2 gap-8 bg-white rounded-2xl p-6 shadow-sm">
-          {/* Imagem */}
-          <div className="relative aspect-square bg-slate-100 rounded-xl overflow-hidden">
+      {/* Botão Flutuante Voltar (Mobile) */}
+      <div className="fixed top-4 left-4 z-20 md:hidden">
+        <Button
+          size="icon"
+          variant="secondary"
+          className="rounded-full shadow-lg bg-white/80 backdrop-blur-md"
+          onClick={() => router.back()}
+        >
+          <ChevronLeft className="h-5 w-5 text-slate-800" />
+        </Button>
+      </div>
+
+      <div className="max-w-6xl mx-auto p-4 md:p-8">
+        <div className="grid md:grid-cols-2 gap-8 md:gap-16">
+          {/* COLUNA 1: IMAGEM */}
+          <div className="relative aspect-square md:aspect-[4/3] bg-slate-50 rounded-3xl overflow-hidden shadow-sm border border-slate-100">
             <Image
               src={product.imageUrl}
               alt={product.name}
               fill
-              className="object-cover"
+              className="object-contain p-8 hover:scale-105 transition-transform duration-700"
+              priority
             />
+
             {product.originalPrice && (
-              <Badge className="absolute top-4 left-4 bg-red-500 text-lg px-3 py-1">
-                Oferta
+              <Badge className="absolute top-4 left-4 bg-red-500 text-sm md:text-base px-3 py-1 shadow-md">
+                {Math.round(
+                  ((product.originalPrice - product.price) /
+                    product.originalPrice) *
+                    100
+                )}
+                % OFF
               </Badge>
             )}
+
+            <Button
+              variant="secondary"
+              size="icon"
+              className="absolute top-4 right-4 rounded-full shadow-md bg-white/90 hover:bg-white text-slate-700"
+              onClick={handleShare}
+            >
+              <Share2 size={18} />
+            </Button>
           </div>
 
-          {/* Infos */}
-          <div className="flex flex-col gap-4">
-            <div>
-              <Badge variant="outline" className="mb-2">
-                {product.category}
-              </Badge>
-              <h1 className="text-3xl font-bold text-slate-900 leading-tight">
+          {/* COLUNA 2: DETALHES */}
+          <div className="flex flex-col gap-6 pt-2">
+            {/* Cabeçalho do Produto */}
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant="outline"
+                  className="border-purple-200 text-purple-700 uppercase tracking-wider text-[10px]"
+                >
+                  {product.category}
+                </Badge>
+                {product.itemSize && (
+                  <Badge
+                    variant="secondary"
+                    className="text-slate-500 bg-slate-100 gap-1 text-[10px]"
+                  >
+                    <Box size={10} /> Ocupa {product.itemSize} slots na caixa
+                  </Badge>
+                )}
+                {product.capacity && (
+                  <Badge
+                    variant="secondary"
+                    className="text-slate-500 bg-slate-100 gap-1 text-[10px]"
+                  >
+                    <Box size={10} /> Capacidade: {product.capacity} itens
+                  </Badge>
+                )}
+              </div>
+
+              <h1 className="text-2xl md:text-4xl font-bold text-slate-900 leading-tight">
                 {product.name}
               </h1>
             </div>
 
-            <div className="flex items-end gap-3 pb-4 border-b">
-              {product.originalPrice && (
-                <span className="text-lg text-slate-400 line-through">
-                  {formatMoney(product.originalPrice)}
+            {/* Preço */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+              <div>
+                {product.originalPrice && (
+                  <span className="text-sm text-slate-400 line-through block">
+                    De {formatMoney(product.originalPrice)}
+                  </span>
+                )}
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-slate-900">
+                    {formatMoney(product.price)}
+                  </span>
+                  <span className="text-sm text-slate-500 font-medium">
+                    /{product.unit}
+                  </span>
+                </div>
+              </div>
+
+              {/* Selo de Estoque */}
+              <div className="text-right">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full mb-1">
+                  <Check size={12} /> Em Estoque
+                </div>
+                <span className="text-[10px] text-slate-400 block">
+                  Envio Imediato
                 </span>
-              )}
-              <span className="text-4xl font-bold text-purple-700">
-                {formatMoney(product.price)}
-              </span>
-              <span className="text-sm text-slate-500 mb-1">
-                /{product.unit}
-              </span>
+              </div>
             </div>
 
-            <p className="text-slate-600 leading-relaxed text-lg">
-              {product.description || "Sem descrição detalhada."}
-            </p>
+            {/* Descrição */}
+            <div className="prose prose-slate prose-sm text-slate-600 leading-relaxed">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">
+                Detalhes
+              </h3>
+              <p>
+                {product.description ||
+                  `Um excelente produto da categoria ${product.category}, selecionado especialmente para você. Ideal para presentear ou para uso pessoal.`}
+              </p>
+            </div>
 
-            <div className="mt-auto pt-6 space-y-3">
-              <Button
-                size="lg"
-                className="w-full h-14 text-lg bg-slate-900 hover:bg-slate-800"
-                onClick={handleAddToCart}
-              >
-                <ShoppingCart className="mr-2" /> Adicionar ao Carrinho
-              </Button>
+            {/* Entrega (Simulação Visual) */}
+            <div className="flex items-center gap-3 p-4 border border-slate-100 rounded-xl text-sm text-slate-600">
+              <div className="bg-purple-50 p-2 rounded-full text-purple-600">
+                <Truck size={20} />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-900">
+                  Entrega em Boa Vista
+                </p>
+                <p className="text-xs">
+                  Receba no conforto da sua casa via Motoboy.
+                </p>
+              </div>
+            </div>
 
-              <div className="flex items-center gap-2 text-sm text-slate-500 justify-center">
-                <Check size={16} className="text-green-500" /> Em estoque •
-                Entrega imediata
+            {/* BARRA DE AÇÃO (Mobile: Sticky Bottom / Desktop: Normal) */}
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 md:relative md:p-0 md:border-0 md:bg-transparent z-20">
+              <div className="max-w-6xl mx-auto flex gap-4">
+                <Button
+                  size="lg"
+                  className="w-full h-14 text-base font-bold bg-slate-900 hover:bg-slate-800 shadow-xl hover:shadow-2xl transition-all"
+                  onClick={handleAddToCart}
+                >
+                  <ShoppingCart className="mr-2 h-5 w-5" />
+                  Adicionar {formatMoney(product.price)}
+                </Button>
               </div>
             </div>
           </div>

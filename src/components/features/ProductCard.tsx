@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Product } from "@/lib/types";
-import { Plus, Eye, Check } from "lucide-react";
+import { Plus, Eye, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { ProductQuickView } from "./ProductQuickView";
@@ -13,6 +13,7 @@ interface ProductCardProps {
   product: Product;
   isSelected?: boolean;
   onSelect?: () => void;
+  onRemove?: () => void; // New prop for deselection
   actionLabel?: string;
   disabled?: boolean;
 }
@@ -21,12 +22,14 @@ export function ProductCard({
   product,
   isSelected,
   onSelect,
+  onRemove,
   actionLabel,
   disabled,
 }: ProductCardProps) {
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+  const [isHoveringSelected, setIsHoveringSelected] = useState(false);
 
-  // Acessamos a store apenas para verificar capacidade (se estiver no modo kit)
+  // Only access store if needed for kit logic
   const { currentCapacityUsage, selectedBase } = useKitStore();
 
   const formatPrice = (value: number) =>
@@ -40,7 +43,14 @@ export function ProductCard({
   };
 
   const handleButtonClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Impede que abra o modal ao clicar no botão
+    e.stopPropagation();
+
+    // Toggle Logic: If selected and onRemove exists, remove it.
+    if (isSelected && onRemove) {
+      onRemove();
+      return;
+    }
+
     if (onSelect && !disabled) {
       onSelect();
     }
@@ -48,7 +58,7 @@ export function ProductCard({
 
   const maxCapacity = selectedBase?.capacity || 0;
   const itemSize = product.itemSize || 1;
-  // Verifica se está cheio APENAS se estivermos num contexto de kit (tem base selecionada e é item de recheio)
+  // Calculate if item fits (only relevant for kit builder context)
   const isFull =
     currentCapacityUsage + itemSize > maxCapacity &&
     product.type === "STANDARD_ITEM" &&
@@ -62,13 +72,19 @@ export function ProductCard({
           isSelected
             ? "border-purple-600 bg-purple-50 ring-1 ring-purple-600 shadow-md"
             : "border-slate-100 hover:shadow-md hover:border-slate-200",
-          disabled && "opacity-60 grayscale cursor-not-allowed"
+          disabled && !isSelected && "opacity-60 grayscale cursor-not-allowed"
         )}
         onClick={!disabled ? handleCardClick : undefined}
       >
+        {/* Selection Indicator */}
         {isSelected && (
-          <div className="absolute top-2 right-2 bg-purple-600 text-white rounded-full p-1 z-20 shadow-sm animate-in zoom-in">
-            <Check size={14} />
+          <div
+            className={cn(
+              "absolute top-2 right-2 text-white rounded-full p-1 z-20 shadow-sm animate-in zoom-in transition-colors",
+              isHoveringSelected ? "bg-red-500" : "bg-purple-600"
+            )}
+          >
+            {isHoveringSelected ? <X size={14} /> : <Check size={14} />}
           </div>
         )}
 
@@ -80,15 +96,23 @@ export function ProductCard({
             className="object-cover group-hover:scale-105 transition-transform duration-500"
           />
 
+          {/* Custom Yellow Offer Badge */}
           {product.originalPrice && !isSelected && (
-            <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full z-10">
-              OFERTA
-            </span>
+            <div className="absolute top-0 left-0 z-10 p-1">
+              <div className="relative">
+                {/* Yellow Burst Shape using CSS borders or SVG */}
+                <span className="block bg-yellow-400 text-red-700 text-[10px] font-black px-2 py-1 rounded-sm border-2 border-red-600 -rotate-12 shadow-[2px_2px_0px_0px_rgba(220,38,38,1)]">
+                  OFERTA
+                </span>
+              </div>
+            </div>
           )}
 
-          <div className="absolute top-2 right-2 bg-white/90 text-slate-700 p-2 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-10">
-            <Eye size={16} />
-          </div>
+          {!isSelected && (
+            <div className="absolute top-2 right-2 bg-white/90 text-slate-700 p-2 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-10">
+              <Eye size={16} />
+            </div>
+          )}
         </div>
 
         <div className="p-3 flex flex-col flex-1 gap-2">
@@ -126,22 +150,41 @@ export function ProductCard({
           </div>
 
           <Button
-            variant={isSelected ? "default" : "outline"}
+            variant={
+              isSelected
+                ? isHoveringSelected
+                  ? "destructive"
+                  : "default"
+                : "outline"
+            }
             size="sm"
-            disabled={disabled}
+            disabled={disabled && !isSelected}
             className={cn(
               "w-full mt-2 gap-2 shadow-none transition-all z-20 relative",
               isSelected
-                ? "bg-purple-600 hover:bg-purple-700 text-white border-transparent"
+                ? isHoveringSelected
+                  ? "bg-red-500 hover:bg-red-600 border-transparent"
+                  : "bg-purple-600 hover:bg-purple-700 text-white border-transparent"
                 : "bg-white hover:bg-slate-50 text-slate-900 border-slate-200"
             )}
             onClick={handleButtonClick}
+            onMouseEnter={() =>
+              isSelected && onRemove && setIsHoveringSelected(true)
+            }
+            onMouseLeave={() => setIsHoveringSelected(false)}
           >
             {isSelected ? (
-              <>
-                {" "}
-                <Check size={14} /> Selecionado{" "}
-              </>
+              isHoveringSelected ? (
+                <>
+                  {" "}
+                  <X size={14} /> Remover{" "}
+                </>
+              ) : (
+                <>
+                  {" "}
+                  <Check size={14} /> Selecionado{" "}
+                </>
+              )
             ) : (
               <>
                 {" "}

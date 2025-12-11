@@ -34,3 +34,19 @@ export interface CartItem {
   kitComponents?: Product[];
   kitTotalAmount?: number;
 }
+
+export interface StoreSettings {
+  id: string;
+  theme: {
+    primaryColor: string;
+    secondaryColor: string;
+    accentColor: string;
+    backgroundColor: string;
+  };
+  filters: {
+    activeCategories: string[];
+    categoryOrder: string[];
+  };
+  storeName: string;
+  whatsappNumber: string;
+}
