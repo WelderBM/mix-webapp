@@ -10,26 +10,35 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Product } from "@/lib/types";
-import { ShoppingBag, Box, Info, Check } from "lucide-react";
+import { Box } from "lucide-react";
 import Image from "next/image";
-import { useKitStore } from "@/store/kitStore";
 
 interface ProductQuickViewProps {
   product: Product;
   isOpen: boolean;
   onClose: () => void;
+  onAction?: () => void; // A função de adicionar (pode vir do Carrinho ou do Kit)
+  actionLabel?: string;
+  isFull?: boolean; // Para saber se bloqueia a adição (Capacidade)
+  currentUsage?: number;
+  maxCapacity?: number;
 }
 
 export function ProductQuickView({
   product,
   isOpen,
   onClose,
+  onAction,
+  actionLabel = "Adicionar",
+  isFull = false,
+  currentUsage = 0,
+  maxCapacity = 0,
 }: ProductQuickViewProps) {
-  const { addItem, selectedBase, currentCapacityUsage } = useKitStore();
-
   const handleAddToCart = () => {
-    addItem(product);
-    onClose();
+    if (onAction) {
+      onAction();
+      onClose();
+    }
   };
 
   const formatMoney = (value: number) =>
@@ -38,19 +47,19 @@ export function ProductQuickView({
       currency: "BRL",
     }).format(value);
 
-  // Lógica de Simulação de Espaço
   const itemSize = product.itemSize || 1;
-  const maxCapacity = selectedBase?.capacity || 10; // Fallback se não tiver base selecionada
-  const futureUsage = currentCapacityUsage + itemSize;
-  const isFull = futureUsage > maxCapacity;
-  const usagePercentage = Math.min((futureUsage / maxCapacity) * 100, 100);
+  const futureUsage = currentUsage + itemSize;
+  const usagePercentage =
+    maxCapacity > 0 ? Math.min((futureUsage / maxCapacity) * 100, 100) : 0;
+
+  // Só mostra barra de capacidade se estivermos no contexto de Kit (maxCapacity > 0)
+  const showCapacity = maxCapacity > 0 && product.type === "NATURA_ITEM";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-white rounded-2xl gap-0">
-        <div className="grid md:grid-cols-2">
-          {/* Lado Esquerdo: Imagem */}
-          <div className="relative h-64 md:h-full bg-slate-100">
+      <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-white rounded-2xl gap-0 border-0 shadow-2xl">
+        <div className="grid md:grid-cols-2 h-full">
+          <div className="relative h-64 md:h-full bg-slate-100 min-h-[300px]">
             <Image
               src={product.imageUrl}
               alt={product.name}
@@ -58,13 +67,12 @@ export function ProductQuickView({
               className="object-cover"
             />
             {product.originalPrice && (
-              <Badge className="absolute top-4 left-4 bg-red-500 hover:bg-red-600">
+              <Badge className="absolute top-4 left-4 bg-red-500 hover:bg-red-600 border-0">
                 Oferta
               </Badge>
             )}
           </div>
 
-          {/* Lado Direito: Infos */}
           <div className="p-6 flex flex-col h-full">
             <DialogHeader className="mb-4 text-left">
               <Badge
@@ -77,13 +85,12 @@ export function ProductQuickView({
                 {product.name}
               </DialogTitle>
               <DialogDescription className="text-slate-500 mt-2">
-                Uma descrição rica e detalhada sobre o {product.name} iria aqui.
-                Notas olfativas, texturas e benefícios.
+                {product.description ||
+                  "Descrição detalhada do produto, notas olfativas, benefícios e modo de uso."}
               </DialogDescription>
             </DialogHeader>
 
-            {/* Simulação de Espaço (Só aparece se for item de kit) */}
-            {product.type === "NATURA_ITEM" && selectedBase && (
+            {showCapacity && (
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 mb-6">
                 <div className="flex items-center gap-2 text-sm text-slate-700 font-semibold mb-2">
                   <Box size={16} className="text-purple-600" />
@@ -130,17 +137,15 @@ export function ProductQuickView({
                 </span>
               </div>
 
-              <Button
-                onClick={handleAddToCart}
-                disabled={
-                  isFull && product.type === "NATURA_ITEM" && !!selectedBase
-                }
-                className="bg-slate-900 hover:bg-slate-800 px-6"
-              >
-                {isFull && product.type === "NATURA_ITEM" && !!selectedBase
-                  ? "Sem Espaço"
-                  : "Adicionar"}
-              </Button>
+              {onAction && (
+                <Button
+                  onClick={handleAddToCart}
+                  disabled={showCapacity && isFull}
+                  className="bg-slate-900 hover:bg-slate-800 px-6 font-semibold"
+                >
+                  {showCapacity && isFull ? "Sem Espaço" : actionLabel}
+                </Button>
+              )}
             </div>
           </div>
         </div>

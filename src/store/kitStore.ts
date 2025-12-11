@@ -22,6 +22,7 @@ interface KitBuilderState {
   resetKit: () => void;
 }
 
+// CORREÇÃO: Função que agrupa nomes para limpar o texto
 const generateNarrative = (state: KitBuilderState): string => {
   const { selectedBase, selectedItems, selectedFiller, selectedRibbon } = state;
 
@@ -32,13 +33,14 @@ const generateNarrative = (state: KitBuilderState): string => {
   }`;
 
   if (selectedItems.length > 0) {
+    // Lógica de Agrupamento (Ex: "3x Sabonete")
     const counts = selectedItems.reduce((acc, item) => {
       acc[item.name] = (acc[item.name] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
     const itemsText = Object.entries(counts)
-      .map(([name, count]) => `${count}x ${name.split(" ")[0]}`)
+      .map(([name, count]) => `${count}x ${name.split(" ")[0]}`) // Pega só o primeiro nome
       .join(", ");
 
     text += `, recheada com ${itemsText}`;
@@ -84,7 +86,7 @@ export const useKitStore = create<KitBuilderState>((set, get) => ({
     const itemSize = product.itemSize || 1;
     const maxCapacity = state.selectedBase?.capacity || 100;
 
-    // Apenas bloqueia silenciosamente. O feedback visual será feito no componente UI.
+    // Bloqueia adição se exceder (Segurança extra)
     if (state.currentCapacityUsage + itemSize > maxCapacity) {
       return;
     }
@@ -105,6 +107,7 @@ export const useKitStore = create<KitBuilderState>((set, get) => ({
 
   removeItem: (indexToRemove) => {
     set((state) => {
+      // Remove pelo INDEX para evitar apagar itens duplicados errados
       const newItems = state.selectedItems.filter(
         (_, index) => index !== indexToRemove
       );
