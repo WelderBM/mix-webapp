@@ -22,7 +22,6 @@ interface KitBuilderState {
   resetKit: () => void;
 }
 
-// CORREÇÃO: Função que agrupa nomes para limpar o texto
 const generateNarrative = (state: KitBuilderState): string => {
   const { selectedBase, selectedItems, selectedFiller, selectedRibbon } = state;
 
@@ -33,14 +32,14 @@ const generateNarrative = (state: KitBuilderState): string => {
   }`;
 
   if (selectedItems.length > 0) {
-    // Lógica de Agrupamento (Ex: "3x Sabonete")
+    // AGRUPAMENTO: Conta itens repetidos
     const counts = selectedItems.reduce((acc, item) => {
       acc[item.name] = (acc[item.name] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
     const itemsText = Object.entries(counts)
-      .map(([name, count]) => `${count}x ${name.split(" ")[0]}`) // Pega só o primeiro nome
+      .map(([name, count]) => `${count}x ${name.split(" ")[0]}`) // Ex: "2x Sabonete"
       .join(", ");
 
     text += `, recheada com ${itemsText}`;
@@ -86,7 +85,6 @@ export const useKitStore = create<KitBuilderState>((set, get) => ({
     const itemSize = product.itemSize || 1;
     const maxCapacity = state.selectedBase?.capacity || 100;
 
-    // Bloqueia adição se exceder (Segurança extra)
     if (state.currentCapacityUsage + itemSize > maxCapacity) {
       return;
     }
@@ -107,7 +105,7 @@ export const useKitStore = create<KitBuilderState>((set, get) => ({
 
   removeItem: (indexToRemove) => {
     set((state) => {
-      // Remove pelo INDEX para evitar apagar itens duplicados errados
+      // Remove pelo INDEX (evita apagar todos os sabonetes se tiver 3 iguais)
       const newItems = state.selectedItems.filter(
         (_, index) => index !== indexToRemove
       );

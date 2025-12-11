@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { ProductCard } from "./ProductCard";
 
 export function KitBuilderModal() {
   const {
@@ -44,13 +45,16 @@ export function KitBuilderModal() {
     resetKit,
   } = useKitStore();
 
-  const { products } = useProductStore();
+  // CORREÇÃO: Buscando 'allProducts' em vez de 'products', pois mudamos o nome na Store
+  const { allProducts } = useProductStore();
+  const products = allProducts; // Alias para manter o código abaixo funcionando
+
   const { addItem: addCartItem, openCart } = useCartStore();
 
   const [shake, setShake] = useState(false);
 
   const baseProducts = products.filter((p) => p.type === "BASE_CONTAINER");
-  const naturaProducts = products.filter((p) => p.type === "NATURA_ITEM");
+  const standardProducts = products.filter((p) => p.type === "STANDARD_ITEM");
   const fillerProducts = products.filter((p) => p.type === "FILLER");
   const ribbonProducts = products.filter((p) => p.type === "RIBBON");
 
@@ -78,24 +82,20 @@ export function KitBuilderModal() {
 
   const handleAddItem = (product: Product) => {
     const itemSize = product.itemSize || 1;
-
     if (currentCapacityUsage + itemSize > maxCapacity) {
       setShake(true);
       setTimeout(() => setShake(false), 500);
       return;
     }
-
     addItem(product);
   };
 
   const handleNext = () => {
     if (currentStep === 1 && !selectedBase)
       return alert("Escolha uma caixa primeiro!");
-
     if (currentStep < 3) {
       setStep(currentStep + 1);
     } else {
-      // Lógica de Finalização (Step 3 -> Salvar no Carrinho)
       handleFinishKit();
     }
   };
@@ -103,7 +103,6 @@ export function KitBuilderModal() {
   const handleFinishKit = () => {
     if (!selectedBase) return;
 
-    // Monta a lista de componentes do kit para salvar
     const components = [
       selectedBase,
       ...selectedItems,
@@ -118,20 +117,11 @@ export function KitBuilderModal() {
       kitComponents: components,
       kitTotalAmount: calculateTotal(),
       quantity: 1,
-      // description: narrative // Opcional, se quiser salvar o texto gerado
     };
 
-    // 1. Adiciona ao carrinho global
     addCartItem(kitItem);
-
-    // 2. Fecha o modal de construção
     closeBuilder();
-
-    // 3. Reseta o construtor para o próximo uso
     resetKit();
-
-    // 4. Abre o carrinho para dar feedback ao usuário
-    // (Pequeno delay para a animação de fechar o modal não conflitar)
     setTimeout(() => {
       openCart();
     }, 300);
@@ -147,48 +137,21 @@ export function KitBuilderModal() {
     isSelected: (p: Product) => boolean
   ) => (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-4">
-      {items.map((product) => {
-        const active = isSelected(product);
-        return (
-          <div
-            key={product.id}
-            onClick={() => onSelect(product)}
-            className={cn(
-              "cursor-pointer rounded-xl border-2 p-3 transition-all relative overflow-hidden group bg-white",
-              active
-                ? "border-purple-600 bg-purple-50"
-                : "border-slate-100 hover:border-purple-200"
-            )}
-          >
-            {active && (
-              <div className="absolute top-2 right-2 bg-purple-600 text-white rounded-full p-1 z-10 shadow-sm">
-                <Check size={12} />
-              </div>
-            )}
-            <div className="relative aspect-square mb-2 bg-slate-100 rounded-lg overflow-hidden">
-              <Image
-                src={product.imageUrl}
-                alt={product.name}
-                fill
-                className="object-cover group-hover:scale-105 transition-transform"
-              />
-            </div>
-            <h3 className="text-sm font-medium text-slate-800 line-clamp-2 leading-tight min-h-[2.5rem]">
-              {product.name}
-            </h3>
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-sm font-bold text-purple-700">
-                {formatMoney(product.price)}
-              </p>
-              {product.itemSize && (
-                <span className="text-[10px] text-slate-400 bg-slate-100 px-1 rounded">
-                  ocupa {product.itemSize}
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      })}
+      {items.map((product) => (
+        <ProductCard
+          key={product.id}
+          product={product}
+          isSelected={isSelected(product)}
+          onSelect={() => onSelect(product)}
+          actionLabel="Selecionar"
+          disabled={
+            currentStep === 2 &&
+            isFull &&
+            !isSelected(product) &&
+            product.type === "STANDARD_ITEM"
+          }
+        />
+      ))}
     </div>
   );
 
@@ -276,23 +239,6 @@ export function KitBuilderModal() {
                       style={{ width: `${capacityPercentage}%` }}
                     />
                   </div>
-
-                  <p
-                    className={cn(
-                      "text-[10px] mt-1 font-bold transition-all",
-                      shake
-                        ? "text-red-500 animate-pulse"
-                        : isFull
-                        ? "text-green-600"
-                        : "text-purple-400 opacity-0"
-                    )}
-                  >
-                    {shake
-                      ? "OPS! NÃO CABE MAIS ITENS."
-                      : isFull
-                      ? "Perfeito! Tudo pronto para avançar."
-                      : ""}
-                  </p>
                 </div>
               )}
             </div>
@@ -320,8 +266,10 @@ export function KitBuilderModal() {
                   <h3 className="font-semibold text-slate-700 text-lg mb-4">
                     Recheio do Kit
                   </h3>
+
                   {selectedItems.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto pb-4 mb-4 scrollbar-hide snap-x">
+                      {/* CORREÇÃO: Usando 'index' como key para permitir itens duplicados sem erro */}
                       {selectedItems.map((item, index) => (
                         <div
                           key={index}
@@ -357,11 +305,11 @@ export function KitBuilderModal() {
                   <div
                     className={cn(
                       "transition-all duration-300",
-                      isFull && "opacity-60 grayscale"
+                      isFull && "opacity-90"
                     )}
                   >
                     {renderProductGrid(
-                      naturaProducts,
+                      standardProducts,
                       handleAddItem,
                       (p) => false
                     )}

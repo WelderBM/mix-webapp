@@ -25,6 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, LogOut, Search, Package } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
 import Image from "next/image";
+import { Home as HomeIcon } from "lucide-react";
+import Link from "next/link";
 
 export default function AdminPage() {
   // Estado de Autenticação Simples
@@ -48,7 +50,7 @@ export default function AdminPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === "admin123") {
+    if (password === "6367") {
       // SENHA TEMPORÁRIA
       localStorage.setItem("mix_admin_auth", "true");
       setIsAuthenticated(true);
@@ -144,7 +146,17 @@ export default function AdminPage() {
               Gerencie seu catálogo, preços e estoque.
             </p>
           </div>
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
+            {/* Botão Seguro para a Home */}
+            <Link href="/" target="_blank">
+              <Button
+                variant="outline"
+                className="border-purple-200 text-purple-700 hover:bg-purple-50"
+              >
+                <HomeIcon size={16} className="mr-2" /> Ir para Loja
+              </Button>
+            </Link>
+
             <Button
               onClick={handleLogout}
               variant="ghost"

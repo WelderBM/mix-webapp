@@ -26,8 +26,7 @@ export function ProductCard({
 }: ProductCardProps) {
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
 
-  // Precisamos acessar a store do Kit APENAS para passar dados de capacidade para o Modal
-  // Se não estivermos montando kit, isso será irrelevante/zerado
+  // Acessamos a store apenas para verificar capacidade (se estiver no modo kit)
   const { currentCapacityUsage, selectedBase } = useKitStore();
 
   const formatPrice = (value: number) =>
@@ -47,12 +46,12 @@ export function ProductCard({
     }
   };
 
-  // Calcula dados para passar pro modal (apenas visualização)
   const maxCapacity = selectedBase?.capacity || 0;
   const itemSize = product.itemSize || 1;
+  // Verifica se está cheio APENAS se estivermos num contexto de kit (tem base selecionada e é item de recheio)
   const isFull =
     currentCapacityUsage + itemSize > maxCapacity &&
-    product.type === "NATURA_ITEM" &&
+    product.type === "STANDARD_ITEM" &&
     !!selectedBase;
 
   return (
@@ -65,7 +64,7 @@ export function ProductCard({
             : "border-slate-100 hover:shadow-md hover:border-slate-200",
           disabled && "opacity-60 grayscale cursor-not-allowed"
         )}
-        onClick={!disabled ? handleCardClick : undefined} // Clique no CARD abre DETALHES
+        onClick={!disabled ? handleCardClick : undefined}
       >
         {isSelected && (
           <div className="absolute top-2 right-2 bg-purple-600 text-white rounded-full p-1 z-20 shadow-sm animate-in zoom-in">
@@ -86,8 +85,6 @@ export function ProductCard({
               OFERTA
             </span>
           )}
-
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-300" />
 
           <div className="absolute top-2 right-2 bg-white/90 text-slate-700 p-2 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-10">
             <Eye size={16} />
@@ -138,7 +135,7 @@ export function ProductCard({
                 ? "bg-purple-600 hover:bg-purple-700 text-white border-transparent"
                 : "bg-white hover:bg-slate-50 text-slate-900 border-slate-200"
             )}
-            onClick={handleButtonClick} // Clique no BOTÃO executa AÇÃO
+            onClick={handleButtonClick}
           >
             {isSelected ? (
               <>
@@ -159,7 +156,7 @@ export function ProductCard({
         product={product}
         isOpen={isQuickViewOpen}
         onClose={() => setIsQuickViewOpen(false)}
-        onAction={onSelect} // Passa a ação para o modal também
+        onAction={onSelect}
         actionLabel={actionLabel}
         isFull={isFull}
         currentUsage={currentCapacityUsage}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,8 +21,10 @@ import {
 } from "@/components/ui/select";
 import { Product, ProductType, MeasureUnit } from "@/lib/types";
 import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { Loader2 } from "lucide-react";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "@/lib/firebase";
+import { Loader2, Upload, X, Info } from "lucide-react";
+import Image from "next/image";
 
 interface ProductFormDialogProps {
   isOpen: boolean;
@@ -38,12 +40,13 @@ export function ProductFormDialog({
   onSuccess,
 }: ProductFormDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Estado inicial do formulário
   const [formData, setFormData] = useState<Partial<Product>>({
     name: "",
     price: 0,
-    type: "NATURA_ITEM",
+    type: "STANDARD_ITEM",
     category: "",
     imageUrl: "",
     unit: "un",
@@ -53,7 +56,6 @@ export function ProductFormDialog({
     description: "",
   });
 
-  // Preenche o form se for edição
   useEffect(() => {
     if (productToEdit) {
       setFormData(productToEdit);
@@ -61,7 +63,7 @@ export function ProductFormDialog({
       setFormData({
         name: "",
         price: 0,
-        type: "NATURA_ITEM",
+        type: "STANDARD_ITEM",
         category: "Geral",
         imageUrl: "",
         unit: "un",
@@ -73,12 +75,29 @@ export function ProductFormDialog({
     }
   }, [productToEdit, isOpen]);
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setFormData((prev) => ({ ...prev, imageUrl: url }));
+    } catch (error) {
+      console.error("Erro no upload:", error);
+      alert("Falha ao enviar imagem.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      // Limpeza de dados
       const payload = {
         ...formData,
         price: Number(formData.price),
@@ -86,7 +105,7 @@ export function ProductFormDialog({
           ? Number(formData.originalPrice)
           : undefined,
         itemSize:
-          formData.type === "NATURA_ITEM"
+          formData.type === "STANDARD_ITEM"
             ? Number(formData.itemSize)
             : undefined,
         capacity:
@@ -96,13 +115,11 @@ export function ProductFormDialog({
       };
 
       if (productToEdit?.id) {
-        // Atualizar
         const docRef = doc(db, "products", productToEdit.id);
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id, ...dataToUpdate } = payload as Product;
         await updateDoc(docRef, dataToUpdate);
       } else {
-        // Criar Novo
         await addDoc(collection(db, "products"), payload);
       }
 
@@ -126,16 +143,67 @@ export function ProductFormDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Imagem do Produto</Label>
+
+            {!formData.imageUrl ? (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-300 rounded-xl h-40 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors group"
+              >
+                {isUploading ? (
+                  <Loader2 className="h-8 w-8 text-purple-600 animate-spin" />
+                ) : (
+                  <>
+                    <div className="bg-purple-100 p-3 rounded-full mb-2 group-hover:scale-110 transition-transform">
+                      <Upload className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-600">
+                      Clique para enviar foto
+                    </p>
+                    <p className="text-xs text-slate-400">JPG, PNG ou WebP</p>
+                  </>
+                )}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                />
+              </div>
+            ) : (
+              <div className="relative w-full h-48 bg-slate-100 rounded-xl overflow-hidden border">
+                <Image
+                  src={formData.imageUrl}
+                  alt="Preview"
+                  fill
+                  className="object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({ ...prev, imageUrl: "" }))
+                  }
+                  className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 shadow-md transition-transform hover:scale-105"
+                  title="Remover imagem"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Nome do Produto</Label>
+              <Label>Nome</Label>
               <Input
                 required
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                placeholder="Ex: Hidratante TodoDia"
+                placeholder="Ex: Hidratante"
               />
             </div>
 
@@ -154,7 +222,7 @@ export function ProductFormDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Tipo (Sistema)</Label>
+              <Label>Tipo</Label>
               <Select
                 value={formData.type}
                 onValueChange={(val) =>
@@ -165,15 +233,14 @@ export function ProductFormDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="NATURA_ITEM">
-                    Produto Natura (Recheio)
-                  </SelectItem>
+                  <SelectItem value="STANDARD_ITEM">Produto Padrão</SelectItem>
                   <SelectItem value="BASE_CONTAINER">
                     Base (Cesta/Caixa)
                   </SelectItem>
                   <SelectItem value="FILLER">Fundo (Palha/Seda)</SelectItem>
                   <SelectItem value="RIBBON">Fita/Laço</SelectItem>
                   <SelectItem value="WRAPPER">Embalagem Final</SelectItem>
+                  <SelectItem value="SUPPLY_BULK">Atacado (Revenda)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -217,11 +284,11 @@ export function ProductFormDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>Preço Original (Opcional)</Label>
+              <Label>Oferta (R$)</Label>
               <Input
                 type="number"
                 step="0.01"
-                placeholder="Para oferta"
+                placeholder="Preço antigo"
                 value={formData.originalPrice || ""}
                 onChange={(e) =>
                   setFormData({
@@ -233,11 +300,10 @@ export function ProductFormDialog({
             </div>
 
             <div className="space-y-2">
-              {/* Campo Dinâmico: Capacidade OU Tamanho */}
               {formData.type === "BASE_CONTAINER" ? (
                 <>
                   <Label className="text-purple-600 font-bold">
-                    Capacidade (Slots)
+                    Capacidade
                   </Label>
                   <Input
                     type="number"
@@ -248,14 +314,12 @@ export function ProductFormDialog({
                         capacity: parseInt(e.target.value),
                       })
                     }
-                    placeholder="Ex: 10"
+                    placeholder="Slots"
                   />
                 </>
               ) : (
                 <>
-                  <Label className="text-blue-600 font-bold">
-                    Tamanho (Slots)
-                  </Label>
+                  <Label className="text-blue-600 font-bold">Tamanho</Label>
                   <Input
                     type="number"
                     value={formData.itemSize || ""}
@@ -265,42 +329,55 @@ export function ProductFormDialog({
                         itemSize: parseInt(e.target.value),
                       })
                     }
-                    placeholder="Ex: 1"
+                    placeholder="Slots"
                   />
                 </>
               )}
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>URL da Imagem</Label>
-            <Input
-              value={formData.imageUrl}
-              onChange={(e) =>
-                setFormData({ ...formData, imageUrl: e.target.value })
-              }
-              placeholder="https://..."
-            />
-            {formData.imageUrl && (
-              <div className="relative w-20 h-20 mt-2 rounded-md overflow-hidden border">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={formData.imageUrl}
-                  alt="Preview"
-                  className="object-cover w-full h-full"
-                />
+          {/* TABELA DE REFERÊNCIA DE SLOTS (Instruções Visuais) */}
+          {(formData.type === "STANDARD_ITEM" ||
+            formData.type === "BASE_CONTAINER") && (
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-800 space-y-1">
+              <div className="flex items-center gap-2 font-bold mb-1">
+                <Info size={14} /> Referência de Tamanhos (Slots)
               </div>
-            )}
-          </div>
+              <div className="grid grid-cols-2 gap-2">
+                <ul className="list-disc pl-4 space-y-0.5">
+                  <li>
+                    Sabonete / Esmalte = <strong>1 Slot</strong>
+                  </li>
+                  <li>
+                    Hidratante / Colônia P = <strong>2 Slots</strong>
+                  </li>
+                  <li>
+                    Kit Barba / Perfume G = <strong>3 Slots</strong>
+                  </li>
+                </ul>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  <li>
+                    Caixa P = <strong>4 Slots</strong>
+                  </li>
+                  <li>
+                    Cesta M = <strong>8 Slots</strong>
+                  </li>
+                  <li>
+                    Cesta G = <strong>12+ Slots</strong>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
-            <Label>Descrição Completa</Label>
+            <Label>Descrição</Label>
             <Textarea
               value={formData.description || ""}
               onChange={(e) =>
                 setFormData({ ...formData, description: e.target.value })
               }
-              placeholder="Detalhes técnicos, notas olfativas..."
+              placeholder="Detalhes do produto..."
             />
           </div>
 
@@ -310,7 +387,7 @@ export function ProductFormDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || isUploading}
               className="bg-slate-900 text-white"
             >
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

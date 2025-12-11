@@ -1,5 +1,5 @@
 export type ProductType =
-  | "NATURA_ITEM"
+  | "STANDARD_ITEM" // Antes era STANDARD_ITEM. Agora serve para qualquer produto principal.
   | "BASE_CONTAINER"
   | "FILLER"
   | "WRAPPER"

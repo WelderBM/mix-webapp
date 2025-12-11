@@ -53,7 +53,7 @@ export function ProductQuickView({
     maxCapacity > 0 ? Math.min((futureUsage / maxCapacity) * 100, 100) : 0;
 
   // Só mostra barra de capacidade se estivermos no contexto de Kit (maxCapacity > 0)
-  const showCapacity = maxCapacity > 0 && product.type === "NATURA_ITEM";
+  const showCapacity = maxCapacity > 0 && product.type === "STANDARD_ITEM";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
