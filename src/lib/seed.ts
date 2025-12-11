@@ -1,6 +1,5 @@
-// src/lib/seed.ts
 import { db } from "./firebase";
-import { collection, doc, setDoc, writeBatch } from "firebase/firestore";
+import { collection, doc, writeBatch } from "firebase/firestore";
 import { Product } from "./types";
 
 export const SEED_PRODUCTS: Omit<Product, "id">[] = [
@@ -10,9 +9,10 @@ export const SEED_PRODUCTS: Omit<Product, "id">[] = [
     type: "BASE_CONTAINER",
     category: "Cestas",
     unit: "un",
-    description_adjective: "Rústica e clássica",
+    description_adjective: "Rústica",
     imageUrl: "https://placehold.co/400x400/png?text=Cesta+Madeira",
     inStock: true,
+    capacity: 10,
   },
   {
     name: "Caixa MDF Decorada P",
@@ -23,8 +23,8 @@ export const SEED_PRODUCTS: Omit<Product, "id">[] = [
     description_adjective: "Delicada",
     imageUrl: "https://placehold.co/400x400/png?text=Caixa+MDF",
     inStock: true,
+    capacity: 4,
   },
-
   {
     name: "Hidratante TodoDia Noz Pecã",
     price: 45.9,
@@ -35,6 +35,7 @@ export const SEED_PRODUCTS: Omit<Product, "id">[] = [
     imageUrl: "https://placehold.co/400x400/png?text=Hidratante",
     inStock: true,
     featured: true,
+    itemSize: 2,
   },
   {
     name: "Colônia Kayak Aventura",
@@ -44,6 +45,7 @@ export const SEED_PRODUCTS: Omit<Product, "id">[] = [
     unit: "un",
     imageUrl: "https://placehold.co/400x400/png?text=Kayak",
     inStock: true,
+    itemSize: 2,
   },
   {
     name: "Sabonete em Barra (Unidade)",
@@ -53,10 +55,10 @@ export const SEED_PRODUCTS: Omit<Product, "id">[] = [
     unit: "un",
     imageUrl: "https://placehold.co/400x400/png?text=Sabonete",
     inStock: true,
+    itemSize: 1,
   },
-
   {
-    name: "Palha Decorativa (Punhado)",
+    name: "Palha Decorativa",
     price: 3.0,
     type: "FILLER",
     category: "Decoração",
@@ -65,12 +67,11 @@ export const SEED_PRODUCTS: Omit<Product, "id">[] = [
     inStock: true,
   },
   {
-    name: "Fita de Cetim Vermelha 22mm",
+    name: "Fita de Cetim Vermelha",
     price: 1.5,
     type: "RIBBON",
     category: "Fitas",
     unit: "m",
-    description_adjective: "Vibrante",
     imageUrl: "https://placehold.co/400x400/png?text=Fita+Vermelha",
     inStock: true,
   },
@@ -79,12 +80,10 @@ export const SEED_PRODUCTS: Omit<Product, "id">[] = [
 export const runSeed = async () => {
   const batch = writeBatch(db);
   const productsRef = collection(db, "products");
-
   SEED_PRODUCTS.forEach((prod) => {
     const newDocRef = doc(productsRef);
     batch.set(newDocRef, { ...prod, id: newDocRef.id });
   });
-
   await batch.commit();
-  console.log("Banco de dados populado com sucesso!");
+  console.log("Banco de dados atualizado com slots!");
 };
