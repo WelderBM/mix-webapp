@@ -28,6 +28,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import {
   Plus,
   Pencil,
   Trash2,
@@ -44,20 +62,30 @@ import {
   Truck,
   XCircle,
   Bike,
+  Eye,
+  Filter,
 } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
+import { OrderDetailsSheet } from "@/components/admin/OrderDetailsSheet";
 import Image from "next/image";
 import Link from "next/link";
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
+
+  // Estados de Dados
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [adminCategoryFilter, setAdminCategoryFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
+
+  // Paginação
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Configurações
   const [settings, setSettings] = useState<StoreSettings>({
     id: "general",
     storeName: "Mix WebApp",
@@ -70,10 +98,18 @@ export default function AdminPage() {
     },
     filters: { activeCategories: [], categoryOrder: [] },
   });
+
+  // Pedidos
   const [orders, setOrders] = useState<Order[]>([]);
+
+  // Modais e Seleções
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [isOrderSheetOpen, setIsOrderSheetOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
+  // --- AUTENTICAÇÃO ---
   useEffect(() => {
     const auth = localStorage.getItem("mix_admin_auth");
     if (auth === "true") setIsAuthenticated(true);
@@ -84,13 +120,17 @@ export default function AdminPage() {
     if (password === "admin123") {
       localStorage.setItem("mix_admin_auth", "true");
       setIsAuthenticated(true);
+      toast.success("Bem-vindo ao Painel!");
     } else {
-      alert("Senha incorreta");
+      toast.error("Senha incorreta");
     }
   };
 
+  // --- DATA FETCHING (Tempo Real) ---
   useEffect(() => {
     if (!isAuthenticated) return;
+
+    // 1. Produtos
     const qProd = query(collection(db, "products"), orderBy("name"));
     const unsubProd = onSnapshot(qProd, (snapshot) => {
       const prods = snapshot.docs.map(
@@ -99,6 +139,8 @@ export default function AdminPage() {
       setAllProducts(prods);
       setLoading(false);
     });
+
+    // 2. Configurações
     const unsubSettings = onSnapshot(
       doc(db, "settings", "general"),
       (docSnap) => {
@@ -107,6 +149,8 @@ export default function AdminPage() {
         }
       }
     );
+
+    // 3. Pedidos
     const qOrders = query(
       collection(db, "orders"),
       orderBy("createdAt", "desc")
@@ -117,6 +161,7 @@ export default function AdminPage() {
       );
       setOrders(ords);
     });
+
     return () => {
       unsubProd();
       unsubSettings();
@@ -124,15 +169,26 @@ export default function AdminPage() {
     };
   }, [isAuthenticated]);
 
+  // --- FILTROS E PAGINAÇÃO ---
   useEffect(() => {
-    const results = allProducts.filter(
-      (p) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.category.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    let results = allProducts;
+
+    if (searchTerm) {
+      const lowerTerm = searchTerm.toLowerCase();
+      results = results.filter(
+        (p) =>
+          p.name.toLowerCase().includes(lowerTerm) ||
+          p.category.toLowerCase().includes(lowerTerm)
+      );
+    }
+
+    if (adminCategoryFilter !== "ALL") {
+      results = results.filter((p) => p.category === adminCategoryFilter);
+    }
+
     setFilteredProducts(results);
     setCurrentPage(1);
-  }, [searchTerm, allProducts]);
+  }, [searchTerm, adminCategoryFilter, allProducts]);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const paginatedProducts = filteredProducts.slice(
@@ -140,25 +196,37 @@ export default function AdminPage() {
     currentPage * itemsPerPage
   );
 
+  // Lista única de categorias para o filtro da tabela e para o autocomplete do modal
+  const existingCategories = Array.from(
+    new Set(allProducts.map((p) => p.category))
+  ).sort();
+
+  // --- AÇÕES ---
   const toggleProductStatus = async (product: Product) => {
     await updateDoc(doc(db, "products", product.id), {
       inStock: !product.inStock,
     });
+    toast.success(`Produto ${!product.inStock ? "ativado" : "desativado"}`);
   };
-  const handleDelete = async (id: string) => {
-    if (confirm("Tem certeza? Isso apaga permanentemente.")) {
-      await deleteDoc(doc(db, "products", id));
+
+  const confirmDelete = async () => {
+    if (deleteId) {
+      await deleteDoc(doc(db, "products", deleteId));
+      setDeleteId(null);
+      toast.success("Produto excluído com sucesso.");
     }
   };
+
   const saveSettings = async () => {
     try {
       await setDoc(doc(db, "settings", "general"), settings);
-      alert("Configurações salvas com sucesso!");
+      toast.success("Configurações salvas!");
     } catch (error) {
       console.error(error);
-      alert("Erro ao salvar.");
+      toast.error("Erro ao salvar.");
     }
   };
+
   const updateThemeColor = (
     key: keyof StoreSettings["theme"],
     value: string
@@ -168,14 +236,18 @@ export default function AdminPage() {
       theme: { ...prev.theme, [key]: value },
     }));
   };
+
   const handleStatusChange = async (
     orderId: string,
     newStatus: OrderStatus
   ) => {
     await updateDoc(doc(db, "orders", orderId), { status: newStatus });
+    toast.info("Status do pedido atualizado.");
   };
+
   const handleCopyDeliveryInfo = (order: Order) => {
-    const storeAddress = "Mix Novidades (Rua Pedro Aldemar Bantim, 945)";
+    const storeAddress =
+      "Mix Novidades (Rua Pedro Aldemar Bantim, 945 - Silvio Botelho)";
     const shortId = order.id.slice(0, 5).toUpperCase();
     const totalValue = new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -192,16 +264,23 @@ export default function AdminPage() {
     }
 
     const text =
-      `🛵 *SOLICITAÇÃO DE ENTREGA #${shortId}*\n\n` +
+      `🛵 *COTAR ENTREGA #${shortId}*\n\n` +
       `📍 *Retirada:* ${storeAddress}\n` +
       `🏁 *Entrega:* ${order.address}\n` +
-      `👤 *Cliente:* ${order.customerName || "Cliente"}\n\n` +
+      `👤 *Cliente:* ${order.customerName || "Não informado"}\n` +
       `${paymentInstruction}\n` +
       `📦 *Volume:* ${order.items.length} itens`;
 
     navigator.clipboard.writeText(text);
-    alert("Texto copiado! Cole no WhatsApp do Motoboy.");
+    toast.success("Texto copiado! Cole no WhatsApp do Motoboy.");
   };
+
+  const handleViewOrder = (order: Order) => {
+    setSelectedOrder(order);
+    setIsOrderSheetOpen(true);
+  };
+
+  // Helpers de UI
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
       case "pending":
@@ -218,6 +297,7 @@ export default function AdminPage() {
         return "bg-gray-100 text-gray-800";
     }
   };
+
   const getStatusLabel = (status: OrderStatus) => {
     switch (status) {
       case "pending":
@@ -261,6 +341,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-10">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">
@@ -285,6 +366,8 @@ export default function AdminPage() {
             </Button>
           </div>
         </div>
+
+        {/* ABAS */}
         <Tabs defaultValue="orders" className="w-full space-y-6">
           <TabsList className="bg-white p-1 rounded-lg border shadow-sm">
             <TabsTrigger value="orders" className="gap-2">
@@ -300,30 +383,55 @@ export default function AdminPage() {
               <Settings size={16} /> Configurações
             </TabsTrigger>
           </TabsList>
+
+          {/* CONTEÚDO: PRODUTOS */}
           <TabsContent value="products" className="space-y-4">
-            <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
-              <div className="relative w-72">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                  size={18}
-                />
-                <Input
-                  placeholder="Buscar produtos..."
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl shadow-sm gap-4">
+              <div className="flex gap-2 w-full md:w-auto flex-1">
+                <div className="relative flex-1 md:max-w-xs">
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={18}
+                  />
+                  <Input
+                    placeholder="Buscar produtos..."
+                    className="pl-10"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                {/* FILTRO DE CATEGORIA */}
+                <Select
+                  value={adminCategoryFilter}
+                  onValueChange={setAdminCategoryFilter}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Filter size={16} />
+                      <SelectValue placeholder="Categoria" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todas Categorias</SelectItem>
+                    {existingCategories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <Button
                 onClick={() => {
                   setEditingProduct(null);
                   setIsModalOpen(true);
                 }}
-                className="bg-purple-600 hover:bg-purple-700"
+                className="bg-purple-600 hover:bg-purple-700 w-full md:w-auto"
               >
                 <Plus size={16} className="mr-2" /> Novo Produto
               </Button>
             </div>
+
             <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200">
               <Table>
                 <TableHeader>
@@ -390,7 +498,7 @@ export default function AdminPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(product.id)}
+                            onClick={() => setDeleteId(product.id)}
                           >
                             <Trash2 size={16} className="text-red-500" />
                           </Button>
@@ -425,6 +533,8 @@ export default function AdminPage() {
               </div>
             </div>
           </TabsContent>
+
+          {/* CONTEÚDO: PEDIDOS */}
           <TabsContent value="orders" className="space-y-4">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -434,19 +544,24 @@ export default function AdminPage() {
                 <Table>
                   <TableHeader className="bg-slate-50">
                     <TableRow>
+                      <TableHead className="w-[50px] text-center">
+                        Ver
+                      </TableHead>
                       <TableHead>Info</TableHead>
                       <TableHead>Entrega</TableHead>
                       <TableHead>Pagamento</TableHead>
                       <TableHead>Total</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead className="text-right">
+                        Ações Rápidas
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {orders.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={6}
+                          colSpan={7}
                           className="text-center py-10 text-slate-500"
                         >
                           Nenhum pedido recebido ainda.
@@ -455,6 +570,17 @@ export default function AdminPage() {
                     ) : (
                       orders.map((order) => (
                         <TableRow key={order.id}>
+                          <TableCell className="text-center">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-purple-600 hover:bg-purple-50"
+                              onClick={() => handleViewOrder(order)}
+                              title="Abrir Detalhes"
+                            >
+                              <Eye size={20} />
+                            </Button>
+                          </TableCell>
                           <TableCell>
                             <div className="flex flex-col">
                               <span className="font-mono text-xs text-slate-500">
@@ -484,7 +610,7 @@ export default function AdminPage() {
                                 Retirada
                               </Badge>
                             ) : (
-                              <div className="flex flex-col gap-1 max-w-[200px]">
+                              <div className="flex flex-col gap-1 max-w-[180px]">
                                 <Badge
                                   variant="secondary"
                                   className="bg-blue-50 text-blue-700 w-fit"
@@ -596,6 +722,8 @@ export default function AdminPage() {
               </div>
             </div>
           </TabsContent>
+
+          {/* CONTEÚDO: APARÊNCIA */}
           <TabsContent value="appearance">
             <div className="bg-white p-6 rounded-xl shadow-sm space-y-8">
               <div>
@@ -655,6 +783,8 @@ export default function AdminPage() {
               </div>
             </div>
           </TabsContent>
+
+          {/* CONTEÚDO: SETTINGS */}
           <TabsContent value="settings">
             <div className="bg-white p-6 rounded-xl shadow-sm">
               <h2 className="text-lg font-bold mb-4">Gerenciar Categorias</h2>
@@ -663,12 +793,52 @@ export default function AdminPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <OrderDetailsSheet
+        isOpen={isOrderSheetOpen}
+        onClose={() => setIsOrderSheetOpen(false)}
+        order={selectedOrder}
+        onStatusChange={(id, status) => {
+          handleStatusChange(id, status);
+        }}
+        onCopyDelivery={handleCopyDeliveryInfo}
+      />
+
+      {/* MODAL DE PRODUTO AGORA RECEBE LISTA DE CATEGORIAS */}
       <ProductFormDialog
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         productToEdit={editingProduct}
-        onSuccess={() => setIsModalOpen(false)}
+        onSuccess={() => {
+          setIsModalOpen(false);
+          toast.success("Produto salvo!");
+        }}
+        existingCategories={existingCategories}
       />
+
+      <AlertDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação não pode ser desfeita. O produto será excluído
+              permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Sim, excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

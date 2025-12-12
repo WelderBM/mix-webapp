@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCartStore } from "@/store/cartStore";
 import {
   Sheet,
@@ -10,7 +10,6 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -31,12 +30,15 @@ import {
   Store,
   CreditCard,
   Banknote,
+  QrCode,
+  AlertCircle,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { DeliveryMethod, PaymentMethod } from "@/lib/types";
+import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/lib/types";
+import { toast } from "sonner";
 
 export function CartSidebar() {
   const { items, isCartOpen, closeCart, removeItem, getCartTotal, clearCart } =
@@ -44,9 +46,16 @@ export function CartSidebar() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [deliveryMethod, setDeliveryMethod] =
     useState<DeliveryMethod>("pickup");
+  const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>("prepaid");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
   const [address, setAddress] = useState("");
   const [customerName, setCustomerName] = useState("");
+
+  useEffect(() => {
+    if (deliveryMethod === "delivery") {
+      if (paymentMethod === "card") setPaymentMethod("pix");
+    }
+  }, [deliveryMethod, paymentMethod]);
 
   const formatMoney = (value: number) =>
     new Intl.NumberFormat("pt-BR", {
@@ -56,11 +65,14 @@ export function CartSidebar() {
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
+
     if (deliveryMethod === "delivery" && address.trim().length < 5) {
-      alert("Por favor, digite o endereço completo para entrega.");
+      toast.warning("Por favor, digite o endereço completo para entrega.");
       return;
     }
+
     setIsCheckingOut(true);
+
     try {
       const orderData = {
         createdAt: Date.now(),
@@ -69,12 +81,16 @@ export function CartSidebar() {
         items: items,
         customerName: customerName || "Cliente do Site",
         deliveryMethod,
-        address: deliveryMethod === "delivery" ? address : undefined,
+        address: deliveryMethod === "delivery" ? address : null,
         paymentMethod,
+        paymentTiming,
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const docRef = await addDoc(collection(db, "orders"), orderData as any);
+
+      const cleanOrderData = JSON.parse(JSON.stringify(orderData));
+
+      const docRef = await addDoc(collection(db, "orders"), cleanOrderData);
       const shortId = docRef.id.slice(0, 5).toUpperCase();
+
       let message = `*Novo Pedido #${shortId}*\n--------------------------------\n`;
       items.forEach((item, index) => {
         if (item.type === "SIMPLE" && item.product) {
@@ -85,29 +101,35 @@ export function CartSidebar() {
           message += `${index + 1}. 📦 ${item.kitName}\n`;
         }
       });
-      message += `\n*Total: ${formatMoney(
+      message += `\n*Total Produtos: ${formatMoney(
         getCartTotal()
-      )}*\n--------------------------------\n`;
+      )}*\n*(Taxa de entrega a combinar)*\n--------------------------------\n`;
+
       if (deliveryMethod === "pickup") {
-        message += `📍 *Vou retirar na loja*\n`;
+        message += `📍 *Retirada na Loja*\n`;
       } else {
-        message += `🛵 *Entrega para:*\n${address}\n`;
+        message += `🛵 *Entrega*\n📍 ${address}\n`;
       }
-      const paymentLabel = {
-        pix: "Pix",
-        card: "Cartão (Link/Maquininha)",
-        cash: "Dinheiro",
-      };
-      message += `💲 *Pagamento:* ${paymentLabel[paymentMethod]}\n`;
-      if (customerName) message += `👤 *Cliente:* ${customerName}`;
+
+      const methodLabels = { pix: "Pix", card: "Cartão", cash: "Dinheiro" };
+      message += `💲 *Pagamento:* ${methodLabels[paymentMethod]}\n`;
+      if (paymentTiming === "prepaid")
+        message += `✅ *Vou pagar AGORA (Enviar chave Pix)*\n`;
+      else message += `🚚 *Vou pagar NA ENTREGA*\n`;
+
+      if (customerName) message += `\n👤 *Cliente:* ${customerName}`;
+
       const encodedMessage = encodeURIComponent(message);
       const whatsappUrl = `https://wa.me/5595984244194?text=${encodedMessage}`;
+
       clearCart();
       closeCart();
       window.open(whatsappUrl, "_blank");
+      toast.success("Pedido enviado! Verifique seu WhatsApp.");
     } catch (error) {
-      console.error("Erro:", error);
-      alert("Erro ao processar. Tente novamente.");
+      console.error("Erro completo:", error);
+      // @ts-ignore
+      toast.error(`Erro ao processar: ${error.message}`);
     } finally {
       setIsCheckingOut(false);
     }
@@ -115,20 +137,20 @@ export function CartSidebar() {
 
   return (
     <Sheet open={isCartOpen} onOpenChange={(open) => !open && closeCart()}>
-      <SheetContent className="flex flex-col w-full sm:max-w-md bg-slate-50 p-0">
+      <SheetContent className="flex flex-col w-full sm:max-w-md bg-slate-50 p-0 h-full">
+        {" "}
+        {/* h-full garante altura total */}
         <SheetHeader className="p-6 bg-white border-b flex-shrink-0">
           <SheetTitle className="flex items-center gap-2 text-xl">
-            <ShoppingCart className="text-purple-600" /> Seu Carrinho
+            <ShoppingCart className="text-purple-600" /> Seu Carrinho{" "}
             <span className="ml-auto text-sm font-normal text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-              {items.length} itens
+              {items.length}
             </span>
           </SheetTitle>
         </SheetHeader>
         {items.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
-            <div className="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center">
-              <ShoppingCart size={40} className="text-slate-400" />
-            </div>
+            <ShoppingCart size={40} className="text-slate-400" />
             <h3 className="text-lg font-semibold text-slate-700">
               Carrinho vazio
             </h3>
@@ -138,8 +160,10 @@ export function CartSidebar() {
           </div>
         ) : (
           <>
-            <ScrollArea className="flex-1">
+            {/* CORREÇÃO DE SCROLL: div nativa em vez de ScrollArea */}
+            <div className="flex-1 overflow-y-auto">
               <div className="p-4 space-y-6">
+                {/* Lista de Itens */}
                 <div className="space-y-3">
                   {items.map((item) => (
                     <div
@@ -199,11 +223,11 @@ export function CartSidebar() {
                     </div>
                   ))}
                 </div>
+
                 <div className="h-px bg-slate-200" />
+
                 <div className="space-y-3">
-                  <Label className="text-slate-700 font-bold">
-                    Seu Nome (Opcional)
-                  </Label>
+                  <Label>Seu Nome</Label>
                   <Input
                     placeholder="Ex: Maria da Silva"
                     value={customerName}
@@ -211,11 +235,16 @@ export function CartSidebar() {
                     className="bg-white"
                   />
                 </div>
+
                 <div className="space-y-3">
-                  <Label className="text-slate-700 font-bold">Entrega</Label>
+                  <Label className="text-slate-700 font-bold flex items-center gap-2">
+                    <MapPin size={16} /> Forma de Entrega
+                  </Label>
                   <RadioGroup
                     value={deliveryMethod}
-                    onValueChange={(v: DeliveryMethod) => setDeliveryMethod(v)}
+                    onValueChange={(v) =>
+                      setDeliveryMethod(v as DeliveryMethod)
+                    }
                     className="grid grid-cols-2 gap-3"
                   >
                     <div>
@@ -229,9 +258,7 @@ export function CartSidebar() {
                         className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-white p-3 hover:bg-slate-50 peer-data-[state=checked]:border-purple-600 peer-data-[state=checked]:text-purple-700 cursor-pointer text-center h-full"
                       >
                         <Store className="mb-2 h-5 w-5" />
-                        <span className="text-xs font-semibold">
-                          Retirar na Loja
-                        </span>
+                        <span className="text-xs font-semibold">Retirar</span>
                       </Label>
                     </div>
                     <div>
@@ -250,19 +277,58 @@ export function CartSidebar() {
                     </div>
                   </RadioGroup>
                   {deliveryMethod === "delivery" && (
-                    <div className="animate-in slide-in-from-top-2">
+                    <div className="animate-in slide-in-from-top-2 p-3 bg-yellow-50 rounded-lg border border-yellow-100 text-xs text-yellow-800">
+                      Taxa de entrega será calculada no WhatsApp.
                       <Input
-                        placeholder="Rua, Bairro e Número..."
+                        placeholder="Endereço Completo..."
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
-                        className="bg-white border-purple-200 focus-visible:ring-purple-500"
-                        autoFocus
+                        className="bg-white mt-2 border-yellow-200"
                       />
                     </div>
                   )}
                 </div>
+
                 <div className="space-y-3">
-                  <Label className="text-slate-700 font-bold">Pagamento</Label>
+                  <Label className="text-slate-700 font-bold flex items-center gap-2">
+                    <CreditCard size={16} /> Pagamento
+                  </Label>
+                  {deliveryMethod === "delivery" && (
+                    <RadioGroup
+                      value={paymentTiming}
+                      onValueChange={(v) =>
+                        setPaymentTiming(v as PaymentTiming)
+                      }
+                      className="grid grid-cols-2 gap-3 mb-2"
+                    >
+                      <div>
+                        <RadioGroupItem
+                          value="prepaid"
+                          id="prepaid"
+                          className="peer sr-only"
+                        />
+                        <Label
+                          htmlFor="prepaid"
+                          className="flex items-center justify-center rounded-md border bg-white p-2 text-xs hover:bg-slate-50 peer-data-[state=checked]:bg-purple-50 peer-data-[state=checked]:border-purple-600 cursor-pointer"
+                        >
+                          Pagar Agora (Pix)
+                        </Label>
+                      </div>
+                      <div>
+                        <RadioGroupItem
+                          value="on_delivery"
+                          id="on_delivery"
+                          className="peer sr-only"
+                        />
+                        <Label
+                          htmlFor="on_delivery"
+                          className="flex items-center justify-center rounded-md border bg-white p-2 text-xs hover:bg-slate-50 peer-data-[state=checked]:bg-purple-50 peer-data-[state=checked]:border-purple-600 cursor-pointer"
+                        >
+                          Pagar na Entrega
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  )}
                   <Select
                     value={paymentMethod}
                     onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
@@ -273,25 +339,29 @@ export function CartSidebar() {
                     <SelectContent>
                       <SelectItem value="pix">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-green-600">Pix</span>{" "}
-                          (Instantâneo)
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="card">
-                        <div className="flex items-center gap-2">
-                          <CreditCard size={14} /> Cartão
+                          <span className="font-bold text-green-600">Pix</span>
                         </div>
                       </SelectItem>
                       <SelectItem value="cash">
                         <div className="flex items-center gap-2">
-                          <Banknote size={14} /> Dinheiro
+                          <Banknote size={14} className="text-green-600" />{" "}
+                          Dinheiro
                         </div>
                       </SelectItem>
+                      {deliveryMethod === "pickup" && (
+                        <SelectItem value="card">
+                          <div className="flex items-center gap-2">
+                            <CreditCard size={14} className="text-blue-600" />{" "}
+                            Cartão
+                          </div>
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-            </ScrollArea>
+            </div>
+
             <SheetFooter className="p-6 bg-white border-t space-y-4 block flex-shrink-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-slate-500">Total a pagar</span>
