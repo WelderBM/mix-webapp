@@ -82,6 +82,7 @@ import {
   CheckCircle,
   XCircle,
   Bike,
+  Lock,
 } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
 import { OrderDetailsSheet } from "@/components/admin/OrderDetailsSheet";
@@ -89,6 +90,7 @@ import { ThemePreview } from "@/components/admin/ThemePreview";
 import { adjustColor } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
+import { SuperAdminZone } from "@/components/admin/SuperAdminZone";
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -332,6 +334,12 @@ export default function AdminPage() {
             </TabsTrigger>
             <TabsTrigger value="orders" className="gap-2 flex-1 md:flex-none">
               <ShoppingBag size={16} /> Pedidos
+            </TabsTrigger>
+            <TabsTrigger
+              value="system"
+              className="gap-2 text-red-600 data-[state=active]:text-red-700"
+            >
+              <Lock size={16} /> Sistema
             </TabsTrigger>
           </TabsList>
 
@@ -686,6 +694,11 @@ export default function AdminPage() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          </TabsContent>
+          <TabsContent value="system">
+            <div className="max-w-4xl mx-auto">
+              <SuperAdminZone />
             </div>
           </TabsContent>
         </Tabs>
