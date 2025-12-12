@@ -16,7 +16,6 @@ import {
   Box,
   Truck,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 export default function ProductPage() {
   const params = useParams();
@@ -25,11 +24,9 @@ export default function ProductPage() {
   const { addItem, openCart } = useCartStore();
   const [product, setProduct] = useState<Product | null>(null);
 
-  // Busca o produto (mesmo se der F5 na página)
   useEffect(() => {
-    if (allProducts.length === 0) {
-      fetchProducts();
-    } else {
+    if (allProducts.length === 0) fetchProducts();
+    else {
       const found = allProducts.find((p) => p.id === params.id);
       setProduct(found || null);
     }
@@ -49,27 +46,25 @@ export default function ProductPage() {
   };
 
   const handleShare = () => {
-    if (navigator.share) {
+    if (navigator.share)
       navigator.share({
         title: product?.name,
         text: `Olha esse ${product?.name} que achei na Mix Novidades!`,
         url: window.location.href,
       });
-    } else {
+    else {
       navigator.clipboard.writeText(window.location.href);
-      alert("Link copiado para a área de transferência!");
+      alert("Link copiado!");
     }
   };
 
-  if (isLoading) {
+  if (isLoading)
     return (
       <div className="h-[60vh] flex items-center justify-center text-slate-400 animate-pulse">
         Carregando detalhes...
       </div>
     );
-  }
-
-  if (!product) {
+  if (!product)
     return (
       <div className="h-[60vh] flex flex-col items-center justify-center gap-4 text-slate-500">
         <p>Produto não encontrado.</p>
@@ -78,7 +73,6 @@ export default function ProductPage() {
         </Button>
       </div>
     );
-  }
 
   const formatMoney = (val: number) =>
     new Intl.NumberFormat("pt-BR", {
@@ -88,7 +82,6 @@ export default function ProductPage() {
 
   return (
     <div className="bg-white min-h-screen pb-32 md:pb-20">
-      {/* Navegação Breadcrumb (Desktop) */}
       <div className="max-w-6xl mx-auto px-4 pt-6 hidden md:block">
         <Button
           variant="ghost"
@@ -98,8 +91,6 @@ export default function ProductPage() {
           <ChevronLeft className="mr-1 h-4 w-4" /> Voltar para a loja
         </Button>
       </div>
-
-      {/* Botão Flutuante Voltar (Mobile) */}
       <div className="fixed top-4 left-4 z-20 md:hidden">
         <Button
           size="icon"
@@ -110,10 +101,8 @@ export default function ProductPage() {
           <ChevronLeft className="h-5 w-5 text-slate-800" />
         </Button>
       </div>
-
       <div className="max-w-6xl mx-auto p-4 md:p-8">
         <div className="grid md:grid-cols-2 gap-8 md:gap-16">
-          {/* COLUNA 1: IMAGEM */}
           <div className="relative aspect-square md:aspect-[4/3] bg-slate-50 rounded-3xl overflow-hidden shadow-sm border border-slate-100">
             <Image
               src={product.imageUrl}
@@ -122,7 +111,6 @@ export default function ProductPage() {
               className="object-contain p-8 hover:scale-105 transition-transform duration-700"
               priority
             />
-
             {product.originalPrice && (
               <Badge className="absolute top-4 left-4 bg-red-500 text-sm md:text-base px-3 py-1 shadow-md">
                 {Math.round(
@@ -133,7 +121,6 @@ export default function ProductPage() {
                 % OFF
               </Badge>
             )}
-
             <Button
               variant="secondary"
               size="icon"
@@ -143,10 +130,7 @@ export default function ProductPage() {
               <Share2 size={18} />
             </Button>
           </div>
-
-          {/* COLUNA 2: DETALHES */}
           <div className="flex flex-col gap-6 pt-2">
-            {/* Cabeçalho do Produto */}
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 <Badge
@@ -160,7 +144,7 @@ export default function ProductPage() {
                     variant="secondary"
                     className="text-slate-500 bg-slate-100 gap-1 text-[10px]"
                   >
-                    <Box size={10} /> Ocupa {product.itemSize} slots na caixa
+                    <Box size={10} /> Ocupa {product.itemSize} slots
                   </Badge>
                 )}
                 {product.capacity && (
@@ -172,13 +156,10 @@ export default function ProductPage() {
                   </Badge>
                 )}
               </div>
-
               <h1 className="text-2xl md:text-4xl font-bold text-slate-900 leading-tight">
                 {product.name}
               </h1>
             </div>
-
-            {/* Preço */}
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
               <div>
                 {product.originalPrice && (
@@ -195,8 +176,6 @@ export default function ProductPage() {
                   </span>
                 </div>
               </div>
-
-              {/* Selo de Estoque */}
               <div className="text-right">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full mb-1">
                   <Check size={12} /> Em Estoque
@@ -206,19 +185,15 @@ export default function ProductPage() {
                 </span>
               </div>
             </div>
-
-            {/* Descrição */}
             <div className="prose prose-slate prose-sm text-slate-600 leading-relaxed">
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-2">
                 Detalhes
               </h3>
               <p>
                 {product.description ||
-                  `Um excelente produto da categoria ${product.category}, selecionado especialmente para você. Ideal para presentear ou para uso pessoal.`}
+                  `Um excelente produto da categoria ${product.category}, selecionado especialmente para você.`}
               </p>
             </div>
-
-            {/* Entrega (Simulação Visual) */}
             <div className="flex items-center gap-3 p-4 border border-slate-100 rounded-xl text-sm text-slate-600">
               <div className="bg-purple-50 p-2 rounded-full text-purple-600">
                 <Truck size={20} />
@@ -232,8 +207,6 @@ export default function ProductPage() {
                 </p>
               </div>
             </div>
-
-            {/* BARRA DE AÇÃO (Mobile: Sticky Bottom / Desktop: Normal) */}
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 md:relative md:p-0 md:border-0 md:bg-transparent z-20">
               <div className="max-w-6xl mx-auto flex gap-4">
                 <Button
@@ -241,8 +214,8 @@ export default function ProductPage() {
                   className="w-full h-14 text-base font-bold bg-slate-900 hover:bg-slate-800 shadow-xl hover:shadow-2xl transition-all"
                   onClick={handleAddToCart}
                 >
-                  <ShoppingCart className="mr-2 h-5 w-5" />
-                  Adicionar {formatMoney(product.price)}
+                  <ShoppingCart className="mr-2 h-5 w-5" /> Adicionar{" "}
+                  {formatMoney(product.price)}
                 </Button>
               </div>
             </div>

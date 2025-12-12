@@ -12,7 +12,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Product, StoreSettings } from "@/lib/types";
+import { Product, StoreSettings, Order, OrderStatus } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -38,6 +38,12 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ShoppingBag,
+  CheckCircle,
+  Clock,
+  Truck,
+  XCircle,
+  Bike,
 } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
 import Image from "next/image";
@@ -46,18 +52,12 @@ import Link from "next/link";
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
-
-  // Dados de Produtos
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
-
-  // Paginação
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-
-  // Configurações (Cores/Filtros)
   const [settings, setSettings] = useState<StoreSettings>({
     id: "general",
     storeName: "Mix WebApp",
@@ -68,17 +68,12 @@ export default function AdminPage() {
       accentColor: "#10b981",
       backgroundColor: "#f8fafc",
     },
-    filters: {
-      activeCategories: [],
-      categoryOrder: [],
-    },
+    filters: { activeCategories: [], categoryOrder: [] },
   });
-
-  // Controle de Modal
+  const [orders, setOrders] = useState<Order[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
-  // --- AUTENTICAÇÃO ---
   useEffect(() => {
     const auth = localStorage.getItem("mix_admin_auth");
     if (auth === "true") setIsAuthenticated(true);
@@ -86,7 +81,7 @@ export default function AdminPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === "6367") {
+    if (password === "admin123") {
       localStorage.setItem("mix_admin_auth", "true");
       setIsAuthenticated(true);
     } else {
@@ -94,21 +89,16 @@ export default function AdminPage() {
     }
   };
 
-  // --- DATA FETCHING ---
   useEffect(() => {
     if (!isAuthenticated) return;
-
-    // Busca Produtos
-    const q = query(collection(db, "products"), orderBy("name"));
-    const unsubProd = onSnapshot(q, (snapshot) => {
+    const qProd = query(collection(db, "products"), orderBy("name"));
+    const unsubProd = onSnapshot(qProd, (snapshot) => {
       const prods = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as Product)
       );
       setAllProducts(prods);
       setLoading(false);
     });
-
-    // Busca Configurações
     const unsubSettings = onSnapshot(
       doc(db, "settings", "general"),
       (docSnap) => {
@@ -117,14 +107,23 @@ export default function AdminPage() {
         }
       }
     );
-
+    const qOrders = query(
+      collection(db, "orders"),
+      orderBy("createdAt", "desc")
+    );
+    const unsubOrders = onSnapshot(qOrders, (snapshot) => {
+      const ords = snapshot.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as Order)
+      );
+      setOrders(ords);
+    });
     return () => {
       unsubProd();
       unsubSettings();
+      unsubOrders();
     };
   }, [isAuthenticated]);
 
-  // --- FILTRO E PAGINAÇÃO ---
   useEffect(() => {
     const results = allProducts.filter(
       (p) =>
@@ -132,7 +131,7 @@ export default function AdminPage() {
         p.category.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredProducts(results);
-    setCurrentPage(1); // Reseta página ao filtrar
+    setCurrentPage(1);
   }, [searchTerm, allProducts]);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
@@ -141,20 +140,16 @@ export default function AdminPage() {
     currentPage * itemsPerPage
   );
 
-  // --- AÇÕES DE PRODUTO ---
   const toggleProductStatus = async (product: Product) => {
     await updateDoc(doc(db, "products", product.id), {
       inStock: !product.inStock,
     });
   };
-
   const handleDelete = async (id: string) => {
     if (confirm("Tem certeza? Isso apaga permanentemente.")) {
       await deleteDoc(doc(db, "products", id));
     }
   };
-
-  // --- AÇÕES DE CONFIGURAÇÃO ---
   const saveSettings = async () => {
     try {
       await setDoc(doc(db, "settings", "general"), settings);
@@ -164,7 +159,6 @@ export default function AdminPage() {
       alert("Erro ao salvar.");
     }
   };
-
   const updateThemeColor = (
     key: keyof StoreSettings["theme"],
     value: string
@@ -174,8 +168,74 @@ export default function AdminPage() {
       theme: { ...prev.theme, [key]: value },
     }));
   };
+  const handleStatusChange = async (
+    orderId: string,
+    newStatus: OrderStatus
+  ) => {
+    await updateDoc(doc(db, "orders", orderId), { status: newStatus });
+  };
+  const handleCopyDeliveryInfo = (order: Order) => {
+    const storeAddress = "Mix Novidades (Rua Pedro Aldemar Bantim, 945)";
+    const shortId = order.id.slice(0, 5).toUpperCase();
+    const totalValue = new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(order.total);
 
-  if (!isAuthenticated) {
+    let paymentInstruction = "";
+    if (order.paymentTiming === "prepaid") {
+      paymentInstruction = "✅ **JÁ PAGO** (Apenas entregar)";
+    } else {
+      paymentInstruction = `💰 **COBRAR NA ENTREGA:** ${totalValue} (${
+        order.paymentMethod === "pix" ? "Pix" : "Dinheiro"
+      })`;
+    }
+
+    const text =
+      `🛵 *SOLICITAÇÃO DE ENTREGA #${shortId}*\n\n` +
+      `📍 *Retirada:* ${storeAddress}\n` +
+      `🏁 *Entrega:* ${order.address}\n` +
+      `👤 *Cliente:* ${order.customerName || "Cliente"}\n\n` +
+      `${paymentInstruction}\n` +
+      `📦 *Volume:* ${order.items.length} itens`;
+
+    navigator.clipboard.writeText(text);
+    alert("Texto copiado! Cole no WhatsApp do Motoboy.");
+  };
+  const getStatusColor = (status: OrderStatus) => {
+    switch (status) {
+      case "pending":
+        return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "processing":
+        return "bg-blue-100 text-blue-800 border-blue-200";
+      case "delivering":
+        return "bg-purple-100 text-purple-800 border-purple-200";
+      case "completed":
+        return "bg-green-100 text-green-800 border-green-200";
+      case "cancelled":
+        return "bg-red-100 text-red-800 border-red-200";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+  const getStatusLabel = (status: OrderStatus) => {
+    switch (status) {
+      case "pending":
+        return "Pendente";
+      case "processing":
+        return "Separando";
+      case "delivering":
+        return "Em Entrega";
+      case "completed":
+        return "Concluído";
+      case "cancelled":
+        return "Cancelado";
+      default:
+        return status;
+    }
+  };
+
+  if (!isAuthenticated)
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100">
         <form
@@ -197,12 +257,10 @@ export default function AdminPage() {
         </form>
       </div>
     );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-10">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl shadow-sm">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">
@@ -227,22 +285,21 @@ export default function AdminPage() {
             </Button>
           </div>
         </div>
-
-        {/* ABAS PRINCIPAIS */}
-        <Tabs defaultValue="products" className="w-full space-y-6">
+        <Tabs defaultValue="orders" className="w-full space-y-6">
           <TabsList className="bg-white p-1 rounded-lg border shadow-sm">
+            <TabsTrigger value="orders" className="gap-2">
+              <ShoppingBag size={16} /> Pedidos
+            </TabsTrigger>
             <TabsTrigger value="products" className="gap-2">
               <Package size={16} /> Produtos
             </TabsTrigger>
             <TabsTrigger value="appearance" className="gap-2">
-              <Palette size={16} /> Aparência & Cores
+              <Palette size={16} /> Aparência
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-2">
-              <Settings size={16} /> Filtros & Configs
+              <Settings size={16} /> Configurações
             </TabsTrigger>
           </TabsList>
-
-          {/* === ABA 1: PRODUTOS === */}
           <TabsContent value="products" className="space-y-4">
             <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
               <div className="relative w-72">
@@ -267,7 +324,6 @@ export default function AdminPage() {
                 <Plus size={16} className="mr-2" /> Novo Produto
               </Button>
             </div>
-
             <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-slate-200">
               <Table>
                 <TableHeader>
@@ -344,8 +400,6 @@ export default function AdminPage() {
                   )}
                 </TableBody>
               </Table>
-
-              {/* PAGINAÇÃO */}
               <div className="p-4 flex items-center justify-between border-t">
                 <span className="text-sm text-slate-500">
                   Página {currentPage} de {totalPages || 1}
@@ -371,22 +425,186 @@ export default function AdminPage() {
               </div>
             </div>
           </TabsContent>
-
-          {/* === ABA 2: APARÊNCIA (Cores) === */}
+          <TabsContent value="orders" className="space-y-4">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <ShoppingBag className="text-purple-600" /> Gestão de Pedidos
+              </h2>
+              <div className="rounded-md border overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead>Info</TableHead>
+                      <TableHead>Entrega</TableHead>
+                      <TableHead>Pagamento</TableHead>
+                      <TableHead>Total</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orders.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={6}
+                          className="text-center py-10 text-slate-500"
+                        >
+                          Nenhum pedido recebido ainda.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      orders.map((order) => (
+                        <TableRow key={order.id}>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-mono text-xs text-slate-500">
+                                #{order.id.slice(0, 5).toUpperCase()}
+                              </span>
+                              <span className="font-medium text-slate-800">
+                                {order.customerName || "Cliente"}
+                              </span>
+                              <span className="text-xs text-slate-400">
+                                {new Date(order.createdAt).toLocaleDateString(
+                                  "pt-BR"
+                                )}{" "}
+                                •{" "}
+                                {new Date(order.createdAt).toLocaleTimeString(
+                                  "pt-BR",
+                                  { hour: "2-digit", minute: "2-digit" }
+                                )}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {order.deliveryMethod === "pickup" ? (
+                              <Badge
+                                variant="secondary"
+                                className="bg-slate-100 text-slate-600"
+                              >
+                                Retirada
+                              </Badge>
+                            ) : (
+                              <div className="flex flex-col gap-1 max-w-[200px]">
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-blue-50 text-blue-700 w-fit"
+                                >
+                                  Entrega
+                                </Badge>
+                                <span
+                                  className="text-xs text-slate-500 truncate"
+                                  title={order.address}
+                                >
+                                  {order.address}
+                                </span>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm capitalize">
+                              {order.paymentMethod}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-bold text-slate-700">
+                            {new Intl.NumberFormat("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            }).format(order.total)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={`border ${getStatusColor(
+                                order.status
+                              )}`}
+                            >
+                              {getStatusLabel(order.status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              {order.deliveryMethod === "delivery" && (
+                                <Button
+                                  size="sm"
+                                  className="h-8 w-8 p-0 bg-slate-900 hover:bg-slate-700 text-white mr-2"
+                                  onClick={() => handleCopyDeliveryInfo(order)}
+                                  title="Copiar para Motoboy"
+                                >
+                                  <Bike size={16} />
+                                </Button>
+                              )}
+                              {order.status === "pending" && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 text-blue-600"
+                                  onClick={() =>
+                                    handleStatusChange(order.id, "processing")
+                                  }
+                                  title="Separando"
+                                >
+                                  <Clock size={16} />
+                                </Button>
+                              )}
+                              {order.status === "processing" && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 text-purple-600"
+                                  onClick={() =>
+                                    handleStatusChange(order.id, "delivering")
+                                  }
+                                  title="Saiu para Entrega"
+                                >
+                                  <Truck size={16} />
+                                </Button>
+                              )}
+                              {order.status === "delivering" && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 text-green-600"
+                                  onClick={() =>
+                                    handleStatusChange(order.id, "completed")
+                                  }
+                                  title="Concluir"
+                                >
+                                  <CheckCircle size={16} />
+                                </Button>
+                              )}
+                              {order.status !== "completed" &&
+                                order.status !== "cancelled" && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 p-0 text-red-400"
+                                    onClick={() =>
+                                      handleStatusChange(order.id, "cancelled")
+                                    }
+                                    title="Cancelar"
+                                  >
+                                    <XCircle size={16} />
+                                  </Button>
+                                )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
           <TabsContent value="appearance">
             <div className="bg-white p-6 rounded-xl shadow-sm space-y-8">
               <div>
                 <h2 className="text-lg font-bold mb-4">
                   Personalização de Cores
                 </h2>
-                <p className="text-sm text-slate-500 mb-6">
-                  Escolha as cores que combinam com o momento (Natal, Páscoa,
-                  Dia das Mães).
-                </p>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
                   <div className="space-y-2">
-                    <Label>Cor Primária (Botões, Destaques)</Label>
+                    <Label>Cor Primária</Label>
                     <div className="flex gap-3">
                       <Input
                         type="color"
@@ -405,9 +623,8 @@ export default function AdminPage() {
                       />
                     </div>
                   </div>
-
                   <div className="space-y-2">
-                    <Label>Cor Secundária (Fundos, Detalhes)</Label>
+                    <Label>Cor Secundária</Label>
                     <div className="flex gap-3">
                       <Input
                         type="color"
@@ -428,7 +645,6 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
-
               <div className="pt-4 border-t">
                 <Button
                   onClick={saveSettings}
@@ -439,27 +655,14 @@ export default function AdminPage() {
               </div>
             </div>
           </TabsContent>
-
-          {/* === ABA 3: CONFIGURAÇÕES (Filtros) === */}
           <TabsContent value="settings">
             <div className="bg-white p-6 rounded-xl shadow-sm">
-              <h2 className="text-lg font-bold mb-4">
-                Gerenciar Categorias e Filtros
-              </h2>
-              <p className="text-sm text-slate-500 mb-6">
-                Aqui você poderá (em breve) reordenar os filtros arrastando e
-                soltando, e decidir quais categorias ficam ocultas no menu.
-              </p>
-
-              {/* Placeholder para feature futura de Drag & Drop de categorias */}
-              <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-center text-slate-400">
-                Funcionalidade de Reordenação em desenvolvimento...
-              </div>
+              <h2 className="text-lg font-bold mb-4">Gerenciar Categorias</h2>
+              <p className="text-sm text-slate-500 mb-6">Em breve.</p>
             </div>
           </TabsContent>
         </Tabs>
       </div>
-
       <ProductFormDialog
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

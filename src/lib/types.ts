@@ -1,5 +1,5 @@
 export type ProductType =
-  | "STANDARD_ITEM" // Antes era STANDARD_ITEM. Agora serve para qualquer produto principal.
+  | "STANDARD_ITEM"
   | "BASE_CONTAINER"
   | "FILLER"
   | "WRAPPER"
@@ -7,6 +7,14 @@ export type ProductType =
   | "SUPPLY_BULK";
 
 export type MeasureUnit = "un" | "m" | "kg" | "pct";
+
+export interface ProductVariant {
+  id: string;
+  name: string;
+  imageUrl?: string;
+  price?: number;
+  inStock: boolean;
+}
 
 export interface Product {
   id: string;
@@ -23,12 +31,14 @@ export interface Product {
   featured?: boolean;
   capacity?: number;
   itemSize?: number;
+  variants?: ProductVariant[];
 }
 
 export interface CartItem {
   cartId: string;
   type: "SIMPLE" | "CUSTOM_KIT";
   product?: Product;
+  selectedVariant?: ProductVariant;
   quantity: number;
   kitName?: string;
   kitComponents?: Product[];
@@ -49,4 +59,28 @@ export interface StoreSettings {
   };
   storeName: string;
   whatsappNumber: string;
+}
+
+export type OrderStatus =
+  | "pending"
+  | "processing"
+  | "delivering"
+  | "completed"
+  | "cancelled";
+export type DeliveryMethod = "pickup" | "delivery";
+export type PaymentMethod = "pix" | "card" | "cash";
+
+export type PaymentTiming = "prepaid" | "on_delivery";
+
+export interface Order {
+  id: string;
+  createdAt: number;
+  customerName?: string;
+  total: number;
+  items: CartItem[];
+  status: OrderStatus;
+  deliveryMethod: DeliveryMethod;
+  address?: string;
+  paymentMethod: PaymentMethod;
+  paymentTiming: PaymentTiming;
 }

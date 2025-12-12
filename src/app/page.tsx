@@ -7,7 +7,6 @@ import { ProductCard } from "@/components/features/ProductCard";
 import { BuilderTrigger } from "@/components/features/BuilderTrigger";
 import { KitBuilderModal } from "@/components/features/KitBuilderModal";
 import { HeroSection } from "@/components/layout/HeroSection";
-// REMOVIDO: import { Footer } ... (Já está no Layout Global)
 import {
   SlidersHorizontal,
   ChevronRight,
@@ -25,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { CATEGORY_PRIORITY } from "@/lib/constants";
+import { Product, ProductVariant } from "@/lib/types";
 
 export default function Home() {
   const {
@@ -37,11 +37,8 @@ export default function Home() {
     filterCategory,
     allProducts,
   } = useProductStore();
-
   const { openCart, addItem } = useCartStore();
-
   const [visibleCategoriesCount, setVisibleCategoriesCount] = useState(3);
-
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,11 +57,12 @@ export default function Home() {
     });
   }, [allProducts]);
 
-  const handleDirectAdd = (product: any) => {
+  const handleDirectAdd = (product: Product, variant?: ProductVariant) => {
     addItem({
       cartId: crypto.randomUUID(),
       type: "SIMPLE",
       product: product,
+      selectedVariant: variant,
       quantity: 1,
       kitTotalAmount: 0,
     });
@@ -75,33 +73,28 @@ export default function Home() {
     if (scrollContainerRef.current)
       scrollContainerRef.current.scrollBy({ left: -200, behavior: "smooth" });
   };
-
   const scrollFiltersRight = () => {
     if (scrollContainerRef.current)
       scrollContainerRef.current.scrollBy({ left: 200, behavior: "smooth" });
   };
-
   const handleLoadMoreSections = () => {
     setVisibleCategoriesCount((prev) => prev + 3);
   };
 
-  if (isLoading && allProducts.length === 0) {
+  if (isLoading && allProducts.length === 0)
     return (
       <div className="flex justify-center h-screen items-center text-slate-400 animate-pulse">
         Carregando loja...
       </div>
     );
-  }
 
   const renderShelves = () => {
     const visibleCats = categories.slice(0, visibleCategoriesCount);
-
     return visibleCats.map((cat) => {
       const productsInCat = allProducts
         .filter((p) => p.category === cat)
         .slice(0, 8);
       if (productsInCat.length === 0) return null;
-
       return (
         <section
           key={cat}
@@ -124,7 +117,6 @@ export default function Home() {
                 Ver todos <ChevronRight size={16} />
               </Button>
             </div>
-
             <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide snap-x md:mx-0 md:px-0">
               {productsInCat.map((product) => (
                 <div
@@ -133,12 +125,11 @@ export default function Home() {
                 >
                   <ProductCard
                     product={product}
-                    onSelect={() => handleDirectAdd(product)}
+                    onSelect={(variant) => handleDirectAdd(product, variant)}
                     actionLabel="Adicionar"
                   />
                 </div>
               ))}
-
               <div className="min-w-[100px] flex items-center justify-center snap-center">
                 <Button
                   variant="ghost"
@@ -161,15 +152,12 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-50 pb-0">
       <HeroSection />
-
       <div className="relative -mt-8 z-20 px-4 mb-8">
         <div className="max-w-6xl mx-auto">
           <BuilderTrigger />
         </div>
       </div>
-
       <KitBuilderModal />
-
       <div className="sticky top-16 z-40 bg-slate-50/95 py-2 backdrop-blur-sm shadow-sm md:shadow-none border-b md:border-b-0 border-slate-200/50">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex flex-col md:flex-row gap-3 justify-between items-center bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
@@ -227,7 +215,6 @@ export default function Home() {
                 <ChevronRight size={18} />
               </Button>
             </div>
-
             <div className="flex items-center gap-2 w-full md:w-auto flex-shrink-0 border-t md:border-t-0 md:border-l pt-2 md:pt-0 md:pl-4 border-slate-100">
               <SlidersHorizontal size={16} className="text-slate-400" />
               <Select onValueChange={(val: any) => setSort(val)}>
@@ -244,25 +231,21 @@ export default function Home() {
           </div>
         </div>
       </div>
-
       <div className="min-h-[50vh]">
         {filterCategory === "ALL" ? (
           <>
             {renderShelves()}
-
             {visibleCategoriesCount < categories.length && (
               <div className="w-full flex justify-center py-12 bg-gradient-to-b from-slate-50 to-white">
                 <Button
                   onClick={handleLoadMoreSections}
                   className="bg-white border-2 border-purple-100 text-purple-700 hover:bg-purple-50 hover:border-purple-200 px-8 py-6 rounded-full shadow-sm text-base font-bold group transition-all transform hover:scale-105"
                 >
-                  <Plus className="mr-2 h-5 w-5 bg-purple-100 rounded-full p-1" />
+                  <Plus className="mr-2 h-5 w-5 bg-purple-100 rounded-full p-1" />{" "}
                   Ver mais categorias
                 </Button>
               </div>
             )}
-
-            {/* REMOVIDO FOOTER DAQUI POIS JÁ ESTÁ NO LAYOUT */}
           </>
         ) : (
           <section className="min-h-screen py-8 animate-in fade-in zoom-in duration-300">
@@ -280,12 +263,11 @@ export default function Home() {
                   <ProductCard
                     key={product.id}
                     product={product}
-                    onSelect={() => handleDirectAdd(product)}
+                    onSelect={(variant) => handleDirectAdd(product, variant)}
                     actionLabel="Adicionar"
                   />
                 ))}
               </div>
-
               {displayProducts.length > 0 &&
                 displayProducts.length <
                   allProducts.filter((p) => p.category === filterCategory)
@@ -297,7 +279,6 @@ export default function Home() {
                   </div>
                 )}
             </div>
-            {/* REMOVIDO FOOTER DAQUI */}
           </section>
         )}
       </div>

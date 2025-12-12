@@ -4,23 +4,19 @@ import { db } from "@/lib/firebase";
 import { Product } from "@/lib/types";
 
 interface ProductState {
-  allProducts: Product[]; // Banco de dados completo na memória
-  displayProducts: Product[]; // O que está visível na tela (filtrado + paginado)
-
+  allProducts: Product[];
+  displayProducts: Product[];
   isLoading: boolean;
   error: string | null;
-
-  // Estados de Filtro
-  filterCategory: string; // 'ALL' ou nome da categoria
+  filterCategory: string;
   sortOption: "name_asc" | "price_asc" | "price_desc";
-  visibleCount: number; // Para o scroll infinito (começa com 12, aumenta de 12 em 12)
+  visibleCount: number;
 
-  // Actions
   fetchProducts: () => Promise<void>;
   setCategory: (category: string) => void;
   setSort: (option: "name_asc" | "price_asc" | "price_desc") => void;
-  loadMore: () => void; // Chama ao scrollar
-  applyFilters: () => void; // Função interna
+  loadMore: () => void;
+  applyFilters: () => void;
 }
 
 export const useProductStore = create<ProductState>((set, get) => ({
@@ -28,26 +24,22 @@ export const useProductStore = create<ProductState>((set, get) => ({
   displayProducts: [],
   isLoading: false,
   error: null,
-
   filterCategory: "ALL",
   sortOption: "name_asc",
-  visibleCount: 12, // Paginação inicial
+  visibleCount: 12,
 
   fetchProducts: async () => {
-    // Cache simples: se já tem dados, não busca de novo
     if (get().allProducts.length > 0) return;
 
     set({ isLoading: true });
     try {
       const querySnapshot = await getDocs(collection(db, "products"));
       const products: Product[] = [];
-
       querySnapshot.forEach((doc) => {
-        products.push(doc.data() as Product);
+        products.push({ id: doc.id, ...doc.data() } as Product);
       });
-
       set({ allProducts: products });
-      get().applyFilters(); // Aplica filtros iniciais
+      get().applyFilters();
     } catch (error) {
       console.error("Erro ao buscar produtos:", error);
       set({ error: "Falha ao carregar produtos.", isLoading: false });
@@ -57,7 +49,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
   },
 
   setCategory: (category) => {
-    set({ filterCategory: category, visibleCount: 12 }); // Reseta scroll ao filtrar
+    set({ filterCategory: category, visibleCount: 12 });
     get().applyFilters();
   },
 
@@ -76,14 +68,11 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
   applyFilters: () => {
     const { allProducts, filterCategory, sortOption, visibleCount } = get();
-
-    // 1. Filtrar por Categoria
     let filtered =
       filterCategory === "ALL"
         ? allProducts
         : allProducts.filter((p) => p.category === filterCategory);
 
-    // 2. Ordenar
     filtered.sort((a, b) => {
       if (sortOption === "name_asc") return a.name.localeCompare(b.name);
       if (sortOption === "price_asc") return a.price - b.price;
@@ -91,10 +80,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
       return 0;
     });
 
-    // 3. Paginar (Scroll Infinito)
-    // Cortamos o array para mostrar apenas a quantidade permitida pelo scroll
     const paginated = filtered.slice(0, visibleCount);
-
     set({ displayProducts: paginated });
   },
 }));

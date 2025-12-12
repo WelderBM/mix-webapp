@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,17 +10,18 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Product } from "@/lib/types";
-import { Box } from "lucide-react";
+import { Product, ProductVariant } from "@/lib/types";
+import { Box, Check } from "lucide-react";
 import Image from "next/image";
+import { cn } from "@/lib/utils";
 
 interface ProductQuickViewProps {
   product: Product;
   isOpen: boolean;
   onClose: () => void;
-  onAction?: () => void; // A função de adicionar (pode vir do Carrinho ou do Kit)
+  onAction?: (variant?: ProductVariant) => void;
   actionLabel?: string;
-  isFull?: boolean; // Para saber se bloqueia a adição (Capacidade)
+  isFull?: boolean;
   currentUsage?: number;
   maxCapacity?: number;
 }
@@ -34,9 +36,20 @@ export function ProductQuickView({
   currentUsage = 0,
   maxCapacity = 0,
 }: ProductQuickViewProps) {
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (isOpen) setSelectedVariant(null);
+  }, [isOpen, product]);
+
+  const hasVariants = product.variants && product.variants.length > 0;
+
   const handleAddToCart = () => {
     if (onAction) {
-      onAction();
+      if (hasVariants && !selectedVariant) return;
+      onAction(selectedVariant || undefined);
       onClose();
     }
   };
@@ -47,24 +60,24 @@ export function ProductQuickView({
       currency: "BRL",
     }).format(value);
 
+  const activeImage = selectedVariant?.imageUrl || product.imageUrl;
+  const activePrice = selectedVariant?.price || product.price;
   const itemSize = product.itemSize || 1;
   const futureUsage = currentUsage + itemSize;
   const usagePercentage =
     maxCapacity > 0 ? Math.min((futureUsage / maxCapacity) * 100, 100) : 0;
-
-  // Só mostra barra de capacidade se estivermos no contexto de Kit (maxCapacity > 0)
   const showCapacity = maxCapacity > 0 && product.type === "STANDARD_ITEM";
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-white rounded-2xl gap-0 border-0 shadow-2xl">
+      <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden bg-white rounded-2xl gap-0 border-0 shadow-2xl">
         <div className="grid md:grid-cols-2 h-full">
-          <div className="relative h-64 md:h-full bg-slate-100 min-h-[300px]">
+          <div className="relative h-64 md:h-full bg-slate-50 min-h-[300px] transition-all duration-300">
             <Image
-              src={product.imageUrl}
+              src={activeImage}
               alt={product.name}
               fill
-              className="object-cover"
+              className="object-contain p-4"
             />
             {product.originalPrice && (
               <Badge className="absolute top-4 left-4 bg-red-500 hover:bg-red-600 border-0">
@@ -73,7 +86,7 @@ export function ProductQuickView({
             )}
           </div>
 
-          <div className="p-6 flex flex-col h-full">
+          <div className="p-6 flex flex-col h-full max-h-[80vh] overflow-y-auto">
             <DialogHeader className="mb-4 text-left">
               <Badge
                 variant="outline"
@@ -84,19 +97,46 @@ export function ProductQuickView({
               <DialogTitle className="text-xl font-bold text-slate-800 leading-tight">
                 {product.name}
               </DialogTitle>
-              <DialogDescription className="text-slate-500 mt-2">
-                {product.description ||
-                  "Descrição detalhada do produto, notas olfativas, benefícios e modo de uso."}
-              </DialogDescription>
+              {selectedVariant && (
+                <p className="text-purple-600 font-medium text-sm mt-1">
+                  Selecionado: {selectedVariant.name}
+                </p>
+              )}
             </DialogHeader>
+
+            {hasVariants && (
+              <div className="mb-6 space-y-3">
+                <span className="text-sm font-semibold text-slate-700">
+                  Escolha a opção:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {product.variants?.map((variant) => (
+                    <button
+                      key={variant.id}
+                      onClick={() => setSelectedVariant(variant)}
+                      className={cn(
+                        "px-3 py-2 rounded-lg text-xs font-medium border transition-all flex items-center gap-2",
+                        selectedVariant?.id === variant.id
+                          ? "border-purple-600 bg-purple-50 text-purple-700 ring-1 ring-purple-600"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-purple-300"
+                      )}
+                    >
+                      {variant.name}
+                      {selectedVariant?.id === variant.id && (
+                        <Check size={12} />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {showCapacity && (
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 mb-6">
                 <div className="flex items-center gap-2 text-sm text-slate-700 font-semibold mb-2">
-                  <Box size={16} className="text-purple-600" />
-                  Ocupação na Caixa
+                  <Box size={16} className="text-purple-600" /> Ocupação na
+                  Caixa
                 </div>
-
                 <div className="flex justify-between text-xs text-slate-500 mb-1">
                   <span>Tamanho: {itemSize} slots</span>
                   <span className={isFull ? "text-red-500 font-bold" : ""}>
@@ -105,7 +145,6 @@ export function ProductQuickView({
                       : `${futureUsage} / ${maxCapacity} slots`}
                   </span>
                 </div>
-
                 <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all ${
@@ -130,20 +169,25 @@ export function ProductQuickView({
                   </span>
                 )}
                 <span className="text-2xl font-bold text-slate-900">
-                  {formatMoney(product.price)}
-                </span>
-                <span className="text-xs text-slate-500 ml-1">
-                  /{product.unit}
+                  {formatMoney(activePrice)}
                 </span>
               </div>
-
               {onAction && (
                 <Button
                   onClick={handleAddToCart}
-                  disabled={showCapacity && isFull}
-                  className="bg-slate-900 hover:bg-slate-800 px-6 font-semibold"
+                  disabled={(hasVariants && !selectedVariant) || isFull}
+                  className={cn(
+                    "px-6 font-bold transition-all",
+                    hasVariants && !selectedVariant
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                      : "bg-slate-900 hover:bg-slate-800 text-white"
+                  )}
                 >
-                  {showCapacity && isFull ? "Sem Espaço" : actionLabel}
+                  {isFull
+                    ? "Sem Espaço"
+                    : hasVariants && !selectedVariant
+                    ? "Escolha uma opção"
+                    : actionLabel}
                 </Button>
               )}
             </div>

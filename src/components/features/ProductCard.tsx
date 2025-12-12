@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Product } from "@/lib/types";
-import { Plus, Eye, Check, X } from "lucide-react";
+import { Product, ProductVariant } from "@/lib/types";
+import { Plus, Eye, Check, X, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { ProductQuickView } from "./ProductQuickView";
@@ -12,8 +12,8 @@ import { useKitStore } from "@/store/kitStore";
 interface ProductCardProps {
   product: Product;
   isSelected?: boolean;
-  onSelect?: () => void;
-  onRemove?: () => void; // New prop for deselection
+  onSelect?: (variant?: ProductVariant) => void;
+  onRemove?: () => void;
   actionLabel?: string;
   disabled?: boolean;
 }
@@ -29,7 +29,6 @@ export function ProductCard({
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const [isHoveringSelected, setIsHoveringSelected] = useState(false);
 
-  // Only access store if needed for kit logic
   const { currentCapacityUsage, selectedBase } = useKitStore();
 
   const formatPrice = (value: number) =>
@@ -42,12 +41,18 @@ export function ProductCard({
     setIsQuickViewOpen(true);
   };
 
+  const hasVariants = product.variants && product.variants.length > 0;
+
   const handleButtonClick = (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // Toggle Logic: If selected and onRemove exists, remove it.
     if (isSelected && onRemove) {
       onRemove();
+      return;
+    }
+
+    if (hasVariants) {
+      setIsQuickViewOpen(true);
       return;
     }
 
@@ -58,7 +63,6 @@ export function ProductCard({
 
   const maxCapacity = selectedBase?.capacity || 0;
   const itemSize = product.itemSize || 1;
-  // Calculate if item fits (only relevant for kit builder context)
   const isFull =
     currentCapacityUsage + itemSize > maxCapacity &&
     product.type === "STANDARD_ITEM" &&
@@ -76,7 +80,6 @@ export function ProductCard({
         )}
         onClick={!disabled ? handleCardClick : undefined}
       >
-        {/* Selection Indicator */}
         {isSelected && (
           <div
             className={cn(
@@ -96,11 +99,9 @@ export function ProductCard({
             className="object-cover group-hover:scale-105 transition-transform duration-500"
           />
 
-          {/* Custom Yellow Offer Badge */}
           {product.originalPrice && !isSelected && (
             <div className="absolute top-0 left-0 z-10 p-1">
               <div className="relative">
-                {/* Yellow Burst Shape using CSS borders or SVG */}
                 <span className="block bg-yellow-400 text-red-700 text-[10px] font-black px-2 py-1 rounded-sm border-2 border-red-600 -rotate-12 shadow-[2px_2px_0px_0px_rgba(220,38,38,1)]">
                   OFERTA
                 </span>
@@ -119,7 +120,6 @@ export function ProductCard({
           <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider truncate">
             {product.category}
           </div>
-
           <h3
             className={cn(
               "font-medium text-sm line-clamp-2 min-h-[2.5rem] transition-colors",
@@ -130,7 +130,6 @@ export function ProductCard({
           >
             {product.name}
           </h3>
-
           <div className="mt-auto pt-1">
             <div className="flex items-center justify-between flex-wrap gap-1">
               <div className="flex items-end gap-1">
@@ -185,6 +184,11 @@ export function ProductCard({
                   <Check size={14} /> Selecionado{" "}
                 </>
               )
+            ) : hasVariants ? (
+              <>
+                {" "}
+                <Layers size={14} /> Ver Opções{" "}
+              </>
             ) : (
               <>
                 {" "}
