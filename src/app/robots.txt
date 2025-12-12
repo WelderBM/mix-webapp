@@ -1,0 +1,12 @@
+import { MetadataRoute } from 'next'
+
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: {
+      userAgent: '*',
+      allow: '/',
+      disallow: '/admin/', // Bloqueia o Google de indexar seu admin
+    },
+    sitemap: 'https://sua-loja-mix.vercel.app/sitemap.xml',
+  }
+}

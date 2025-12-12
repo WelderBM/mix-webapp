@@ -550,7 +550,7 @@ export default function AdminPage() {
                             {product.imageUrl && (
                               <Image
                                 src={product.imageUrl}
-                                alt=""
+                                alt={`Imagem do produto ${product.name}`}
                                 fill
                                 className="object-cover"
                               />

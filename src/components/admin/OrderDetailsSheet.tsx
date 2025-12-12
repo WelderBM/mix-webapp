@@ -138,7 +138,7 @@ export function OrderDetailsSheet({
                               item.product?.imageUrl ||
                               ""
                             }
-                            alt=""
+                            alt={`Item do pedido: ${item.product?.name}`}
                             fill
                             className="object-cover"
                           />

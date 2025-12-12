@@ -106,7 +106,7 @@ export default function ProductPage() {
           <div className="relative aspect-square md:aspect-[4/3] bg-slate-50 rounded-3xl overflow-hidden shadow-sm border border-slate-100">
             <Image
               src={product.imageUrl}
-              alt={product.name}
+              alt={`Foto detalhada de ${product.name} - Melhor preço em Boa Vista`}
               fill
               className="object-contain p-8 hover:scale-105 transition-transform duration-700"
               priority

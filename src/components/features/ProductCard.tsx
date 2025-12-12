@@ -94,7 +94,7 @@ export function ProductCard({
         <div className="relative aspect-square w-full bg-slate-100 overflow-hidden cursor-pointer">
           <Image
             src={product.imageUrl}
-            alt={product.name}
+            alt={`Comprar ${product.name} - ${product.category} na Mix Novidades`}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-500"
           />

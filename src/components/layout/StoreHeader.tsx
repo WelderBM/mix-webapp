@@ -48,7 +48,7 @@ export function StoreHeader() {
         <div className="absolute inset-0">
           <Image
             src="/loja-fachada.webp"
-            alt="Mix Novidades Fachada"
+            alt="Fachada da loja Mix Novidades na Rua Pedro Aldemar Bantim em Boa Vista, Roraima"
             fill
             className="object-cover transition-transform duration-700 group-hover:scale-105"
             priority

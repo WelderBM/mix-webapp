@@ -192,7 +192,9 @@ export function CartSidebar() {
                               item.product?.imageUrl ||
                               ""
                             }
-                            alt=""
+                            alt={`Miniatura de ${
+                              item.product?.name || item.kitName
+                            } no carrinho`}
                             fill
                             className="object-cover"
                           />

@@ -242,7 +242,7 @@ export function ProductFormDialog({
                   <div className="relative w-full h-24 bg-slate-100 rounded-xl overflow-hidden border flex items-center justify-center">
                     <Image
                       src={formData.imageUrl}
-                      alt="Preview"
+                      alt="Pré-visualização da imagem para upload"
                       width={100}
                       height={100}
                       className="object-contain h-full"

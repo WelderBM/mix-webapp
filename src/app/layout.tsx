@@ -28,23 +28,73 @@ export default function RootLayout({
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith("/admin");
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Store",
+    name: "Mix Novidades",
+    image: "https://mixnovidades.com/loja-fachada.webp", // Sua URL real
+    description:
+      "Sua loja completa de presentes, embalagens e utilidades em Boa Vista.",
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: "Rua Pedro Aldemar Bantim, 945",
+      addressLocality: "Boa Vista",
+      addressRegion: "RR",
+      postalCode: "69300-000", // Coloque o CEP correto
+      addressCountry: "BR",
+    },
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: 2.8235, // Coordenadas aproximadas de BV (pegue as exatas no Maps)
+      longitude: -60.6758,
+    },
+    openingHoursSpecification: [
+      {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ],
+        opens: "08:00",
+        closes: "19:00",
+      },
+      {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: "Sunday",
+        opens: "08:00",
+        closes: "12:00",
+      },
+    ],
+    telephone: "+5595984244194",
+  };
+
   return (
-    <html lang="pt-BR" className="scroll-smooth">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50`}
-      >
-        <ThemeProvider>
-          {!isAdmin && <Navbar />}
-          {!isAdmin && <CartSidebar />}
-          <div
-            className={isAdmin ? "min-h-screen bg-slate-100" : "min-h-screen"}
-          >
-            {children}
-          </div>
-          {!isAdmin && <Footer />}
-          <Toaster richColors position="top-center" />
-        </ThemeProvider>
-      </body>
-    </html>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <html lang="pt-BR" className="scroll-smooth">
+        <body
+          className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50`}
+        >
+          <ThemeProvider>
+            {!isAdmin && <Navbar />}
+            {!isAdmin && <CartSidebar />}
+            <div
+              className={isAdmin ? "min-h-screen bg-slate-100" : "min-h-screen"}
+            >
+              {children}
+            </div>
+            {!isAdmin && <Footer />}
+            <Toaster richColors position="top-center" />
+          </ThemeProvider>
+        </body>
+      </html>
+    </>
   );
 }

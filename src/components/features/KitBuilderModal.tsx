@@ -279,7 +279,7 @@ export function KitBuilderModal() {
                           <div className="relative w-10 h-10 rounded bg-slate-100 overflow-hidden">
                             <Image
                               src={item.imageUrl}
-                              alt={item.name}
+                              alt={`Componente para kit personalizado: ${item.name}`}
                               fill
                               className="object-cover"
                             />
