@@ -7,6 +7,7 @@ import { ProductCard } from "@/components/features/ProductCard";
 import { BuilderTrigger } from "@/components/features/BuilderTrigger";
 import { KitBuilderModal } from "@/components/features/KitBuilderModal";
 import { RibbonBuilderTrigger } from "@/components/features/RibbonBuilderTrigger";
+import { NaturaBanner } from "@/components/features/NaturaBanner";
 import { HeroSection } from "@/components/layout/HeroSection";
 import {
   SlidersHorizontal,
@@ -33,17 +34,18 @@ export default function Home() {
   // Estado local para filtros e ordenação
   const [activeGroup, setActiveGroup] = useState("ALL");
   const [visibleGroupsCount, setVisibleGroupsCount] = useState(3);
-  const [currentSort, setCurrentSort] = useState("name_asc"); // Estado local de ordenação
+  const [currentSort, setCurrentSort] = useState("name_asc");
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const shelvesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  // 1. PRIMEIRO: Ordenar todos os produtos
+  // 1. Ordenação dos Produtos
   const sortedAllProducts = useMemo(() => {
-    const products = [...allProducts]; // Criar cópia para não mutar o original
+    const products = [...allProducts];
 
     return products.sort((a, b) => {
       switch (currentSort) {
@@ -58,10 +60,11 @@ export default function Home() {
     });
   }, [allProducts, currentSort]);
 
-  // 2. DEPOIS: Agrupar os produtos JÁ ORDENADOS
+  // 2. Agrupamento dos Produtos (já ordenados)
   const productsByGroup = useMemo(() => {
     const groups: Record<string, Product[]> = {};
 
+    // Inicializa a ordem dos grupos
     Object.keys(HOME_CATEGORY_GROUPS).forEach((key) => (groups[key] = []));
     groups["Outros"] = [];
 
@@ -72,15 +75,15 @@ export default function Home() {
     });
 
     return groups;
-  }, [sortedAllProducts]); // Depende dos produtos já ordenados
+  }, [sortedAllProducts]);
 
   const groupNames = useMemo(() => {
-    // Retorna apenas grupos que têm produtos
     return Object.keys(HOME_CATEGORY_GROUPS).filter(
       (g) => productsByGroup[g]?.length > 0
     );
   }, [productsByGroup]);
 
+  // Ações
   const handleDirectAdd = (product: Product, variant?: ProductVariant) => {
     addItem({
       cartId: crypto.randomUUID(),
@@ -91,6 +94,16 @@ export default function Home() {
       kitTotalAmount: 0,
     });
     openCart();
+  };
+
+  const handleNaturaClick = () => {
+    setActiveGroup("Perfumaria & Corpo"); // Nome exato do grupo no category_groups.ts
+    setTimeout(() => {
+      shelvesRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
   };
 
   const scrollFiltersLeft = () => {
@@ -112,11 +125,9 @@ export default function Home() {
       </div>
     );
 
+  // Renderização das Prateleiras (Modo 'ALL')
   const renderShelves = () => {
-    const groupsToShow =
-      activeGroup === "ALL"
-        ? groupNames.slice(0, visibleGroupsCount)
-        : [activeGroup];
+    const groupsToShow = groupNames.slice(0, visibleGroupsCount);
 
     return groupsToShow.map((groupName) => {
       const products = productsByGroup[groupName] || [];
@@ -136,7 +147,7 @@ export default function Home() {
                 {groupName}
               </h2>
 
-              {hasMore && activeGroup === "ALL" && (
+              {hasMore && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -165,7 +176,7 @@ export default function Home() {
                 </div>
               ))}
 
-              {hasMore && activeGroup === "ALL" && (
+              {hasMore && (
                 <div className="min-w-[100px] flex items-center justify-center snap-center">
                   <Button
                     variant="ghost"
@@ -186,6 +197,7 @@ export default function Home() {
     });
   };
 
+  // Renderização da Grade Completa (Modo Categoria Específica)
   const renderGrid = () => {
     const products = productsByGroup[activeGroup] || [];
     return (
@@ -221,18 +233,30 @@ export default function Home() {
     <main className="min-h-screen bg-slate-50 pb-0">
       <HeroSection />
 
+      {/* ÁREA DE TRIGGERS E BANNERS */}
       <div className="relative -mt-8 z-20 px-4 mb-8">
         <div className="max-w-6xl mx-auto flex flex-col gap-4">
+          {/* 1. Monte seu Kit (Principal) */}
           <BuilderTrigger />
-          <RibbonBuilderTrigger />
+
+          {/* 2. Grid de Banners Secundários (Mesma Altura) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <RibbonBuilderTrigger />
+            <NaturaBanner onClick={handleNaturaClick} />
+          </div>
         </div>
       </div>
 
       <KitBuilderModal />
 
-      <div className="sticky top-16 z-40 bg-slate-50/95 py-2 backdrop-blur-sm shadow-sm md:shadow-none border-b md:border-b-0 border-slate-200/50">
+      {/* BARRA DE FILTROS FIXA */}
+      <div
+        ref={shelvesRef}
+        className="sticky top-16 z-40 bg-slate-50/95 py-2 backdrop-blur-sm shadow-sm md:shadow-none border-b md:border-b-0 border-slate-200/50"
+      >
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex flex-col md:flex-row gap-3 justify-between items-center bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
+            {/* Scroll de Grupos */}
             <div className="flex items-center gap-2 relative w-full md:w-auto md:flex-1 md:min-w-0">
               <Button
                 variant="ghost"
@@ -288,7 +312,7 @@ export default function Home() {
               </Button>
             </div>
 
-            {/* SELETOR DE ORDENAÇÃO ATUALIZADO */}
+            {/* Seletor de Ordenação */}
             <div className="flex items-center gap-2 w-full md:w-auto flex-shrink-0 border-t md:border-t-0 md:border-l pt-2 md:pt-0 md:pl-4 border-slate-100">
               <SlidersHorizontal size={16} className="text-slate-400" />
               <Select value={currentSort} onValueChange={setCurrentSort}>
@@ -306,6 +330,7 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ÁREA DE PRODUTOS */}
       <div className="min-h-[50vh]">
         {activeGroup === "ALL" ? (
           <>
