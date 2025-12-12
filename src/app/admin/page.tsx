@@ -71,9 +71,14 @@ import {
   Eye,
   Filter,
   ListFilter,
+  ArrowUp,
+  ArrowDown,
+  Save,
 } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
 import { OrderDetailsSheet } from "@/components/admin/OrderDetailsSheet";
+import { ThemePreview } from "@/components/admin/ThemePreview"; // Simulador Visual
+import { HOME_CATEGORY_GROUPS } from "@/lib/category_groups";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -81,46 +86,44 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
 
-  // Estados de Dados
+  // --- DADOS ---
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
 
-  // Filtros Avançados
+  // --- FILTROS & PAGINAÇÃO ---
   const [searchTerm, setSearchTerm] = useState("");
-  const [adminTypeFilter, setAdminTypeFilter] = useState<string>("ALL"); // Camada 1: Tipo
-  const [adminCategoryFilter, setAdminCategoryFilter] = useState("ALL"); // Camada 2: Categoria
-
+  const [adminTypeFilter, setAdminTypeFilter] = useState<string>("ALL"); // Filtro Nível 1
+  const [adminCategoryFilter, setAdminCategoryFilter] = useState("ALL"); // Filtro Nível 2
   const [loading, setLoading] = useState(true);
-
-  // Paginação
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Configurações
+  // --- CONFIGURAÇÕES ---
   const [settings, setSettings] = useState<StoreSettings>({
     id: "general",
     storeName: "Mix WebApp",
     whatsappNumber: "",
     theme: {
       primaryColor: "#7c3aed",
-      secondaryColor: "#db2777",
-      accentColor: "#10b981",
+      secondaryColor: "#16a34a",
+      accentColor: "#f97316",
       backgroundColor: "#f8fafc",
     },
     filters: { activeCategories: [], categoryOrder: [] },
   });
 
-  // Pedidos
-  const [orders, setOrders] = useState<Order[]>([]);
+  // Estado local para reordenação visual dos grupos antes de salvar
+  const [orderedGroups, setOrderedGroups] = useState<string[]>([]);
 
-  // Modais e Seleções
+  // --- MODAIS ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isOrderSheetOpen, setIsOrderSheetOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
-  // --- AUTENTICAÇÃO ---
+  // --- AUTH ---
   useEffect(() => {
     const auth = localStorage.getItem("mix_admin_auth");
     if (auth === "true") setIsAuthenticated(true);
@@ -137,7 +140,7 @@ export default function AdminPage() {
     }
   };
 
-  // --- DATA FETCHING (Tempo Real) ---
+  // --- DATA FETCHING (REALTIME) ---
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -151,12 +154,26 @@ export default function AdminPage() {
       setLoading(false);
     });
 
-    // 2. Configurações
+    // 2. Configurações & Inicialização da Ordem
     const unsubSettings = onSnapshot(
       doc(db, "settings", "general"),
       (docSnap) => {
         if (docSnap.exists()) {
-          setSettings(docSnap.data() as StoreSettings);
+          const data = docSnap.data() as StoreSettings;
+          setSettings(data);
+
+          // Lógica de Ordem: Usa a salva ou a padrão do arquivo
+          const defaultGroups = Object.keys(HOME_CATEGORY_GROUPS);
+          if (data.filters?.categoryOrder?.length > 0) {
+            const savedOrder = data.filters.categoryOrder;
+            // Adiciona novos grupos que porventura tenham surgido no código
+            const newGroups = defaultGroups.filter(
+              (g) => !savedOrder.includes(g)
+            );
+            setOrderedGroups([...savedOrder, ...newGroups]);
+          } else {
+            setOrderedGroups(defaultGroups);
+          }
         }
       }
     );
@@ -180,11 +197,10 @@ export default function AdminPage() {
     };
   }, [isAuthenticated]);
 
-  // --- LÓGICA DE FILTROS EM CAMADAS ---
+  // --- LÓGICA DE FILTROS ---
   useEffect(() => {
     let results = allProducts;
 
-    // 1. Filtro por Texto (Nome ou Categoria)
     if (searchTerm) {
       const lowerTerm = searchTerm.toLowerCase();
       results = results.filter(
@@ -194,12 +210,10 @@ export default function AdminPage() {
       );
     }
 
-    // 2. Filtro por Tipo (Macro)
     if (adminTypeFilter !== "ALL") {
       results = results.filter((p) => p.type === adminTypeFilter);
     }
 
-    // 3. Filtro por Categoria Específica
     if (adminCategoryFilter !== "ALL") {
       results = results.filter((p) => p.category === adminCategoryFilter);
     }
@@ -208,17 +222,16 @@ export default function AdminPage() {
     setCurrentPage(1);
   }, [searchTerm, adminTypeFilter, adminCategoryFilter, allProducts]);
 
-  // Calcular categorias disponíveis dinamicamente baseado no Tipo selecionado
+  // Categorias disponíveis dinâmicas (baseadas no Tipo selecionado)
   const availableCategories = useMemo(() => {
     let prods = allProducts;
-    // Se tiver um tipo selecionado, mostra apenas as categorias daquele tipo
     if (adminTypeFilter !== "ALL") {
       prods = prods.filter((p) => p.type === adminTypeFilter);
     }
     return Array.from(new Set(prods.map((p) => p.category))).sort();
   }, [allProducts, adminTypeFilter]);
 
-  // Lista completa de categorias (para o modal de edição, sempre mostra tudo)
+  // Todas as categorias (para o modal de edição)
   const allCategoriesForModal = Array.from(
     new Set(allProducts.map((p) => p.category))
   ).sort();
@@ -229,7 +242,7 @@ export default function AdminPage() {
     currentPage * itemsPerPage
   );
 
-  // --- AÇÕES ---
+  // --- AÇÕES GERAIS ---
   const toggleProductStatus = async (product: Product) => {
     await updateDoc(doc(db, "products", product.id), {
       inStock: !product.inStock,
@@ -245,16 +258,7 @@ export default function AdminPage() {
     }
   };
 
-  const saveSettings = async () => {
-    try {
-      await setDoc(doc(db, "settings", "general"), settings);
-      toast.success("Configurações salvas!");
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao salvar.");
-    }
-  };
-
+  // --- AÇÕES DE SETTINGS (CORES E ORDEM) ---
   const updateThemeColor = (
     key: keyof StoreSettings["theme"],
     value: string
@@ -265,12 +269,43 @@ export default function AdminPage() {
     }));
   };
 
+  const moveGroup = (index: number, direction: "up" | "down") => {
+    const newOrder = [...orderedGroups];
+    if (direction === "up" && index > 0) {
+      [newOrder[index], newOrder[index - 1]] = [
+        newOrder[index - 1],
+        newOrder[index],
+      ];
+    } else if (direction === "down" && index < newOrder.length - 1) {
+      [newOrder[index], newOrder[index + 1]] = [
+        newOrder[index + 1],
+        newOrder[index],
+      ];
+    }
+    setOrderedGroups(newOrder);
+    setSettings((prev) => ({
+      ...prev,
+      filters: { ...prev.filters, categoryOrder: newOrder },
+    }));
+  };
+
+  const saveSettings = async () => {
+    try {
+      await setDoc(doc(db, "settings", "general"), settings);
+      toast.success("Configurações salvas e aplicadas na loja!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao salvar.");
+    }
+  };
+
+  // --- AÇÕES DE PEDIDO ---
   const handleStatusChange = async (
     orderId: string,
     newStatus: OrderStatus
   ) => {
     await updateDoc(doc(db, "orders", orderId), { status: newStatus });
-    toast.info("Status do pedido atualizado.");
+    toast.info("Status atualizado.");
   };
 
   const handleCopyDeliveryInfo = (order: Order) => {
@@ -281,16 +316,12 @@ export default function AdminPage() {
       style: "currency",
       currency: "BRL",
     }).format(order.total);
-
-    let paymentInstruction = "";
-    if (order.paymentTiming === "prepaid") {
-      paymentInstruction = "✅ **JÁ PAGO** (Apenas entregar)";
-    } else {
-      paymentInstruction = `💰 **COBRAR NA ENTREGA:** ${totalValue} (${
-        order.paymentMethod === "pix" ? "Pix" : "Dinheiro"
-      })`;
-    }
-
+    let paymentInstruction =
+      order.paymentTiming === "prepaid"
+        ? "✅ **JÁ PAGO** (Apenas entregar)"
+        : `💰 **COBRAR NA ENTREGA:** ${totalValue} (${
+            order.paymentMethod === "pix" ? "Pix" : "Dinheiro"
+          })`;
     const text =
       `🛵 *COTAR ENTREGA #${shortId}*\n\n` +
       `📍 *Retirada:* ${storeAddress}\n` +
@@ -298,17 +329,14 @@ export default function AdminPage() {
       `👤 *Cliente:* ${order.customerName || "Não informado"}\n` +
       `${paymentInstruction}\n` +
       `📦 *Volume:* ${order.items.length} itens`;
-
     navigator.clipboard.writeText(text);
-    toast.success("Texto copiado! Cole no WhatsApp do Motoboy.");
+    toast.success("Texto copiado! Cole no WhatsApp.");
   };
 
   const handleViewOrder = (order: Order) => {
     setSelectedOrder(order);
     setIsOrderSheetOpen(true);
   };
-
-  // Helpers de UI
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
       case "pending":
@@ -325,7 +353,6 @@ export default function AdminPage() {
         return "bg-gray-100 text-gray-800";
     }
   };
-
   const getStatusLabel = (status: OrderStatus) => {
     switch (status) {
       case "pending":
@@ -395,7 +422,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* ABAS */}
         <Tabs defaultValue="orders" className="w-full space-y-6">
           <TabsList className="bg-white p-1 rounded-lg border shadow-sm">
             <TabsTrigger value="orders" className="gap-2">
@@ -408,15 +434,14 @@ export default function AdminPage() {
               <Palette size={16} /> Aparência
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-2">
-              <Settings size={16} /> Configurações
+              <Settings size={16} /> Seções Home
             </TabsTrigger>
           </TabsList>
 
-          {/* CONTEÚDO: PRODUTOS */}
+          {/* ABA PRODUTOS */}
           <TabsContent value="products" className="space-y-4">
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center bg-white p-4 rounded-xl shadow-sm gap-4">
               <div className="flex flex-col md:flex-row gap-2 w-full xl:w-auto flex-1">
-                {/* BUSCA */}
                 <div className="relative flex-1 md:max-w-xs">
                   <Search
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -430,7 +455,7 @@ export default function AdminPage() {
                   />
                 </div>
 
-                {/* FILTRO CAMADA 1: TIPO */}
+                {/* FILTRO 1: TIPO */}
                 <Select
                   value={adminTypeFilter}
                   onValueChange={(val) => {
@@ -441,27 +466,21 @@ export default function AdminPage() {
                   <SelectTrigger className="w-full md:w-[200px]">
                     <div className="flex items-center gap-2 text-slate-600">
                       <ListFilter size={16} />
-                      <SelectValue placeholder="Tipo de Produto" />
+                      <SelectValue placeholder="Tipo" />
                     </div>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">Todos os Tipos</SelectItem>
-                    <SelectItem value="STANDARD_ITEM">
-                      Padrão (Natura/Presentes)
-                    </SelectItem>
+                    <SelectItem value="STANDARD_ITEM">Padrão</SelectItem>
                     <SelectItem value="RIBBON">Fitas & Laços</SelectItem>
-                    <SelectItem value="BASE_CONTAINER">
-                      Bases (Cestas/Caixas)
-                    </SelectItem>
-                    <SelectItem value="FILLER">
-                      Enchimentos (Seda/Palha)
-                    </SelectItem>
-                    <SelectItem value="WRAPPER">Embalagens Finais</SelectItem>
+                    <SelectItem value="BASE_CONTAINER">Bases</SelectItem>
+                    <SelectItem value="FILLER">Enchimentos</SelectItem>
+                    <SelectItem value="WRAPPER">Embalagens</SelectItem>
                     <SelectItem value="SUPPLY_BULK">Atacado</SelectItem>
                   </SelectContent>
                 </Select>
 
-                {/* FILTRO CAMADA 2: CATEGORIA ESPECÍFICA */}
+                {/* FILTRO 2: CATEGORIA */}
                 <Select
                   value={adminCategoryFilter}
                   onValueChange={setAdminCategoryFilter}
@@ -469,7 +488,7 @@ export default function AdminPage() {
                   <SelectTrigger className="w-full md:w-[200px]">
                     <div className="flex items-center gap-2 text-slate-600">
                       <Filter size={16} />
-                      <SelectValue placeholder="Categoria Específica" />
+                      <SelectValue placeholder="Categoria" />
                     </div>
                   </SelectTrigger>
                   <SelectContent>
@@ -482,7 +501,6 @@ export default function AdminPage() {
                   </SelectContent>
                 </Select>
               </div>
-
               <Button
                 onClick={() => {
                   setEditingProduct(null);
@@ -538,7 +556,15 @@ export default function AdminPage() {
                               />
                             )}
                           </div>
-                          <span className="font-medium">{product.name}</span>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{product.name}</span>
+                            {product.variants &&
+                              product.variants.length > 0 && (
+                                <span className="text-[10px] text-blue-600 font-bold">
+                                  +{product.variants.length} variações
+                                </span>
+                              )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
@@ -602,7 +628,7 @@ export default function AdminPage() {
             </div>
           </TabsContent>
 
-          {/* CONTEÚDO: PEDIDOS */}
+          {/* ABA PEDIDOS */}
           <TabsContent value="orders" className="space-y-4">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -644,7 +670,6 @@ export default function AdminPage() {
                               variant="ghost"
                               className="h-8 w-8 p-0 text-purple-600 hover:bg-purple-50"
                               onClick={() => handleViewOrder(order)}
-                              title="Abrir Detalhes"
                             >
                               <Eye size={20} />
                             </Button>
@@ -722,7 +747,6 @@ export default function AdminPage() {
                                   size="sm"
                                   className="h-8 w-8 p-0 bg-slate-900 hover:bg-slate-700 text-white mr-2"
                                   onClick={() => handleCopyDeliveryInfo(order)}
-                                  title="Copiar para Motoboy"
                                 >
                                   <Bike size={16} />
                                 </Button>
@@ -735,7 +759,6 @@ export default function AdminPage() {
                                   onClick={() =>
                                     handleStatusChange(order.id, "processing")
                                   }
-                                  title="Separando"
                                 >
                                   <Clock size={16} />
                                 </Button>
@@ -748,7 +771,6 @@ export default function AdminPage() {
                                   onClick={() =>
                                     handleStatusChange(order.id, "delivering")
                                   }
-                                  title="Saiu para Entrega"
                                 >
                                   <Truck size={16} />
                                 </Button>
@@ -761,7 +783,6 @@ export default function AdminPage() {
                                   onClick={() =>
                                     handleStatusChange(order.id, "completed")
                                   }
-                                  title="Concluir"
                                 >
                                   <CheckCircle size={16} />
                                 </Button>
@@ -775,7 +796,6 @@ export default function AdminPage() {
                                     onClick={() =>
                                       handleStatusChange(order.id, "cancelled")
                                     }
-                                    title="Cancelar"
                                   >
                                     <XCircle size={16} />
                                   </Button>
@@ -791,72 +811,137 @@ export default function AdminPage() {
             </div>
           </TabsContent>
 
-          {/* CONTEÚDO: APARÊNCIA */}
+          {/* ABA APARÊNCIA (CORES + PREVIEW) */}
           <TabsContent value="appearance">
-            <div className="bg-white p-6 rounded-xl shadow-sm space-y-8">
-              <div>
-                <h2 className="text-lg font-bold mb-4">
-                  Personalização de Cores
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
-                  <div className="space-y-2">
-                    <Label>Cor Primária</Label>
-                    <div className="flex gap-3">
-                      <Input
-                        type="color"
-                        value={settings.theme.primaryColor}
-                        onChange={(e) =>
-                          updateThemeColor("primaryColor", e.target.value)
-                        }
-                        className="w-12 h-12 p-1 rounded-lg cursor-pointer"
-                      />
-                      <Input
-                        value={settings.theme.primaryColor}
-                        onChange={(e) =>
-                          updateThemeColor("primaryColor", e.target.value)
-                        }
-                        className="uppercase"
-                      />
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+              <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+                <Palette size={18} className="text-purple-600" /> Personalização
+                do Tema
+              </h2>
+              <div className="flex flex-col lg:flex-row gap-10 items-start">
+                <div className="flex-1 space-y-6 w-full max-w-md">
+                  <div className="space-y-4 p-4 border rounded-xl bg-slate-50">
+                    <div className="space-y-2">
+                      <Label>Cor Primária</Label>
+                      <div className="flex gap-3">
+                        <Input
+                          type="color"
+                          value={settings.theme.primaryColor}
+                          onChange={(e) =>
+                            updateThemeColor("primaryColor", e.target.value)
+                          }
+                          className="w-14 h-14 p-1 rounded-xl cursor-pointer shadow-sm"
+                        />
+                        <div className="flex-1">
+                          <Input
+                            value={settings.theme.primaryColor}
+                            onChange={(e) =>
+                              updateThemeColor("primaryColor", e.target.value)
+                            }
+                            className="uppercase font-mono mb-1"
+                          />
+                          <p className="text-xs text-slate-500">
+                            Usada em botões de filtro, cabeçalho e destaques.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Cor Secundária</Label>
+                      <div className="flex gap-3">
+                        <Input
+                          type="color"
+                          value={settings.theme.secondaryColor}
+                          onChange={(e) =>
+                            updateThemeColor("secondaryColor", e.target.value)
+                          }
+                          className="w-14 h-14 p-1 rounded-xl cursor-pointer shadow-sm"
+                        />
+                        <div className="flex-1">
+                          <Input
+                            value={settings.theme.secondaryColor}
+                            onChange={(e) =>
+                              updateThemeColor("secondaryColor", e.target.value)
+                            }
+                            className="uppercase font-mono mb-1"
+                          />
+                          <p className="text-xs text-slate-500">
+                            Usada em botões "Adicionar" e checkout.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Cor Secundária</Label>
-                    <div className="flex gap-3">
-                      <Input
-                        type="color"
-                        value={settings.theme.secondaryColor}
-                        onChange={(e) =>
-                          updateThemeColor("secondaryColor", e.target.value)
-                        }
-                        className="w-12 h-12 p-1 rounded-lg cursor-pointer"
-                      />
-                      <Input
-                        value={settings.theme.secondaryColor}
-                        onChange={(e) =>
-                          updateThemeColor("secondaryColor", e.target.value)
-                        }
-                        className="uppercase"
-                      />
-                    </div>
-                  </div>
+                  <Button
+                    onClick={saveSettings}
+                    className="w-full bg-slate-900 text-white h-12 text-lg"
+                  >
+                    <Save size={18} className="mr-2" /> Salvar Tema
+                  </Button>
                 </div>
-              </div>
-              <div className="pt-4 border-t">
-                <Button
-                  onClick={saveSettings}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  Salvar Alterações de Tema
-                </Button>
+                {/* SIMULADOR EM TEMPO REAL */}
+                <div className="flex-1 w-full flex flex-col items-center">
+                  <Label className="mb-4 text-slate-500 uppercase text-xs font-bold tracking-wide">
+                    Pré-visualização (Simulação)
+                  </Label>
+                  <ThemePreview
+                    primaryColor={settings.theme.primaryColor}
+                    secondaryColor={settings.theme.secondaryColor}
+                  />
+                </div>
               </div>
             </div>
           </TabsContent>
 
-          {/* CONTEÚDO: SETTINGS */}
+          {/* ABA CONFIGURAÇÕES (ORDEM) */}
           <TabsContent value="settings">
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <h2 className="text-lg font-bold mb-4">Gerenciar Categorias</h2>
-              <p className="text-sm text-slate-500 mb-6">Em breve.</p>
+            <div className="bg-white p-6 rounded-xl shadow-sm space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <ListFilter size={18} className="text-blue-600" /> Ordem das
+                  Seções (Home)
+                </h2>
+              </div>
+              <p className="text-sm text-slate-500">
+                Defina a ordem que os grupos de produtos aparecem na página
+                inicial.
+              </p>
+              <div className="space-y-2 border rounded-lg p-2 bg-slate-50">
+                {orderedGroups.map((group, index) => (
+                  <div
+                    key={group}
+                    className="flex items-center justify-between p-3 bg-white border rounded-md shadow-sm"
+                  >
+                    <span className="font-medium text-slate-700">
+                      {index + 1}. {group}
+                    </span>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => moveGroup(index, "up")}
+                        disabled={index === 0}
+                      >
+                        <ArrowUp size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => moveGroup(index, "down")}
+                        disabled={index === orderedGroups.length - 1}
+                      >
+                        <ArrowDown size={16} />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Button
+                onClick={saveSettings}
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Save size={16} className="mr-2" /> Salvar Ordem
+              </Button>
             </div>
           </TabsContent>
         </Tabs>
@@ -866,12 +951,9 @@ export default function AdminPage() {
         isOpen={isOrderSheetOpen}
         onClose={() => setIsOrderSheetOpen(false)}
         order={selectedOrder}
-        onStatusChange={(id, status) => {
-          handleStatusChange(id, status);
-        }}
+        onStatusChange={handleStatusChange}
         onCopyDelivery={handleCopyDeliveryInfo}
       />
-
       <ProductFormDialog
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -882,7 +964,6 @@ export default function AdminPage() {
         }}
         existingCategories={allCategoriesForModal}
       />
-
       <AlertDialog
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
@@ -891,8 +972,7 @@ export default function AdminPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
             <AlertDialogDescription>
-              Essa ação não pode ser desfeita. O produto será excluído
-              permanentemente.
+              Essa ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -20,11 +20,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Product, ProductType, MeasureUnit } from "@/lib/types";
+import { Product, ProductType, MeasureUnit, ProductVariant } from "@/lib/types"; // Importar ProductVariant
 import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
-import { Loader2, Upload, X, Info, ChevronDown } from "lucide-react";
+import {
+  Loader2,
+  Upload,
+  X,
+  Info,
+  ChevronDown,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import Image from "next/image";
 import {
   Popover,
@@ -61,6 +69,11 @@ export function ProductFormDialog({
   const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
   const [categoryOpen, setCategoryOpen] = useState(false);
 
+  // Estados para Variantes
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [newVarName, setNewVarName] = useState("");
+  const [newVarPrice, setNewVarPrice] = useState("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<Partial<Product>>({
@@ -80,6 +93,7 @@ export function ProductFormDialog({
   useEffect(() => {
     if (productToEdit) {
       setFormData(productToEdit);
+      setVariants(productToEdit.variants || []); // Carrega variantes existentes
       if (
         productToEdit.imageUrl &&
         productToEdit.imageUrl.startsWith("http") &&
@@ -101,6 +115,7 @@ export function ProductFormDialog({
         description: "",
         canBeSoldAsRoll: true,
       });
+      setVariants([]);
     }
   }, [productToEdit, isOpen]);
 
@@ -120,6 +135,24 @@ export function ProductFormDialog({
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // Funções de Variante
+  const addVariant = () => {
+    if (!newVarName || !newVarPrice) return;
+    const newVariant: ProductVariant = {
+      id: crypto.randomUUID(),
+      name: newVarName,
+      price: parseFloat(newVarPrice),
+      inStock: true,
+    };
+    setVariants([...variants, newVariant]);
+    setNewVarName("");
+    setNewVarPrice("");
+  };
+
+  const removeVariant = (id: string) => {
+    setVariants(variants.filter((v) => v.id !== id));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -143,6 +176,7 @@ export function ProductFormDialog({
             : undefined,
         canBeSoldAsRoll:
           formData.type === "RIBBON" ? formData.canBeSoldAsRoll : undefined,
+        variants: variants, // Salva as variantes
       };
 
       if (productToEdit?.id) {
@@ -174,33 +208,28 @@ export function ProductFormDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          {/* Seção Imagem (Resumida) */}
           <div className="space-y-2">
-            <Label>Imagem do Produto</Label>
+            <Label>Imagem Principal</Label>
             <Tabs
               value={imageMode}
               onValueChange={(v) => setImageMode(v as "upload" | "url")}
               className="w-full"
             >
               <TabsList className="grid w-full grid-cols-2 mb-2">
-                <TabsTrigger value="upload">Upload de Arquivo</TabsTrigger>
-                <TabsTrigger value="url">Link da Imagem</TabsTrigger>
+                <TabsTrigger value="upload">Upload</TabsTrigger>
+                <TabsTrigger value="url">Link</TabsTrigger>
               </TabsList>
               <TabsContent value="upload">
                 {!formData.imageUrl ? (
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-300 rounded-xl h-32 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors group"
+                    className="border-2 border-dashed border-slate-300 rounded-xl h-24 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50"
                   >
-                    {isUploading ? (
-                      <Loader2 className="h-8 w-8 text-purple-600 animate-spin" />
-                    ) : (
-                      <>
-                        <Upload className="h-6 w-6 text-purple-600 mb-2 group-hover:scale-110" />
-                        <p className="text-sm text-slate-600">
-                          Clique para enviar foto
-                        </p>
-                      </>
-                    )}
+                    <Upload className="h-6 w-6 text-purple-600 mb-1" />
+                    <span className="text-xs text-slate-500">
+                      {isUploading ? "Enviando..." : "Clique para enviar"}
+                    </span>
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -210,12 +239,12 @@ export function ProductFormDialog({
                     />
                   </div>
                 ) : (
-                  <div className="relative w-full h-32 bg-slate-100 rounded-xl overflow-hidden border flex items-center justify-center">
+                  <div className="relative w-full h-24 bg-slate-100 rounded-xl overflow-hidden border flex items-center justify-center">
                     <Image
                       src={formData.imageUrl}
                       alt="Preview"
-                      width={128}
-                      height={128}
+                      width={100}
+                      height={100}
                       className="object-contain h-full"
                     />
                     <button
@@ -225,7 +254,7 @@ export function ProductFormDialog({
                       }
                       className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full"
                     >
-                      <X size={14} />
+                      <X size={12} />
                     </button>
                   </div>
                 )}
@@ -233,7 +262,7 @@ export function ProductFormDialog({
               <TabsContent value="url">
                 <div className="flex gap-2">
                   <Input
-                    placeholder="Cole o link da imagem aqui..."
+                    placeholder="Link da imagem..."
                     value={formData.imageUrl}
                     onChange={(e) =>
                       setFormData((prev) => ({
@@ -242,15 +271,6 @@ export function ProductFormDialog({
                       }))
                     }
                   />
-                  {formData.imageUrl && (
-                    <div className="w-10 h-10 relative rounded border overflow-hidden shrink-0">
-                      <img
-                        src={formData.imageUrl}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
                 </div>
               </TabsContent>
             </Tabs>
@@ -265,7 +285,7 @@ export function ProductFormDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                placeholder="Ex: Hidratante"
+                placeholder="Ex: Fita Cetim"
               />
             </div>
             <div className="space-y-2 flex flex-col">
@@ -277,37 +297,28 @@ export function ProductFormDialog({
                   onChange={(e) =>
                     setFormData({ ...formData, category: e.target.value })
                   }
-                  placeholder="Ex: Perfumaria"
+                  placeholder="Ex: Fitas"
                   className="flex-1"
                 />
                 <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="shrink-0"
-                      title="Ver categorias existentes"
-                    >
+                    <Button variant="outline" size="icon" className="shrink-0">
                       <ChevronDown size={16} />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="p-0" align="end">
                     <Command>
-                      <CommandInput placeholder="Buscar categoria..." />
+                      <CommandInput placeholder="Buscar..." />
                       <CommandList>
-                        <CommandEmpty>
-                          Nenhuma categoria encontrada.
-                        </CommandEmpty>
-                        <CommandGroup heading="Categorias Existentes">
+                        <CommandEmpty>Nada encontrado.</CommandEmpty>
+                        <CommandGroup heading="Existentes">
                           {existingCategories.map((cat) => (
                             <CommandItem
                               key={cat}
                               value={cat}
-                              onSelect={(currentValue) => {
+                              onSelect={(val) => {
                                 const original = existingCategories.find(
-                                  (c) =>
-                                    c.toLowerCase() ===
-                                    currentValue.toLowerCase()
+                                  (c) => c.toLowerCase() === val.toLowerCase()
                                 );
                                 if (original)
                                   setFormData({
@@ -329,7 +340,22 @@ export function ProductFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Preço Varejo</Label>
+              <Input
+                type="number"
+                step="0.01"
+                required
+                value={formData.price}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    price: parseFloat(e.target.value),
+                  })
+                }
+              />
+            </div>
             <div className="space-y-2">
               <Label>Tipo</Label>
               <Select
@@ -342,13 +368,11 @@ export function ProductFormDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="STANDARD_ITEM">Produto Padrão</SelectItem>
-                  <SelectItem value="BASE_CONTAINER">
-                    Base (Cesta/Caixa)
-                  </SelectItem>
-                  <SelectItem value="FILLER">Fundo (Palha/Seda)</SelectItem>
-                  <SelectItem value="RIBBON">Fita/Laço</SelectItem>
-                  <SelectItem value="WRAPPER">Embalagem Final</SelectItem>
+                  <SelectItem value="STANDARD_ITEM">Padrão</SelectItem>
+                  <SelectItem value="RIBBON">Fita</SelectItem>
+                  <SelectItem value="BASE_CONTAINER">Base</SelectItem>
+                  <SelectItem value="FILLER">Fundo</SelectItem>
+                  <SelectItem value="WRAPPER">Emb. Final</SelectItem>
                   <SelectItem value="SUPPLY_BULK">Atacado</SelectItem>
                 </SelectContent>
               </Select>
@@ -365,12 +389,78 @@ export function ProductFormDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="un">Unidade (un)</SelectItem>
-                  <SelectItem value="m">Metro (m)</SelectItem>
-                  <SelectItem value="pct">Pacote (pct)</SelectItem>
+                  <SelectItem value="un">un</SelectItem>
+                  <SelectItem value="m">m</SelectItem>
+                  <SelectItem value="pct">pct</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* ÁREA DE VARIANTES (ATACADO) */}
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+            <Label className="text-slate-700 font-bold flex items-center gap-2">
+              Variações / Atacado{" "}
+              <span className="text-xs font-normal text-slate-500">
+                (Opcional)
+              </span>
+            </Label>
+
+            <div className="flex gap-2 items-end">
+              <div className="flex-1 space-y-1">
+                <span className="text-xs text-slate-500">
+                  Nome (ex: Rolo 10m)
+                </span>
+                <Input
+                  value={newVarName}
+                  onChange={(e) => setNewVarName(e.target.value)}
+                  className="bg-white h-8 text-sm"
+                />
+              </div>
+              <div className="w-24 space-y-1">
+                <span className="text-xs text-slate-500">Preço</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={newVarPrice}
+                  onChange={(e) => setNewVarPrice(e.target.value)}
+                  className="bg-white h-8 text-sm"
+                />
+              </div>
+              <Button
+                type="button"
+                onClick={addVariant}
+                size="sm"
+                className="h-8 bg-green-600 hover:bg-green-700"
+              >
+                <Plus size={14} />
+              </Button>
+            </div>
+
+            {variants.length > 0 && (
+              <div className="space-y-1 mt-2">
+                {variants.map((v) => (
+                  <div
+                    key={v.id}
+                    className="flex justify-between items-center bg-white p-2 rounded border text-sm"
+                  >
+                    <span>{v.name}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-slate-700">
+                        R$ {v.price?.toFixed(2)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeVariant(v.id)}
+                        className="text-red-400 hover:text-red-600"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {formData.type === "RIBBON" && (
@@ -380,104 +470,14 @@ export function ProductFormDialog({
                 onCheckedChange={(checked) =>
                   setFormData((prev) => ({ ...prev, canBeSoldAsRoll: checked }))
                 }
-                id="can-be-sold-roll"
+                id="roll"
               />
               <Label
-                htmlFor="can-be-sold-roll"
-                className="text-sm font-medium leading-none text-purple-900"
+                htmlFor="roll"
+                className="text-sm font-medium text-purple-900"
               >
                 Vender Rolo Inteiro?
               </Label>
-              <Info size={14} className="text-purple-600 ml-auto" />
-            </div>
-          )}
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Preço (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                required
-                value={formData.price}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    price: parseFloat(e.target.value),
-                  })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Oferta (R$)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="Antigo"
-                value={formData.originalPrice || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    originalPrice: parseFloat(e.target.value),
-                  })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              {formData.type === "BASE_CONTAINER" ? (
-                <>
-                  <Label className="text-purple-600 font-bold">
-                    Capacidade
-                  </Label>
-                  <Input
-                    type="number"
-                    value={formData.capacity || ""}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        capacity: parseInt(e.target.value),
-                      })
-                    }
-                    placeholder="Slots"
-                  />
-                </>
-              ) : (
-                <>
-                  <Label className="text-blue-600 font-bold">Tamanho</Label>
-                  <Input
-                    type="number"
-                    value={formData.itemSize || ""}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        itemSize: parseInt(e.target.value),
-                      })
-                    }
-                    placeholder="Slots"
-                  />
-                </>
-              )}
-            </div>
-          </div>
-
-          {(formData.type === "STANDARD_ITEM" ||
-            formData.type === "BASE_CONTAINER") && (
-            <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-800 space-y-1">
-              <div className="flex items-center gap-2 font-bold mb-1">
-                <Info size={14} className="text-blue-600" /> Referência
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <ul className="list-disc pl-4 space-y-0.5">
-                  <li>Sabonete = 1</li>
-                  <li>Hidratante = 2</li>
-                  <li>Perfume = 3</li>
-                </ul>
-                <ul className="list-disc pl-4 space-y-0.5">
-                  <li>Caixa P = 4</li>
-                  <li>Cesta M = 8</li>
-                  <li>Cesta G = 12+</li>
-                </ul>
-              </div>
             </div>
           )}
 

@@ -123,23 +123,6 @@ export function HeroSection() {
                 </div>
               </div>
 
-              {/* Horário */}
-              <div className="flex gap-4">
-                <div className="bg-purple-900 p-2.5 rounded-full h-11 w-11 flex items-center justify-center shrink-0">
-                  <Clock className="text-yellow-500" size={20} />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-yellow-500">
-                    Atendimento Estendido
-                  </p>
-                  <p className="text-sm text-purple-300">
-                    Seg à Sáb: 08h - 20h{" "}
-                    <span className="text-purple-500 mx-1">|</span> Dom: 08h -
-                    14h
-                  </p>
-                </div>
-              </div>
-
               {/* Contato */}
               <div
                 className="flex gap-4 group cursor-pointer"
@@ -156,6 +139,22 @@ export function HeroSection() {
                     Compre Online
                   </p>
                   <p className="text-sm text-purple-300">+55 95 98424-4194</p>
+                </div>
+              </div>
+              {/* Horário */}
+              <div className="flex gap-4">
+                <div className="bg-purple-900 p-2.5 rounded-full h-11 w-11 flex items-center justify-center shrink-0">
+                  <Clock className="text-yellow-500" size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-yellow-500">
+                    Atendimento Estendido
+                  </p>
+                  <p className="text-sm text-purple-300">
+                    Seg à Sáb: 08h - 19h{" "}
+                    <span className="text-purple-500 mx-1">|</span> Dom: 08h -
+                    12h
+                  </p>
                 </div>
               </div>
             </div>

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { ProductCard } from "@/components/features/ProductCard";
 import { BuilderTrigger } from "@/components/features/BuilderTrigger";
 import { KitBuilderModal } from "@/components/features/KitBuilderModal";
@@ -23,15 +24,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { cn, hexToRgb, getContrastColor } from "@/lib/utils"; // IMPORTAR NOVAS FUNÇÕES
 import { Product, ProductVariant } from "@/lib/types";
 import { HOME_CATEGORY_GROUPS, getProductGroup } from "@/lib/category_groups";
 
 export default function Home() {
   const { fetchProducts, isLoading, allProducts } = useProductStore();
   const { openCart, addItem } = useCartStore();
+  const { settings, fetchSettings } = useSettingsStore();
 
-  // Estado local para filtros e ordenação
   const [activeGroup, setActiveGroup] = useState("ALL");
   const [visibleGroupsCount, setVisibleGroupsCount] = useState(3);
   const [currentSort, setCurrentSort] = useState("name_asc");
@@ -41,12 +42,28 @@ export default function Home() {
 
   useEffect(() => {
     fetchProducts();
-  }, [fetchProducts]);
+    fetchSettings();
+  }, [fetchProducts, fetchSettings]);
 
-  // 1. Ordenação dos Produtos
+  // --- LÓGICA DE CORES INTELIGENTE ---
+  const themeStyles = useMemo(() => {
+    const primary = settings.theme.primaryColor || "#7c3aed";
+    const secondary = settings.theme.secondaryColor || "#16a34a";
+
+    return {
+      "--primary": primary,
+      "--primary-rgb": hexToRgb(primary),
+      "--primary-contrast": getContrastColor(primary), // Texto sobre o primário
+
+      "--secondary": secondary,
+      "--secondary-rgb": hexToRgb(secondary),
+      "--secondary-contrast": getContrastColor(secondary), // Texto sobre o secundário
+    } as React.CSSProperties;
+  }, [settings.theme]);
+
+  // ... (Ordenação e Agrupamento - MANTIDOS IGUAIS)
   const sortedAllProducts = useMemo(() => {
     const products = [...allProducts];
-
     return products.sort((a, b) => {
       switch (currentSort) {
         case "price_asc":
@@ -60,11 +77,8 @@ export default function Home() {
     });
   }, [allProducts, currentSort]);
 
-  // 2. Agrupamento dos Produtos (já ordenados)
   const productsByGroup = useMemo(() => {
     const groups: Record<string, Product[]> = {};
-
-    // Inicializa a ordem dos grupos
     Object.keys(HOME_CATEGORY_GROUPS).forEach((key) => (groups[key] = []));
     groups["Outros"] = [];
 
@@ -73,17 +87,29 @@ export default function Home() {
       if (!groups[group]) groups[group] = [];
       groups[group].push(product);
     });
-
     return groups;
   }, [sortedAllProducts]);
 
   const groupNames = useMemo(() => {
-    return Object.keys(HOME_CATEGORY_GROUPS).filter(
+    const activeGroups = Object.keys(HOME_CATEGORY_GROUPS).filter(
       (g) => productsByGroup[g]?.length > 0
     );
-  }, [productsByGroup]);
 
-  // Ações
+    if (
+      settings.filters.categoryOrder &&
+      settings.filters.categoryOrder.length > 0
+    ) {
+      return activeGroups.sort((a, b) => {
+        const indexA = settings.filters.categoryOrder.indexOf(a);
+        const indexB = settings.filters.categoryOrder.indexOf(b);
+        const valA = indexA === -1 ? 999 : indexA;
+        const valB = indexB === -1 ? 999 : indexB;
+        return valA - valB;
+      });
+    }
+    return activeGroups;
+  }, [productsByGroup, settings.filters.categoryOrder]);
+
   const handleDirectAdd = (product: Product, variant?: ProductVariant) => {
     addItem({
       cartId: crypto.randomUUID(),
@@ -97,7 +123,7 @@ export default function Home() {
   };
 
   const handleNaturaClick = () => {
-    setActiveGroup("Perfumaria & Corpo"); // Nome exato do grupo no category_groups.ts
+    setActiveGroup("Perfumaria & Corpo");
     setTimeout(() => {
       shelvesRef.current?.scrollIntoView({
         behavior: "smooth",
@@ -125,7 +151,6 @@ export default function Home() {
       </div>
     );
 
-  // Renderização das Prateleiras (Modo 'ALL')
   const renderShelves = () => {
     const groupsToShow = groupNames.slice(0, visibleGroupsCount);
 
@@ -143,7 +168,11 @@ export default function Home() {
         >
           <div className="max-w-6xl mx-auto w-full px-4 space-y-4">
             <div className="flex items-center justify-between px-1">
-              <h2 className="text-xl md:text-2xl font-bold text-slate-800">
+              {/* TÍTULO COM BORDA LATERAL NA COR DA MARCA */}
+              <h2
+                className="text-xl md:text-2xl font-bold text-slate-800 pl-3 border-l-4"
+                style={{ borderColor: "var(--primary)" }}
+              >
                 {groupName}
               </h2>
 
@@ -151,7 +180,8 @@ export default function Home() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-purple-600 hover:text-purple-800 text-xs md:text-sm font-semibold"
+                  className="text-xs md:text-sm font-semibold hover:bg-[rgba(var(--primary-rgb),0.1)]" // Hover com 10% da cor
+                  style={{ color: "var(--primary)" }}
                   onClick={() => {
                     setActiveGroup(groupName);
                     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -161,7 +191,6 @@ export default function Home() {
                 </Button>
               )}
             </div>
-
             <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide snap-x md:mx-0 md:px-0">
               {productsInShelf.map((product) => (
                 <div
@@ -175,15 +204,25 @@ export default function Home() {
                   />
                 </div>
               ))}
-
               {hasMore && (
                 <div className="min-w-[100px] flex items-center justify-center snap-center">
                   <Button
                     variant="ghost"
-                    className="h-full flex-col gap-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl w-full aspect-[3/4] border-2 border-dashed border-slate-100 hover:border-purple-200"
+                    className="h-full flex-col gap-2 rounded-xl w-full aspect-[3/4] border-2 border-dashed transition-all"
                     onClick={() => setActiveGroup(groupName)}
+                    // Estilos dinâmicos avançados
+                    style={{
+                      borderColor: "rgba(var(--primary-rgb), 0.3)",
+                      color: "var(--primary)",
+                      backgroundColor: "rgba(var(--primary-rgb), 0.02)",
+                    }}
                   >
-                    <div className="bg-slate-50 p-3 rounded-full group-hover:bg-white transition-colors">
+                    <div
+                      className="p-3 rounded-full transition-colors"
+                      style={{
+                        backgroundColor: "rgba(var(--primary-rgb), 0.1)",
+                      }}
+                    >
                       <ChevronRight className="w-6 h-6" />
                     </div>
                     <span className="text-xs font-medium">Ver +</span>
@@ -197,15 +236,25 @@ export default function Home() {
     });
   };
 
-  // Renderização da Grade Completa (Modo Categoria Específica)
   const renderGrid = () => {
     const products = productsByGroup[activeGroup] || [];
     return (
       <section className="min-h-screen py-8 animate-in fade-in zoom-in duration-300">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-slate-800">{activeGroup}</h2>
-            <span className="text-sm text-slate-500 bg-white border border-slate-200 px-3 py-1 rounded-full">
+            <h2
+              className="text-2xl font-bold text-slate-800 pl-3 border-l-4"
+              style={{ borderColor: "var(--primary)" }}
+            >
+              {activeGroup}
+            </h2>
+            <span
+              className="text-sm font-semibold px-3 py-1 rounded-full"
+              style={{
+                backgroundColor: "rgba(var(--primary-rgb), 0.1)",
+                color: "var(--primary)",
+              }}
+            >
               {products.length} itens
             </span>
           </div>
@@ -230,16 +279,12 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 pb-0">
+    <main className="min-h-screen bg-slate-50 pb-0" style={themeStyles}>
       <HeroSection />
 
-      {/* ÁREA DE TRIGGERS E BANNERS */}
       <div className="relative -mt-8 z-20 px-4 mb-8">
         <div className="max-w-6xl mx-auto flex flex-col gap-4">
-          {/* 1. Monte seu Kit (Principal) */}
           <BuilderTrigger />
-
-          {/* 2. Grid de Banners Secundários (Mesma Altura) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <RibbonBuilderTrigger />
             <NaturaBanner onClick={handleNaturaClick} />
@@ -249,14 +294,12 @@ export default function Home() {
 
       <KitBuilderModal />
 
-      {/* BARRA DE FILTROS FIXA */}
       <div
         ref={shelvesRef}
         className="sticky top-16 z-40 bg-slate-50/95 py-2 backdrop-blur-sm shadow-sm md:shadow-none border-b md:border-b-0 border-slate-200/50"
       >
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex flex-col md:flex-row gap-3 justify-between items-center bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
-            {/* Scroll de Grupos */}
             <div className="flex items-center gap-2 relative w-full md:w-auto md:flex-1 md:min-w-0">
               <Button
                 variant="ghost"
@@ -270,6 +313,7 @@ export default function Home() {
                 ref={scrollContainerRef}
                 className="flex items-center gap-2 w-full overflow-x-auto pb-2 md:pb-0 no-scrollbar scroll-smooth"
               >
+                {/* BOTÕES DE FILTRO INTELIGENTES */}
                 <Button
                   size="sm"
                   onClick={() => {
@@ -278,11 +322,18 @@ export default function Home() {
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                   className={cn(
-                    "rounded-full px-5 transition-all flex-shrink-0",
-                    activeGroup === "ALL"
-                      ? "bg-purple-600 text-white"
-                      : "bg-white border text-slate-600"
+                    "rounded-full px-5 transition-all flex-shrink-0 border"
                   )}
+                  style={{
+                    backgroundColor:
+                      activeGroup === "ALL" ? "var(--primary)" : "white",
+                    color:
+                      activeGroup === "ALL"
+                        ? "var(--primary-contrast)"
+                        : "#475569",
+                    borderColor:
+                      activeGroup === "ALL" ? "transparent" : "#e2e8f0",
+                  }}
                 >
                   Início
                 </Button>
@@ -291,12 +342,17 @@ export default function Home() {
                     key={group}
                     size="sm"
                     onClick={() => setActiveGroup(group)}
-                    className={cn(
-                      "rounded-full px-5 flex-shrink-0",
-                      activeGroup === group
-                        ? "bg-purple-600 text-white"
-                        : "bg-white border text-slate-600"
-                    )}
+                    className={cn("rounded-full px-5 flex-shrink-0 border")}
+                    style={{
+                      backgroundColor:
+                        activeGroup === group ? "var(--primary)" : "white",
+                      color:
+                        activeGroup === group
+                          ? "var(--primary-contrast)"
+                          : "#475569",
+                      borderColor:
+                        activeGroup === group ? "transparent" : "#e2e8f0",
+                    }}
                   >
                     {group}
                   </Button>
@@ -312,7 +368,6 @@ export default function Home() {
               </Button>
             </div>
 
-            {/* Seletor de Ordenação */}
             <div className="flex items-center gap-2 w-full md:w-auto flex-shrink-0 border-t md:border-t-0 md:border-l pt-2 md:pt-0 md:pl-4 border-slate-100">
               <SlidersHorizontal size={16} className="text-slate-400" />
               <Select value={currentSort} onValueChange={setCurrentSort}>
@@ -330,7 +385,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ÁREA DE PRODUTOS */}
       <div className="min-h-[50vh]">
         {activeGroup === "ALL" ? (
           <>
@@ -339,9 +393,19 @@ export default function Home() {
               <div className="w-full flex justify-center py-12 bg-gradient-to-b from-slate-50 to-white">
                 <Button
                   onClick={handleLoadMoreSections}
-                  className="bg-white border-2 border-purple-100 text-purple-700 hover:bg-purple-50 hover:border-purple-200 px-8 py-6 rounded-full shadow-sm text-base font-bold group transition-all transform hover:scale-105"
+                  className="bg-white border-2 px-8 py-6 rounded-full shadow-sm text-base font-bold group transition-all transform hover:scale-105"
+                  style={{
+                    borderColor: "rgba(var(--primary-rgb), 0.3)",
+                    color: "var(--primary)",
+                  }}
                 >
-                  <Plus className="mr-2 h-5 w-5 bg-purple-100 rounded-full p-1" />{" "}
+                  <Plus
+                    className="mr-2 h-5 w-5 rounded-full p-1"
+                    style={{
+                      backgroundColor: "var(--primary)",
+                      color: "var(--primary-contrast)",
+                    }}
+                  />
                   Ver mais grupos
                 </Button>
               </div>
