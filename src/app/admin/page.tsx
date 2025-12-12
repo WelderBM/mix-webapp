@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   collection,
   deleteDoc,
@@ -12,7 +12,13 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Product, StoreSettings, Order, OrderStatus } from "@/lib/types";
+import {
+  Product,
+  StoreSettings,
+  Order,
+  OrderStatus,
+  ProductType,
+} from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -64,6 +70,7 @@ import {
   Bike,
   Eye,
   Filter,
+  ListFilter,
 } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
 import { OrderDetailsSheet } from "@/components/admin/OrderDetailsSheet";
@@ -77,8 +84,12 @@ export default function AdminPage() {
   // Estados de Dados
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+
+  // Filtros Avançados
   const [searchTerm, setSearchTerm] = useState("");
-  const [adminCategoryFilter, setAdminCategoryFilter] = useState("ALL");
+  const [adminTypeFilter, setAdminTypeFilter] = useState<string>("ALL"); // Camada 1: Tipo
+  const [adminCategoryFilter, setAdminCategoryFilter] = useState("ALL"); // Camada 2: Categoria
+
   const [loading, setLoading] = useState(true);
 
   // Paginação
@@ -169,10 +180,11 @@ export default function AdminPage() {
     };
   }, [isAuthenticated]);
 
-  // --- FILTROS E PAGINAÇÃO ---
+  // --- LÓGICA DE FILTROS EM CAMADAS ---
   useEffect(() => {
     let results = allProducts;
 
+    // 1. Filtro por Texto (Nome ou Categoria)
     if (searchTerm) {
       const lowerTerm = searchTerm.toLowerCase();
       results = results.filter(
@@ -182,24 +194,40 @@ export default function AdminPage() {
       );
     }
 
+    // 2. Filtro por Tipo (Macro)
+    if (adminTypeFilter !== "ALL") {
+      results = results.filter((p) => p.type === adminTypeFilter);
+    }
+
+    // 3. Filtro por Categoria Específica
     if (adminCategoryFilter !== "ALL") {
       results = results.filter((p) => p.category === adminCategoryFilter);
     }
 
     setFilteredProducts(results);
     setCurrentPage(1);
-  }, [searchTerm, adminCategoryFilter, allProducts]);
+  }, [searchTerm, adminTypeFilter, adminCategoryFilter, allProducts]);
+
+  // Calcular categorias disponíveis dinamicamente baseado no Tipo selecionado
+  const availableCategories = useMemo(() => {
+    let prods = allProducts;
+    // Se tiver um tipo selecionado, mostra apenas as categorias daquele tipo
+    if (adminTypeFilter !== "ALL") {
+      prods = prods.filter((p) => p.type === adminTypeFilter);
+    }
+    return Array.from(new Set(prods.map((p) => p.category))).sort();
+  }, [allProducts, adminTypeFilter]);
+
+  // Lista completa de categorias (para o modal de edição, sempre mostra tudo)
+  const allCategoriesForModal = Array.from(
+    new Set(allProducts.map((p) => p.category))
+  ).sort();
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const paginatedProducts = filteredProducts.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
-
-  // Lista única de categorias para o filtro da tabela e para o autocomplete do modal
-  const existingCategories = Array.from(
-    new Set(allProducts.map((p) => p.category))
-  ).sort();
 
   // --- AÇÕES ---
   const toggleProductStatus = async (product: Product) => {
@@ -386,34 +414,67 @@ export default function AdminPage() {
 
           {/* CONTEÚDO: PRODUTOS */}
           <TabsContent value="products" className="space-y-4">
-            <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-xl shadow-sm gap-4">
-              <div className="flex gap-2 w-full md:w-auto flex-1">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center bg-white p-4 rounded-xl shadow-sm gap-4">
+              <div className="flex flex-col md:flex-row gap-2 w-full xl:w-auto flex-1">
+                {/* BUSCA */}
                 <div className="relative flex-1 md:max-w-xs">
                   <Search
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                     size={18}
                   />
                   <Input
-                    placeholder="Buscar produtos..."
+                    placeholder="Buscar por nome..."
                     className="pl-10"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
-                {/* FILTRO DE CATEGORIA */}
+
+                {/* FILTRO CAMADA 1: TIPO */}
+                <Select
+                  value={adminTypeFilter}
+                  onValueChange={(val) => {
+                    setAdminTypeFilter(val);
+                    setAdminCategoryFilter("ALL");
+                  }}
+                >
+                  <SelectTrigger className="w-full md:w-[200px]">
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <ListFilter size={16} />
+                      <SelectValue placeholder="Tipo de Produto" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todos os Tipos</SelectItem>
+                    <SelectItem value="STANDARD_ITEM">
+                      Padrão (Natura/Presentes)
+                    </SelectItem>
+                    <SelectItem value="RIBBON">Fitas & Laços</SelectItem>
+                    <SelectItem value="BASE_CONTAINER">
+                      Bases (Cestas/Caixas)
+                    </SelectItem>
+                    <SelectItem value="FILLER">
+                      Enchimentos (Seda/Palha)
+                    </SelectItem>
+                    <SelectItem value="WRAPPER">Embalagens Finais</SelectItem>
+                    <SelectItem value="SUPPLY_BULK">Atacado</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* FILTRO CAMADA 2: CATEGORIA ESPECÍFICA */}
                 <Select
                   value={adminCategoryFilter}
                   onValueChange={setAdminCategoryFilter}
                 >
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-full md:w-[200px]">
                     <div className="flex items-center gap-2 text-slate-600">
                       <Filter size={16} />
-                      <SelectValue placeholder="Categoria" />
+                      <SelectValue placeholder="Categoria Específica" />
                     </div>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">Todas Categorias</SelectItem>
-                    {existingCategories.map((cat) => (
+                    {availableCategories.map((cat) => (
                       <SelectItem key={cat} value={cat}>
                         {cat}
                       </SelectItem>
@@ -421,6 +482,7 @@ export default function AdminPage() {
                   </SelectContent>
                 </Select>
               </div>
+
               <Button
                 onClick={() => {
                   setEditingProduct(null);
@@ -438,6 +500,7 @@ export default function AdminPage() {
                   <TableRow>
                     <TableHead>Status</TableHead>
                     <TableHead>Produto</TableHead>
+                    <TableHead>Tipo</TableHead>
                     <TableHead>Categoria</TableHead>
                     <TableHead>Preço</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -446,7 +509,7 @@ export default function AdminPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-10">
+                      <TableCell colSpan={6} className="text-center py-10">
                         Carregando...
                       </TableCell>
                     </TableRow>
@@ -465,7 +528,7 @@ export default function AdminPage() {
                           />
                         </TableCell>
                         <TableCell className="flex items-center gap-3">
-                          <div className="relative w-10 h-10 rounded bg-slate-100 overflow-hidden shrink-0">
+                          <div className="relative w-10 h-10 rounded bg-slate-100 overflow-hidden shrink-0 border border-slate-100">
                             {product.imageUrl && (
                               <Image
                                 src={product.imageUrl}
@@ -476,6 +539,11 @@ export default function AdminPage() {
                             )}
                           </div>
                           <span className="font-medium">{product.name}</span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {product.type}
+                          </Badge>
                         </TableCell>
                         <TableCell>{product.category}</TableCell>
                         <TableCell>
@@ -804,7 +872,6 @@ export default function AdminPage() {
         onCopyDelivery={handleCopyDeliveryInfo}
       />
 
-      {/* MODAL DE PRODUTO AGORA RECEBE LISTA DE CATEGORIAS */}
       <ProductFormDialog
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -813,7 +880,7 @@ export default function AdminPage() {
           setIsModalOpen(false);
           toast.success("Produto salvo!");
         }}
-        existingCategories={existingCategories}
+        existingCategories={allCategoriesForModal}
       />
 
       <AlertDialog

@@ -12,7 +12,6 @@ import {
   SlidersHorizontal,
   ChevronRight,
   ChevronLeft,
-  ChevronDown,
   Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,39 +23,63 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { CATEGORY_PRIORITY } from "@/lib/constants";
 import { Product, ProductVariant } from "@/lib/types";
+import { HOME_CATEGORY_GROUPS, getProductGroup } from "@/lib/category_groups";
 
 export default function Home() {
-  const {
-    displayProducts,
-    fetchProducts,
-    isLoading,
-    setCategory,
-    setSort,
-    loadMore,
-    filterCategory,
-    allProducts,
-  } = useProductStore();
+  const { fetchProducts, isLoading, allProducts } = useProductStore();
   const { openCart, addItem } = useCartStore();
-  const [visibleCategoriesCount, setVisibleCategoriesCount] = useState(3);
+
+  // Estado local para filtros e ordenação
+  const [activeGroup, setActiveGroup] = useState("ALL");
+  const [visibleGroupsCount, setVisibleGroupsCount] = useState(3);
+  const [currentSort, setCurrentSort] = useState("name_asc"); // Estado local de ordenação
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  const categories = useMemo(() => {
-    const uniqueCats = Array.from(new Set(allProducts.map((p) => p.category)));
-    return uniqueCats.sort((a, b) => {
-      const indexA = CATEGORY_PRIORITY.indexOf(a);
-      const indexB = CATEGORY_PRIORITY.indexOf(b);
-      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-      if (indexA !== -1) return -1;
-      if (indexB !== -1) return 1;
-      return a.localeCompare(b);
+  // 1. PRIMEIRO: Ordenar todos os produtos
+  const sortedAllProducts = useMemo(() => {
+    const products = [...allProducts]; // Criar cópia para não mutar o original
+
+    return products.sort((a, b) => {
+      switch (currentSort) {
+        case "price_asc":
+          return a.price - b.price;
+        case "price_desc":
+          return b.price - a.price;
+        case "name_asc":
+        default:
+          return a.name.localeCompare(b.name);
+      }
     });
-  }, [allProducts]);
+  }, [allProducts, currentSort]);
+
+  // 2. DEPOIS: Agrupar os produtos JÁ ORDENADOS
+  const productsByGroup = useMemo(() => {
+    const groups: Record<string, Product[]> = {};
+
+    Object.keys(HOME_CATEGORY_GROUPS).forEach((key) => (groups[key] = []));
+    groups["Outros"] = [];
+
+    sortedAllProducts.forEach((product) => {
+      const group = getProductGroup(product.category);
+      if (!groups[group]) groups[group] = [];
+      groups[group].push(product);
+    });
+
+    return groups;
+  }, [sortedAllProducts]); // Depende dos produtos já ordenados
+
+  const groupNames = useMemo(() => {
+    // Retorna apenas grupos que têm produtos
+    return Object.keys(HOME_CATEGORY_GROUPS).filter(
+      (g) => productsByGroup[g]?.length > 0
+    );
+  }, [productsByGroup]);
 
   const handleDirectAdd = (product: Product, variant?: ProductVariant) => {
     addItem({
@@ -79,7 +102,7 @@ export default function Home() {
       scrollContainerRef.current.scrollBy({ left: 200, behavior: "smooth" });
   };
   const handleLoadMoreSections = () => {
-    setVisibleCategoriesCount((prev) => prev + 3);
+    setVisibleGroupsCount((prev) => prev + 3);
   };
 
   if (isLoading && allProducts.length === 0)
@@ -90,42 +113,36 @@ export default function Home() {
     );
 
   const renderShelves = () => {
-    const visibleCats = categories.slice(0, visibleCategoriesCount);
+    const groupsToShow =
+      activeGroup === "ALL"
+        ? groupNames.slice(0, visibleGroupsCount)
+        : [activeGroup];
 
-    return visibleCats.map((cat) => {
-      // Produtos visíveis na prateleira horizontal (máximo 8)
-      const productsInCat = allProducts
-        .filter((p) => p.category === cat)
-        .slice(0, 8);
-      // Total de produtos na categoria (para saber se o botão "Ver todos" é necessário)
-      const totalProductsInCat = allProducts.filter(
-        (p) => p.category === cat
-      ).length;
+    return groupsToShow.map((groupName) => {
+      const products = productsByGroup[groupName] || [];
+      if (products.length === 0) return null;
 
-      if (productsInCat.length === 0) return null;
-
-      // Variável para determinar se o botão "Ver todos" deve aparecer
-      const shouldShowSeeAll = totalProductsInCat > productsInCat.length;
+      const productsInShelf = products.slice(0, 8);
+      const hasMore = products.length > 8;
 
       return (
         <section
-          key={cat}
+          key={groupName}
           className="min-h-[40vh] flex flex-col justify-center py-6 border-b border-slate-50 last:border-0 animate-in fade-in slide-in-from-bottom-4 duration-700"
         >
           <div className="max-w-6xl mx-auto w-full px-4 space-y-4">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-xl md:text-2xl font-bold text-slate-800">
-                {cat}
+                {groupName}
               </h2>
 
-              {/* LÓGICA CORRIGIDA: MOSTRA APENAS SE HOUVER MAIS PRODUTOS */}
-              {shouldShowSeeAll && (
+              {hasMore && activeGroup === "ALL" && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="text-purple-600 hover:text-purple-800 text-xs md:text-sm font-semibold"
                   onClick={() => {
-                    setCategory(cat);
+                    setActiveGroup(groupName);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                 >
@@ -135,7 +152,7 @@ export default function Home() {
             </div>
 
             <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide snap-x md:mx-0 md:px-0">
-              {productsInCat.map((product) => (
+              {productsInShelf.map((product) => (
                 <div
                   key={product.id}
                   className="min-w-[180px] w-[50vw] md:w-[240px] snap-center"
@@ -148,13 +165,12 @@ export default function Home() {
                 </div>
               ))}
 
-              {/* Botão extra para ver mais (Também só aparece se houver mais) */}
-              {shouldShowSeeAll && (
+              {hasMore && activeGroup === "ALL" && (
                 <div className="min-w-[100px] flex items-center justify-center snap-center">
                   <Button
                     variant="ghost"
                     className="h-full flex-col gap-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl w-full aspect-[3/4] border-2 border-dashed border-slate-100 hover:border-purple-200"
-                    onClick={() => setCategory(cat)}
+                    onClick={() => setActiveGroup(groupName)}
                   >
                     <div className="bg-slate-50 p-3 rounded-full group-hover:bg-white transition-colors">
                       <ChevronRight className="w-6 h-6" />
@@ -168,6 +184,37 @@ export default function Home() {
         </section>
       );
     });
+  };
+
+  const renderGrid = () => {
+    const products = productsByGroup[activeGroup] || [];
+    return (
+      <section className="min-h-screen py-8 animate-in fade-in zoom-in duration-300">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-slate-800">{activeGroup}</h2>
+            <span className="text-sm text-slate-500 bg-white border border-slate-200 px-3 py-1 rounded-full">
+              {products.length} itens
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {products.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onSelect={(variant) => handleDirectAdd(product, variant)}
+                actionLabel="Adicionar"
+              />
+            ))}
+          </div>
+          <div className="mt-8 text-center">
+            <Button variant="outline" onClick={() => setActiveGroup("ALL")}>
+              Voltar para Início
+            </Button>
+          </div>
+        </div>
+      </section>
+    );
   };
 
   return (
@@ -202,32 +249,32 @@ export default function Home() {
                 <Button
                   size="sm"
                   onClick={() => {
-                    setCategory("ALL");
-                    setVisibleCategoriesCount(3);
+                    setActiveGroup("ALL");
+                    setVisibleGroupsCount(3);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                   className={cn(
                     "rounded-full px-5 transition-all flex-shrink-0",
-                    filterCategory === "ALL"
+                    activeGroup === "ALL"
                       ? "bg-purple-600 text-white"
                       : "bg-white border text-slate-600"
                   )}
                 >
                   Início
                 </Button>
-                {categories.map((cat) => (
+                {groupNames.map((group) => (
                   <Button
-                    key={cat}
+                    key={group}
                     size="sm"
-                    onClick={() => setCategory(cat)}
+                    onClick={() => setActiveGroup(group)}
                     className={cn(
                       "rounded-full px-5 flex-shrink-0",
-                      filterCategory === cat
+                      activeGroup === group
                         ? "bg-purple-600 text-white"
                         : "bg-white border text-slate-600"
                     )}
                   >
-                    {cat}
+                    {group}
                   </Button>
                 ))}
               </div>
@@ -240,9 +287,11 @@ export default function Home() {
                 <ChevronRight size={18} />
               </Button>
             </div>
+
+            {/* SELETOR DE ORDENAÇÃO ATUALIZADO */}
             <div className="flex items-center gap-2 w-full md:w-auto flex-shrink-0 border-t md:border-t-0 md:border-l pt-2 md:pt-0 md:pl-4 border-slate-100">
               <SlidersHorizontal size={16} className="text-slate-400" />
-              <Select onValueChange={(val: any) => setSort(val)}>
+              <Select value={currentSort} onValueChange={setCurrentSort}>
                 <SelectTrigger className="border-0 shadow-none focus:ring-0 bg-transparent h-8 p-0 text-slate-600 font-medium min-w-[120px] justify-between">
                   <SelectValue placeholder="Ordenar" />
                 </SelectTrigger>
@@ -258,54 +307,23 @@ export default function Home() {
       </div>
 
       <div className="min-h-[50vh]">
-        {filterCategory === "ALL" ? (
+        {activeGroup === "ALL" ? (
           <>
             {renderShelves()}
-            {visibleCategoriesCount < categories.length && (
+            {visibleGroupsCount < groupNames.length && (
               <div className="w-full flex justify-center py-12 bg-gradient-to-b from-slate-50 to-white">
                 <Button
                   onClick={handleLoadMoreSections}
                   className="bg-white border-2 border-purple-100 text-purple-700 hover:bg-purple-50 hover:border-purple-200 px-8 py-6 rounded-full shadow-sm text-base font-bold group transition-all transform hover:scale-105"
                 >
                   <Plus className="mr-2 h-5 w-5 bg-purple-100 rounded-full p-1" />{" "}
-                  Ver mais categorias
+                  Ver mais grupos
                 </Button>
               </div>
             )}
           </>
         ) : (
-          <section className="min-h-screen py-8 animate-in fade-in zoom-in duration-300">
-            <div className="max-w-6xl mx-auto px-4">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-slate-800">
-                  {filterCategory}
-                </h2>
-                <span className="text-sm text-slate-500 bg-white border border-slate-200 px-3 py-1 rounded-full">
-                  {displayProducts.length} itens
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {displayProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onSelect={(variant) => handleDirectAdd(product, variant)}
-                    actionLabel="Adicionar"
-                  />
-                ))}
-              </div>
-              {displayProducts.length > 0 &&
-                displayProducts.length <
-                  allProducts.filter((p) => p.category === filterCategory)
-                    .length && (
-                  <div className="w-full flex justify-center py-8">
-                    <Button onClick={loadMore} variant="outline">
-                      Carregar mais produtos
-                    </Button>
-                  </div>
-                )}
-            </div>
-          </section>
+          renderGrid()
         )}
       </div>
     </main>
