@@ -27,6 +27,7 @@ import {
 import { cn, hexToRgb, getContrastColor } from "@/lib/utils"; // IMPORTAR NOVAS FUNÇÕES
 import { Product, ProductVariant } from "@/lib/types";
 import { HOME_CATEGORY_GROUPS, getProductGroup } from "@/lib/category_groups";
+import { StoreHeader } from "@/components/layout/StoreHeader";
 
 export default function Home() {
   const { fetchProducts, isLoading, allProducts } = useProductStore();
@@ -280,9 +281,9 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-50 pb-0" style={themeStyles}>
-      <HeroSection />
+      <StoreHeader />
 
-      <div className="relative -mt-8 z-20 px-4 mb-8">
+      <div className="relative mt-8 z-20 px-4 mb-8">
         <div className="max-w-6xl mx-auto flex flex-col gap-4">
           <BuilderTrigger />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
