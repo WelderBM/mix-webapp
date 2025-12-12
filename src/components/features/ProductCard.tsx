@@ -1,214 +1,111 @@
 "use client";
 
-import { useState } from "react";
 import { Product, ProductVariant } from "@/lib/types";
-import { Plus, Eye, Check, X, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Plus, ShoppingCart } from "lucide-react";
 import Image from "next/image";
-import { ProductQuickView } from "./ProductQuickView";
-import { cn } from "@/lib/utils";
-import { useKitStore } from "@/store/kitStore";
+import Link from "next/link";
 
 interface ProductCardProps {
   product: Product;
-  isSelected?: boolean;
-  onSelect?: (variant?: ProductVariant) => void;
-  onRemove?: () => void;
+  onSelect: (variant?: ProductVariant) => void;
   actionLabel?: string;
-  disabled?: boolean;
 }
 
 export function ProductCard({
   product,
-  isSelected,
   onSelect,
-  onRemove,
-  actionLabel,
-  disabled,
+  actionLabel = "Adicionar",
 }: ProductCardProps) {
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
-  const [isHoveringSelected, setIsHoveringSelected] = useState(false);
-
-  const { currentCapacityUsage, selectedBase } = useKitStore();
-
-  const formatPrice = (value: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
-
-  const handleCardClick = () => {
-    setIsQuickViewOpen(true);
-  };
-
-  const hasVariants = product.variants && product.variants.length > 0;
-
-  const handleButtonClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-
-    if (isSelected && onRemove) {
-      onRemove();
-      return;
-    }
-
-    if (hasVariants) {
-      setIsQuickViewOpen(true);
-      return;
-    }
-
-    if (onSelect && !disabled) {
-      onSelect();
-    }
-  };
-
-  const maxCapacity = selectedBase?.capacity || 0;
-  const itemSize = product.itemSize || 1;
-  const isFull =
-    currentCapacityUsage + itemSize > maxCapacity &&
-    product.type === "STANDARD_ITEM" &&
-    !!selectedBase;
+  // Se o produto tiver variantes (ex: Atacado/Varejo), mostramos o menor preço com "a partir de"
+  const displayPrice =
+    product.variants && product.variants.length > 0
+      ? Math.min(...product.variants.map((v) => v.price))
+      : product.price;
 
   return (
-    <>
-      <div
-        className={cn(
-          "group relative bg-white rounded-xl shadow-sm border transition-all overflow-hidden flex flex-col h-full",
-          isSelected
-            ? "border-purple-600 bg-purple-50 ring-1 ring-purple-600 shadow-md"
-            : "border-slate-100 hover:shadow-md hover:border-slate-200",
-          disabled && !isSelected && "opacity-60 grayscale cursor-not-allowed"
-        )}
-        onClick={!disabled ? handleCardClick : undefined}
+    <div className="group bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col h-full overflow-hidden relative">
+      {/* LINK PRINCIPAL: Envolve a Imagem e o Texto.
+          Leva para a página de detalhes: /produto/ID
+      */}
+      <Link
+        href={`/produto/${product.id}`}
+        className="flex-1 flex flex-col cursor-pointer"
       >
-        {isSelected && (
-          <div
-            className={cn(
-              "absolute top-2 right-2 text-white rounded-full p-1 z-20 shadow-sm animate-in zoom-in transition-colors",
-              isHoveringSelected ? "bg-red-500" : "bg-purple-600"
-            )}
-          >
-            {isHoveringSelected ? <X size={14} /> : <Check size={14} />}
-          </div>
-        )}
-
-        <div className="relative aspect-square w-full bg-slate-100 overflow-hidden cursor-pointer">
-          <Image
-            src={product.imageUrl}
-            alt={`Comprar ${product.name} - ${product.category} na Mix Novidades`}
-            fill
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-
-          {product.originalPrice && !isSelected && (
-            <div className="absolute top-0 left-0 z-10 p-1">
-              <div className="relative">
-                <span className="block bg-yellow-400 text-red-700 text-[10px] font-black px-2 py-1 rounded-sm border-2 border-red-600 -rotate-12 shadow-[2px_2px_0px_0px_rgba(220,38,38,1)]">
-                  OFERTA
-                </span>
-              </div>
+        {/* Área da Imagem */}
+        <div className="relative w-full aspect-square bg-slate-50 overflow-hidden">
+          {product.imageUrl ? (
+            <Image
+              src={product.imageUrl}
+              // SEO Inteligente: Nome + Categoria + Local
+              alt={`Comprar ${product.name} - ${product.category} na Mix Novidades`}
+              fill
+              className="object-cover group-hover:scale-105 transition-transform duration-500"
+              sizes="(max-width: 768px) 50vw, 25vw"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-300 bg-slate-50">
+              <ShoppingCart size={24} opacity={0.2} />
             </div>
           )}
 
-          {!isSelected && (
-            <div className="absolute top-2 right-2 bg-white/90 text-slate-700 p-2 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-10">
-              <Eye size={16} />
+          {/* Badge de Esgotado */}
+          {!product.inStock && (
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10">
+              <span className="bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded uppercase shadow-sm">
+                Esgotado
+              </span>
             </div>
           )}
         </div>
 
-        <div className="p-3 flex flex-col flex-1 gap-2">
-          <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider truncate">
+        {/* Área de Conteúdo */}
+        <div className="p-3 flex flex-col flex-1">
+          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1 line-clamp-1">
             {product.category}
-          </div>
-          <h3
-            className={cn(
-              "font-medium text-sm line-clamp-2 min-h-[2.5rem] transition-colors",
-              isSelected
-                ? "text-purple-900 font-semibold"
-                : "text-slate-800 group-hover:text-purple-600"
-            )}
-          >
+          </span>
+          <h3 className="font-semibold text-slate-800 text-sm leading-tight line-clamp-2 mb-2 group-hover:text-purple-700 transition-colors">
             {product.name}
           </h3>
-          <div className="mt-auto pt-1">
-            <div className="flex items-center justify-between flex-wrap gap-1">
-              <div className="flex items-end gap-1">
-                <span
-                  className={cn(
-                    "text-lg font-bold",
-                    isSelected ? "text-purple-700" : "text-slate-900"
-                  )}
-                >
-                  {formatPrice(product.price)}
-                </span>
-                <span className="text-xs text-slate-500 mb-1">
-                  /{product.unit}
-                </span>
-              </div>
-            </div>
+
+          <div className="mt-auto pt-2 flex items-baseline gap-1">
+            {product.variants && product.variants.length > 0 && (
+              <span className="text-[10px] text-slate-500">a partir de</span>
+            )}
+            <span className="font-bold text-lg text-slate-900">
+              {displayPrice.toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}
+            </span>
+            {/* Mostra a unidade (un, m, kg) apenas se não tiver variantes, para não confundir */}
+            {(!product.variants || product.variants.length === 0) && (
+              <span className="text-xs text-slate-400 font-normal">
+                /{product.unit}
+              </span>
+            )}
           </div>
-
-          <Button
-            variant={
-              isSelected
-                ? isHoveringSelected
-                  ? "destructive"
-                  : "default"
-                : "outline"
-            }
-            size="sm"
-            disabled={disabled && !isSelected}
-            className={cn(
-              "w-full mt-2 gap-2 shadow-none transition-all z-20 relative",
-              isSelected
-                ? isHoveringSelected
-                  ? "bg-red-500 hover:bg-red-600 border-transparent"
-                  : "bg-purple-600 hover:bg-purple-700 text-white border-transparent"
-                : "bg-white hover:bg-slate-50 text-slate-900 border-slate-200"
-            )}
-            onClick={handleButtonClick}
-            onMouseEnter={() =>
-              isSelected && onRemove && setIsHoveringSelected(true)
-            }
-            onMouseLeave={() => setIsHoveringSelected(false)}
-          >
-            {isSelected ? (
-              isHoveringSelected ? (
-                <>
-                  {" "}
-                  <X size={14} /> Remover{" "}
-                </>
-              ) : (
-                <>
-                  {" "}
-                  <Check size={14} /> Selecionado{" "}
-                </>
-              )
-            ) : hasVariants ? (
-              <>
-                {" "}
-                <Layers size={14} /> Ver Opções{" "}
-              </>
-            ) : (
-              <>
-                {" "}
-                <Plus size={14} /> {actionLabel || "Adicionar"}{" "}
-              </>
-            )}
-          </Button>
         </div>
-      </div>
+      </Link>
 
-      <ProductQuickView
-        product={product}
-        isOpen={isQuickViewOpen}
-        onClose={() => setIsQuickViewOpen(false)}
-        onAction={onSelect}
-        actionLabel={actionLabel}
-        isFull={isFull}
-        currentUsage={currentCapacityUsage}
-        maxCapacity={maxCapacity}
-      />
-    </>
+      {/* BOTÃO DE AÇÃO: Fora do Link para evitar conflito.
+          Adiciona direto ao carrinho.
+      */}
+      <div className="p-3 pt-0 mt-auto">
+        <Button
+          onClick={(e) => {
+            e.preventDefault(); // Impede o link de abrir
+            e.stopPropagation(); // Impede o evento de subir para o pai
+            onSelect();
+          }}
+          disabled={!product.inStock}
+          className="w-full text-white font-bold h-9 text-xs shadow-sm active:scale-95 transition-transform border-none"
+          // Usa a variável CSS global --secondary definida na Home/Layout
+          style={{ backgroundColor: "var(--secondary, #16a34a)" }}
+        >
+          {actionLabel} <Plus size={14} className="ml-1" />
+        </Button>
+      </div>
+    </div>
   );
 }

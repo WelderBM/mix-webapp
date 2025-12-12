@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { Footer } from "@/components/layout/Footer";
+import { CartSidebar } from "@/components/features/CartSidebar";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -98,10 +100,9 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-
         {children}
-
-        {/* Componente de Notificações (Toast) */}
+        <Footer /> {/* Footer aparece em todas as páginas */}
+        <CartSidebar /> {/* Carrinho disponível em todas as páginas */}
         <Toaster position="top-center" />
       </body>
     </html>

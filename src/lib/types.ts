@@ -1,18 +1,25 @@
+export type MeasureUnit = "m" | "un" | "kg" | "l" | "pct";
 export type ProductType =
   | "STANDARD_ITEM"
+  | "RIBBON"
   | "BASE_CONTAINER"
   | "FILLER"
   | "WRAPPER"
-  | "RIBBON"
   | "SUPPLY_BULK";
-
-export type MeasureUnit = "un" | "m" | "pct";
+export type DeliveryMethod = "pickup" | "delivery";
+export type PaymentMethod = "pix" | "card" | "cash";
+export type PaymentTiming = "prepaid" | "on_delivery";
+export type OrderStatus =
+  | "pending"
+  | "processing"
+  | "delivering"
+  | "completed"
+  | "cancelled";
 
 export interface ProductVariant {
   id: string;
-  name: string;
-  imageUrl?: string;
-  price?: number;
+  name: string; // Ex: "Rolo 10m"
+  price: number;
   inStock: boolean;
 }
 
@@ -24,75 +31,59 @@ export interface Product {
   originalPrice?: number;
   type: ProductType;
   category: string;
-  imageUrl: string;
+  imageUrl?: string;
   unit: MeasureUnit;
-  description_adjective?: string;
   inStock: boolean;
-  featured?: boolean;
-  capacity?: number;
-  itemSize?: number;
-  variants?: ProductVariant[];
-
-  canBeSoldAsRoll?: boolean;
+  itemSize?: number; // Para montagem de kits (slots ocupados)
+  capacity?: number; // Para bases de kits (capacidade de slots)
+  canBeSoldAsRoll?: boolean; // Específico para fitas
+  variants?: ProductVariant[]; // Novo: Array de variantes
 }
-
-export type CartItemType = "SIMPLE" | "CUSTOM_KIT" | "CUSTOM_RIBBON";
 
 export interface CartItem {
   cartId: string;
-  type: CartItemType;
-  product?: Product;
-  selectedVariant?: ProductVariant;
+  type: "SIMPLE" | "CUSTOM_KIT" | "CUSTOM_RIBBON";
   quantity: number;
-  kitName?: string;
-  kitComponents?: Product[];
-  kitTotalAmount?: number;
+  product?: Product; // Para itens simples
+  selectedVariant?: ProductVariant; // Novo: Variante selecionada
+  kitName?: string; // Para kits/laços
+  kitComponents?: any[]; // Itens do kit
+  kitTotalAmount?: number; // Preço final do kit/laço
+  ribbonDetails?: any; // Detalhes do laço builder
+}
 
-  ribbonDetails?: {
-    fitaSelecionada: Product;
-    tamanhoLaco: "PP" | "P" | "M" | "G" | "GG";
-    quantidadeLacos: number;
-    tipoLaco: string;
-    // CORRIGIDO: Adicionado o campo que estava faltando no tipo
-    metragemTotal: number;
-  };
+export interface Order {
+  id: string;
+  createdAt: number;
+  total: number;
+  status: OrderStatus;
+  items: CartItem[];
+  customerName: string;
+  deliveryMethod: DeliveryMethod;
+  address?: string | null;
+  paymentMethod: PaymentMethod;
+  paymentTiming: PaymentTiming;
+}
+
+// --- NOVO: ESTRUTURA DA VITRINE CURADA ---
+export interface StoreSection {
+  id: string;
+  title: string;
+  type: "manual"; // Por enquanto manual, futuro 'category'
+  productIds: string[]; // IDs dos produtos nesta seção, na ordem correta
+  isActive: boolean;
 }
 
 export interface StoreSettings {
   id: string;
+  storeName: string;
+  whatsappNumber: string;
   theme: {
-    primaryColor: string;
-    secondaryColor: string;
-    accentColor: string;
-    backgroundColor: string;
+    primaryColor: string; // Única cor que o admin escolhe
   };
   filters: {
     activeCategories: string[];
     categoryOrder: string[];
   };
-  storeName: string;
-  whatsappNumber: string;
-}
-
-export type OrderStatus =
-  | "pending"
-  | "processing"
-  | "delivering"
-  | "completed"
-  | "cancelled";
-export type DeliveryMethod = "pickup" | "delivery";
-export type PaymentMethod = "pix" | "card" | "cash";
-export type PaymentTiming = "prepaid" | "on_delivery";
-
-export interface Order {
-  id: string;
-  createdAt: number;
-  customerName?: string;
-  total: number;
-  items: CartItem[];
-  status: OrderStatus;
-  deliveryMethod: DeliveryMethod;
-  address?: string;
-  paymentMethod: PaymentMethod;
-  paymentTiming: PaymentTiming;
+  homeSections: StoreSection[]; // Lista ordenada de seções da Home
 }
