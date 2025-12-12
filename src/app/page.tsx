@@ -6,6 +6,7 @@ import { useCartStore } from "@/store/cartStore";
 import { ProductCard } from "@/components/features/ProductCard";
 import { BuilderTrigger } from "@/components/features/BuilderTrigger";
 import { KitBuilderModal } from "@/components/features/KitBuilderModal";
+import { RibbonBuilderTrigger } from "@/components/features/RibbonBuilderTrigger";
 import { HeroSection } from "@/components/layout/HeroSection";
 import {
   SlidersHorizontal,
@@ -90,11 +91,22 @@ export default function Home() {
 
   const renderShelves = () => {
     const visibleCats = categories.slice(0, visibleCategoriesCount);
+
     return visibleCats.map((cat) => {
+      // Produtos visíveis na prateleira horizontal (máximo 8)
       const productsInCat = allProducts
         .filter((p) => p.category === cat)
         .slice(0, 8);
+      // Total de produtos na categoria (para saber se o botão "Ver todos" é necessário)
+      const totalProductsInCat = allProducts.filter(
+        (p) => p.category === cat
+      ).length;
+
       if (productsInCat.length === 0) return null;
+
+      // Variável para determinar se o botão "Ver todos" deve aparecer
+      const shouldShowSeeAll = totalProductsInCat > productsInCat.length;
+
       return (
         <section
           key={cat}
@@ -105,18 +117,23 @@ export default function Home() {
               <h2 className="text-xl md:text-2xl font-bold text-slate-800">
                 {cat}
               </h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-purple-600 hover:text-purple-800 text-xs md:text-sm font-semibold"
-                onClick={() => {
-                  setCategory(cat);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              >
-                Ver todos <ChevronRight size={16} />
-              </Button>
+
+              {/* LÓGICA CORRIGIDA: MOSTRA APENAS SE HOUVER MAIS PRODUTOS */}
+              {shouldShowSeeAll && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-purple-600 hover:text-purple-800 text-xs md:text-sm font-semibold"
+                  onClick={() => {
+                    setCategory(cat);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                >
+                  Ver todos <ChevronRight size={16} />
+                </Button>
+              )}
             </div>
+
             <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide snap-x md:mx-0 md:px-0">
               {productsInCat.map((product) => (
                 <div
@@ -130,18 +147,22 @@ export default function Home() {
                   />
                 </div>
               ))}
-              <div className="min-w-[100px] flex items-center justify-center snap-center">
-                <Button
-                  variant="ghost"
-                  className="h-full flex-col gap-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl w-full aspect-[3/4] border-2 border-dashed border-slate-100 hover:border-purple-200"
-                  onClick={() => setCategory(cat)}
-                >
-                  <div className="bg-slate-50 p-3 rounded-full group-hover:bg-white transition-colors">
-                    <ChevronRight className="w-6 h-6" />
-                  </div>
-                  <span className="text-xs font-medium">Ver +</span>
-                </Button>
-              </div>
+
+              {/* Botão extra para ver mais (Também só aparece se houver mais) */}
+              {shouldShowSeeAll && (
+                <div className="min-w-[100px] flex items-center justify-center snap-center">
+                  <Button
+                    variant="ghost"
+                    className="h-full flex-col gap-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl w-full aspect-[3/4] border-2 border-dashed border-slate-100 hover:border-purple-200"
+                    onClick={() => setCategory(cat)}
+                  >
+                    <div className="bg-slate-50 p-3 rounded-full group-hover:bg-white transition-colors">
+                      <ChevronRight className="w-6 h-6" />
+                    </div>
+                    <span className="text-xs font-medium">Ver +</span>
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -152,12 +173,16 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-slate-50 pb-0">
       <HeroSection />
+
       <div className="relative -mt-8 z-20 px-4 mb-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto flex flex-col gap-4">
           <BuilderTrigger />
+          <RibbonBuilderTrigger />
         </div>
       </div>
+
       <KitBuilderModal />
+
       <div className="sticky top-16 z-40 bg-slate-50/95 py-2 backdrop-blur-sm shadow-sm md:shadow-none border-b md:border-b-0 border-slate-200/50">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex flex-col md:flex-row gap-3 justify-between items-center bg-white p-2 rounded-xl border border-slate-100 shadow-sm">
@@ -231,6 +256,7 @@ export default function Home() {
           </div>
         </div>
       </div>
+
       <div className="min-h-[50vh]">
         {filterCategory === "ALL" ? (
           <>

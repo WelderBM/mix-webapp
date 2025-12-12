@@ -1,75 +1,95 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import { CartItem } from "@/lib/types";
+import { toast } from "sonner";
 
-interface CartState {
+interface CartStore {
   items: CartItem[];
   isCartOpen: boolean;
 
-  openCart: () => void;
-  closeCart: () => void;
-  toggleCart: () => void;
-
   addItem: (item: CartItem) => void;
   removeItem: (cartId: string) => void;
+  updateQuantity: (cartId: string, quantity: number) => void;
+
+  openCart: () => void;
+  closeCart: () => void;
   clearCart: () => void;
 
   getCartTotal: () => number;
 }
 
-export const useCartStore = create<CartState>()(
-  persist(
-    (set, get) => ({
-      items: [],
-      isCartOpen: false,
+export const useCartStore = create<CartStore>((set, get) => ({
+  items: [],
+  isCartOpen: false,
 
-      openCart: () => set({ isCartOpen: true }),
-      closeCart: () => set({ isCartOpen: false }),
-      toggleCart: () => set((state) => ({ isCartOpen: !state.isCartOpen })),
+  addItem: (item) => {
+    set((state) => {
+      if (item.type === "SIMPLE" && item.product) {
+        const existingItem = state.items.find(
+          (i) =>
+            i.product?.id === item.product?.id &&
+            i.selectedVariant?.id === item.selectedVariant?.id
+        );
 
-      addItem: (newItem) =>
-        set((state) => {
-          if (newItem.type === "SIMPLE" && newItem.product) {
-            const existingItem = state.items.find(
-              (i) =>
-                i.type === "SIMPLE" && i.product?.id === newItem.product?.id
-            );
+        if (existingItem) {
+          const updatedItems = state.items.map((i) =>
+            i.cartId === existingItem.cartId
+              ? { ...i, quantity: i.quantity + item.quantity }
+              : i
+          );
+          toast.success(
+            `Mais ${item.quantity}x ${item.product.name} adicionado!`
+          );
+          return { items: updatedItems };
+        }
+      }
 
-            if (existingItem) {
-              return {
-                items: state.items.map((i) =>
-                  i.cartId === existingItem.cartId
-                    ? { ...i, quantity: i.quantity + newItem.quantity }
-                    : i
-                ),
-              };
-            }
-          }
-          return { items: [...state.items, newItem] };
-        }),
+      toast.success(
+        `${
+          item.product?.name || item.kitName || "Item Personalizado"
+        } adicionado!`
+      );
+      return { items: [...state.items, item] };
+    });
+  },
 
-      removeItem: (cartId) =>
-        set((state) => ({
-          items: state.items.filter((i) => i.cartId !== cartId),
-        })),
+  removeItem: (cartId) => {
+    set((state) => {
+      const updatedItems = state.items.filter((item) => item.cartId !== cartId);
+      toast.info("Item removido do carrinho.");
+      return { items: updatedItems };
+    });
+  },
 
-      clearCart: () => set({ items: [] }),
+  updateQuantity: (cartId, quantity) => {
+    if (quantity < 1) return get().removeItem(cartId);
 
-      getCartTotal: () => {
-        const { items } = get();
-        return items.reduce((total, item) => {
-          if (item.type === "SIMPLE" && item.product) {
-            return total + item.product.price * item.quantity;
-          }
-          if (item.type === "CUSTOM_KIT") {
-            return total + (item.kitTotalAmount || 0);
-          }
-          return total;
-        }, 0);
-      },
-    }),
-    {
-      name: "mix-webapp-cart",
-    }
-  )
-);
+    set((state) => ({
+      items: state.items.map((item) =>
+        item.cartId === cartId ? { ...item, quantity: quantity } : item
+      ),
+    }));
+  },
+
+  openCart: () => set({ isCartOpen: true }),
+  closeCart: () => set({ isCartOpen: false }),
+  clearCart: () => {
+    set({ items: [] });
+    toast.info("Carrinho limpo.");
+  },
+
+  getCartTotal: () => {
+    const state = get();
+    return state.items.reduce((total, item) => {
+      let itemPrice = 0;
+
+      if (item.type === "SIMPLE" && item.product) {
+        const unitPrice = item.selectedVariant?.price || item.product.price;
+        itemPrice = unitPrice * item.quantity;
+      } else if (item.type === "CUSTOM_KIT" || item.type === "CUSTOM_RIBBON") {
+        itemPrice = item.kitTotalAmount || 0;
+      }
+
+      return total + itemPrice;
+    }, 0);
+  },
+}));

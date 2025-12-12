@@ -6,7 +6,7 @@ export type ProductType =
   | "RIBBON"
   | "SUPPLY_BULK";
 
-export type MeasureUnit = "un" | "m" | "kg" | "pct";
+export type MeasureUnit = "un" | "m" | "pct";
 
 export interface ProductVariant {
   id: string;
@@ -32,17 +32,30 @@ export interface Product {
   capacity?: number;
   itemSize?: number;
   variants?: ProductVariant[];
+
+  canBeSoldAsRoll?: boolean;
 }
+
+export type CartItemType = "SIMPLE" | "CUSTOM_KIT" | "CUSTOM_RIBBON";
 
 export interface CartItem {
   cartId: string;
-  type: "SIMPLE" | "CUSTOM_KIT";
+  type: CartItemType;
   product?: Product;
   selectedVariant?: ProductVariant;
   quantity: number;
   kitName?: string;
   kitComponents?: Product[];
   kitTotalAmount?: number;
+
+  ribbonDetails?: {
+    fitaSelecionada: Product;
+    tamanhoLaco: "PP" | "P" | "M" | "G" | "GG";
+    quantidadeLacos: number;
+    tipoLaco: string;
+    // CORRIGIDO: Adicionado o campo que estava faltando no tipo
+    metragemTotal: number;
+  };
 }
 
 export interface StoreSettings {
@@ -69,7 +82,6 @@ export type OrderStatus =
   | "cancelled";
 export type DeliveryMethod = "pickup" | "delivery";
 export type PaymentMethod = "pix" | "card" | "cash";
-
 export type PaymentTiming = "prepaid" | "on_delivery";
 
 export interface Order {

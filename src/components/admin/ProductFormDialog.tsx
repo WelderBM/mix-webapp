@@ -24,14 +24,7 @@ import { Product, ProductType, MeasureUnit } from "@/lib/types";
 import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
-import {
-  Loader2,
-  Upload,
-  X,
-  Info,
-  ChevronDown,
-  Link as LinkIcon,
-} from "lucide-react";
+import { Loader2, Upload, X, Info, ChevronDown } from "lucide-react";
 import Image from "next/image";
 import {
   Popover,
@@ -46,6 +39,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { Switch } from "@/components/ui/switch";
 
 interface ProductFormDialogProps {
   isOpen: boolean;
@@ -80,6 +74,7 @@ export function ProductFormDialog({
     itemSize: 1,
     capacity: 0,
     description: "",
+    canBeSoldAsRoll: true,
   });
 
   useEffect(() => {
@@ -104,6 +99,7 @@ export function ProductFormDialog({
         itemSize: 1,
         capacity: 0,
         description: "",
+        canBeSoldAsRoll: true,
       });
     }
   }, [productToEdit, isOpen]);
@@ -145,6 +141,8 @@ export function ProductFormDialog({
           formData.type === "BASE_CONTAINER"
             ? Number(formData.capacity)
             : undefined,
+        canBeSoldAsRoll:
+          formData.type === "RIBBON" ? formData.canBeSoldAsRoll : undefined,
       };
 
       if (productToEdit?.id) {
@@ -178,7 +176,6 @@ export function ProductFormDialog({
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Imagem do Produto</Label>
-
             <Tabs
               value={imageMode}
               onValueChange={(v) => setImageMode(v as "upload" | "url")}
@@ -188,7 +185,6 @@ export function ProductFormDialog({
                 <TabsTrigger value="upload">Upload de Arquivo</TabsTrigger>
                 <TabsTrigger value="url">Link da Imagem</TabsTrigger>
               </TabsList>
-
               <TabsContent value="upload">
                 {!formData.imageUrl ? (
                   <div
@@ -234,7 +230,6 @@ export function ProductFormDialog({
                   </div>
                 )}
               </TabsContent>
-
               <TabsContent value="url">
                 <div className="flex gap-2">
                   <Input
@@ -273,7 +268,6 @@ export function ProductFormDialog({
                 placeholder="Ex: Hidratante"
               />
             </div>
-
             <div className="space-y-2 flex flex-col">
               <Label>Categoria</Label>
               <div className="flex gap-2">
@@ -379,6 +373,25 @@ export function ProductFormDialog({
             </div>
           </div>
 
+          {formData.type === "RIBBON" && (
+            <div className="flex items-center space-x-2 p-3 bg-purple-50 rounded-lg border border-purple-100">
+              <Switch
+                checked={formData.canBeSoldAsRoll}
+                onCheckedChange={(checked) =>
+                  setFormData((prev) => ({ ...prev, canBeSoldAsRoll: checked }))
+                }
+                id="can-be-sold-roll"
+              />
+              <Label
+                htmlFor="can-be-sold-roll"
+                className="text-sm font-medium leading-none text-purple-900"
+              >
+                Vender Rolo Inteiro?
+              </Label>
+              <Info size={14} className="text-purple-600 ml-auto" />
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Preço (R$)</Label>
@@ -451,7 +464,7 @@ export function ProductFormDialog({
             formData.type === "BASE_CONTAINER") && (
             <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-800 space-y-1">
               <div className="flex items-center gap-2 font-bold mb-1">
-                <Info size={14} /> Referência
+                <Info size={14} className="text-blue-600" /> Referência
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <ul className="list-disc pl-4 space-y-0.5">

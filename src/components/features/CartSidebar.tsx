@@ -10,6 +10,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -32,6 +33,7 @@ import {
   Banknote,
   QrCode,
   AlertCircle,
+  ShoppingBag,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -39,8 +41,10 @@ import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/lib/types";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation"; // Importar o Router do Next.js
 
 export function CartSidebar() {
+  const router = useRouter(); // Inicializa o Router
   const { items, isCartOpen, closeCart, removeItem, getCartTotal, clearCart } =
     useCartStore();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -99,8 +103,14 @@ export function CartSidebar() {
           }\n`;
         } else if (item.type === "CUSTOM_KIT" && item.kitComponents) {
           message += `${index + 1}. 📦 ${item.kitName}\n`;
+        } else if (item.type === "CUSTOM_RIBBON" && item.ribbonDetails) {
+          // Inclui detalhes do laço personalizado
+          message += `${index + 1}. 🎀 ${item.quantity}x Laço Pronto (${
+            item.ribbonDetails.tamanhoLaco
+          } - ${item.ribbonDetails.fitaSelecionada.name})\n`;
         }
       });
+
       message += `\n*Total Produtos: ${formatMoney(
         getCartTotal()
       )}*\n*(Taxa de entrega a combinar)*\n--------------------------------\n`;
@@ -135,11 +145,15 @@ export function CartSidebar() {
     }
   };
 
+  // NOVA FUNÇÃO: Voltar para Home
+  const handleContinueShopping = () => {
+    closeCart();
+    router.push("/");
+  };
+
   return (
     <Sheet open={isCartOpen} onOpenChange={(open) => !open && closeCart()}>
       <SheetContent className="flex flex-col w-full sm:max-w-md bg-slate-50 p-0 h-full">
-        {" "}
-        {/* h-full garante altura total */}
         <SheetHeader className="p-6 bg-white border-b flex-shrink-0">
           <SheetTitle className="flex items-center gap-2 text-xl">
             <ShoppingCart className="text-purple-600" /> Seu Carrinho{" "}
@@ -148,6 +162,7 @@ export function CartSidebar() {
             </span>
           </SheetTitle>
         </SheetHeader>
+
         {items.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
             <ShoppingCart size={40} className="text-slate-400" />
@@ -160,7 +175,6 @@ export function CartSidebar() {
           </div>
         ) : (
           <>
-            {/* CORREÇÃO DE SCROLL: div nativa em vez de ScrollArea */}
             <div className="flex-1 overflow-y-auto">
               <div className="p-4 space-y-6">
                 {/* Lista de Itens */}
@@ -189,21 +203,32 @@ export function CartSidebar() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0 pr-6">
+                        {/* Nome do Item */}
                         <h4 className="font-medium text-slate-800 text-sm line-clamp-1">
                           {item.type === "SIMPLE"
                             ? item.product?.name
                             : item.kitName}
                         </h4>
-                        {item.selectedVariant && (
-                          <p className="text-xs text-purple-600">
-                            {item.selectedVariant.name}
+
+                        {/* Detalhes de Kits/Laços */}
+                        {item.type === "CUSTOM_RIBBON" && (
+                          <p className="text-xs text-purple-600 mt-0.5">
+                            Laço {item.ribbonDetails?.tamanhoLaco} (
+                            {item.ribbonDetails?.tipoLaco})
                           </p>
                         )}
+                        {item.type === "CUSTOM_KIT" && (
+                          <p className="text-xs text-purple-600 mt-0.5">
+                            Kit Personalizado
+                          </p>
+                        )}
+
                         <div className="flex justify-between items-center mt-1">
                           <span className="text-xs text-slate-500">
                             Qtd: {item.quantity}
                           </span>
                           <span className="font-bold text-sm text-slate-900">
+                            {/* Preço formatado é o kitTotalAmount (preço final) para itens customizados */}
                             {item.type === "SIMPLE"
                               ? formatMoney(
                                   (item.selectedVariant?.price ||
@@ -362,13 +387,15 @@ export function CartSidebar() {
               </div>
             </div>
 
-            <SheetFooter className="p-6 bg-white border-t space-y-4 block flex-shrink-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <SheetFooter className="p-6 bg-white border-t space-y-3 block flex-shrink-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-slate-500">Total a pagar</span>
+                <span className="text-slate-500">Total Produtos</span>
                 <span className="text-2xl font-bold text-slate-900">
                   {formatMoney(getCartTotal())}
                 </span>
               </div>
+
+              {/* BOTÃO PRINCIPAL: Finalizar Pedido */}
               <Button
                 onClick={handleCheckout}
                 disabled={isCheckingOut}
@@ -376,13 +403,23 @@ export function CartSidebar() {
               >
                 {isCheckingOut ? (
                   <>
-                    <Loader2 className="animate-spin" size={20} /> Enviando...
+                    <Loader2 className="animate-spin" size={20} />{" "}
+                    Processando...
                   </>
                 ) : (
                   <>
-                    <MessageCircle size={20} /> Enviar Pedido no Zap
+                    <MessageCircle size={20} /> Finalizar Pedido
                   </>
                 )}
+              </Button>
+
+              {/* NOVO BOTÃO: Continuar Comprando */}
+              <Button
+                onClick={handleContinueShopping}
+                variant="ghost"
+                className="w-full h-10 text-sm text-purple-600 hover:bg-purple-50 gap-2"
+              >
+                <ShoppingBag size={16} /> Continuar Comprando
               </Button>
             </SheetFooter>
           </>

@@ -256,7 +256,7 @@ export function KitBuilderModal() {
                   baseProducts,
                   selectBase,
                   (p) => selectedBase?.id === p.id,
-                  (p) => selectBase(null as any)
+                  (p) => selectBase(null as any) // Allows deselecting
                 )}
               </div>
             )}
@@ -267,8 +267,10 @@ export function KitBuilderModal() {
                   <h3 className="font-semibold text-slate-700 text-lg mb-4">
                     Recheio do Kit
                   </h3>
+
                   {selectedItems.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto pb-4 mb-4 scrollbar-hide snap-x">
+                      {/* FIX: Using index as key to allow duplicates without error */}
                       {selectedItems.map((item, index) => (
                         <div
                           key={index}
@@ -300,6 +302,7 @@ export function KitBuilderModal() {
                       ))}
                     </div>
                   )}
+
                   <div
                     className={cn(
                       "transition-all duration-300",
@@ -309,9 +312,10 @@ export function KitBuilderModal() {
                     {renderProductGrid(
                       standardProducts,
                       handleAddItem,
-                      (p) => false
+                      (p) => false // Fillers don't get 'selected' state in grid
                     )}
                   </div>
+
                   {isFull && (
                     <div className="flex items-center justify-center gap-2 p-4 bg-green-50 text-green-700 rounded-lg mt-4 border border-green-200 animate-in slide-in-from-bottom-2">
                       <ThumbsUp size={18} />
@@ -334,7 +338,7 @@ export function KitBuilderModal() {
                     fillerProducts,
                     selectFiller,
                     (p) => selectedFiller?.id === p.id,
-                    (p) => selectFiller(null)
+                    (p) => selectFiller(null) // Allows deselecting
                   )}
                 </div>
                 <div>
@@ -345,7 +349,7 @@ export function KitBuilderModal() {
                     ribbonProducts,
                     selectRibbon,
                     (p) => selectedRibbon?.id === p.id,
-                    (p) => selectRibbon(null)
+                    (p) => selectRibbon(null) // Allows deselecting
                   )}
                 </div>
               </div>
