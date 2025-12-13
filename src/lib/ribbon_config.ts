@@ -1,47 +1,42 @@
-// src/lib/ribbon_config.ts
+// src/lib/ribbon_config.ts (VERSÃO FINAL CONSOLIDADA)
 
-import { MeasureUnit } from "./types";
+import { MeasureUnit, CapacityRef } from "./types";
+
+export type LacoSizeType = "P" | "M" | "G";
 
 export interface LacoSize {
-  size: "PP" | "P" | "M" | "G" | "GG";
+  size: CapacityRef;
   metragem: number; // Metros necessários para UM laço deste tamanho (Regra Interna)
-  servicePrice: number; // PREÇO FIXO DO SERVIÇO DE MONTAGEM
+  servicePrice: number; // PREÇO FIXO DO SERVIÇO DE MONTAGEM (R$2, R$3, R$5)
   name: string;
   description: string;
   unit: MeasureUnit; // Deve ser 'm' (metro)
 }
 
+// Valores de preço fixo conforme regra (P: R$2, M: R$3, G: R$5)
 export const LACO_SIZES: LacoSize[] = [
-  {
-    size: "PP",
-    metragem: 1.2,
-    servicePrice: 2.0,
-    name: "Mini Laço",
-    description: "Ideal para pequenos sachês ou lembrancinhas de baixo volume.",
-    unit: "m",
-  },
   {
     size: "P",
     metragem: 1.8,
-    servicePrice: 3.0,
-    name: "Laço Simples",
-    description: "Tamanho padrão para caixas pequenas ou garrafas.",
+    servicePrice: 2.0, // R$2,00
+    name: "Laço Pequeno (P)",
+    description: "Ideal para bases P (caixas pequenas/sacos).",
     unit: "m",
   },
   {
     size: "M",
     metragem: 2.5,
-    servicePrice: 4.0,
-    name: "Laço Bola (Cheio)",
-    description: "Tamanho mais comum para cestas médias e caixas grandes.",
+    servicePrice: 3.0, // R$3,00
+    name: "Laço Médio (M)",
+    description: "Tamanho padrão para bases M (cestas médias/caixas grandes).",
     unit: "m",
   },
   {
     size: "G",
-    metragem: 3.0,
-    servicePrice: 5.0,
-    name: "Laço Duplo (Volume Extra)",
-    description: "Para cestas grandes ou para dar máximo volume a um presente.",
+    metragem: 3.5,
+    servicePrice: 5.0, // R$5,00
+    name: "Laço Grande (G)",
+    description: "Para bases G (cestas grandes e presentes volumosos).",
     unit: "m",
   },
 ];
@@ -54,27 +49,21 @@ export const RIBBON_TYPES = [
   "Sintética",
 ];
 
+// Modelos BOLA e BORBOLETA, conforme solicitado
 export const LACO_STYLES_OPTIONS = [
   {
-    value: "Laço Bola",
+    value: "BOLA",
     label: "Laço Bola",
     description:
-      "É o estilo mais volumoso e completo, ideal para presentes que precisam de grande destaque visual. Usa mais material para ser cheio.",
+      "O estilo mais volumoso, com muitas alças. Ideal para presentes que precisam de grande destaque visual.",
     imageUrl: "https://placehold.co/400x400/png?text=Laco+Bola",
   },
   {
-    value: "Laço Duplo",
-    label: "Laço Duplo",
+    value: "BORBOLETA",
+    label: "Laço Borboleta",
     description:
-      "Estilo clássico e elegante. Duas alças grandes e duas pequenas, perfeito para dar um toque sofisticado sem tanto volume.",
-    imageUrl: "https://placehold.co/400x400/png?text=Laco+Duplo",
-  },
-  {
-    value: "Laço Simples",
-    label: "Laço Simples",
-    description:
-      "Estilo rápido e discreto, com apenas uma alça, ideal para sacolas de papel ou pequenas lembrancinhas.",
-    imageUrl: "https://placehold.co/400x400/png?text=Laco+Simples",
+      "Estilo elegante e clássico com duas 'orelhas'. Perfeito para um toque sofisticado sem excesso de volume.",
+    imageUrl: "https://placehold.co/400x400/png?text=Laco+Borboleta",
   },
 ];
 

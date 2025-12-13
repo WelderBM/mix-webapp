@@ -1,4 +1,4 @@
-// src/lib/types.ts (VERSÃO CORRIGIDA)
+// src/lib/types.ts (VERSÃO FINAL CONSOLIDADA)
 //
 
 // =================================================================
@@ -18,7 +18,11 @@ export type MeasureUnit = "m" | "un" | "kg" | "l" | "pct";
 
 export type SaleUnitType = "UNITARIO" | "PACOTE";
 
-export type LacoModelType = "BOLA" | "COMUM_CHANEL" | "PUXAR";
+// ATUALIZADO: Usando os modelos Bola e Borboleta
+export type LacoModelType = "BOLA" | "BORBOLETA" | "PUXAR";
+
+// Gabarito de capacidade da embalagem e tamanho do laço
+export type CapacityRef = "P" | "M" | "G";
 
 // 2. TIPO DE SEÇÃO
 export type SectionType =
@@ -57,12 +61,14 @@ export interface Product {
   // Slots e Capacidade
   itemSize?: number; // Slot ocupado
   capacity?: number; // Capacidade total de slots (para BASE_CONTAINER)
+  capacityRef?: CapacityRef; // NOVO: Gabarito de capacidade P/M/G (para BASE_CONTAINER)
 
   // Comum para Bases e Itens:
   saleUnitType?: SaleUnitType; // NOVO: Unidade ou Pacote
 
   // Específico para RIBBON
   canBeSoldAsRoll?: boolean; // Pode ser vendido em rolo completo?
+  isAvailableForCustomBow?: boolean; // NOVO: Pode ser usada para Laço Customizado (vendida ao metro/rolo aberto)
 
   // Específico para BASES e ACESSÓRIOS:
   isKitBase?: boolean; // É uma Base de Kit (Caixa/Cesta/Sacola)?
@@ -136,10 +142,11 @@ export interface CartItem {
   kitTotalAmount?: number;
 
   ribbonDetails?: {
-    fitaId: string;
-    cor: string;
+    fitaPrincipalId: string;
+    fitaSecundariaId?: string; // NOVO: Fita opcional para laço misto
+    cor?: string;
     modelo: LacoModelType;
-    tamanho: "P" | "M" | "G";
+    tamanho: CapacityRef; // USANDO CapacityRef
     metragemGasta: number;
     assemblyCost: number;
   };
@@ -178,7 +185,6 @@ export interface StoreSettings {
   whatsappNumber: string;
   theme: {
     primaryColor: string;
-    // CORREÇÃO: Adicionado secondaryColor (para ProductDetailClient.tsx)
     secondaryColor?: string;
     accentColor?: string;
     backgroundColor?: string;

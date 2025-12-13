@@ -1,4 +1,4 @@
-// src/components/views/HomeClient.tsx
+// src/components/views/HomeClient.tsx (VERSÃO FINAL CONSOLIDADA E CORRIGIDA)
 "use client";
 
 import { useEffect, useRef, useMemo } from "react";
@@ -69,7 +69,7 @@ export default function HomeClient({
     return undefined;
   }, [selectedKitId, getProductById]); // Depende do getProductById para a busca
 
-  // ... (Restante do código themeStyles e handlers inalterado)
+  // --- LÓGICA DE ESTILOS DE TEMA ---
   const themeStyles = useMemo(() => {
     const primary = settingsToRender.theme?.primaryColor || "#7c3aed";
     const secondary =
@@ -166,6 +166,7 @@ export default function HomeClient({
             className="h-full flex flex-col [&>*]:flex-1"
             style={{ "--dynamic-bg": "var(--banner-kit)" } as any}
           >
+            {/* O BuilderTrigger usa o useKitBuilderStore internamente para abrir o modal */}
             <BuilderTrigger />
           </div>
         );
@@ -176,6 +177,7 @@ export default function HomeClient({
             className="h-full flex flex-col [&>*]:flex-1"
             style={{ "--dynamic-bg": "var(--banner-ribbon)" } as any}
           >
+            {/* O RibbonBuilderTrigger é um Link para /laco-builder */}
             <RibbonBuilderTrigger />
           </div>
         );

@@ -1,7 +1,10 @@
+// src/components/features/CartSidebar.tsx (VERSÃO FINAL CONSOLIDADA)
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { useCartStore } from "@/store/cartStore";
+import { useProductStore } from "@/store/productStore"; // NOVO: Importar productStore
 import {
   Sheet,
   SheetContent,
@@ -41,12 +44,14 @@ import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/lib/types";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation"; // Importar o Router do Next.js
+import { useRouter } from "next/navigation";
 
 export function CartSidebar() {
-  const router = useRouter(); // Inicializa o Router
+  const router = useRouter();
   const { items, isCartOpen, closeCart, removeItem, getCartTotal, clearCart } =
     useCartStore();
+  const { getProductById } = useProductStore(); // NOVO: Pegar getProductById
+
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [deliveryMethod, setDeliveryMethod] =
     useState<DeliveryMethod>("pickup");
@@ -54,6 +59,10 @@ export function CartSidebar() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
   const [address, setAddress] = useState("");
   const [customerName, setCustomerName] = useState("");
+
+  // Função auxiliar para buscar nome do produto
+  const getProductName = (id: string | undefined) =>
+    id ? getProductById(id)?.name || "Produto Desconhecido" : "N/A";
 
   useEffect(() => {
     if (deliveryMethod === "delivery") {
@@ -96,20 +105,62 @@ export function CartSidebar() {
       const shortId = docRef.id.slice(0, 5).toUpperCase();
 
       let message = `*Novo Pedido #${shortId}*\n--------------------------------\n`;
+
+      // NOVO: Gerar mensagem detalhada com Kits e Laços Customizados
       items.forEach((item, index) => {
+        const itemNumber = index + 1;
+
         if (item.type === "SIMPLE" && item.product) {
-          message += `${index + 1}. ${item.quantity}x ${item.product.name} ${
+          message += `${itemNumber}. ${item.quantity}x ${item.product.name} ${
             item.selectedVariant ? `(${item.selectedVariant.name})` : ""
           }\n`;
-        } else if (item.type === "CUSTOM_KIT" && item.kitComponents) {
-          message += `${index + 1}. 📦 ${item.kitName}\n`;
+        } else if (item.type === "CUSTOM_KIT" && item.kitComposition) {
+          const baseName = getProductName(item.kitComposition.baseProductId);
+          message += `${itemNumber}. 🎁 *CESTA CUSTOMIZADA - Base: ${baseName}*\n`;
+          message += `   > ITENS: \n`;
+          item.kitComposition.items.forEach((kitItem) => {
+            message += `     - ${kitItem.quantity}x ${getProductName(
+              kitItem.productId
+            )}\n`;
+          });
+
+          if (item.kitComposition.finalRibbonDetails) {
+            const ribbonType = item.kitComposition.finalRibbonDetails.laçoType;
+
+            if (item.kitComposition.finalRibbonDetails.fitaId) {
+              // Laço customizado (BOLA/BORBOLETA)
+              const fitaName = getProductName(
+                item.kitComposition.finalRibbonDetails.fitaId
+              );
+              message += `   > LAÇO CUSTOM: ${ribbonType} (${fitaName}) \n`;
+            } else if (item.kitComposition.finalRibbonDetails.accessoryId) {
+              // Laço pronto (PUXAR ou ACESSÓRIO)
+              const accessoryName = getProductName(
+                item.kitComposition.finalRibbonDetails.accessoryId
+              );
+              message += `   > LAÇO PRONTO: ${ribbonType} (${accessoryName}) \n`;
+            }
+          }
         } else if (item.type === "CUSTOM_RIBBON" && item.ribbonDetails) {
-          // Inclui detalhes do laço personalizado
-          message += `${index + 1}. 🎀 ${item.quantity}x Laço Pronto (${
-            item.ribbonDetails.tamanhoLaco
-          } - ${item.ribbonDetails.fitaSelecionada.name})\n`;
+          const mainRibbonName = getProductName(
+            item.ribbonDetails.fitaPrincipalId
+          );
+          const secondaryRibbonName = item.ribbonDetails.fitaSecundariaId
+            ? getProductName(item.ribbonDetails.fitaSecundariaId)
+            : null;
+
+          message += `${itemNumber}. 🎀 ${item.quantity}x Laço Pronto (${item.ribbonDetails.modelo} ${item.ribbonDetails.tamanho})\n`;
+          message += `   > FITA(S): ${mainRibbonName}`;
+          if (secondaryRibbonName) {
+            message += ` + ${secondaryRibbonName}`;
+          }
+          message += `\n`;
+          message += `   > Custo Serviço: ${formatMoney(
+            item.ribbonDetails.assemblyCost
+          )}\n`;
         }
       });
+      // FIM DA GERAÇÃO DA MENSAGEM DETALHADA
 
       message += `\n*Total Produtos: ${formatMoney(
         getCartTotal()
@@ -145,7 +196,6 @@ export function CartSidebar() {
     }
   };
 
-  // NOVA FUNÇÃO: Voltar para Home
   const handleContinueShopping = () => {
     closeCart();
     router.push("/");
@@ -179,76 +229,131 @@ export function CartSidebar() {
               <div className="p-4 space-y-6">
                 {/* Lista de Itens */}
                 <div className="space-y-3">
-                  {items.map((item) => (
-                    <div
-                      key={item.cartId}
-                      className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3 relative"
-                    >
-                      <div className="relative w-14 h-14 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
-                        {item.type === "SIMPLE" ? (
-                          <Image
-                            src={
-                              item.selectedVariant?.imageUrl ||
-                              item.product?.imageUrl ||
-                              ""
-                            }
-                            alt={`Miniatura de ${
-                              item.product?.name || item.kitName
-                            } no carrinho`}
-                            fill
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-purple-100 text-purple-600">
-                            <Package size={20} />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0 pr-6">
-                        {/* Nome do Item */}
-                        <h4 className="font-medium text-slate-800 text-sm line-clamp-1">
-                          {item.type === "SIMPLE"
-                            ? item.product?.name
-                            : item.kitName}
-                        </h4>
+                  {items.map((item) => {
+                    // Prepara nomes das fitas para Laço Customizado
+                    const fitaPrincipalName = item.ribbonDetails
+                      ?.fitaPrincipalId
+                      ? getProductName(item.ribbonDetails.fitaPrincipalId)
+                      : null;
+                    const fitaSecundariaName = item.ribbonDetails
+                      ?.fitaSecundariaId
+                      ? getProductName(item.ribbonDetails.fitaSecundariaId)
+                      : null;
 
-                        {/* Detalhes de Kits/Laços */}
-                        {item.type === "CUSTOM_RIBBON" && (
-                          <p className="text-xs text-purple-600 mt-0.5">
-                            Laço {item.ribbonDetails?.tamanhoLaco} (
-                            {item.ribbonDetails?.tipoLaco})
-                          </p>
-                        )}
-                        {item.type === "CUSTOM_KIT" && (
-                          <p className="text-xs text-purple-600 mt-0.5">
-                            Kit Personalizado
-                          </p>
-                        )}
-
-                        <div className="flex justify-between items-center mt-1">
-                          <span className="text-xs text-slate-500">
-                            Qtd: {item.quantity}
-                          </span>
-                          <span className="font-bold text-sm text-slate-900">
-                            {/* Preço formatado é o kitTotalAmount (preço final) para itens customizados */}
-                            {item.type === "SIMPLE"
-                              ? formatMoney(
-                                  (item.selectedVariant?.price ||
-                                    item.product?.price ||
-                                    0) * item.quantity
-                                )
-                              : formatMoney(item.kitTotalAmount || 0)}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeItem(item.cartId)}
-                        className="absolute top-2 right-2 text-slate-300 hover:text-red-500"
+                    return (
+                      <div
+                        key={item.cartId}
+                        className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3 relative"
                       >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="relative w-14 h-14 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
+                          {item.type === "SIMPLE" && item.product ? (
+                            <Image
+                              src={
+                                item.selectedVariant?.imageUrl ||
+                                item.product.imageUrl ||
+                                ""
+                              }
+                              alt={`Miniatura de ${
+                                item.product.name || item.kitName
+                              } no carrinho`}
+                              fill
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-purple-100 text-purple-600">
+                              <Package size={20} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 pr-6">
+                          {/* Nome do Item */}
+                          <h4 className="font-medium text-slate-800 text-sm line-clamp-1">
+                            {item.type === "SIMPLE"
+                              ? item.product?.name
+                              : item.kitName}
+                          </h4>
+
+                          {/* NOVO: Detalhes de Kits Personalizados (CUSTOM_KIT) */}
+                          {item.type === "CUSTOM_KIT" &&
+                            item.kitComposition && (
+                              <div className="text-xs text-blue-600 mt-0.5 space-y-0.5">
+                                <p className="font-bold">
+                                  📦 Base:{" "}
+                                  {getProductName(
+                                    item.kitComposition.baseProductId
+                                  )}
+                                </p>
+                                <p className="text-slate-500 font-semibold mt-1">
+                                  Itens:
+                                </p>
+                                <ul className="list-disc ml-4 text-slate-500">
+                                  {item.kitComposition.items.map(
+                                    (kitItem, idx) => (
+                                      <li key={idx} className="line-clamp-1">
+                                        {kitItem.quantity}x{" "}
+                                        {getProductName(kitItem.productId)}
+                                      </li>
+                                    )
+                                  )}
+                                </ul>
+                                {item.kitComposition.finalRibbonDetails
+                                  ?.laçoType && (
+                                  <p className="mt-1 text-xs text-purple-600 font-medium">
+                                    Laço:{" "}
+                                    {
+                                      item.kitComposition.finalRibbonDetails
+                                        .laçoType
+                                    }
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                          {/* NOVO: Detalhes de Laços Customizados (CUSTOM_RIBBON) */}
+                          {item.type === "CUSTOM_RIBBON" &&
+                            item.ribbonDetails && (
+                              <div className="text-xs text-purple-600 mt-0.5 space-y-0.5">
+                                <p className="font-bold">
+                                  🎀 Laço {item.ribbonDetails.modelo} (
+                                  {item.ribbonDetails.tamanho})
+                                </p>
+                                <p className="text-slate-500">
+                                  Fita: {fitaPrincipalName}
+                                  {fitaSecundariaName &&
+                                    ` + ${fitaSecundariaName}`}
+                                </p>
+                                <p className="text-xs font-semibold text-slate-700">
+                                  Serviço:{" "}
+                                  {formatMoney(item.ribbonDetails.assemblyCost)}
+                                </p>
+                              </div>
+                            )}
+
+                          <div className="flex justify-between items-center mt-1">
+                            <span className="text-xs text-slate-500">
+                              Qtd: {item.quantity}
+                            </span>
+                            <span className="font-bold text-sm text-slate-900">
+                              {/* Preço formatado é o kitTotalAmount (preço final) para itens customizados */}
+                              {item.type === "SIMPLE"
+                                ? formatMoney(
+                                    (item.selectedVariant?.price ||
+                                      item.product?.price ||
+                                      0) * item.quantity
+                                  )
+                                : formatMoney(item.kitTotalAmount || 0)}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => removeItem(item.cartId)}
+                          className="absolute top-2 right-2 text-slate-300 hover:text-red-500"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="h-px bg-slate-200" />

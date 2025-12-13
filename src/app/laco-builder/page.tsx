@@ -1,9 +1,11 @@
+// src/app/laco-builder/page.tsx (VERSÃO FINAL CONSOLIDADA)
+
 "use client";
 
 import { useState, useMemo } from "react";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
-import { Product, CartItem } from "@/lib/types";
+import { Product, CartItem, LacoModelType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -23,16 +25,25 @@ import {
   Ruler,
   Gift,
   Check,
+  PlusCircle,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { LACO_SIZES, LACO_STYLES_OPTIONS, LacoSize } from "@/lib/ribbon_config";
+import {
+  LACO_SIZES,
+  LACO_STYLES_OPTIONS,
+  LacoSize,
+  LacoSizeType,
+} from "@/lib/ribbon_config";
 import { cn } from "@/lib/utils";
 import { SelectWithImage } from "@/components/ui/SelectWithImage";
 import { useRouter } from "next/navigation";
 
+// ATUALIZADO: Incluindo a segunda fita
 interface RibbonForm {
-  fitaSelecionada: Product | null;
+  fitaPrincipalSelecionada: Product | null;
+  fitaSecundariaSelecionada: Product | null; // Para laço misto
   tamanhoLaco: LacoSize | null;
   quantidadeLacos: number;
   tipoLaco: string;
@@ -44,12 +55,14 @@ export default function LacoBuilderPage() {
   const { addItem, openCart } = useCartStore();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<RibbonForm>({
-    fitaSelecionada: null,
+    fitaPrincipalSelecionada: null,
+    fitaSecundariaSelecionada: null,
     tamanhoLaco: null,
     quantidadeLacos: 1,
     tipoLaco: LACO_STYLES_OPTIONS[0].value,
   });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [useSecondaryRibbon, setUseSecondaryRibbon] = useState(false); // Flag para ativar a segunda fita
 
   // Busca a descrição do estilo selecionado
   const currentStyleDescription = useMemo(() => {
@@ -59,11 +72,11 @@ export default function LacoBuilderPage() {
     );
   }, [form.tipoLaco]);
 
-  // Filtra apenas fitas vendidas por metro ('m')
+  // FILTRO: Fitas abertas que podem ser usadas para laço customizado
   const availableRibbons = useMemo(
     () =>
       allProducts.filter(
-        (p) => p.type === "RIBBON" && p.unit === "m" && p.inStock
+        (p) => p.type === "RIBBON" && p.unit === "m" && p.inStock // Filtragem simplificada
       ),
     [allProducts]
   );
@@ -80,55 +93,100 @@ export default function LacoBuilderPage() {
     [availableRibbons]
   );
 
+  // CÁLCULO: Preço final é o preço FIXO DO SERVIÇO (R$2/3/5) * Quantidade
   const calculateTotalPrice = useMemo(() => {
-    if (form.fitaSelecionada && form.tamanhoLaco) {
-      // Preço final é apenas o preço fixo do serviço
+    if (form.tamanhoLaco) {
       const precoServicoFixo = form.tamanhoLaco.servicePrice;
       return precoServicoFixo * form.quantidadeLacos;
     }
     return 0;
-  }, [form.fitaSelecionada, form.tamanhoLaco, form.quantidadeLacos]);
+  }, [form.tamanhoLaco, form.quantidadeLacos]);
 
   const handleFinish = () => {
-    if (!form.fitaSelecionada || !form.tamanhoLaco) {
-      return toast.warning("Complete a seleção de fita e tamanho.");
+    if (!form.fitaPrincipalSelecionada || !form.tamanhoLaco) {
+      return toast.warning("Complete a seleção de fita principal e tamanho.");
+    }
+
+    if (useSecondaryRibbon && !form.fitaSecundariaSelecionada) {
+      return toast.warning("Selecione a fita secundária para laço misto.");
     }
 
     setIsProcessing(true);
 
-    // Metragem consumida (mantida no objeto do carrinho para estoque, mas invisível)
-    const metragemTotalCalculada =
-      form.tamanhoLaco.metragem * form.quantidadeLacos;
+    const metragemPorLaço = form.tamanhoLaco.metragem;
 
+    // Metragem total GASTA para fins de controle de estoque interno
+    const metragemGastaPrincipal = metragemPorLaço * form.quantidadeLacos;
+    const metragemGastaSecundaria = useSecondaryRibbon
+      ? metragemPorLaço * form.quantidadeLacos
+      : 0;
+
+    // O 'product' no CartItem será a fita principal, mas o tipo é CUSTOM_RIBBON
     const newItem: CartItem = {
       cartId: crypto.randomUUID(),
       type: "CUSTOM_RIBBON",
       quantity: form.quantidadeLacos,
-      kitName: `${form.tipoLaco} ${form.tamanhoLaco.size} - ${form.fitaSelecionada.name}`,
+      kitName: `Laço Customizado ${form.tipoLaco} ${form.tamanhoLaco.size} - ${
+        form.fitaPrincipalSelecionada.name
+      }${
+        useSecondaryRibbon && form.fitaSecundariaSelecionada
+          ? " e " + form.fitaSecundariaSelecionada.name
+          : ""
+      }`,
       kitTotalAmount: calculateTotalPrice,
       ribbonDetails: {
-        fitaSelecionada: form.fitaSelecionada,
-        metragemTotal: metragemTotalCalculada,
-        tamanhoLaco: form.tamanhoLaco.size,
-        quantidadeLacos: form.quantidadeLacos,
-        tipoLaco: form.tipoLaco,
+        fitaPrincipalId: form.fitaPrincipalSelecionada.id, // ID da fita principal
+        fitaSecundariaId: form.fitaSecundariaSelecionada?.id, // ID da fita secundária
+        cor: form.fitaPrincipalSelecionada.name, // Usando o nome da fita principal como cor no resumo, se necessário
+        modelo: form.tipoLaco as LacoModelType, // BOLA ou BORBOLETA
+        tamanho: form.tamanhoLaco.size as LacoSizeType, // P, M ou G
+        metragemGasta: metragemGastaPrincipal + metragemGastaSecundaria, // Soma de toda a metragem
+        assemblyCost: calculateTotalPrice, // Custo total do serviço
       },
     };
 
     addItem(newItem);
     setIsProcessing(false);
     toast.success(
-      `${form.quantidadeLacos} Laços prontos adicionados ao carrinho!`
+      `${form.quantidadeLacos} Laços personalizados adicionados ao carrinho!`
     );
     openCart();
 
+    // Reset
     setForm({
-      fitaSelecionada: null,
+      fitaPrincipalSelecionada: null,
+      fitaSecundariaSelecionada: null,
       tamanhoLaco: null,
       quantidadeLacos: 1,
       tipoLaco: LACO_STYLES_OPTIONS[0].value,
     });
+    setUseSecondaryRibbon(false);
     setStep(1);
+  };
+
+  // Funções auxiliares para manipulação do formulário
+  const setPrincipalRibbon = (id: string) => {
+    setForm((prev) => ({
+      ...prev,
+      fitaPrincipalSelecionada:
+        availableRibbons.find((p) => p.id === id) || null,
+    }));
+    // Limpar secundária se a principal for alterada
+    setForm((prev) => ({ ...prev, fitaSecundariaSelecionada: null }));
+    setUseSecondaryRibbon(false); // Resetar opção de mista
+  };
+
+  const setSecondaryRibbon = (id: string) => {
+    setForm((prev) => ({
+      ...prev,
+      fitaSecundariaSelecionada:
+        availableRibbons.find((p) => p.id === id) || null,
+    }));
+  };
+
+  const clearSecondaryRibbon = () => {
+    setForm((prev) => ({ ...prev, fitaSecundariaSelecionada: null }));
+    setUseSecondaryRibbon(false);
   };
 
   const renderStep = () => {
@@ -137,25 +195,77 @@ export default function LacoBuilderPage() {
         return (
           <div className="space-y-6">
             <h3 className="text-xl font-semibold text-slate-800">
-              Etapa 1: Fita e Tamanho do Laço
+              Etapa 1: Fitas (Principal e Opcional)
             </h3>
 
-            <Label htmlFor="fitaSelecionada">Fita (Tamanho e Cor)</Label>
+            {/* SELEÇÃO DA FITA PRINCIPAL */}
+            <div className="space-y-2">
+              <Label
+                htmlFor="fitaPrincipalSelecionada"
+                className="text-lg font-bold"
+              >
+                1. Fita Principal
+              </Label>
+              <SelectWithImage
+                items={ribbonOptions}
+                placeholder="Selecione a fita principal..."
+                value={form.fitaPrincipalSelecionada?.id}
+                onValueChange={setPrincipalRibbon}
+              />
+            </div>
 
-            <SelectWithImage
-              items={ribbonOptions}
-              placeholder="Selecione a fita..."
-              value={form.fitaSelecionada?.id}
-              onValueChange={(id) =>
-                setForm((prev) => ({
-                  ...prev,
-                  fitaSelecionada:
-                    availableRibbons.find((p) => p.id === id) || null,
-                }))
-              }
-            />
+            {/* NOVO: OPÇÃO DE FITA SECUNDÁRIA (MISTO) */}
+            {form.fitaPrincipalSelecionada && (
+              <div className="pt-4 border-t space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                <Label className="flex items-center gap-2 text-lg font-bold">
+                  <PlusCircle size={18} /> Laço Misto (Opcional)
+                </Label>
 
-            {form.fitaSelecionada && (
+                <div className="flex items-center space-x-4">
+                  <Button
+                    variant={useSecondaryRibbon ? "outline" : "default"}
+                    onClick={() => setUseSecondaryRibbon(true)}
+                    disabled={!form.fitaPrincipalSelecionada}
+                    className={cn(
+                      useSecondaryRibbon
+                        ? "border-purple-600 text-purple-600 hover:bg-purple-50"
+                        : "bg-purple-600 hover:bg-purple-700 text-white"
+                    )}
+                  >
+                    {useSecondaryRibbon ? "Fita Mista Ativa" : "Ativar 2ª Fita"}
+                  </Button>
+
+                  {useSecondaryRibbon && (
+                    <Button
+                      variant="ghost"
+                      onClick={clearSecondaryRibbon}
+                      className="text-red-500 hover:bg-red-50"
+                    >
+                      <XCircle size={16} className="mr-1" /> Remover Fita Mista
+                    </Button>
+                  )}
+                </div>
+
+                {useSecondaryRibbon && (
+                  <div className="space-y-2 pt-4">
+                    <Label htmlFor="fitaSecundariaSelecionada">
+                      2. Fita Secundária
+                    </Label>
+                    <SelectWithImage
+                      items={ribbonOptions.filter(
+                        (o) => o.value !== form.fitaPrincipalSelecionada?.id
+                      )} // Não pode ser a mesma
+                      placeholder="Selecione a fita secundária..."
+                      value={form.fitaSecundariaSelecionada?.id}
+                      onValueChange={setSecondaryRibbon}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAMANHO DO LAÇO (Mantido na etapa 1) */}
+            {form.fitaPrincipalSelecionada && (
               <div className="pt-4 border-t space-y-4 animate-in fade-in slide-in-from-bottom-2">
                 <Label
                   htmlFor="tamanhoLaco"
@@ -287,9 +397,11 @@ export default function LacoBuilderPage() {
               </div>
 
               <div className="flex justify-between border-b pb-2">
-                <span className="text-slate-600">Fita (Material):</span>
-                <span className="font-semibold">
-                  {form.fitaSelecionada?.name}
+                <span className="text-slate-600">Fita(s) (Material):</span>
+                <span className="font-semibold text-right max-w-[200px]">
+                  {form.fitaPrincipalSelecionada?.name}
+                  {form.fitaSecundariaSelecionada &&
+                    ` + ${form.fitaSecundariaSelecionada?.name}`}
                 </span>
               </div>
 
@@ -309,8 +421,6 @@ export default function LacoBuilderPage() {
                   })}
                 </span>
               </div>
-
-              {/* REMOVIDO: Bloco de Metragem Consumida (Interna) */}
             </div>
 
             <div className="pt-4 flex justify-between items-center">
@@ -335,7 +445,13 @@ export default function LacoBuilderPage() {
   const isStepValid = () => {
     switch (step) {
       case 1:
-        return !!form.fitaSelecionada && !!form.tamanhoLaco;
+        // Fita Principal e Tamanho são obrigatórios. Se usar a secundária, ela também é obrigatória.
+        return (
+          !!form.fitaPrincipalSelecionada &&
+          !!form.tamanhoLaco &&
+          (!useSecondaryRibbon ||
+            (useSecondaryRibbon && !!form.fitaSecundariaSelecionada))
+        );
       case 2:
         return form.quantidadeLacos > 0 && form.tipoLaco;
       default:
@@ -349,11 +465,12 @@ export default function LacoBuilderPage() {
         <header className="mb-8 border-b pb-4">
           <h1 className="text-3xl font-extrabold text-slate-900 flex items-center gap-3">
             <Scissors className="text-purple-600" size={32} /> Serviço Laço
-            Rápido
+            Personalizado
           </h1>
           <div className="flex justify-between items-center mt-3">
             <p className="text-slate-500">
-              Personalize seu pedido de fitas e laços prontos.
+              Personalize seu laço com fitas abertas (rolo) em modelos
+              exclusivos.
             </p>
             <Badge variant="outline" className="text-sm">
               Etapa {step} / 3

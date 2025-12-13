@@ -1,818 +1,625 @@
-// src/components/features/KitBuilderModal.tsx
+// src/components/features/KitBuilderModal.tsx (VERSÃO FINAL CORRIGIDA)
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { create } from "zustand";
+import { useMemo, useState } from "react";
 import {
-  AssembledKitProduct,
-  KitRecipe,
-  KitComponentType,
-  Product,
-  LacoModelType,
-  CartItem,
-} from "@/lib/types";
-import { useKitStore } from "@/store/kitStore";
-import { useProductStore } from "@/store/productStore";
-import { useCartStore } from "@/store/cartStore";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress"; // Importação assumida
+import { ScrollArea } from "@/components/ui/scroll-area"; // Importação assumida
 import { toast } from "sonner";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import {
-  ArrowLeft,
-  ArrowRight,
   Package,
   Gift,
+  Feather,
   ShoppingCart,
-  Minus,
-  Plus,
-  Scissors,
-  CheckCircle2,
+  Check,
+  ChevronRight,
+  ChevronLeft,
+  XCircle,
+  AlertTriangle,
+  Ruler,
+  List,
+  Box,
+  PlusCircle, // CORREÇÃO: Adicionado PlusCircle
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-// =================================================================
-// Estado Local do Builder
-// =================================================================
-
-interface BuilderState {
-  baseProduct?: Product;
-  fillerQuantities: Record<string, number>; // {productId: quantity}
-  selectedLaco: {
-    type: KitComponentType | null;
-    id: string | null; // ID da Fita (para serviço) ou ID do ACCESSORY (para pronto)
-    model: LacoModelType | null; // Modelo para laço customizado
-    size: "P" | "M" | "G" | null;
-  };
-}
-
-const useBuilderLocalState = create(
-  () =>
-    ({
-      baseProduct: undefined,
-      fillerQuantities: {},
-      selectedLaco: {
-        type: null,
-        id: null,
-        model: null,
-        size: null,
-      },
-    } as BuilderState)
-);
-
-// --- CORREÇÕES DE TIPAGEM E CUSTO AQUI ---
-
-// Tipo auxiliar para os laços que possuem custo de mão de obra (serviço)
-type CustomServiceLacoModel = Exclude<LacoModelType, "PUXAR">;
-
-const LACO_METRAGEM_BASE = { P: 2.0, M: 3.5, G: 5.0 }; // Metragem de fita gasta
-// Agora LACO_MENSAL_COST está tipado corretamente
-const LACO_MENSAL_COST: Record<CustomServiceLacoModel, number> = {
-  BOLA: 2.0,
-  COMUM_CHANEL: 4.0,
-}; // Mão de obra do laço (CUSTOM_RIBBON)
-
-const calculateLacoCost = (
-  lacoDetails: BuilderState["selectedLaco"],
-  allProducts: Product[]
-): { cost: number; name: string } => {
-  if (lacoDetails.type === "LAÇO_PRONTO" && lacoDetails.id) {
-    const accessory = allProducts.find((p) => p.id === lacoDetails.id);
-    return {
-      cost: accessory?.price || 0,
-      name: accessory?.name || "Laço Pronto",
-    };
-  }
-
-  if (
-    lacoDetails.type === "RIBBON_SERVICE" &&
-    lacoDetails.id &&
-    lacoDetails.model &&
-    lacoDetails.size
-  ) {
-    const ribbon = allProducts.find((p) => p.id === lacoDetails.id);
-    const meterPrice = ribbon?.price || 0;
-    const metragem = LACO_METRAGEM_BASE[lacoDetails.size];
-
-    // Casting seguro, pois sabemos que o modelo será BOLA ou COMUM_CHANEL no serviço
-    const customModel = lacoDetails.model as CustomServiceLacoModel;
-    const assemblyCost = LACO_MENSAL_COST[customModel];
-
-    const totalCost = meterPrice * metragem + assemblyCost;
-    return {
-      cost: totalCost,
-      name: `Laço ${customModel} (${lacoDetails.size})`,
-    };
-  }
-
-  return { cost: 0, name: "Nenhum Laço" };
-};
-
-// =================================================================
-// COMPONENTE PRINCIPAL (restante do código)
-// =================================================================
+// Stores e Tipos
+import { useKitBuilderStore } from "@/store/kitBuilderStore";
+import { useProductStore } from "@/store/productStore";
+import { useCartStore } from "@/store/cartStore";
+import {
+  AssembledKitProduct,
+  Product,
+  CapacityRef,
+  CartItem,
+} from "@/lib/types";
+import { cn } from "@/lib/utils"; // Importação assumida
+import { LACO_STYLES_OPTIONS } from "@/lib/ribbon_config";
 
 interface KitBuilderModalProps {
-  assembledKit: AssembledKitProduct;
   isOpen: boolean;
   onClose: () => void;
+  assembledKit?: AssembledKitProduct;
 }
 
-export function KitBuilderModal({
-  assembledKit,
+// Capacidade máxima de slots por gabarito (Duplicado aqui para referência de UI)
+const MAX_SLOTS: Record<CapacityRef, number> = {
+  P: 5,
+  M: 10,
+  G: 15,
+};
+
+// --- Sub-componente de Item (Para seleção de produtos) ---
+interface ItemSelectorProps {
+  product: Product;
+  onAdd: (product: Product, quantity: number) => void;
+  onRemove: (productId: string) => void;
+  currentQuantity: number;
+  disabled?: boolean;
+}
+
+const ItemSelector: React.FC<ItemSelectorProps> = ({
+  product,
+  onAdd,
+  onRemove,
+  currentQuantity,
+  disabled,
+}) => (
+  <div
+    className={cn(
+      "flex justify-between items-center p-3 border rounded-lg transition-all",
+      disabled ? "bg-slate-100 opacity-60" : "bg-white hover:border-green-400"
+    )}
+  >
+    <div className="flex items-center space-x-3">
+      <div className="w-10 h-10 rounded-md bg-slate-200 relative overflow-hidden shrink-0">
+        {product.imageUrl && (
+          <Image
+            src={product.imageUrl}
+            alt={product.name}
+            fill
+            className="object-cover"
+          />
+        )}
+      </div>
+      <div>
+        <p className="font-semibold text-sm line-clamp-1">{product.name}</p>
+        <p className="text-xs text-slate-500">R$ {product.price.toFixed(2)}</p>
+      </div>
+    </div>
+
+    <div className="flex items-center space-x-2">
+      {currentQuantity > 0 && (
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => onRemove(product.id)}
+          disabled={disabled}
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
+      )}
+      {currentQuantity > 0 && (
+        <span className="w-6 text-center text-sm font-bold">
+          {currentQuantity}
+        </span>
+      )}
+      <Button
+        variant="default"
+        size="icon"
+        onClick={() => onAdd(product, 1)}
+        disabled={disabled}
+      >
+        <PlusCircle className="w-4 h-4" />
+      </Button>
+    </div>
+  </div>
+);
+
+export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
   isOpen,
   onClose,
-}: KitBuilderModalProps) {
-  const [step, setStep] = useState(1);
-  const { allProducts } = useProductStore();
-  const { getRecipeById } = useKitStore();
-  const { addItem } = useCartStore();
-  const localState = useBuilderLocalState();
-  const setLocalState = useBuilderLocalState.setState;
+  assembledKit,
+}) => {
+  const router = useRouter();
+  // CORREÇÃO: Renomear 'products' para 'allProductsStore'
+  const { allProducts: allProductsStore } = useProductStore();
+  const { addItem: addCartItem } = useCartStore();
 
-  const recipe = useMemo(
-    () => getRecipeById(assembledKit.recipeId),
-    [assembledKit.recipeId, getRecipeById]
+  const {
+    currentStep,
+    composition,
+    setStep,
+    setBaseContainer,
+    addItem,
+    updateItemQuantity,
+    removeItem,
+    setRibbonSelection,
+    calculateKitTotal,
+    closeKitBuilder: closeStore,
+  } = useKitBuilderStore();
+
+  const kitTotal = calculateKitTotal();
+  const progressValue = (currentStep / 3) * 100;
+
+  // Lógica de filtro e memorização
+  const availableBases = useMemo(
+    () =>
+      // CORREÇÃO: Adicionar tipagem explícita 'p is Product'
+      allProductsStore.filter(
+        (p): p is Product => p.type === "BASE_CONTAINER" && p.inStock
+      ),
+    [allProductsStore]
   );
 
-  // Filtros de produtos disponíveis
-  const availableFillers = useMemo(() => {
-    return allProducts.filter(
-      (p) =>
-        p.type !== "BASE_CONTAINER" &&
-        p.type !== "ASSEMBLED_KIT" &&
-        p.type !== "RIBBON" &&
-        !p.disabled
-    );
-  }, [allProducts]);
+  const availableItems = useMemo(
+    () =>
+      // CORREÇÃO: Adicionar tipagem explícita 'p is Product'
+      allProductsStore.filter(
+        (p): p is Product =>
+          (p.type === "STANDARD_ITEM" || p.type === "FILLER") && p.inStock
+      ),
+    [allProductsStore]
+  );
 
-  const availableRibbons = useMemo(() => {
-    return allProducts.filter(
-      (p) => p.type === "RIBBON" && !p.disabled && p.canBeSoldAsRoll
-    );
-  }, [allProducts]);
+  const availableAccessories = useMemo(
+    () =>
+      // CORREÇÃO: Adicionar tipagem explícita 'p is Product'
+      allProductsStore.filter(
+        (p): p is Product => p.type === "ACCESSORY" && p.inStock
+      ),
+    [allProductsStore]
+  );
 
-  const availableReadyLaços = useMemo(() => {
-    return allProducts.filter(
-      (p) => p.type === "ACCESSORY" && p.laçoType && !p.disabled
-    );
-  }, [allProducts]);
+  // --- Funções de Navegação e Validação ---
 
-  // Efeito para inicializar a Base e os Fillers Padrão
-  useEffect(() => {
-    if (recipe && isOpen) {
-      const baseComponent = recipe.components.find((c) => c.type === "BASE");
-      const baseProduct = allProducts.find(
-        (p) => p.id === baseComponent?.componentId
-      );
-
-      // 1. Inicializa a Base
-      if (baseProduct) {
-        setLocalState({ baseProduct: baseProduct });
-      }
-
-      // 2. Inicializa os Fillers Padrão
-      const newFillerQuantities: Record<string, number> = {};
-      recipe.components
-        .filter((c) => c.type === "FILLER")
-        .forEach((c) => {
-          // Só adiciona se o produto estiver ativo
-          if (!allProducts.find((p) => p.id === c.componentId)?.disabled) {
-            newFillerQuantities[c.componentId] = c.defaultQuantity;
-          }
-        });
-      setLocalState({ fillerQuantities: newFillerQuantities });
-
-      // 3. Reseta o laço (para uma nova montagem)
-      setLocalState({
-        selectedLaco: { type: null, id: null, model: null, size: null },
-      });
-    } else if (!isOpen) {
-      // Limpa o estado local ao fechar o modal
-      useBuilderLocalState.setState({
-        baseProduct: undefined,
-        fillerQuantities: {},
-        selectedLaco: { type: null, id: null, model: null, size: null },
-      });
+  const isStepValid = useMemo(() => {
+    switch (currentStep) {
+      case 1:
+        // Deve ter uma base selecionada
+        return !!composition.baseContainer && !!composition.capacityRef;
+      case 2:
+        // Deve ter pelo menos um item interno
+        return composition.internalItems.length > 0;
+      case 3:
+        // Deve ter uma seleção de laço
+        return !!composition.ribbonSelection;
+      default:
+        return false;
     }
-  }, [recipe, allProducts, isOpen, setLocalState]);
+  }, [currentStep, composition]);
 
-  // =================================================================
-  // CÁLCULOS E VALIDAÇÕES GERAIS
-  // =================================================================
-
-  // Custo dos Recheios
-  const fillersCost = useMemo(() => {
-    return Object.entries(localState.fillerQuantities).reduce(
-      (total, [id, qty]) => {
-        const product = allProducts.find((p) => p.id === id);
-        return total + (product?.price || 0) * qty;
-      },
-      0
-    );
-  }, [localState.fillerQuantities, allProducts]);
-
-  // Custo do Laço (Customizado ou Pronto)
-  const { cost: lacoCost, name: lacoName } = useMemo(() => {
-    return calculateLacoCost(localState.selectedLaco, allProducts);
-  }, [localState.selectedLaco, allProducts]);
-
-  // Custo Total do Kit
-  const kitTotal = useMemo(() => {
-    // KitBasePrice = Preço do AssembledKitProduct + AssemblyCost da Receita
-    const basePrice = assembledKit.kitBasePrice + (recipe?.assemblyCost || 0);
-    return basePrice + fillersCost + lacoCost;
-  }, [assembledKit.kitBasePrice, recipe?.assemblyCost, fillersCost, lacoCost]);
-
-  // Slots Ocupados
-  const occupiedSlots = useMemo(() => {
-    return Object.entries(localState.fillerQuantities).reduce(
-      (total, [id, qty]) => {
-        const product = allProducts.find((p) => p.id === id);
-        return total + (product?.itemSize || 0) * qty;
-      },
-      0
-    );
-  }, [localState.fillerQuantities, allProducts]);
-
-  const baseCapacity = localState.baseProduct?.capacity || 0;
-  const isBaseFull = occupiedSlots >= baseCapacity;
-
-  // =================================================================
-  // AÇÕES
-  // =================================================================
-
-  const handleAddFiller = (id: string, maxQty: number) => {
-    const currentQty = localState.fillerQuantities[id] || 0;
-    const product = allProducts.find((p) => p.id === id);
-    if (!product) return;
-
-    // 1. Validação de Capacidade (Slots)
-    if (isBaseFull && product.itemSize && product.itemSize > 0) {
-      toast.error("Opa! A base está cheia.", {
-        description: "Remova alguns itens para adicionar este.",
-      });
-      return;
-    }
-
-    // 2. Validação de Quantidade Máxima da Receita
-    if (currentQty >= maxQty) return;
-
-    // 3. Atualiza
-    setLocalState({
-      fillerQuantities: {
-        ...localState.fillerQuantities,
-        [id]: currentQty + 1,
-      },
-    });
-  };
-
-  const handleRemoveFiller = (id: string) => {
-    const currentQty = localState.fillerQuantities[id] || 0;
-
-    // Não permite remover se for um item obrigatório (defaultQuantity > 0 na receita)
-    const recipeComponent = recipe?.components.find(
-      (c) => c.componentId === id
-    );
-    if (recipeComponent && currentQty <= recipeComponent.defaultQuantity) {
-      if (recipeComponent.defaultQuantity > 0 && recipeComponent.required) {
-        toast.error("Este item é obrigatório na Receita.", {
-          description: "Não pode ser removido abaixo da quantidade padrão.",
-        });
-        return;
-      }
-    }
-
-    if (currentQty <= 1) {
-      const newFillers = { ...localState.fillerQuantities };
-      delete newFillers[id];
-      setLocalState({ fillerQuantities: newFillers });
-    } else {
-      setLocalState({
-        fillerQuantities: {
-          ...localState.fillerQuantities,
-          [id]: currentQty - 1,
-        },
-      });
+  const nextStep = () => {
+    if (isStepValid && currentStep < 3) {
+      setStep((currentStep + 1) as 1 | 2 | 3);
     }
   };
 
-  const handleAddToCart = () => {
-    if (
-      step !== 3 ||
-      !localState.baseProduct ||
-      !localState.selectedLaco.type
-    ) {
-      toast.error("Complete todos os passos antes de finalizar.");
-      return;
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setStep((currentStep - 1) as 1 | 2 | 3);
+    }
+  };
+
+  const handleFinishAssembly = () => {
+    if (!isStepValid) {
+      return toast.error("Por favor, complete todas as etapas.");
     }
 
-    const fillerItems = Object.entries(localState.fillerQuantities).map(
-      ([productId, quantity]) => ({ productId, quantity })
-    );
-
-    // Montar o CartItem
-    const finalCartItem: CartItem = {
+    // 1. Montar o item final do carrinho
+    const kitCartItem: CartItem = {
       cartId: crypto.randomUUID(),
       type: "CUSTOM_KIT",
       quantity: 1, // Sempre 1 kit
-      product: assembledKit, // Referência ao meta-produto
+      kitName: composition.baseContainer!.name,
       kitTotalAmount: kitTotal,
-      kitName: assembledKit.name,
       kitComposition: {
-        recipeId: assembledKit.recipeId,
-        // É garantido que baseProduct não é undefined devido ao 'if' acima e ao 'if' no final
-        baseProductId: localState.baseProduct!.id,
-        items: fillerItems,
-        finalRibbonDetails: {
-          laçoType:
-            localState.selectedLaco.model ||
-            (localState.selectedLaco.type as LacoModelType),
-          // CORREÇÃO DE NULL VS UNDEFINED:
-          fitaId:
-            localState.selectedLaco.type === "RIBBON_SERVICE"
-              ? localState.selectedLaco.id || undefined
-              : undefined,
-          accessoryId:
-            localState.selectedLaco.type === "LAÇO_PRONTO"
-              ? localState.selectedLaco.id || undefined
-              : undefined,
-        },
+        recipeId: assembledKit?.recipeId || "CUSTOM_NATAL", // ID da receita base ou custom
+        baseProductId: composition.baseContainer!.id,
+        items: composition.internalItems.map((item) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+        })),
+        finalRibbonDetails:
+          composition.ribbonSelection?.type === "CUSTOM"
+            ? {
+                laçoType: composition.ribbonSelection.ribbonDetails!.modelo,
+                fitaId:
+                  composition.ribbonSelection.ribbonDetails!.fitaPrincipalId,
+              }
+            : composition.ribbonSelection?.type === "PRONTO"
+            ? {
+                accessoryId: composition.ribbonSelection.accessoryId,
+                laçoType: "PUXAR", // Usado como placeholder para laço pronto
+              }
+            : undefined,
       },
+      ribbonDetails:
+        composition.ribbonSelection?.type === "CUSTOM"
+          ? composition.ribbonSelection.ribbonDetails
+          : undefined,
+      product: composition.baseContainer,
     };
 
-    addItem(finalCartItem);
-    toast.success("Kit Personalizado adicionado ao carrinho!");
+    // 2. Adicionar ao carrinho
+    addCartItem(kitCartItem);
+    toast.success("Cesta personalizada adicionada ao carrinho!");
+
+    // 3. Fechar e resetar
+    closeStore();
     onClose();
+    router.push("/carrinho"); // Ou apenas abrir o CartSidebar
   };
 
-  // Se recipe ou baseProduct não existirem, não renderiza
-  if (!recipe || !localState.baseProduct) return null;
+  // --- Renderização dos Passos ---
 
-  // =================================================================
-  // RENDERIZAÇÃO DOS PASSOS
-  // =================================================================
-
-  const renderStep1 = () => (
-    <div className="space-y-6">
-      <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-        <Package className="h-5 w-5 text-[var(--primary)]" /> Passo 1: Base e
-        Recheios
-      </h3>
-
-      {/* Visualização da Base */}
-      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-        <p className="font-semibold mb-2">Base do Kit (Obrigatório)</p>
-        <div className="flex items-center gap-4">
-          <Image
-            src={localState.baseProduct!.imageUrl || "/placeholder.webp"}
-            alt={localState.baseProduct!.name}
-            width={60}
-            height={60}
-            className="rounded-lg object-cover"
-          />
-          <div>
-            <p className="font-medium">{localState.baseProduct!.name}</p>
-            <p className="text-sm text-slate-500">
-              Capacidade: {baseCapacity} slots
-            </p>
-          </div>
-        </div>
-        <Separator className="my-3" />
-        <div className="flex justify-between text-sm">
-          <span className="text-slate-600">Slots Ocupados:</span>
-          <span
-            className={`font-bold ${
-              isBaseFull ? "text-red-500" : "text-slate-800"
-            }`}
-          >
-            {occupiedSlots.toFixed(1)} / {baseCapacity.toFixed(1)}
-          </span>
-        </div>
-        <div className="w-full h-2 bg-slate-200 rounded-full mt-2 overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${
-              isBaseFull ? "bg-red-500" : "bg-[var(--primary)]"
-            }`}
-            style={{
-              width: `${Math.min(100, (occupiedSlots / baseCapacity) * 100)}%`,
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Opções de Recheios */}
-      <p className="font-semibold text-slate-800 mt-6">
-        Adicione Recheios (Fillers)
-      </p>
-      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-        {recipe.components
-          .filter((c) => c.type === "FILLER")
-          .map((comp) => {
-            const product = availableFillers.find(
-              (p) => p.id === comp.componentId
-            );
-            const currentQty =
-              localState.fillerQuantities[comp.componentId] || 0;
-            const maxQty = comp.maxQuantity;
-
-            if (!product) return null;
-            if (product.disabled) return null;
-
-            const isDisabled = isBaseFull && (product.itemSize || 0) > 0;
-            const isMaxed = currentQty >= maxQty;
-
-            return (
-              <div
-                key={product.id}
-                className={`flex items-center justify-between p-3 border rounded-lg ${
-                  currentQty > 0
-                    ? "border-[var(--primary)] bg-purple-50"
-                    : "bg-white"
-                }`}
-              >
-                <div className="flex items-center gap-3 w-1/2">
-                  <Image
-                    src={product.imageUrl || "/placeholder.webp"}
-                    alt={product.name}
-                    width={40}
-                    height={40}
-                    className="rounded-full object-cover"
-                  />
-                  <div className="truncate">
-                    <p className="text-sm font-medium truncate">
-                      {product.name}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      R$ {product.price.toFixed(2)} | Slots: {product.itemSize}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="h-7 w-7"
-                    onClick={() => handleRemoveFiller(product.id)}
-                    disabled={currentQty === 0}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <span className="font-bold w-4 text-center">
-                    {currentQty}
-                  </span>
-                  <Button
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => handleAddFiller(product.id, maxQty)}
-                    disabled={isDisabled || isMaxed}
-                    style={{
-                      backgroundColor:
-                        isDisabled || isMaxed ? undefined : "var(--primary)",
-                    }}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-      </div>
-    </div>
-  );
-
-  const renderStep2 = () => (
-    <div className="space-y-6">
-      <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-        <Gift className="h-5 w-5 text-[var(--primary)]" /> Passo 2: Laço e
-        Acabamento
-      </h3>
-
-      {/* --- Opções de Laço --- */}
-      <div className="space-y-4">
-        <p className="font-semibold text-slate-700">
-          Escolha o Serviço de Laço:
-        </p>
-
-        {/* Opções de Laços Prontos (ACCESSORY) */}
-        {recipe.components.filter((c) => c.type === "LAÇO_PRONTO").length >
-          0 && (
-          <div className="bg-slate-50 p-4 rounded-xl">
-            <h4 className="font-medium mb-3 flex items-center gap-2 text-slate-700">
-              <CheckCircle2 className="h-4 w-4 text-green-600" /> Laços Prontos
-              em Estoque / Puxar
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1: // Escolha da Embalagem Base
+        return (
+          <ScrollArea className="h-full max-h-[500px] p-2">
+            <h4 className="text-lg font-semibold mb-4 flex items-center gap-2 text-slate-700">
+              <Box className="w-5 h-5" /> 1. Escolha a Embalagem Base (Caixa,
+              Cesta ou Saco)
             </h4>
-            <div className="grid grid-cols-2 gap-3">
-              {recipe.components
-                .filter((c) => c.type === "LAÇO_PRONTO")
-                .map((comp) => {
-                  const lacoPronto = availableReadyLaços.find(
-                    (p) => p.id === comp.componentId
-                  );
-                  if (!lacoPronto) return null;
-
-                  const isSelected =
-                    localState.selectedLaco.type === "LAÇO_PRONTO" &&
-                    localState.selectedLaco.id === lacoPronto.id;
-
-                  return (
-                    <div
-                      key={lacoPronto.id}
-                      onClick={() =>
-                        setLocalState({
-                          selectedLaco: {
-                            type: "LAÇO_PRONTO",
-                            id: lacoPronto.id,
-                            model: lacoPronto.laçoType || null,
-                            size: null,
-                          },
-                        })
-                      }
-                      className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                        isSelected
-                          ? "border-[var(--primary)] ring-2 ring-[var(--primary)] ring-opacity-20"
-                          : "bg-white hover:border-slate-300"
-                      }`}
-                    >
-                      <p className="text-sm font-medium">{lacoPronto.name}</p>
-                      <p className="text-xs text-slate-500">
-                        R$ {lacoPronto.price.toFixed(2)} (
-                        {lacoPronto.laçoType === "PUXAR" ? "Pacote" : "Unid."})
-                      </p>
-                      {isSelected && (
-                        <Badge
-                          variant="secondary"
-                          className="mt-1 bg-green-500 text-white"
-                        >
-                          Selecionado
-                        </Badge>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {availableBases.map((base: Product) => {
+                // CORREÇÃO: Tipagem explícita
+                const isSelected = base.id === composition.baseContainer?.id;
+                return (
+                  <div
+                    key={base.id}
+                    onClick={() => setBaseContainer(base)}
+                    className={cn(
+                      "border-2 rounded-xl p-3 cursor-pointer transition-all relative",
+                      base.capacityRef
+                        ? `border-dashed border-${
+                            base.capacityRef === "P"
+                              ? "green"
+                              : base.capacityRef === "M"
+                              ? "yellow"
+                              : "red"
+                          }-400`
+                        : "",
+                      isSelected
+                        ? "border-green-600 ring-2 ring-green-300 shadow-lg bg-green-50"
+                        : "border-slate-200 hover:border-green-300 bg-white"
+                    )}
+                  >
+                    {isSelected && (
+                      <Check className="absolute top-2 right-2 text-green-600 w-5 h-5" />
+                    )}
+                    <div className="w-full h-20 bg-slate-100 rounded-md mb-2 relative overflow-hidden">
+                      {base.imageUrl && (
+                        <Image
+                          src={base.imageUrl}
+                          alt={base.name}
+                          fill
+                          className="object-contain"
+                        />
                       )}
                     </div>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-
-        {/* Serviço de Laço Customizado (RIBBON_SERVICE) */}
-        {recipe.components.some((c) => c.type === "RIBBON_SERVICE") && (
-          <div className="bg-slate-50 p-4 rounded-xl">
-            <h4 className="font-medium mb-3 flex items-center gap-2 text-slate-700">
-              <Scissors className="h-4 w-4 text-purple-600" /> Criar Laço
-              Customizado (Serviço)
-            </h4>
-
-            <div className="space-y-4">
-              {/* 2.1. Escolha da Fita */}
-              <p className="text-sm font-medium">1. Escolha a Fita:</p>
-              <div className="grid grid-cols-3 gap-3 max-h-[150px] overflow-y-auto p-1 custom-scrollbar border rounded-lg">
-                {availableRibbons.map((ribbon) => {
-                  const isSelected =
-                    localState.selectedLaco.type === "RIBBON_SERVICE" &&
-                    localState.selectedLaco.id === ribbon.id;
-                  return (
-                    <div
-                      key={ribbon.id}
-                      onClick={() =>
-                        setLocalState((prev) => ({
-                          selectedLaco: {
-                            ...prev.selectedLaco,
-                            type: "RIBBON_SERVICE",
-                            id: ribbon.id,
-                          },
-                        }))
-                      }
-                      className={`p-2 border rounded-lg cursor-pointer text-center transition-all ${
-                        isSelected
-                          ? "border-[var(--primary)] ring-2 ring-[var(--primary)] ring-opacity-20"
-                          : "bg-white hover:border-slate-300"
-                      }`}
-                    >
-                      <Image
-                        src={ribbon.imageUrl || "/placeholder.webp"}
-                        alt={ribbon.name}
-                        width={30}
-                        height={30}
-                        className="mx-auto rounded-full object-cover mb-1"
-                      />
-                      <p className="text-[10px] truncate">{ribbon.name}</p>
+                    <p className="font-bold text-sm line-clamp-2">
+                      {base.name}
+                    </p>
+                    <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
+                      <span>R$ {base.price.toFixed(2)}</span>
+                      {base.capacityRef && (
+                        <span
+                          className={cn(
+                            "font-bold px-2 py-0.5 rounded-full text-white",
+                            base.capacityRef === "P"
+                              ? "bg-green-500"
+                              : base.capacityRef === "M"
+                              ? "bg-yellow-500"
+                              : "bg-red-500"
+                          )}
+                        >
+                          {base.capacityRef}
+                        </span>
+                      )}
                     </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        );
+
+      case 2: // Adição de Itens
+        const capacityRef = composition.capacityRef;
+        const maxSlots = capacityRef ? MAX_SLOTS[capacityRef] : 0;
+        const currentSlotPercentage =
+          (composition.currentSlotCount / maxSlots) * 100;
+        const isCapacityExceeded = composition.currentSlotCount > maxSlots;
+
+        const handleAddItem = (product: Product, quantity: number) => {
+          if (
+            composition.internalItems.find(
+              (item) => item.product.id === product.id
+            )
+          ) {
+            updateItemQuantity(
+              product.id,
+              composition.internalItems.find(
+                (item) => item.product.id === product.id
+              )!.quantity + quantity
+            );
+          } else {
+            addItem(product, quantity);
+          }
+        };
+
+        const handleRemoveItem = (productId: string) => {
+          const item = composition.internalItems.find(
+            (item) => item.product.id === productId
+          );
+          if (item && item.quantity > 1) {
+            updateItemQuantity(productId, item.quantity - 1);
+          } else if (item && item.quantity === 1) {
+            removeItem(productId);
+          }
+        };
+
+        return (
+          <div className="flex flex-col h-full">
+            <div className="mb-4">
+              <h4 className="text-lg font-semibold flex items-center gap-2 text-slate-700">
+                <List className="w-5 h-5" /> 2. Adicione os Itens Internos
+              </h4>
+              <div className="text-sm mt-2 p-3 rounded-lg border bg-slate-50">
+                <p className="font-medium text-slate-600 flex justify-between items-center">
+                  <span>Capacidade ({capacityRef}):</span>
+                  <span
+                    className={
+                      isCapacityExceeded
+                        ? "text-red-500 font-bold"
+                        : "text-slate-800"
+                    }
+                  >
+                    {composition.currentSlotCount} / {maxSlots} slots
+                  </span>
+                </p>
+                {/* CORREÇÃO: Substituir 'indicatorColor' por className */}
+                <Progress
+                  value={currentSlotPercentage}
+                  className={cn(
+                    "mt-1",
+                    isCapacityExceeded ? "bg-red-500" : "bg-green-500"
+                  )}
+                />
+                {isCapacityExceeded && (
+                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> Remova itens para
+                    continuar.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <ScrollArea className="flex-1 max-h-[400px] p-2">
+              <div className="space-y-3">
+                {availableItems.map((product: Product) => {
+                  // CORREÇÃO: Tipagem explícita
+                  const currentQuantity =
+                    composition.internalItems.find(
+                      (item) => item.product.id === product.id
+                    )?.quantity || 0;
+                  return (
+                    <ItemSelector
+                      key={product.id}
+                      product={product}
+                      onAdd={handleAddItem}
+                      onRemove={handleRemoveItem}
+                      currentQuantity={currentQuantity}
+                      // Se a capacidade estiver excedida, desabilita a adição
+                      disabled={isCapacityExceeded}
+                    />
                   );
                 })}
               </div>
+            </ScrollArea>
+          </div>
+        );
 
-              {/* 2.2. Escolha do Modelo e Tamanho */}
-              {localState.selectedLaco.id &&
-                localState.selectedLaco.type === "RIBBON_SERVICE" && (
-                  <div className="space-y-4 pt-3">
-                    <p className="text-sm font-medium">
-                      2. Escolha o Modelo e Tamanho:
+      case 3: // Escolha do Laço e Finalização
+        // CORREÇÃO: Tipagem explícita
+        const laçosProntos = availableAccessories.filter(
+          (a: Product) => a.laçoType && a.laçoType !== "PUXAR"
+        );
+        // CORREÇÃO: Tipagem explícita
+        const laçoPuxar = availableAccessories.find(
+          (a: Product) => a.laçoType === "PUXAR"
+        );
+
+        return (
+          <div className="space-y-6 h-full">
+            <h4 className="text-lg font-semibold flex items-center gap-2 text-slate-700">
+              <Feather className="w-5 h-5" /> 3. Finalização e Laço
+            </h4>
+
+            {/* RESUMO DO LAÇO ESCOLHIDO */}
+            <div className="p-4 rounded-lg border border-purple-300 bg-purple-50 text-sm">
+              <p className="font-bold mb-2 text-purple-700">Opções de Laço:</p>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Opção 1: Laço de Puxar Rápido */}
+                {laçoPuxar && (
+                  <div
+                    onClick={() =>
+                      setRibbonSelection({
+                        type: "PUXAR",
+                        accessoryId: laçoPuxar.id,
+                      })
+                    }
+                    className={cn(
+                      "border-2 p-3 rounded-lg cursor-pointer transition-all",
+                      composition.ribbonSelection?.type === "PUXAR"
+                        ? "border-green-600 bg-green-50"
+                        : "hover:border-purple-500 bg-white"
+                    )}
+                  >
+                    <p className="font-bold">Laço de Puxar (Rápido)</p>
+                    <p className="text-xs text-slate-500">
+                      Adicione um laço pronto simples. R${" "}
+                      {laçoPuxar.price.toFixed(2)}.
                     </p>
-
-                    {/* Modelos */}
-                    <div className="flex gap-4">
-                      {["BOLA", "COMUM_CHANEL"].map((model) => (
-                        <Button
-                          key={model}
-                          variant={
-                            localState.selectedLaco.model === model
-                              ? "default"
-                              : "outline"
-                          }
-                          onClick={() =>
-                            setLocalState((prev) => ({
-                              selectedLaco: {
-                                ...prev.selectedLaco,
-                                model: model as LacoModelType,
-                              },
-                            }))
-                          }
-                          style={{
-                            backgroundColor:
-                              localState.selectedLaco.model === model
-                                ? "var(--primary)"
-                                : undefined,
-                          }}
-                        >
-                          Laço {model === "BOLA" ? "Bola" : "Comum"}
-                        </Button>
-                      ))}
-                    </div>
-
-                    {/* Tamanhos */}
-                    <div className="flex gap-2">
-                      {["P", "M", "G"].map((size) => (
-                        <Button
-                          key={size}
-                          variant={
-                            localState.selectedLaco.size === size
-                              ? "default"
-                              : "secondary"
-                          }
-                          onClick={() =>
-                            setLocalState((prev) => ({
-                              selectedLaco: {
-                                ...prev.selectedLaco,
-                                size: size as "P" | "M" | "G",
-                              },
-                            }))
-                          }
-                          style={{
-                            backgroundColor:
-                              localState.selectedLaco.size === size
-                                ? "var(--primary)"
-                                : undefined,
-                          }}
-                        >
-                          {size}
-                        </Button>
-                      ))}
-                    </div>
                   </div>
                 )}
+
+                {/* Opção 2: Laço Pronto de Estoque */}
+                {laçosProntos.length > 0 &&
+                  laçosProntos.map(
+                    (
+                      laco: Product // CORREÇÃO: Tipagem explícita
+                    ) => (
+                      <div
+                        key={laco.id}
+                        onClick={() =>
+                          setRibbonSelection({
+                            type: "PRONTO",
+                            accessoryId: laco.id,
+                          })
+                        }
+                        className={cn(
+                          "border-2 p-3 rounded-lg cursor-pointer transition-all",
+                          composition.ribbonSelection?.type === "PRONTO" &&
+                            composition.ribbonSelection.accessoryId === laco.id
+                            ? "border-green-600 bg-green-50"
+                            : "hover:border-purple-500 bg-white"
+                        )}
+                      >
+                        <p className="font-bold">Laço Pronto {laco.name}</p>
+                        <p className="text-xs text-slate-500">
+                          Temos este laço confeccionado. R${" "}
+                          {laco.price.toFixed(2)}.
+                        </p>
+                      </div>
+                    )
+                  )}
+
+                {/* Opção 3: Laço Customizado (Redireciona) */}
+                <Link href="/laco-builder" passHref>
+                  <div
+                    className={cn(
+                      "border-2 p-3 rounded-lg cursor-pointer transition-all border-purple-600 bg-purple-100 hover:bg-purple-200"
+                    )}
+                    onClick={() => {
+                      closeStore();
+                      onClose();
+                    }} // Fecha o modal e navega
+                  >
+                    <p className="font-bold text-purple-700">
+                      Personalizar Laço
+                    </p>
+                    <p className="text-xs text-purple-600">
+                      Crie um laço com modelos Bola ou Borboleta (R$ 2/3/5).
+                    </p>
+                  </div>
+                </Link>
+
+                {/* Opção 4: Sem Laço */}
+                <div
+                  onClick={() => setRibbonSelection({ type: "NENHUM" })}
+                  className={cn(
+                    "border-2 p-3 rounded-lg cursor-pointer transition-all",
+                    composition.ribbonSelection?.type === "NENHUM"
+                      ? "border-green-600 bg-green-50"
+                      : "hover:border-slate-500 bg-white"
+                  )}
+                >
+                  <p className="font-bold">Sem Laço</p>
+                  <p className="text-xs text-slate-500">
+                    Finalizar sem laço decorativo.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* RESUMO TOTAL */}
+            <div className="pt-4 border-t border-dashed">
+              <h5 className="font-bold text-xl flex justify-between items-center">
+                <span>Total da Cesta:</span>
+                <span className="text-green-600">R$ {kitTotal.toFixed(2)}</span>
+              </h5>
             </div>
           </div>
-        )}
-      </div>
-    </div>
-  );
+        );
 
-  const renderStep3 = () => (
-    <div className="space-y-6">
-      <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-        <ShoppingCart className="h-5 w-5 text-[var(--primary)]" /> Passo 3:
-        Resumo e Checkout
-      </h3>
-
-      <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
-        <h4 className="font-semibold text-lg text-slate-700">
-          Detalhes do Kit: {assembledKit.name}
-        </h4>
-        <Separator />
-
-        {/* Custo Base */}
-        <div className="flex justify-between text-sm">
-          <span className="text-slate-500">
-            Base ({localState.baseProduct!.name}) + Montagem Kit
-          </span>
-          <span className="font-medium">
-            R$ {assembledKit.kitBasePrice.toFixed(2)}
-          </span>
-        </div>
-
-        {/* Recheios */}
-        <div className="flex justify-between text-sm">
-          <span className="text-slate-500">
-            Itens Adicionais ({Object.keys(localState.fillerQuantities).length}{" "}
-            tipos)
-          </span>
-          <span className="font-medium">R$ {fillersCost.toFixed(2)}</span>
-        </div>
-
-        {/* Laço */}
-        <div className="flex justify-between text-sm">
-          <span className="text-slate-500">Serviço de Laço: {lacoName}</span>
-          <span className="font-medium">R$ {lacoCost.toFixed(2)}</span>
-        </div>
-
-        <Separator className="my-4" />
-
-        {/* Total */}
-        <div className="flex justify-between items-center">
-          <span className="text-xl font-bold text-slate-800">TOTAL FINAL</span>
-          <span className="text-3xl font-bold text-[var(--primary)]">
-            R$ {kitTotal.toFixed(2)}
-          </span>
-        </div>
-      </div>
-
-      <Button
-        onClick={handleAddToCart}
-        className="w-full h-12 text-lg font-bold shadow-lg hover:scale-[1.01] transition-transform"
-        style={{
-          backgroundColor: "var(--primary)",
-          color: "var(--primary-contrast)",
-        }}
-        disabled={!localState.selectedLaco.type}
-      >
-        <ShoppingCart className="mr-2 h-5 w-5" /> Adicionar Kit Personalizado
-        (R$ {kitTotal.toFixed(2)})
-      </Button>
-    </div>
-  );
-
-  // =================================================================
-  // RENDERIZAÇÃO DO MODAL
-  // =================================================================
-
-  const isStep2Valid =
-    localState.selectedLaco.type &&
-    (localState.selectedLaco.type === "LAÇO_PRONTO" ||
-      (localState.selectedLaco.id &&
-        localState.selectedLaco.model &&
-        localState.selectedLaco.size));
-  const isStep1Valid = true; // A base e fillers obrigatórios já são validados na seed/inicialização.
+      default:
+        return null;
+    }
+  };
 
   return (
-    <Sheet open={isOpen} onOpenChange={onClose}>
-      <SheetContent side="right" className="w-full sm:max-w-xl flex flex-col">
-        <SheetHeader>
-          <SheetTitle>Montar Kit: {assembledKit.name}</SheetTitle>
-          <p className="text-sm text-slate-500">
-            Siga os 3 passos para montar o seu presente.
-          </p>
-        </SheetHeader>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-4xl p-0 h-[80vh] flex flex-col">
+        <DialogHeader className="p-6 pb-0 shrink-0">
+          <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-slate-900">
+            <Gift className="w-7 h-7 text-primary" /> Monte Sua Cesta de
+            Presente
+          </DialogTitle>
+          <DialogDescription className="text-sm text-slate-500">
+            Siga as etapas para criar sua cesta personalizada para o Natal.
+          </DialogDescription>
 
-        <div className="flex-grow overflow-y-auto py-4">
-          {step === 1 && renderStep1()}
-          {step === 2 && renderStep2()}
-          {step === 3 && renderStep3()}
-        </div>
+          <div className="mt-4">
+            <Progress value={progressValue} className="w-full h-2" />
+            <p className="text-xs text-slate-500 mt-1">
+              Etapa {currentStep} de 3
+            </p>
+          </div>
+        </DialogHeader>
 
-        {/* CONTROLES DE NAVEGAÇÃO */}
-        <div className="mt-auto border-t pt-4 flex justify-between items-center">
-          <Button
-            variant="outline"
-            onClick={() => setStep(step - 1)}
-            disabled={step === 1}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
-          </Button>
+        {/* BODY DOS PASSOS */}
+        <div className="flex-1 overflow-hidden p-6 pt-4">{renderStep()}</div>
 
-          <div className="text-sm font-medium text-slate-600">
-            Passo {step} de 3
+        {/* FOOTER DE NAVEGAÇÃO E TOTAL */}
+        <div className="flex justify-between items-center p-6 border-t shrink-0">
+          <div className="text-sm font-semibold">
+            Total Parcial:{" "}
+            <span className="text-xl font-bold text-green-600">
+              R$ {kitTotal.toFixed(2)}
+            </span>
           </div>
 
-          {step < 3 && (
+          <div className="flex items-center space-x-3">
             <Button
-              onClick={() => setStep(step + 1)}
-              disabled={step === 2 && !isStep2Valid}
-              style={{
-                backgroundColor:
-                  step === 2 && !isStep2Valid ? undefined : "var(--primary)",
-              }}
+              variant="outline"
+              onClick={prevStep}
+              disabled={currentStep === 1}
             >
-              Próximo <ArrowRight className="h-4 w-4 ml-2" />
+              <ChevronLeft className="w-4 h-4 mr-2" /> Anterior
             </Button>
-          )}
 
-          {step === 3 && (
-            <Button
-              onClick={handleAddToCart}
-              style={{ backgroundColor: "var(--primary)" }}
-            >
-              Finalizar (R$ {kitTotal.toFixed(2)})
-            </Button>
-          )}
+            {currentStep < 3 ? (
+              <Button
+                onClick={nextStep}
+                disabled={!isStepValid}
+                style={{ backgroundColor: "var(--primary)" }}
+              >
+                Próxima Etapa <ChevronRight className="w-4 h-4 ml-2" />
+              </Button>
+            ) : (
+              <Button
+                onClick={handleFinishAssembly}
+                disabled={!isStepValid}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold text-lg h-10"
+              >
+                <ShoppingCart className="w-5 h-5 mr-2" /> Finalizar Pedido
+              </Button>
+            )}
+          </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
-}
+};

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/providers/ThemeProvider";
-import { Navbar } from "@/components/layout/Navbar"; // Importando a Navbar
+import Navbar from "@/components/layout/Navbar"; // Importando a Navbar
 import { Footer } from "@/components/layout/Footer";
 import { Toaster } from "@/components/ui/sonner";
 import { CartSidebar } from "@/components/features/CartSidebar";
