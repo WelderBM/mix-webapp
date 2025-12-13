@@ -1,47 +1,55 @@
 "use client";
 
-import { Scissors, ArrowRight, Sparkles } from "lucide-react";
+import { Scissors, Ruler, Grip } from "lucide-react";
 import Link from "next/link";
 
 export function RibbonBuilderTrigger() {
   return (
-    <Link
-      href="/laco-builder"
-      // ADICIONADO: 'h-full' para esticar a altura
-      // GARANTIDO: 'items-center' já existe para centralizar verticalmente o ícone e o texto
-      className="group relative h-full bg-white p-6 rounded-2xl shadow-sm border border-purple-100 flex items-center justify-between overflow-hidden hover:shadow-md transition-all"
-    >
-      <div className="absolute inset-0 bg-gradient-to-r from-purple-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
-      <div className="relative flex items-center gap-4">
-        <div className="bg-purple-100 p-3 rounded-xl text-purple-600 group-hover:scale-110 transition-transform">
-          <Scissors size={24} />
-        </div>
-
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-              Serviço
-            </span>
-            <Sparkles
-              size={14}
-              className="text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity"
-            />
-          </div>
-          <h3 className="text-lg font-bold text-slate-800 group-hover:text-purple-700 transition-colors">
-            Laço Rápido
-          </h3>
-          <p className="text-sm text-slate-600">
-            Escolha a fita e o tamanho, nós montamos.
-          </p>
-        </div>
-      </div>
-
-      <div className="relative bg-purple-50 p-2 rounded-full group-hover:bg-purple-100 text-purple-600 transition-all">
-        <ArrowRight
-          size={20}
-          className="-rotate-45 group-hover:rotate-0 transition-transform"
+    <Link href="/fitas" className="block h-full">
+      {/* UNIFICADO: Fundo Neutro (Slate-50) */}
+      <div className="relative w-full h-full min-h-[180px] rounded-3xl overflow-hidden shadow-sm cursor-pointer group transition-all hover:shadow-xl hover:scale-[1.02] border border-slate-200 bg-slate-50">
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage:
+              "linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)",
+            backgroundSize: "20px 20px",
+          }}
         />
+
+        <div className="relative z-10 h-full p-8 flex flex-col justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full text-slate-600 text-xs font-bold border border-white/50 shadow-sm mb-3">
+              <Grip size={12} />
+              <span>Armarinho</span>
+            </div>
+
+            <h3 className="text-2xl font-bold text-slate-900 leading-tight">
+              Central de Fitas
+            </h3>
+
+            <p className="text-slate-500 text-sm mt-2 max-w-[220px] leading-relaxed">
+              Cetim, gorgurão e decorativas. <br /> Rolos ou metro.
+            </p>
+          </div>
+
+          {/* UNIFICADO: Texto Preto */}
+          <div className="flex items-center gap-2 mt-4 group-hover:translate-x-2 transition-transform">
+            <span className="text-slate-900 font-bold underline decoration-2 underline-offset-4 decoration-slate-300 group-hover:decoration-slate-900 transition-all">
+              Iniciar Corte
+            </span>
+          </div>
+        </div>
+
+        <div className="absolute top-1/2 -translate-y-1/2 right-6 text-slate-200 group-hover:text-slate-300 transition-colors -rotate-12">
+          <Scissors size={90} strokeWidth={1} />
+        </div>
+
+        <div className="absolute bottom-0 left-0 w-full h-2 bg-slate-200 border-t border-slate-300 flex justify-between px-2">
+          {[...Array(20)].map((_, i) => (
+            <div key={i} className="w-[1px] h-full bg-slate-300"></div>
+          ))}
+        </div>
       </div>
     </Link>
   );

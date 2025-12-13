@@ -1,26 +1,32 @@
-export type MeasureUnit = "m" | "un" | "kg" | "l" | "pct";
+// src/lib/types.ts
+
+// 1. TIPOS DE PRODUTO (Atualizado com Sacos, Preenchimento, etc)
 export type ProductType =
-  | "STANDARD_ITEM"
-  | "RIBBON"
-  | "BASE_CONTAINER"
-  | "FILLER"
-  | "WRAPPER"
-  | "SUPPLY_BULK";
-export type DeliveryMethod = "pickup" | "delivery";
-export type PaymentMethod = "pix" | "card" | "cash";
-export type PaymentTiming = "prepaid" | "on_delivery";
-export type OrderStatus =
-  | "pending"
-  | "processing"
-  | "delivering"
-  | "completed"
-  | "cancelled";
+  | "BASE_CONTAINER" // Cesta, Caixa, Bandeja
+  | "STANDARD_ITEM" // Urso, Perfume, Chocolate
+  | "FILLER" // Papel Seda, Palha, Crepom (Preenchimento)
+  | "ACCESSORY" // Fio de Fada, Tags (Opcionais)
+  | "WRAPPER" // Saco Celofane, Saco Poli (Embalagem)
+  | "RIBBON" // Laços (Fácil ou Bola)
+  | "KIT_TEMPLATE"; // Kits pré-montados
+
+export type MeasureUnit = "m" | "un" | "kg" | "l" | "pct";
+
+// 2. TIPO DE SEÇÃO (Isso corrige o erro "no exported member SectionType")
+export type SectionType =
+  | "product_shelf" // Vitrine
+  | "banner_kit" // Banner Kit
+  | "banner_ribbon" // Banner Fitas
+  | "banner_natura"; // Banner Natura
+
+export type SectionWidth = "full" | "half";
 
 export interface ProductVariant {
   id: string;
-  name: string; // Ex: "Rolo 10m"
+  name: string;
   price: number;
   inStock: boolean;
+  imageUrl?: string;
 }
 
 export interface Product {
@@ -34,43 +40,48 @@ export interface Product {
   imageUrl?: string;
   unit: MeasureUnit;
   inStock: boolean;
-  itemSize?: number; // Para montagem de kits (slots ocupados)
-  capacity?: number; // Para bases de kits (capacidade de slots)
-  canBeSoldAsRoll?: boolean; // Específico para fitas
-  variants?: ProductVariant[]; // Novo: Array de variantes
+
+  // Capacidade e Tamanho
+  itemSize?: number;
+  capacity?: number;
+
+  // Restrições para Sacos (Wrappers)
+  wrapperConstraints?: {
+    minSlots: number;
+    maxSlots: number;
+  };
+
+  canBeSoldAsRoll?: boolean;
+  variants?: ProductVariant[];
+  defaultComponents?: string[];
 }
 
 export interface CartItem {
   cartId: string;
   type: "SIMPLE" | "CUSTOM_KIT" | "CUSTOM_RIBBON";
   quantity: number;
-  product?: Product; // Para itens simples
-  selectedVariant?: ProductVariant; // Novo: Variante selecionada
-  kitName?: string; // Para kits/laços
-  kitComponents?: any[]; // Itens do kit
-  kitTotalAmount?: number; // Preço final do kit/laço
-  ribbonDetails?: any; // Detalhes do laço builder
+  product?: Product;
+  selectedVariant?: ProductVariant;
+
+  kitName?: string;
+  kitComponents?: Product[];
+  kitTotalAmount?: number;
+
+  ribbonDetails?: {
+    fitaId: string;
+    cor: string;
+    modelo: string;
+    tamanho: "P" | "M" | "G";
+    metragemGasta: number;
+  };
 }
 
-export interface Order {
-  id: string;
-  createdAt: number;
-  total: number;
-  status: OrderStatus;
-  items: CartItem[];
-  customerName: string;
-  deliveryMethod: DeliveryMethod;
-  address?: string | null;
-  paymentMethod: PaymentMethod;
-  paymentTiming: PaymentTiming;
-}
-
-// --- NOVO: ESTRUTURA DA VITRINE CURADA ---
 export interface StoreSection {
   id: string;
   title: string;
-  type: "manual"; // Por enquanto manual, futuro 'category'
-  productIds: string[]; // IDs dos produtos nesta seção, na ordem correta
+  type: SectionType; // Usa o tipo exportado acima
+  width: SectionWidth;
+  productIds: string[];
   isActive: boolean;
 }
 
@@ -79,11 +90,36 @@ export interface StoreSettings {
   storeName: string;
   whatsappNumber: string;
   theme: {
-    primaryColor: string; // Única cor que o admin escolhe
+    primaryColor: string;
+    activeTheme: "default" | "christmas" | "mothers_day" | "valentines";
   };
   filters: {
     activeCategories: string[];
     categoryOrder: string[];
   };
-  homeSections: StoreSection[]; // Lista ordenada de seções da Home
+  homeSections: StoreSection[];
+}
+
+export type DeliveryMethod = "pickup" | "delivery";
+export type PaymentMethod = "pix" | "card" | "cash";
+export type PaymentTiming = "prepaid" | "on_delivery";
+export type OrderStatus =
+  | "pending"
+  | "processing"
+  | "delivering"
+  | "completed"
+  | "cancelled";
+
+export interface Order {
+  id: string;
+  createdAt: number;
+  total: number;
+  status: OrderStatus;
+  items: CartItem[];
+  customerName: string;
+  customerPhone: string;
+  deliveryMethod: DeliveryMethod;
+  address?: string | null;
+  paymentMethod: PaymentMethod;
+  paymentTiming: PaymentTiming;
 }

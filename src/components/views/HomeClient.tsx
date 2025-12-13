@@ -1,19 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useMemo, useState } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { ProductCard } from "@/components/features/ProductCard";
 import { BuilderTrigger } from "@/components/features/BuilderTrigger";
-import { KitBuilderModal } from "@/components/features/KitBuilderModal";
+import {
+  KitBuilderModal,
+  openKitBuilder,
+} from "@/components/features/KitBuilderModal";
 import { RibbonBuilderTrigger } from "@/components/features/RibbonBuilderTrigger";
 import { NaturaBanner } from "@/components/features/NaturaBanner";
 import { StoreHeader } from "@/components/layout/StoreHeader";
-import { ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn, hexToRgb, getContrastColor, adjustColor } from "@/lib/utils";
-import { Product, StoreSettings } from "@/lib/types";
+import { Product, StoreSettings, StoreSection } from "@/lib/types";
 
 interface HomeClientProps {
   initialProducts: Product[];
@@ -30,26 +31,26 @@ export default function HomeClient({
 
   const shelvesRef = useRef<HTMLDivElement>(null);
 
-  // Init Data
-  const initialized = useRef(false);
-  if (!initialized.current) {
+  useEffect(() => {
     useProductStore.setState({
       allProducts: initialProducts,
       isLoading: false,
     });
     useSettingsStore.setState({ settings: initialSettings, isLoading: false });
-    initialized.current = true;
-  }
+  }, [initialProducts, initialSettings]);
 
   const productsToRender =
     allProducts.length > 0 ? allProducts : initialProducts;
   const settingsToRender = settings.id ? settings : initialSettings;
 
-  // --- ESTILOS DINÂMICOS (Cor Única) ---
   const themeStyles = useMemo(() => {
-    const primary = settingsToRender.theme.primaryColor || "#7c3aed";
-    // Gera a secundária automaticamente (20% mais escura para contraste em botões)
+    const primary = settingsToRender.theme?.primaryColor || "#7c3aed";
     const secondary = adjustColor(primary, -30);
+
+    // GERA VARIAÇÕES AUTOMÁTICAS BASEADAS NA COR PRINCIPAL
+    const bannerKitColor = primary; // Cor Principal
+    const bannerRibbonColor = adjustColor(primary, 40); // 40% Mais Claro (Tom Pastel)
+    const bannerNaturaColor = adjustColor(primary, -40); // 40% Mais Escuro (Tom Profundo)
 
     return {
       "--primary": primary,
@@ -57,118 +58,153 @@ export default function HomeClient({
       "--primary-contrast": getContrastColor(primary),
       "--secondary": secondary,
       "--secondary-rgb": hexToRgb(secondary),
-      "--secondary-contrast": "#ffffff", // Botão escuro sempre branco
+      "--secondary-contrast": "#ffffff",
+
+      // Novas Variáveis para os Banners
+      "--banner-kit": bannerKitColor,
+      "--banner-ribbon": bannerRibbonColor,
+      "--banner-natura": bannerNaturaColor,
     } as React.CSSProperties;
   }, [settingsToRender]);
 
   const handleDirectAdd = (product: Product) => {
-    addItem({
-      cartId: crypto.randomUUID(),
-      type: "SIMPLE",
-      product: product,
-      quantity: 1,
-      kitTotalAmount: 0,
-    });
-    openCart();
+    if (product.type === "KIT_TEMPLATE") {
+      openKitBuilder(product);
+    } else {
+      addItem({
+        cartId: crypto.randomUUID(),
+        type: "SIMPLE",
+        product: product,
+        quantity: 1,
+        kitTotalAmount: 0,
+      });
+      openCart();
+    }
   };
 
   const handleNaturaClick = () => {
     shelvesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // --- RENDERIZAÇÃO DAS SEÇÕES MANUAIS ---
-  const renderSections = () => {
-    const sections = settingsToRender.homeSections || [];
-
-    if (sections.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-slate-50 rounded-xl m-4 border-2 border-dashed">
-          <p>Nenhuma seção configurada.</p>
-          <p className="text-sm">Acesse o Admin {">"} Vitrine para criar.</p>
-        </div>
-      );
-    }
-
-    return sections
-      .filter((s) => s.isActive)
-      .map((section) => {
-        // Mapeia os IDs salvos para os produtos reais, mantendo a ordem definida no Admin
+  // --- RENDERIZADOR DINÂMICO ---
+  const renderSectionComponent = (section: StoreSection) => {
+    switch (section.type) {
+      // 1. Vitrine de Produtos
+      case "product_shelf":
         const sectionProducts = section.productIds
           .map((id) => productsToRender.find((p) => p.id === id))
-          .filter((p) => p !== undefined) as Product[];
+          .filter((p): p is Product => p !== undefined);
 
         if (sectionProducts.length === 0) return null;
 
         return (
-          <section
-            key={section.id}
-            className="min-h-[40vh] flex flex-col justify-center py-8 border-b border-slate-100 last:border-0"
-          >
-            <div className="max-w-6xl mx-auto w-full px-4 space-y-6">
-              {/* Cabeçalho da Seção */}
-              <div className="flex items-center justify-between px-1">
-                <h2
-                  className="text-xl md:text-2xl font-bold text-slate-800 pl-3 border-l-4"
-                  style={{ borderColor: "var(--primary)" }}
-                >
-                  {section.title}
-                </h2>
-              </div>
-
-              {/* Scroll Horizontal de Produtos */}
-              <div className="flex gap-4 overflow-x-auto pb-6 -mx-4 px-4 scrollbar-hide snap-x md:mx-0 md:px-0">
+          <div className="flex flex-col h-full justify-between py-4">
+            {section.title && (
+              <h2
+                className="text-xl font-bold text-slate-800 pl-3 border-l-4 mb-4 shrink-0"
+                style={{ borderColor: "var(--primary)" }}
+              >
+                {section.title}
+              </h2>
+            )}
+            {/* flex-1 garante que a área de produtos ocupe todo o espaço vertical disponível */}
+            <div className="flex-1 flex flex-col justify-center">
+              <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide snap-x md:mx-0 md:px-0 items-stretch h-full">
                 {sectionProducts.map((product) => (
                   <div
                     key={product.id}
-                    className="min-w-[180px] w-[50vw] md:w-[240px] snap-center h-full"
+                    className="min-w-[160px] w-[45%] md:w-[220px] snap-center h-full"
                   >
                     <ProductCard
                       product={product}
                       onSelect={() => handleDirectAdd(product)}
-                      actionLabel="Adicionar"
+                      actionLabel={
+                        product.type === "KIT_TEMPLATE" ? "Montar" : "Adicionar"
+                      }
+                      // Passamos h-full para o card também se necessário, ou deixamos natural
                     />
                   </div>
                 ))}
-
-                {/* Card Final "Ver Mais" (Decorativo) */}
-                <div className="min-w-[100px] flex items-center justify-center snap-center">
-                  <div className="h-[280px] flex flex-col gap-2 justify-center items-center rounded-xl w-full opacity-50">
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center"
-                      style={{
-                        backgroundColor: "rgba(var(--primary-rgb), 0.1)",
-                        color: "var(--primary)",
-                      }}
-                    >
-                      <ChevronRight />
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
-          </section>
+          </div>
         );
-      });
+
+      // 2. Banners (Envolvidos em h-full para esticar junto com o vizinho)
+      // OBS: Se o componente interno (ex: BuilderTrigger) tiver altura fixa, ele pode não esticar visualmente o conteúdo,
+      // mas o container vai esticar. O ideal é que os componentes de banner aceitem className="h-full".
+      // Aqui forçamos um container flex que tenta esticar os filhos.
+
+      case "banner_kit":
+        return (
+          <div
+            className="h-full flex flex-col [&>*]:flex-1"
+            style={{ "--dynamic-bg": "var(--banner-kit)" } as any}
+          >
+            <BuilderTrigger />
+          </div>
+        );
+
+      case "banner_ribbon":
+        return (
+          <div
+            className="h-full flex flex-col [&>*]:flex-1"
+            style={{ "--dynamic-bg": "var(--banner-ribbon)" } as any}
+          >
+            <RibbonBuilderTrigger />
+          </div>
+        );
+
+      case "banner_natura":
+        return (
+          <div
+            className="h-full flex flex-col [&>*]:flex-1"
+            style={{ "--dynamic-bg": "var(--banner-natura)" } as any}
+          >
+            <NaturaBanner onClick={handleNaturaClick} />
+          </div>
+        );
+
+      default:
+        return null;
+    }
   };
 
   return (
     <main className="min-h-screen bg-slate-50 pb-20" style={themeStyles}>
       <StoreHeader />
 
-      <div className="relative mt-8 z-20 px-4 mb-12">
-        <div className="max-w-6xl mx-auto flex flex-col gap-4">
-          <BuilderTrigger />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <RibbonBuilderTrigger />
-            <NaturaBanner onClick={handleNaturaClick} />
-          </div>
-        </div>
-      </div>
-
       <KitBuilderModal />
 
-      <div ref={shelvesRef} className="min-h-[50vh]">
-        {renderSections()}
+      {/* SISTEMA DE GRID INTELIGENTE */}
+      <div ref={shelvesRef} className="max-w-6xl mx-auto px-4 mt-8 mb-12">
+        {/* items-stretch: O segredo! Faz com que todos os filhos na mesma LINHA tenham a mesma altura.
+            gap-6: Espaçamento.
+         */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+          {settingsToRender.homeSections
+            ?.filter((s) => s.isActive)
+            .map((section) => (
+              <div
+                key={section.id}
+                className={cn(
+                  "animate-in fade-in zoom-in-95 duration-500 h-full", // h-full aqui é essencial
+                  section.width === "full" ? "md:col-span-2" : "md:col-span-1"
+                )}
+              >
+                {/* O renderizador agora retorna componentes com h-full */}
+                {renderSectionComponent(section)}
+              </div>
+            ))}
+
+          {(!settingsToRender.homeSections ||
+            settingsToRender.homeSections.length === 0) && (
+            <div className="md:col-span-2 text-center py-20 text-slate-400 bg-white rounded-xl border-2 border-dashed">
+              <p>Sua vitrine está vazia.</p>
+              <p className="text-sm">Acesse o Admin e configure as seções.</p>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

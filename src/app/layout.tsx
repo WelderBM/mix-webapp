@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Footer } from "@/components/layout/Footer";
 import { CartSidebar } from "@/components/features/CartSidebar";
+import { SeasonalAtmosphere } from "@/components/layout/SeasonalAtmosphere";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -95,6 +96,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={inter.className}>
+        <SeasonalAtmosphere />
         {/* JSON-LD Inserido Corretamente no Server Side */}
         <script
           type="application/ld+json"
