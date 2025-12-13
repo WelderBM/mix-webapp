@@ -1,13 +1,14 @@
-// src/lib/types.ts
+// src/lib/types.ts (VERSÃO CORRIGIDA)
+//
 
 // =================================================================
-// 1. TIPOS DE PRODUTO
+// 1. TIPOS DE PRODUTO & CONTROLE
 // =================================================================
 
 export type ProductType =
   | "BASE_CONTAINER" // Cesta, Caixa, Sacola (Ocupa o espaço principal)
   | "STANDARD_ITEM" // Urso, Perfume, Chocolate (Itens de Preenchimento)
-  | "FILLER" // Papel Seda, Palha (Preenchimento de volume)
+  | "FILLER" // Papel Seda, Palha, Crepom (Preenchimento de volume)
   | "ACCESSORY" // Laço Pronto, Fio de Fada, Tags (Opcionais/Componentes)
   | "WRAPPER" // Saco Celofane, Saco Poli (Embalagem Final)
   | "RIBBON" // Fitas Albano (Venda por metro/rolo)
@@ -15,9 +16,8 @@ export type ProductType =
 
 export type MeasureUnit = "m" | "un" | "kg" | "l" | "pct";
 
-export type SaleUnitType = "UNITARIO" | "PACOTE"; // NOVO: Diferencia preço unitário de pacote
+export type SaleUnitType = "UNITARIO" | "PACOTE";
 
-// Tipos de laços prontos ou modelos de laço para o serviço (Laço Builder)
 export type LacoModelType = "BOLA" | "COMUM_CHANEL" | "PUXAR";
 
 // 2. TIPO DE SEÇÃO
@@ -54,9 +54,11 @@ export interface Product {
   inStock: boolean;
   disabled: boolean; // NOVO: Para controle de estoque/dependência
 
-  // Comum para Bases e Itens:
-  itemSize?: number; // Slot ocupado (para BASE_CONTAINER)
+  // Slots e Capacidade
+  itemSize?: number; // Slot ocupado
   capacity?: number; // Capacidade total de slots (para BASE_CONTAINER)
+
+  // Comum para Bases e Itens:
   saleUnitType?: SaleUnitType; // NOVO: Unidade ou Pacote
 
   // Específico para RIBBON
@@ -64,16 +66,16 @@ export interface Product {
 
   // Específico para BASES e ACESSÓRIOS:
   isKitBase?: boolean; // É uma Base de Kit (Caixa/Cesta/Sacola)?
-  laçoType?: LacoModelType; // NOVO: Para identificar Laços Prontos (ACCESSORY)
+  laçoType?: LacoModelType; // Para identificar Laços Prontos (ACCESSORY)
 
-  // Antigos, mantidos por segurança:
+  variants?: ProductVariant[];
+  defaultComponents?: string[];
+
+  // Antigos mantidos por compatibilidade
   wrapperConstraints?: {
     minSlots: number;
     maxSlots: number;
   };
-
-  variants?: ProductVariant[];
-  defaultComponents?: string[];
 }
 
 // =================================================================
@@ -87,17 +89,14 @@ export type KitComponentType =
   | "LAÇO_PRONTO";
 
 export interface KitComponent {
-  componentId: string; // ID do produto base que este componente representa
+  componentId: string;
   name: string;
   type: KitComponentType;
-  required: boolean; // É obrigatório para o kit ser válido?
-  maxQuantity: number; // Quantidade máxima permitida
-  defaultQuantity: number; // Quantidade inicial (para BASE/FILLER)
+  required: boolean;
+  maxQuantity: number;
+  defaultQuantity: number;
 }
 
-/**
- * A RECEITA de um Kit pré-definido pelo vendedor (Guia de Montagem).
- */
 export interface KitRecipe {
   id: string;
   name: string;
@@ -106,16 +105,13 @@ export interface KitRecipe {
 
   components: KitComponent[];
 
-  assemblyCost: number; // Custo de montagem/mão de obra (fixo)
+  assemblyCost: number;
 }
 
-/**
- * PRODUTO KITS MONTADO (O item que aparece na prateleira da loja).
- */
 export interface AssembledKitProduct extends Product {
   type: "ASSEMBLED_KIT";
-  recipeId: string; // ID da KitRecipe que define a composição
-  kitBasePrice: number; // Preço inicial do Kit (BASE + assemblyCost)
+  recipeId: string;
+  kitBasePrice: number;
 }
 
 // =================================================================
@@ -142,11 +138,13 @@ export interface CartItem {
   ribbonDetails?: {
     fitaId: string;
     cor: string;
-    modelo: LacoModelType; // NOVO: Laço Bola ou Comum/Chanel
+    modelo: LacoModelType;
     tamanho: "P" | "M" | "G";
     metragemGasta: number;
-    assemblyCost: number; // Custo de mão de obra do laço
+    assemblyCost: number;
   };
+
+  customizations?: CustomizationDetails; // CORREÇÃO: customizations adicionado
 
   // Customizações para Kit Montado (CUSTOM_KIT)
   kitComposition?: {
@@ -156,12 +154,15 @@ export interface CartItem {
       laçoType: LacoModelType;
       fitaId?: string;
       accessoryId?: string;
-    }; // Qual laço foi escolhido
-    items: { productId: string; quantity: number }[]; // Itens adicionados
+    };
+    items: { productId: string; quantity: number }[];
   };
 }
 
-// ... (outros exports de interfaces)
+// =================================================================
+// 6. CONFIGURAÇÕES DA LOJA (SETTINGS)
+// =================================================================
+
 export interface StoreSection {
   id: string;
   title: string;
@@ -177,6 +178,10 @@ export interface StoreSettings {
   whatsappNumber: string;
   theme: {
     primaryColor: string;
+    // CORREÇÃO: Adicionado secondaryColor (para ProductDetailClient.tsx)
+    secondaryColor?: string;
+    accentColor?: string;
+    backgroundColor?: string;
     activeTheme: "default" | "christmas" | "mothers_day" | "valentines";
   };
   filters: {

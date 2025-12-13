@@ -1,3 +1,5 @@
+// src/components/views/ProductDetailClient.tsx (VERSÃO CORRIGIDA)
+
 "use client";
 
 import { Product, CartItem } from "@/lib/types";
@@ -38,10 +40,10 @@ export default function ProductDetailClient({
     fetchSettings();
   }, []);
 
-  // Estilos Dinâmicos (Mesma lógica da Home)
+  // Estilos Dinâmicos (CORREÇÃO: Acesso seguro a secondaryColor)
   const themeStyles = useMemo(() => {
     const primary = settings.theme.primaryColor || "#7c3aed";
-    const secondary = settings.theme.secondaryColor || "#16a34a";
+    const secondary = settings.theme.secondaryColor || "#16a34a"; // Acesso seguro
     return {
       "--primary": primary,
       "--primary-contrast": getContrastColor(primary),

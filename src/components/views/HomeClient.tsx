@@ -5,10 +5,10 @@ import { useEffect, useRef, useMemo } from "react";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
 import { useSettingsStore } from "@/store/settingsStore";
-import { useKitBuilderStore } from "@/store/kitBuilderStore"; // <-- NOVO IMPORT
+import { useKitBuilderStore } from "@/store/kitBuilderStore"; // Importado corretamente
 import { ProductCard } from "@/components/features/ProductCard";
 import { BuilderTrigger } from "@/components/features/BuilderTrigger";
-import { KitBuilderModal } from "@/components/features/KitBuilderModal"; // <-- IMPORT CORRIGIDO
+import { KitBuilderModal } from "@/components/features/KitBuilderModal";
 import { RibbonBuilderTrigger } from "@/components/features/RibbonBuilderTrigger";
 import { NaturaBanner } from "@/components/features/NaturaBanner";
 import { StoreHeader } from "@/components/layout/StoreHeader";
@@ -29,11 +29,12 @@ export default function HomeClient({
   initialProducts,
   initialSettings,
 }: HomeClientProps) {
-  const { allProducts } = useProductStore();
+  // NOVO: Importamos getProductById para uma busca mais robusta
+  const { allProducts, getProductById } = useProductStore();
   const { openCart, addItem } = useCartStore();
   const { settings } = useSettingsStore();
 
-  // NOVO: Controles do Kit Builder Modal
+  // Controles do Kit Builder Modal
   const {
     isOpen: isKitModalOpen,
     selectedKitId,
@@ -43,33 +44,36 @@ export default function HomeClient({
   const shelvesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    useProductStore.setState({
-      allProducts: initialProducts,
-      isLoading: false,
-    });
+    // Injeta as configurações diretamente
     useSettingsStore.setState({ settings: initialSettings, isLoading: false });
-  }, [initialProducts, initialSettings]);
+    // Inicia o carregamento e filtro dos produtos/kits
+    useProductStore.getState().fetchProducts();
+  }, [initialSettings]);
 
   // Usamos os produtos carregados pela Store (já filtrados) ou os iniciais
   const productsToRender =
     allProducts.length > 0 ? allProducts : initialProducts;
   const settingsToRender = settings.id ? settings : initialSettings;
 
-  // Encontra o Kit Montado a ser exibido no modal
+  // CORREÇÃO: Busca o kit selecionado usando getProductById
   const selectedKit = useMemo(() => {
     if (!selectedKitId) return undefined;
 
-    // Busca o kit na lista de produtos renderizáveis
-    const kit = productsToRender.find(
-      (p) => p.id === selectedKitId && p.type === "ASSEMBLED_KIT"
-    );
+    // Busca o produto mais atualizado pelo ID na Store
+    const kit = getProductById(selectedKitId);
 
-    return kit as AssembledKitProduct | undefined;
-  }, [selectedKitId, productsToRender]);
+    // Confirma que ele é um Kit Montado antes de retornar
+    if (kit?.type === "ASSEMBLED_KIT") {
+      return kit as AssembledKitProduct;
+    }
+    return undefined;
+  }, [selectedKitId, getProductById]); // Depende do getProductById para a busca
 
+  // ... (Restante do código themeStyles e handlers inalterado)
   const themeStyles = useMemo(() => {
     const primary = settingsToRender.theme?.primaryColor || "#7c3aed";
-    const secondary = adjustColor(primary, -30);
+    const secondary =
+      settingsToRender.theme?.secondaryColor || adjustColor(primary, -30);
 
     const bannerKitColor = primary;
     const bannerRibbonColor = adjustColor(primary, 40);
@@ -196,7 +200,8 @@ export default function HomeClient({
       <StoreHeader />
 
       {/* RENDERIZAÇÃO DO MODAL DE MONTAGEM */}
-      {selectedKit && (
+      {/* O modal só renderiza se o selectedKit existir E o estado de abertura for true */}
+      {selectedKit && isKitModalOpen && (
         <KitBuilderModal
           assembledKit={selectedKit}
           isOpen={isKitModalOpen}

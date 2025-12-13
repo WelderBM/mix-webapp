@@ -1,12 +1,18 @@
 "use client";
 
 import { Gift, Plus, Sparkles } from "lucide-react";
-import { openKitBuilder } from "./KitBuilderModal";
+import { useKitBuilderStore } from "@/store/kitBuilderStore"; // CORREÇÃO: Importa a store de estado
 
 export function BuilderTrigger() {
+  // Acessamos a função de abertura da store
+  const { openKitBuilder } = useKitBuilderStore();
+
+  // ID do Kit de exemplo para abrir o modal
+  const SAMPLE_KIT_ID = "KIT001";
+
   return (
     <div
-      onClick={() => openKitBuilder()}
+      onClick={() => openKitBuilder(SAMPLE_KIT_ID)}
       // UNIFICADO: Fundo Neutro (Slate-50)
       className="relative w-full h-full min-h-[180px] rounded-3xl overflow-hidden shadow-sm cursor-pointer group transition-all hover:shadow-xl hover:scale-[1.02] border border-slate-200 bg-slate-50"
     >
