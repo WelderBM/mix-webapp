@@ -1,10 +1,10 @@
-// src/components/features/CartSidebar.tsx (VERSÃO FINAL CONSOLIDADA)
+// src/components/features/CartSidebar.tsx (VERSÃO FINAL CONSOLIDADA E CORRIGIDA)
 
 "use client";
 
 import { useState, useEffect } from "react";
 import { useCartStore } from "@/store/cartStore";
-import { useProductStore } from "@/store/productStore"; // NOVO: Importar productStore
+import { useProductStore } from "@/store/productStore";
 import {
   Sheet,
   SheetContent,
@@ -37,20 +37,78 @@ import {
   QrCode,
   AlertCircle,
   ShoppingBag,
+  Feather,
+  Box,
+  SquareStack,
+  Gift,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/lib/types";
+import {
+  DeliveryMethod,
+  PaymentMethod,
+  PaymentTiming,
+  ProductType,
+} from "@/lib/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+
+// NOVO: Função para gerar Placeholder (Versão simplificada)
+const getPlaceholder = (type: ProductType | undefined, size: number = 20) => {
+  const baseClasses =
+    "w-full h-full flex items-center justify-center bg-slate-100 text-slate-400";
+  let Icon = SquareStack;
+
+  switch (type) {
+    case "RIBBON":
+      Icon = Feather;
+      break;
+    case "WRAPPER":
+      Icon = ShoppingBag;
+      break;
+    case "BASE_CONTAINER":
+      Icon = Box;
+      break;
+    case "ACCESSORY":
+      Icon = Gift;
+      break;
+    case "STANDARD_ITEM":
+      Icon = Package;
+      break;
+    default:
+      Icon = SquareStack;
+  }
+
+  return (
+    <div className={baseClasses}>
+      <Icon size={size} />
+    </div>
+  );
+};
+
+// NOVO: Componente do Ícone do Carrinho (Botão Inteligente)
+export function CartIcon() {
+  const { items, openCart } = useCartStore();
+
+  return (
+    <Button variant="ghost" size="icon" className="relative" onClick={openCart}>
+      <ShoppingCart className="h-5 w-5" />
+      {items.length > 0 && (
+        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+          {items.length}
+        </span>
+      )}
+    </Button>
+  );
+}
 
 export function CartSidebar() {
   const router = useRouter();
   const { items, isCartOpen, closeCart, removeItem, getCartTotal, clearCart } =
     useCartStore();
-  const { getProductById } = useProductStore(); // NOVO: Pegar getProductById
+  const { getProductById } = useProductStore();
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [deliveryMethod, setDeliveryMethod] =
@@ -230,7 +288,6 @@ export function CartSidebar() {
                 {/* Lista de Itens */}
                 <div className="space-y-3">
                   {items.map((item) => {
-                    // Prepara nomes das fitas para Laço Customizado
                     const fitaPrincipalName = item.ribbonDetails
                       ?.fitaPrincipalId
                       ? getProductName(item.ribbonDetails.fitaPrincipalId)
@@ -240,29 +297,44 @@ export function CartSidebar() {
                       ? getProductName(item.ribbonDetails.fitaSecundariaId)
                       : null;
 
+                    // Lógica para determinar o tipo do produto para o placeholder
+                    const productTypeForPlaceholder =
+                      item.type === "SIMPLE"
+                        ? item.product?.type
+                        : item.type === "CUSTOM_RIBBON"
+                        ? "RIBBON"
+                        : item.type === "CUSTOM_KIT"
+                        ? "BASE_CONTAINER"
+                        : undefined;
+
                     return (
                       <div
                         key={item.cartId}
                         className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3 relative"
                       >
                         <div className="relative w-14 h-14 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
-                          {item.type === "SIMPLE" && item.product ? (
+                          {/* Imagem do Item SIMPLES */}
+                          {item.type === "SIMPLE" &&
+                          (item.selectedVariant?.imageUrl ||
+                            item.product?.imageUrl) ? (
                             <Image
                               src={
                                 item.selectedVariant?.imageUrl ||
-                                item.product.imageUrl ||
+                                item.product?.imageUrl ||
                                 ""
                               }
                               alt={`Miniatura de ${
-                                item.product.name || item.kitName
+                                item.product?.name || item.kitName
                               } no carrinho`}
                               fill
                               className="object-cover"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-purple-100 text-purple-600">
-                              <Package size={20} />
-                            </div>
+                            // APLICAÇÃO DO PLACEHOLDER
+                            getPlaceholder(
+                              productTypeForPlaceholder as ProductType,
+                              20
+                            )
                           )}
                         </div>
                         <div className="flex-1 min-w-0 pr-6">

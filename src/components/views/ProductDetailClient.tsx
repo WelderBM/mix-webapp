@@ -1,8 +1,9 @@
-// src/components/views/ProductDetailClient.tsx (VERSÃO CORRIGIDA)
+// src/components/views/ProductDetailClient.tsx (VERSÃO FINAL CONSOLIDADA E CORRIGIDA)
 
 "use client";
 
-import { Product, CartItem } from "@/lib/types";
+// CORRIGIDO: Importar ProductType
+import { Product, ProductType } from "@/lib/types";
 import { useCartStore } from "@/store/cartStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { StoreHeader } from "@/components/layout/StoreHeader";
@@ -14,14 +15,58 @@ import {
   Truck,
   ShieldCheck,
   Share2,
+  Package,
+  Box,
+  Feather,
+  SquareStack,
+  ShoppingBag,
+  Gift, // CORRIGIDO: Ícone Gift importado
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ProductCard } from "@/components/features/ProductCard";
+// CORRIGIDO: Removido import de 'formatMoney'
 import { cn, hexToRgb, getContrastColor } from "@/lib/utils";
 import { useEffect, useMemo } from "react";
+
+// NOVO: Função para gerar Placeholder (local para ProductDetailClient)
+const getPlaceholder = (type: ProductType, size: number = 100) => {
+  const baseClasses =
+    "w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400";
+  let Icon = SquareStack;
+
+  switch (type) {
+    case "RIBBON":
+      Icon = Feather;
+      break;
+    case "WRAPPER":
+      Icon = ShoppingBag;
+      break;
+    case "BASE_CONTAINER":
+      Icon = Box;
+      break;
+    case "ACCESSORY":
+      Icon = Gift;
+      break;
+    case "STANDARD_ITEM":
+      Icon = Package;
+      break;
+    case "FILLER":
+      Icon = Feather;
+      break;
+    default:
+      Icon = SquareStack;
+  }
+
+  return (
+    <div className={baseClasses}>
+      <Icon size={size} />
+      <span className="text-sm mt-2">Sem Imagem</span>
+    </div>
+  );
+};
 
 interface ProductDetailProps {
   product: Product;
@@ -40,10 +85,10 @@ export default function ProductDetailClient({
     fetchSettings();
   }, []);
 
-  // Estilos Dinâmicos (CORREÇÃO: Acesso seguro a secondaryColor)
+  // Estilos Dinâmicos
   const themeStyles = useMemo(() => {
     const primary = settings.theme.primaryColor || "#7c3aed";
-    const secondary = settings.theme.secondaryColor || "#16a34a"; // Acesso seguro
+    const secondary = settings.theme.secondaryColor || "#16a34a";
     return {
       "--primary": primary,
       "--primary-contrast": getContrastColor(primary),
@@ -97,9 +142,8 @@ export default function ProductDetailClient({
                 className="object-contain hover:scale-105 transition-transform duration-500"
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-slate-300">
-                Sem Imagem
-              </div>
+              // APLICAÇÃO DO PLACEHOLDER
+              getPlaceholder(product.type, 100)
             )}
             {!product.inStock && (
               <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex items-center justify-center">

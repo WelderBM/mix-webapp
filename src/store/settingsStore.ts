@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: StoreSettings = {
     secondaryColor: "#16a34a", // Verde (Padrão botões)
     accentColor: "#f97316", // Laranja (Destaques)
     backgroundColor: "#f8fafc",
+    activeTheme: "default",
   },
   filters: {
     activeCategories: [],

@@ -1,7 +1,7 @@
-// src/components/features/KitBuilderModal.tsx (VERSÃO FINAL CORRIGIDA)
+// src/components/features/KitBuilderModal.tsx (VERSÃO FINAL CONSOLIDADA COM PLACEHOLDERS .webp)
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,8 +10,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress"; // Importação assumida
-import { ScrollArea } from "@/components/ui/scroll-area"; // Importação assumida
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   Package,
@@ -26,7 +26,9 @@ import {
   Ruler,
   List,
   Box,
-  PlusCircle, // CORREÇÃO: Adicionado PlusCircle
+  PlusCircle,
+  SquareStack,
+  ShoppingBag,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -41,8 +43,9 @@ import {
   Product,
   CapacityRef,
   CartItem,
+  ProductType,
 } from "@/lib/types";
-import { cn } from "@/lib/utils"; // Importação assumida
+import { cn } from "@/lib/utils";
 import { LACO_STYLES_OPTIONS } from "@/lib/ribbon_config";
 
 interface KitBuilderModalProps {
@@ -56,6 +59,23 @@ const MAX_SLOTS: Record<CapacityRef, number> = {
   P: 5,
   M: 10,
   G: 15,
+};
+
+// NOVO: Mapeamento de caminhos das imagens placeholder consolidadas
+const PLACEHOLDER_MAP: Record<ProductType | "DEFAULT", string> = {
+  RIBBON: "/assets/placeholders/placeholder_fita_rolo.webp",
+  ACCESSORY: "/assets/placeholders/placeholder_fita_rolo.webp",
+  BASE_CONTAINER: "/assets/placeholders/placeholder_cesta_base.webp",
+  ASSEMBLED_KIT: "/assets/placeholders/placeholder_cesta_base.webp",
+  STANDARD_ITEM: "/assets/placeholders/placeholder_produto_padrao.webp",
+  FILLER: "/assets/placeholders/placeholder_enchimento.webp",
+  WRAPPER: "/assets/placeholders/placeholder_embalagem_saco.webp",
+  DEFAULT: "/assets/placeholders/placeholder_produto_padrao.webp",
+};
+
+// Função auxiliar que retorna o caminho da imagem (ou placeholder)
+const getPlaceholderUrl = (type: ProductType) => {
+  return PLACEHOLDER_MAP[type] || PLACEHOLDER_MAP["DEFAULT"];
 };
 
 // --- Sub-componente de Item (Para seleção de produtos) ---
@@ -73,57 +93,61 @@ const ItemSelector: React.FC<ItemSelectorProps> = ({
   onRemove,
   currentQuantity,
   disabled,
-}) => (
-  <div
-    className={cn(
-      "flex justify-between items-center p-3 border rounded-lg transition-all",
-      disabled ? "bg-slate-100 opacity-60" : "bg-white hover:border-green-400"
-    )}
-  >
-    <div className="flex items-center space-x-3">
-      <div className="w-10 h-10 rounded-md bg-slate-200 relative overflow-hidden shrink-0">
-        {product.imageUrl && (
+}) => {
+  const imageUrl = product.imageUrl || getPlaceholderUrl(product.type);
+
+  return (
+    <div
+      className={cn(
+        "flex justify-between items-center p-3 border rounded-lg transition-all",
+        disabled ? "bg-slate-100 opacity-60" : "bg-white hover:border-green-400"
+      )}
+    >
+      <div className="flex items-center space-x-3">
+        <div className="w-10 h-10 rounded-md bg-slate-200 relative overflow-hidden shrink-0">
           <Image
-            src={product.imageUrl}
+            src={imageUrl}
             alt={product.name}
             fill
             className="object-cover"
           />
-        )}
+        </div>
+        <div>
+          <p className="font-semibold text-sm line-clamp-1">{product.name}</p>
+          <p className="text-xs text-slate-500">
+            R$ {product.price.toFixed(2)}
+          </p>
+        </div>
       </div>
-      <div>
-        <p className="font-semibold text-sm line-clamp-1">{product.name}</p>
-        <p className="text-xs text-slate-500">R$ {product.price.toFixed(2)}</p>
-      </div>
-    </div>
 
-    <div className="flex items-center space-x-2">
-      {currentQuantity > 0 && (
+      <div className="flex items-center space-x-2">
+        {currentQuantity > 0 && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => onRemove(product.id)}
+            disabled={disabled}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+        )}
+        {currentQuantity > 0 && (
+          <span className="w-6 text-center text-sm font-bold">
+            {currentQuantity}
+          </span>
+        )}
         <Button
-          variant="outline"
+          variant="default"
           size="icon"
-          onClick={() => onRemove(product.id)}
+          onClick={() => onAdd(product, 1)}
           disabled={disabled}
         >
-          <ChevronLeft className="w-4 h-4" />
+          <PlusCircle className="w-4 h-4" />
         </Button>
-      )}
-      {currentQuantity > 0 && (
-        <span className="w-6 text-center text-sm font-bold">
-          {currentQuantity}
-        </span>
-      )}
-      <Button
-        variant="default"
-        size="icon"
-        onClick={() => onAdd(product, 1)}
-        disabled={disabled}
-      >
-        <PlusCircle className="w-4 h-4" />
-      </Button>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
   isOpen,
@@ -131,7 +155,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
   assembledKit,
 }) => {
   const router = useRouter();
-  // CORREÇÃO: Renomear 'products' para 'allProductsStore'
   const { allProducts: allProductsStore } = useProductStore();
   const { addItem: addCartItem } = useCartStore();
 
@@ -154,7 +177,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
   // Lógica de filtro e memorização
   const availableBases = useMemo(
     () =>
-      // CORREÇÃO: Adicionar tipagem explícita 'p is Product'
       allProductsStore.filter(
         (p): p is Product => p.type === "BASE_CONTAINER" && p.inStock
       ),
@@ -163,7 +185,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
 
   const availableItems = useMemo(
     () =>
-      // CORREÇÃO: Adicionar tipagem explícita 'p is Product'
       allProductsStore.filter(
         (p): p is Product =>
           (p.type === "STANDARD_ITEM" || p.type === "FILLER") && p.inStock
@@ -173,7 +194,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
 
   const availableAccessories = useMemo(
     () =>
-      // CORREÇÃO: Adicionar tipagem explícita 'p is Product'
       allProductsStore.filter(
         (p): p is Product => p.type === "ACCESSORY" && p.inStock
       ),
@@ -273,8 +293,9 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
             </h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {availableBases.map((base: Product) => {
-                // CORREÇÃO: Tipagem explícita
                 const isSelected = base.id === composition.baseContainer?.id;
+                const imageUrl = base.imageUrl || getPlaceholderUrl(base.type); // Usa placeholder
+
                 return (
                   <div
                     key={base.id}
@@ -299,14 +320,12 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                       <Check className="absolute top-2 right-2 text-green-600 w-5 h-5" />
                     )}
                     <div className="w-full h-20 bg-slate-100 rounded-md mb-2 relative overflow-hidden">
-                      {base.imageUrl && (
-                        <Image
-                          src={base.imageUrl}
-                          alt={base.name}
-                          fill
-                          className="object-contain"
-                        />
-                      )}
+                      <Image
+                        src={imageUrl}
+                        alt={base.name}
+                        fill
+                        className="object-contain"
+                      />
                     </div>
                     <p className="font-bold text-sm line-clamp-2">
                       {base.name}
@@ -389,7 +408,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                     {composition.currentSlotCount} / {maxSlots} slots
                   </span>
                 </p>
-                {/* CORREÇÃO: Substituir 'indicatorColor' por className */}
                 <Progress
                   value={currentSlotPercentage}
                   className={cn(
@@ -409,7 +427,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
             <ScrollArea className="flex-1 max-h-[400px] p-2">
               <div className="space-y-3">
                 {availableItems.map((product: Product) => {
-                  // CORREÇÃO: Tipagem explícita
                   const currentQuantity =
                     composition.internalItems.find(
                       (item) => item.product.id === product.id
@@ -421,7 +438,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                       onAdd={handleAddItem}
                       onRemove={handleRemoveItem}
                       currentQuantity={currentQuantity}
-                      // Se a capacidade estiver excedida, desabilita a adição
                       disabled={isCapacityExceeded}
                     />
                   );
@@ -432,11 +448,9 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
         );
 
       case 3: // Escolha do Laço e Finalização
-        // CORREÇÃO: Tipagem explícita
         const laçosProntos = availableAccessories.filter(
           (a: Product) => a.laçoType && a.laçoType !== "PUXAR"
         );
-        // CORREÇÃO: Tipagem explícita
         const laçoPuxar = availableAccessories.find(
           (a: Product) => a.laçoType === "PUXAR"
         );
@@ -477,34 +491,30 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
 
                 {/* Opção 2: Laço Pronto de Estoque */}
                 {laçosProntos.length > 0 &&
-                  laçosProntos.map(
-                    (
-                      laco: Product // CORREÇÃO: Tipagem explícita
-                    ) => (
-                      <div
-                        key={laco.id}
-                        onClick={() =>
-                          setRibbonSelection({
-                            type: "PRONTO",
-                            accessoryId: laco.id,
-                          })
-                        }
-                        className={cn(
-                          "border-2 p-3 rounded-lg cursor-pointer transition-all",
-                          composition.ribbonSelection?.type === "PRONTO" &&
-                            composition.ribbonSelection.accessoryId === laco.id
-                            ? "border-green-600 bg-green-50"
-                            : "hover:border-purple-500 bg-white"
-                        )}
-                      >
-                        <p className="font-bold">Laço Pronto {laco.name}</p>
-                        <p className="text-xs text-slate-500">
-                          Temos este laço confeccionado. R${" "}
-                          {laco.price.toFixed(2)}.
-                        </p>
-                      </div>
-                    )
-                  )}
+                  laçosProntos.map((laco: Product) => (
+                    <div
+                      key={laco.id}
+                      onClick={() =>
+                        setRibbonSelection({
+                          type: "PRONTO",
+                          accessoryId: laco.id,
+                        })
+                      }
+                      className={cn(
+                        "border-2 p-3 rounded-lg cursor-pointer transition-all",
+                        composition.ribbonSelection?.type === "PRONTO" &&
+                          composition.ribbonSelection.accessoryId === laco.id
+                          ? "border-green-600 bg-green-50"
+                          : "hover:border-purple-500 bg-white"
+                      )}
+                    >
+                      <p className="font-bold">Laço Pronto {laco.name}</p>
+                      <p className="text-xs text-slate-500">
+                        Temos este laço confeccionado. R${" "}
+                        {laco.price.toFixed(2)}.
+                      </p>
+                    </div>
+                  ))}
 
                 {/* Opção 3: Laço Customizado (Redireciona) */}
                 <Link href="/laco-builder" passHref>
@@ -515,7 +525,7 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                     onClick={() => {
                       closeStore();
                       onClose();
-                    }} // Fecha o modal e navega
+                    }}
                   >
                     <p className="font-bold text-purple-700">
                       Personalizar Laço

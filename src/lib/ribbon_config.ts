@@ -1,4 +1,4 @@
-// src/lib/ribbon_config.ts (VERSÃO FINAL CONSOLIDADA)
+// src/lib/ribbon_config.ts (VERSÃO FINAL CONSOLIDADA E CORRIGIDA)
 
 import { MeasureUnit, CapacityRef } from "./types";
 
@@ -49,7 +49,7 @@ export const RIBBON_TYPES = [
   "Sintética",
 ];
 
-// Modelos BOLA e BORBOLETA, conforme solicitado
+// MODELOS RESTRITOS: Somente BOLA e BORBOLETA
 export const LACO_STYLES_OPTIONS = [
   {
     value: "BOLA",

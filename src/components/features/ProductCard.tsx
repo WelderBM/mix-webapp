@@ -1,186 +1,151 @@
-// src/components/features/ProductCard.tsx
+// src/components/features/ProductCard.tsx (VERSÃO FINAL CONSOLIDADA E CORRIGIDA)
+
 "use client";
 
-import { Product } from "@/lib/types";
-import { useCartStore } from "@/store/cartStore";
-import { Minus, Plus, ShoppingCart } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
+import {
+  ShoppingCart,
+  DollarSign,
+  Package,
+  Gift,
+  Feather,
+  Box,
+  SquareStack,
+  ShoppingBag,
+} from "lucide-react";
+import { Product, ProductType } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
-import { ProductQuickView } from "./ProductQuickView";
-import { useKitBuilderStore } from "@/store/kitBuilderStore"; // <-- NOVO IMPORT
+import { useCartStore } from "@/store/cartStore";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { useKitBuilderStore } from "@/store/kitBuilderStore";
 
 interface ProductCardProps {
   product: Product;
-  onSelect?: () => void;
+  onSelect?: (product: Product) => void;
   actionLabel?: string;
 }
 
-export function ProductCard({
+// Mapeamento de caminhos das imagens placeholder consolidadas
+const PLACEHOLDER_MAP: Record<ProductType | "DEFAULT", string> = {
+  // Fitas e Acessórios de Laço
+  RIBBON: "/assets/placeholders/placeholder_fita_rolo.webp",
+  ACCESSORY: "/assets/placeholders/placeholder_fita_rolo.webp",
+
+  // Bases e Kits Montados (Cestas)
+  BASE_CONTAINER: "/assets/placeholders/placeholder_cesta_base.webp",
+  ASSEMBLED_KIT: "/assets/placeholders/placeholder_cesta_base.webp",
+
+  // Itens e outros
+  STANDARD_ITEM: "/assets/placeholders/placeholder_produto_padrao.webp",
+  FILLER: "/assets/placeholders/placeholder_enchimento.webp",
+  WRAPPER: "/assets/placeholders/placeholder_embalagem_saco.webp",
+
+  DEFAULT: "/assets/placeholders/placeholder_produto_padrao.webp", // Fallback
+};
+
+// Funçao auxiliar que retorna o caminho
+const getPlaceholderUrl = (type: ProductType) => {
+  return PLACEHOLDER_MAP[type] || PLACEHOLDER_MAP["DEFAULT"];
+};
+
+export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   onSelect,
   actionLabel = "Adicionar",
-}: ProductCardProps) {
-  const { items, addItem, removeItem, updateQuantity } = useCartStore();
-  const { openKitBuilder } = useKitBuilderStore(); // <-- Uso da nova store
-  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+}) => {
+  const { addItem, openCart } = useCartStore();
+  const openKitBuilder = useKitBuilderStore((state) => state.openKitBuilder);
 
-  // Verifica se já está no carrinho
-  const cartItem = items.find((i) => i.product?.id === product.id);
-  const quantity = cartItem ? cartItem.quantity : 0;
+  const finalPrice = product.price;
 
-  // Verifica se é um Kit Montado
-  const isAssembledKit = product.type === "ASSEMBLED_KIT";
+  const handleAction = (e: React.MouseEvent) => {
+    e.preventDefault();
 
-  // Lógica de Adicionar/Remover (Apenas para produtos simples)
-  const handleUpdate = (e: React.MouseEvent, delta: number) => {
-    e.stopPropagation(); // Não abrir o modal
-
-    if (onSelect) {
-      onSelect();
-      return;
-    }
-
-    // Ação normal de ADD/REMOVE para produtos simples
-    if (quantity + delta <= 0) {
-      if (cartItem) removeItem(cartItem.cartId);
+    if (product.type === "ASSEMBLED_KIT" && product.id) {
+      openKitBuilder(product.id);
+    } else if (onSelect) {
+      onSelect(product);
     } else {
-      if (cartItem) {
-        updateQuantity(cartItem.cartId, quantity + delta);
-      } else {
-        addItem({
-          cartId: crypto.randomUUID(),
-          type: "SIMPLE",
-          quantity: 1,
-          product: product,
-        });
-      }
+      addItem({
+        cartId: crypto.randomUUID(),
+        type: "SIMPLE",
+        product: product,
+        quantity: 1,
+        kitTotalAmount: finalPrice,
+      });
+      toast.success(`${product.name} adicionado!`);
+      openCart();
     }
   };
 
-  // Ação principal de click no card (abre a QuickView ou o Kit Builder)
-  const handleCardClick = () => {
-    if (isAssembledKit) {
-      openKitBuilder(product.id); // Abre o Montador de Kits
-    } else {
-      setIsQuickViewOpen(true); // Abre a Visualização Rápida padrão
-    }
-  };
-
-  // Lógica do botão de Ação
-  const renderActionButton = () => {
-    if (isAssembledKit) {
-      return (
-        <Button
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            openKitBuilder(product.id);
-          }}
-          className="h-8 rounded-full p-2 px-4 bg-[var(--primary)] hover:bg-purple-700 text-white shadow-sm shrink-0 text-xs font-semibold"
-        >
-          Personalizar Kit
-        </Button>
-      );
-    }
-
-    // Controles de Quantidade (para produtos simples)
-    if (quantity > 0) {
-      return (
-        <div
-          className="flex items-center gap-2 bg-slate-100 rounded-full p-1 h-8 shadow-inner"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={(e) => handleUpdate(e, -1)}
-            className="w-6 h-6 flex items-center justify-center bg-white rounded-full text-slate-600 shadow-sm hover:text-red-500"
-          >
-            <Minus size={12} />
-          </button>
-          <span className="text-xs font-bold w-4 text-center">{quantity}</span>
-          <button
-            onClick={(e) => handleUpdate(e, 1)}
-            className="w-6 h-6 flex items-center justify-center bg-white rounded-full text-slate-600 shadow-sm hover:text-green-600"
-          >
-            <Plus size={12} />
-          </button>
-        </div>
-      );
-    }
-
-    // Botão Adicionar (para produtos simples)
-    return (
-      <Button
-        size="sm"
-        disabled={!product.inStock}
-        onClick={(e) => handleUpdate(e, 1)}
-        className="h-8 w-8 rounded-full p-0 bg-green-600 hover:bg-green-700 text-white shadow-sm shrink-0"
-      >
-        <Plus size={16} />
-      </Button>
-    );
-  };
+  const imageUrl = product.imageUrl || getPlaceholderUrl(product.type);
 
   return (
-    <>
-      <div
-        onClick={handleCardClick} // <-- Chamada unificada para Kits e QuickView
-        className="group bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col h-full overflow-hidden relative cursor-pointer"
-      >
-        <div className="relative w-full aspect-square bg-slate-50 overflow-hidden">
-          {product.imageUrl ? (
-            <Image
-              src={product.imageUrl}
-              alt={product.name}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full text-slate-300 bg-slate-50">
-              <ShoppingCart size={24} opacity={0.2} />
-            </div>
-          )}
-          {!product.inStock && (
-            <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10">
-              <span className="bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded uppercase shadow-sm">
-                Esgotado
-              </span>
+    <Link href={`/produto/${product.id}`} passHref>
+      <div className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-xl bg-white shadow-lg transition-all hover:shadow-xl">
+        {/* Imagem / Placeholder */}
+        <div className="relative aspect-square w-full overflow-hidden bg-slate-50">
+          <Image
+            src={imageUrl}
+            alt={product.name}
+            fill
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          />
+
+          {/* Badge de Oferta (Opcional) */}
+          {product.originalPrice && product.originalPrice > product.price && (
+            <div className="absolute left-2 top-2 rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white shadow-md">
+              Oferta
             </div>
           )}
         </div>
 
-        <div className="p-3 flex flex-col flex-1">
-          <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mb-1 line-clamp-1">
-            {product.category}
-          </span>
-          <h3 className="font-semibold text-slate-800 text-sm leading-tight line-clamp-2 mb-2 group-hover:text-purple-700 transition-colors">
+        {/* Detalhes do Produto */}
+        <div className="flex flex-1 flex-col justify-between p-4">
+          <h3 className="line-clamp-2 text-base font-semibold text-slate-800">
             {product.name}
           </h3>
+          <p className="line-clamp-3 text-sm text-slate-500">
+            {product.description}
+          </p>
 
-          <div className="mt-auto pt-2 flex items-center justify-between">
+          <div className="mt-3 flex items-center justify-between">
             <div className="flex flex-col">
-              {product.variants && product.variants.length > 0 && (
-                <span className="text-[10px] text-slate-500">a partir de</span>
-              )}
-              <span className="font-bold text-lg text-slate-900">
-                R$ {product.price.toFixed(2)}
+              {product.originalPrice &&
+                product.originalPrice > product.price && (
+                  <span className="text-xs text-slate-400 line-through">
+                    R$ {product.originalPrice.toFixed(2)}
+                  </span>
+                )}
+              <span className="text-xl font-extrabold text-primary">
+                R$ {finalPrice.toFixed(2)}
               </span>
             </div>
 
-            {/* Renderiza o botão correto (Personalizar Kit ou Quantidade) */}
-            {renderActionButton()}
+            <Button
+              onClick={handleAction}
+              size="sm"
+              className={cn(
+                "rounded-lg transition-all duration-300",
+                product.type === "ASSEMBLED_KIT"
+                  ? "bg-purple-600 hover:bg-purple-700"
+                  : "bg-green-600 hover:bg-green-700"
+              )}
+            >
+              {actionLabel === "Adicionar" ? (
+                <ShoppingCart className="h-4 w-4" />
+              ) : (
+                actionLabel
+              )}
+            </Button>
           </div>
         </div>
       </div>
-
-      {/* MODAL DE VISUALIZAÇÃO RÁPIDA (Só abre para produtos não-Kit) */}
-      {!isAssembledKit && (
-        <ProductQuickView
-          product={product}
-          isOpen={isQuickViewOpen}
-          onClose={() => setIsQuickViewOpen(false)}
-        />
-      )}
-    </>
+    </Link>
   );
-}
+};
+
+export default ProductCard;

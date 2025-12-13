@@ -1,4 +1,4 @@
-// src/lib/types.ts (VERSÃO FINAL CONSOLIDADA)
+// src/lib/types.ts (VERSÃO FINAL CONSOLIDADA E ATUALIZADA - GESTÃO DE ROLOS DE FITA)
 //
 
 // =================================================================
@@ -23,6 +23,16 @@ export type LacoModelType = "BOLA" | "BORBOLETA" | "PUXAR";
 
 // Gabarito de capacidade da embalagem e tamanho do laço
 export type CapacityRef = "P" | "M" | "G";
+
+// NOVO: Estado do Rolo de Fita
+export type RibbonRollStatus = "FECHADO" | "ABERTO";
+
+// NOVO: Tipagem para inventário de fitas
+export interface RibbonInventory {
+  status: RibbonRollStatus;
+  remainingMeters: number; // Metragem restante do rolo ABERTO
+  totalRollMeters: number; // Metragem total do rolo FECHADO (para referência)
+}
 
 // 2. TIPO DE SEÇÃO
 export type SectionType =
@@ -69,6 +79,9 @@ export interface Product {
   // Específico para RIBBON
   canBeSoldAsRoll?: boolean; // Pode ser vendido em rolo completo?
   isAvailableForCustomBow?: boolean; // NOVO: Pode ser usada para Laço Customizado (vendida ao metro/rolo aberto)
+
+  // NOVO: INVENTÁRIO DE FITAS
+  ribbonInventory?: RibbonInventory;
 
   // Específico para BASES e ACESSÓRIOS:
   isKitBase?: boolean; // É uma Base de Kit (Caixa/Cesta/Sacola)?

@@ -1,17 +1,20 @@
-// src/components/views/HomeClient.tsx (VERSÃO FINAL CONSOLIDADA E CORRIGIDA)
+// src/components/views/HomeClient.tsx (PADRÃO CONSOLIDADO: Named Imports)
 "use client";
 
 import { useEffect, useRef, useMemo } from "react";
+// Named Imports para Stores
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
 import { useSettingsStore } from "@/store/settingsStore";
-import { useKitBuilderStore } from "@/store/kitBuilderStore"; // Importado corretamente
+import { useKitBuilderStore } from "@/store/kitBuilderStore";
+// Named Imports para Componentes
 import { ProductCard } from "@/components/features/ProductCard";
 import { BuilderTrigger } from "@/components/features/BuilderTrigger";
 import { KitBuilderModal } from "@/components/features/KitBuilderModal";
 import { RibbonBuilderTrigger } from "@/components/features/RibbonBuilderTrigger";
 import { NaturaBanner } from "@/components/features/NaturaBanner";
 import { StoreHeader } from "@/components/layout/StoreHeader";
+// Named Imports para Utilities e Tipos (assumindo que utils.ts não tem default export)
 import { cn, hexToRgb, getContrastColor, adjustColor } from "@/lib/utils";
 import {
   Product,
@@ -25,6 +28,7 @@ interface HomeClientProps {
   initialSettings: StoreSettings;
 }
 
+// CORRIGIDO: O componente HomeClient é o default export da página.
 export default function HomeClient({
   initialProducts,
   initialSettings,
@@ -67,7 +71,7 @@ export default function HomeClient({
       return kit as AssembledKitProduct;
     }
     return undefined;
-  }, [selectedKitId, getProductById]); // Depende do getProductById para a busca
+  }, [selectedKitId, getProductById]);
 
   // --- LÓGICA DE ESTILOS DE TEMA ---
   const themeStyles = useMemo(() => {
@@ -166,7 +170,6 @@ export default function HomeClient({
             className="h-full flex flex-col [&>*]:flex-1"
             style={{ "--dynamic-bg": "var(--banner-kit)" } as any}
           >
-            {/* O BuilderTrigger usa o useKitBuilderStore internamente para abrir o modal */}
             <BuilderTrigger />
           </div>
         );
@@ -177,7 +180,6 @@ export default function HomeClient({
             className="h-full flex flex-col [&>*]:flex-1"
             style={{ "--dynamic-bg": "var(--banner-ribbon)" } as any}
           >
-            {/* O RibbonBuilderTrigger é um Link para /laco-builder */}
             <RibbonBuilderTrigger />
           </div>
         );

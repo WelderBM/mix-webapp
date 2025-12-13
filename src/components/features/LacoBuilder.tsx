@@ -11,25 +11,18 @@ import Image from "next/image";
 // Definição dos modelos de laço
 const BOW_STYLES = [
   {
-    id: "chanel",
-    name: "Chanel",
+    id: "bola",
+    name: "Bola",
     priceData: 5.0,
-    image: "/placeholder-chanel.png",
+    image: "/placeholder-bola.png",
     desc: "Clássico e elegante, plano.",
   },
   {
-    id: "gravata",
-    name: "Gravata",
+    id: "borboleta",
+    name: "Borboleta",
     priceData: 4.0,
-    image: "/placeholder-gravata.png",
+    image: "/placeholder-borboleta.png",
     desc: "Simples e versátil.",
-  },
-  {
-    id: "boutique",
-    name: "Boutique",
-    priceData: 8.0,
-    image: "/placeholder-boutique.png",
-    desc: "Volumoso e sofisticado.",
   },
 ];
 
