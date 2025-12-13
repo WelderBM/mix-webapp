@@ -1,759 +1,818 @@
+// src/components/features/KitBuilderModal.tsx
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { create } from "zustand";
+import {
+  AssembledKitProduct,
+  KitRecipe,
+  KitComponentType,
+  Product,
+  LacoModelType,
+  CartItem,
+} from "@/lib/types";
+import { useKitStore } from "@/store/kitStore";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
-import { Product } from "@/lib/types";
+import { toast } from "sonner";
 import {
-  ChevronRight,
-  ChevronLeft,
-  ChevronDown,
-  ChevronUp,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import {
+  ArrowLeft,
+  ArrowRight,
   Package,
   Gift,
-  Check,
-  X,
-  Scissors,
-  Lightbulb,
-  ExternalLink,
+  ShoppingCart,
   Minus,
   Plus,
-  AlertTriangle,
-  Box,
-  Layers,
+  Scissors,
+  CheckCircle2,
 } from "lucide-react";
 import Image from "next/image";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
 
-export const openKitBuilder = (template?: Product) => {
-  const event = new CustomEvent("open-kit-builder", { detail: template });
-  window.dispatchEvent(event);
+// =================================================================
+// Estado Local do Builder
+// =================================================================
+
+interface BuilderState {
+  baseProduct?: Product;
+  fillerQuantities: Record<string, number>; // {productId: quantity}
+  selectedLaco: {
+    type: KitComponentType | null;
+    id: string | null; // ID da Fita (para serviço) ou ID do ACCESSORY (para pronto)
+    model: LacoModelType | null; // Modelo para laço customizado
+    size: "P" | "M" | "G" | null;
+  };
+}
+
+const useBuilderLocalState = create(
+  () =>
+    ({
+      baseProduct: undefined,
+      fillerQuantities: {},
+      selectedLaco: {
+        type: null,
+        id: null,
+        model: null,
+        size: null,
+      },
+    } as BuilderState)
+);
+
+// --- CORREÇÕES DE TIPAGEM E CUSTO AQUI ---
+
+// Tipo auxiliar para os laços que possuem custo de mão de obra (serviço)
+type CustomServiceLacoModel = Exclude<LacoModelType, "PUXAR">;
+
+const LACO_METRAGEM_BASE = { P: 2.0, M: 3.5, G: 5.0 }; // Metragem de fita gasta
+// Agora LACO_MENSAL_COST está tipado corretamente
+const LACO_MENSAL_COST: Record<CustomServiceLacoModel, number> = {
+  BOLA: 2.0,
+  COMUM_CHANEL: 4.0,
+}; // Mão de obra do laço (CUSTOM_RIBBON)
+
+const calculateLacoCost = (
+  lacoDetails: BuilderState["selectedLaco"],
+  allProducts: Product[]
+): { cost: number; name: string } => {
+  if (lacoDetails.type === "LAÇO_PRONTO" && lacoDetails.id) {
+    const accessory = allProducts.find((p) => p.id === lacoDetails.id);
+    return {
+      cost: accessory?.price || 0,
+      name: accessory?.name || "Laço Pronto",
+    };
+  }
+
+  if (
+    lacoDetails.type === "RIBBON_SERVICE" &&
+    lacoDetails.id &&
+    lacoDetails.model &&
+    lacoDetails.size
+  ) {
+    const ribbon = allProducts.find((p) => p.id === lacoDetails.id);
+    const meterPrice = ribbon?.price || 0;
+    const metragem = LACO_METRAGEM_BASE[lacoDetails.size];
+
+    // Casting seguro, pois sabemos que o modelo será BOLA ou COMUM_CHANEL no serviço
+    const customModel = lacoDetails.model as CustomServiceLacoModel;
+    const assemblyCost = LACO_MENSAL_COST[customModel];
+
+    const totalCost = meterPrice * metragem + assemblyCost;
+    return {
+      cost: totalCost,
+      name: `Laço ${customModel} (${lacoDetails.size})`,
+    };
+  }
+
+  return { cost: 0, name: "Nenhum Laço" };
 };
 
-export function KitBuilderModal() {
-  const [isOpen, setIsOpen] = useState(false);
+// =================================================================
+// COMPONENTE PRINCIPAL (restante do código)
+// =================================================================
+
+interface KitBuilderModalProps {
+  assembledKit: AssembledKitProduct;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export function KitBuilderModal({
+  assembledKit,
+  isOpen,
+  onClose,
+}: KitBuilderModalProps) {
+  const [step, setStep] = useState(1);
   const { allProducts } = useProductStore();
-  const { addItem, openCart } = useCartStore();
+  const { getRecipeById } = useKitStore();
+  const { addItem } = useCartStore();
+  const localState = useBuilderLocalState();
+  const setLocalState = useBuilderLocalState.setState;
 
-  const [step, setStep] = useState<number>(1);
-  const [selectedBase, setSelectedBase] = useState<Product | null>(null);
-  const [selectedItems, setSelectedItems] = useState<
-    { product: Product; quantity: number }[]
-  >([]);
+  const recipe = useMemo(
+    () => getRecipeById(assembledKit.recipeId),
+    [assembledKit.recipeId, getRecipeById]
+  );
 
-  // Accordions
-  const [isTransparentOpen, setIsTransparentOpen] = useState(true);
-  const [isDecoratedOpen, setIsDecoratedOpen] = useState(false);
-  const [openBaseCategory, setOpenBaseCategory] = useState<string | null>(null);
-  const [openItemCategory, setOpenItemCategory] = useState<string | null>(null); // NOVO: Para itens
-
-  useEffect(() => {
-    const handleOpen = (e: any) => {
-      const template = e.detail as Product | undefined;
-      setIsOpen(true);
-      setStep(1);
-      setSelectedBase(null);
-      setSelectedItems([]);
-
-      if (template) {
-        if (template.type === "KIT_TEMPLATE" && template.defaultComponents) {
-          const components = allProducts.filter((p) =>
-            template.defaultComponents?.includes(p.id)
-          );
-          const base = components.find((p) => p.type === "BASE_CONTAINER");
-          const items = components.filter((p) => p.type !== "BASE_CONTAINER");
-          if (base) setSelectedBase(base);
-          if (items.length > 0)
-            setSelectedItems(items.map((p) => ({ product: p, quantity: 1 })));
-          if (base) setStep(2);
-          toast.success(`Iniciando com ${template.name}`, { icon: "🎁" });
-        } else if (template.type === "BASE_CONTAINER") {
-          setSelectedBase(template);
-          setStep(2);
-        }
-      }
-    };
-    window.addEventListener("open-kit-builder", handleOpen);
-    return () => window.removeEventListener("open-kit-builder", handleOpen);
+  // Filtros de produtos disponíveis
+  const availableFillers = useMemo(() => {
+    return allProducts.filter(
+      (p) =>
+        p.type !== "BASE_CONTAINER" &&
+        p.type !== "ASSEMBLED_KIT" &&
+        p.type !== "RIBBON" &&
+        !p.disabled
+    );
   }, [allProducts]);
 
-  // --- FILTROS ---
-  const baseOptions = useMemo(
-    () => allProducts.filter((p) => p.type === "BASE_CONTAINER" && p.inStock),
-    [allProducts]
-  );
-  const mainProducts = useMemo(
-    () =>
-      allProducts.filter(
-        (p) => p.type === "STANDARD_ITEM" && p.inStock && (p.itemSize || 0) > 0
-      ),
-    [allProducts]
-  );
+  const availableRibbons = useMemo(() => {
+    return allProducts.filter(
+      (p) => p.type === "RIBBON" && !p.disabled && p.canBeSoldAsRoll
+    );
+  }, [allProducts]);
 
-  // Agrupamento de Bases
-  const baseCategories = useMemo(() => {
-    const groups: Record<string, Product[]> = {};
-    baseOptions.forEach((base) => {
-      const cat = base.category || "Outros";
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(base);
-    });
-    return groups;
-  }, [baseOptions]);
+  const availableReadyLaços = useMemo(() => {
+    return allProducts.filter(
+      (p) => p.type === "ACCESSORY" && p.laçoType && !p.disabled
+    );
+  }, [allProducts]);
 
-  // Agrupamento de Itens (NOVO)
-  const itemCategories = useMemo(() => {
-    const groups: Record<string, Product[]> = {};
-    mainProducts.forEach((item) => {
-      const cat = item.category || "Diversos";
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(item);
-    });
-    return groups;
-  }, [mainProducts]);
-
-  // Abertura automática da primeira categoria
+  // Efeito para inicializar a Base e os Fillers Padrão
   useEffect(() => {
-    if (isOpen) {
-      if (
-        step === 1 &&
-        Object.keys(baseCategories).length > 0 &&
-        !openBaseCategory
-      )
-        setOpenBaseCategory(Object.keys(baseCategories)[0]);
-      if (
-        step === 2 &&
-        Object.keys(itemCategories).length > 0 &&
-        !openItemCategory
-      )
-        setOpenItemCategory(Object.keys(itemCategories)[0]);
-    }
-  }, [
-    isOpen,
-    step,
-    baseCategories,
-    itemCategories,
-    openBaseCategory,
-    openItemCategory,
-  ]);
+    if (recipe && isOpen) {
+      const baseComponent = recipe.components.find((c) => c.type === "BASE");
+      const baseProduct = allProducts.find(
+        (p) => p.id === baseComponent?.componentId
+      );
 
-  const fillerOptions = useMemo(
-    () => allProducts.filter((p) => p.type === "FILLER" && p.inStock),
-    [allProducts]
-  );
-  const accessoryOptions = useMemo(
-    () => allProducts.filter((p) => p.type === "ACCESSORY" && p.inStock),
-    [allProducts]
-  );
-  const wrapperOptions = useMemo(
-    () => allProducts.filter((p) => p.type === "WRAPPER" && p.inStock),
-    [allProducts]
-  );
-  const readyMadeBows = useMemo(
-    () =>
-      allProducts.filter(
-        (p) => p.type === "RIBBON" && p.unit === "un" && p.inStock
-      ),
-    [allProducts]
-  );
-
-  const transparentWrappers = useMemo(
-    () =>
-      wrapperOptions.filter((p) => {
-        const n = p.name.toLowerCase();
-        return (
-          n.includes("transparente") ||
-          n.includes("incolor") ||
-          n.includes("cristal")
-        );
-      }),
-    [wrapperOptions]
-  );
-  const decoratedWrappers = useMemo(
-    () =>
-      wrapperOptions.filter((p) => {
-        const n = p.name.toLowerCase();
-        return (
-          !n.includes("transparente") &&
-          !n.includes("incolor") &&
-          !n.includes("cristal")
-        );
-      }),
-    [wrapperOptions]
-  );
-
-  const totalPrice = useMemo(
-    () =>
-      (selectedBase?.price || 0) +
-      selectedItems.reduce(
-        (acc, item) => acc + item.product.price * item.quantity,
-        0
-      ),
-    [selectedBase, selectedItems]
-  );
-
-  // --- AÇÕES ---
-  const handleNext = () => {
-    let nextStep = step + 1;
-    if (nextStep === 4 && accessoryOptions.length === 0) nextStep = 5;
-    setStep(nextStep);
-  };
-  const handleBack = () => {
-    let prevStep = step - 1;
-    if (prevStep === 4 && accessoryOptions.length === 0) prevStep = 3;
-    setStep(prevStep);
-  };
-
-  const handleToggleItem = (product: Product, quantityChange: number) => {
-    setSelectedItems((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) {
-        const newQty = existing.quantity + quantityChange;
-        if (newQty <= 0) return prev.filter((i) => i.product.id !== product.id);
-        return prev.map((i) =>
-          i.product.id === product.id ? { ...i, quantity: newQty } : i
-        );
-      } else {
-        if (quantityChange > 0) return [...prev, { product, quantity: 1 }];
-        return prev;
+      // 1. Inicializa a Base
+      if (baseProduct) {
+        setLocalState({ baseProduct: baseProduct });
       }
+
+      // 2. Inicializa os Fillers Padrão
+      const newFillerQuantities: Record<string, number> = {};
+      recipe.components
+        .filter((c) => c.type === "FILLER")
+        .forEach((c) => {
+          // Só adiciona se o produto estiver ativo
+          if (!allProducts.find((p) => p.id === c.componentId)?.disabled) {
+            newFillerQuantities[c.componentId] = c.defaultQuantity;
+          }
+        });
+      setLocalState({ fillerQuantities: newFillerQuantities });
+
+      // 3. Reseta o laço (para uma nova montagem)
+      setLocalState({
+        selectedLaco: { type: null, id: null, model: null, size: null },
+      });
+    } else if (!isOpen) {
+      // Limpa o estado local ao fechar o modal
+      useBuilderLocalState.setState({
+        baseProduct: undefined,
+        fillerQuantities: {},
+        selectedLaco: { type: null, id: null, model: null, size: null },
+      });
+    }
+  }, [recipe, allProducts, isOpen, setLocalState]);
+
+  // =================================================================
+  // CÁLCULOS E VALIDAÇÕES GERAIS
+  // =================================================================
+
+  // Custo dos Recheios
+  const fillersCost = useMemo(() => {
+    return Object.entries(localState.fillerQuantities).reduce(
+      (total, [id, qty]) => {
+        const product = allProducts.find((p) => p.id === id);
+        return total + (product?.price || 0) * qty;
+      },
+      0
+    );
+  }, [localState.fillerQuantities, allProducts]);
+
+  // Custo do Laço (Customizado ou Pronto)
+  const { cost: lacoCost, name: lacoName } = useMemo(() => {
+    return calculateLacoCost(localState.selectedLaco, allProducts);
+  }, [localState.selectedLaco, allProducts]);
+
+  // Custo Total do Kit
+  const kitTotal = useMemo(() => {
+    // KitBasePrice = Preço do AssembledKitProduct + AssemblyCost da Receita
+    const basePrice = assembledKit.kitBasePrice + (recipe?.assemblyCost || 0);
+    return basePrice + fillersCost + lacoCost;
+  }, [assembledKit.kitBasePrice, recipe?.assemblyCost, fillersCost, lacoCost]);
+
+  // Slots Ocupados
+  const occupiedSlots = useMemo(() => {
+    return Object.entries(localState.fillerQuantities).reduce(
+      (total, [id, qty]) => {
+        const product = allProducts.find((p) => p.id === id);
+        return total + (product?.itemSize || 0) * qty;
+      },
+      0
+    );
+  }, [localState.fillerQuantities, allProducts]);
+
+  const baseCapacity = localState.baseProduct?.capacity || 0;
+  const isBaseFull = occupiedSlots >= baseCapacity;
+
+  // =================================================================
+  // AÇÕES
+  // =================================================================
+
+  const handleAddFiller = (id: string, maxQty: number) => {
+    const currentQty = localState.fillerQuantities[id] || 0;
+    const product = allProducts.find((p) => p.id === id);
+    if (!product) return;
+
+    // 1. Validação de Capacidade (Slots)
+    if (isBaseFull && product.itemSize && product.itemSize > 0) {
+      toast.error("Opa! A base está cheia.", {
+        description: "Remova alguns itens para adicionar este.",
+      });
+      return;
+    }
+
+    // 2. Validação de Quantidade Máxima da Receita
+    if (currentQty >= maxQty) return;
+
+    // 3. Atualiza
+    setLocalState({
+      fillerQuantities: {
+        ...localState.fillerQuantities,
+        [id]: currentQty + 1,
+      },
     });
   };
 
-  const handleFinish = () => {
-    if (!selectedBase) return;
-    addItem({
+  const handleRemoveFiller = (id: string) => {
+    const currentQty = localState.fillerQuantities[id] || 0;
+
+    // Não permite remover se for um item obrigatório (defaultQuantity > 0 na receita)
+    const recipeComponent = recipe?.components.find(
+      (c) => c.componentId === id
+    );
+    if (recipeComponent && currentQty <= recipeComponent.defaultQuantity) {
+      if (recipeComponent.defaultQuantity > 0 && recipeComponent.required) {
+        toast.error("Este item é obrigatório na Receita.", {
+          description: "Não pode ser removido abaixo da quantidade padrão.",
+        });
+        return;
+      }
+    }
+
+    if (currentQty <= 1) {
+      const newFillers = { ...localState.fillerQuantities };
+      delete newFillers[id];
+      setLocalState({ fillerQuantities: newFillers });
+    } else {
+      setLocalState({
+        fillerQuantities: {
+          ...localState.fillerQuantities,
+          [id]: currentQty - 1,
+        },
+      });
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (
+      step !== 3 ||
+      !localState.baseProduct ||
+      !localState.selectedLaco.type
+    ) {
+      toast.error("Complete todos os passos antes de finalizar.");
+      return;
+    }
+
+    const fillerItems = Object.entries(localState.fillerQuantities).map(
+      ([productId, quantity]) => ({ productId, quantity })
+    );
+
+    // Montar o CartItem
+    const finalCartItem: CartItem = {
       cartId: crypto.randomUUID(),
       type: "CUSTOM_KIT",
-      quantity: 1,
-      kitName: `Kit Personalizado (${selectedBase.name})`,
-      kitTotalAmount: totalPrice,
-      product: selectedBase,
-      kitComponents: selectedItems.map((i) => ({
-        ...i.product,
-        quantity: i.quantity,
-      })),
-    });
-    setIsOpen(false);
-    openCart();
-    toast.success("Kit montado com sucesso! 🎁");
+      quantity: 1, // Sempre 1 kit
+      product: assembledKit, // Referência ao meta-produto
+      kitTotalAmount: kitTotal,
+      kitName: assembledKit.name,
+      kitComposition: {
+        recipeId: assembledKit.recipeId,
+        // É garantido que baseProduct não é undefined devido ao 'if' acima e ao 'if' no final
+        baseProductId: localState.baseProduct!.id,
+        items: fillerItems,
+        finalRibbonDetails: {
+          laçoType:
+            localState.selectedLaco.model ||
+            (localState.selectedLaco.type as LacoModelType),
+          // CORREÇÃO DE NULL VS UNDEFINED:
+          fitaId:
+            localState.selectedLaco.type === "RIBBON_SERVICE"
+              ? localState.selectedLaco.id || undefined
+              : undefined,
+          accessoryId:
+            localState.selectedLaco.type === "LAÇO_PRONTO"
+              ? localState.selectedLaco.id || undefined
+              : undefined,
+        },
+      },
+    };
+
+    addItem(finalCartItem);
+    toast.success("Kit Personalizado adicionado ao carrinho!");
+    onClose();
   };
 
-  // Renderizadores
-  const renderBaseGrid = (products: Product[]) => (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-2">
-      {products.map((base) => (
-        <div
-          key={base.id}
-          onClick={() => {
-            setSelectedBase(base);
-            handleNext();
-          }}
-          className="bg-white p-4 rounded-xl border-2 border-transparent hover:border-purple-500 cursor-pointer shadow-sm hover:shadow-md transition-all group text-center"
-        >
-          <div className="relative w-24 h-24 mx-auto mb-3 bg-slate-100 rounded-full overflow-hidden">
-            {base.imageUrl ? (
-              <Image
-                src={base.imageUrl}
-                alt={base.name}
-                fill
-                className="object-cover"
-              />
-            ) : (
-              <Package className="m-auto text-slate-300" />
-            )}
+  // Se recipe ou baseProduct não existirem, não renderiza
+  if (!recipe || !localState.baseProduct) return null;
+
+  // =================================================================
+  // RENDERIZAÇÃO DOS PASSOS
+  // =================================================================
+
+  const renderStep1 = () => (
+    <div className="space-y-6">
+      <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+        <Package className="h-5 w-5 text-[var(--primary)]" /> Passo 1: Base e
+        Recheios
+      </h3>
+
+      {/* Visualização da Base */}
+      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+        <p className="font-semibold mb-2">Base do Kit (Obrigatório)</p>
+        <div className="flex items-center gap-4">
+          <Image
+            src={localState.baseProduct!.imageUrl || "/placeholder.webp"}
+            alt={localState.baseProduct!.name}
+            width={60}
+            height={60}
+            className="rounded-lg object-cover"
+          />
+          <div>
+            <p className="font-medium">{localState.baseProduct!.name}</p>
+            <p className="text-sm text-slate-500">
+              Capacidade: {baseCapacity} slots
+            </p>
           </div>
-          <h3 className="font-bold text-slate-800 leading-tight">
-            {base.name}
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">{base.capacity} slots</p>
-          <Badge variant="secondary" className="mt-2">
-            R$ {base.price.toFixed(2)}
-          </Badge>
         </div>
-      ))}
-    </div>
-  );
-
-  const renderGrid = (
-    products: Product[],
-    type: "normal" | "single_choice" = "normal"
-  ) => (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-1">
-      {products.map((p) => {
-        const selectedQty =
-          selectedItems.find((i) => i.product.id === p.id)?.quantity || 0;
-        const isSelected = selectedQty > 0;
-        const isWrapper = p.type === "WRAPPER";
-        let compatible = true;
-        if (isWrapper && selectedBase && p.wrapperConstraints) {
-          compatible =
-            selectedBase.capacity! >= p.wrapperConstraints.minSlots &&
-            selectedBase.capacity! <= p.wrapperConstraints.maxSlots;
-        }
-
-        return (
-          <div
-            key={p.id}
-            className={cn(
-              "relative border rounded-xl p-2 flex flex-col gap-2 transition-all cursor-pointer bg-white group hover:shadow-md",
-              isSelected
-                ? "border-purple-500 ring-1 ring-purple-500 shadow-sm bg-purple-50/50"
-                : "border-slate-100",
-              !compatible && "opacity-60 grayscale-[0.5]"
-            )}
-            onClick={() => {
-              if (!compatible && isWrapper)
-                toast("Tamanho pode não ser ideal", {
-                  description: "Mas você pode selecionar se preferir.",
-                });
-              if (type === "single_choice") {
-                const others = selectedItems.filter(
-                  (i) => !products.find((prod) => prod.id === i.product.id)
-                );
-                if (!isSelected) {
-                  setSelectedItems([...others, { product: p, quantity: 1 }]);
-                  if (step !== 1) setTimeout(() => handleNext(), 300);
-                }
-              } else {
-                handleToggleItem(p, 1);
-              }
-            }}
+        <Separator className="my-3" />
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-600">Slots Ocupados:</span>
+          <span
+            className={`font-bold ${
+              isBaseFull ? "text-red-500" : "text-slate-800"
+            }`}
           >
-            <div className="relative aspect-square rounded-lg bg-slate-50 overflow-hidden">
-              {p.imageUrl ? (
-                <Image
-                  src={p.imageUrl}
-                  alt={p.name}
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <Package className="m-auto text-slate-300" />
-              )}
-              {isSelected && (
-                <div className="absolute top-1 right-1 bg-purple-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm animate-in zoom-in z-10">
-                  {type === "single_choice" ? <Check size={14} /> : selectedQty}
-                </div>
-              )}
-              {isWrapper && compatible && (
-                <div className="absolute bottom-0 left-0 w-full bg-green-500/90 text-white text-[9px] font-bold text-center py-1 uppercase">
-                  Ideal
-                </div>
-              )}
-              {isWrapper && !compatible && (
-                <div className="absolute bottom-0 left-0 w-full bg-yellow-500/90 text-white text-[9px] font-bold text-center py-1 uppercase flex items-center justify-center gap-1">
-                  <AlertTriangle size={8} /> Atenção
-                </div>
-              )}
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-800 line-clamp-2 leading-tight">
-                {p.name}
-              </p>
-              <p className="text-xs text-purple-700 font-bold mt-1">
-                R$ {p.price.toFixed(2)}
-              </p>
-            </div>
-            {isSelected && type === "normal" && (
+            {occupiedSlots.toFixed(1)} / {baseCapacity.toFixed(1)}
+          </span>
+        </div>
+        <div className="w-full h-2 bg-slate-200 rounded-full mt-2 overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${
+              isBaseFull ? "bg-red-500" : "bg-[var(--primary)]"
+            }`}
+            style={{
+              width: `${Math.min(100, (occupiedSlots / baseCapacity) * 100)}%`,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Opções de Recheios */}
+      <p className="font-semibold text-slate-800 mt-6">
+        Adicione Recheios (Fillers)
+      </p>
+      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+        {recipe.components
+          .filter((c) => c.type === "FILLER")
+          .map((comp) => {
+            const product = availableFillers.find(
+              (p) => p.id === comp.componentId
+            );
+            const currentQty =
+              localState.fillerQuantities[comp.componentId] || 0;
+            const maxQty = comp.maxQuantity;
+
+            if (!product) return null;
+            if (product.disabled) return null;
+
+            const isDisabled = isBaseFull && (product.itemSize || 0) > 0;
+            const isMaxed = currentQty >= maxQty;
+
+            return (
               <div
-                className="flex items-center justify-between bg-white border rounded-lg p-1 mt-1 shadow-sm"
-                onClick={(e) => e.stopPropagation()}
+                key={product.id}
+                className={`flex items-center justify-between p-3 border rounded-lg ${
+                  currentQty > 0
+                    ? "border-[var(--primary)] bg-purple-50"
+                    : "bg-white"
+                }`}
               >
-                <button
-                  onClick={() => handleToggleItem(p, -1)}
-                  className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:text-red-600 rounded transition-colors"
-                >
-                  <Minus size={14} />
-                </button>
-                <span className="text-sm font-bold w-6 text-center">
-                  {selectedQty}
-                </span>
-                <button
-                  onClick={() => handleToggleItem(p, 1)}
-                  className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-green-50 hover:text-green-600 rounded transition-colors"
-                >
-                  <Plus size={14} />
-                </button>
+                <div className="flex items-center gap-3 w-1/2">
+                  <Image
+                    src={product.imageUrl || "/placeholder.webp"}
+                    alt={product.name}
+                    width={40}
+                    height={40}
+                    className="rounded-full object-cover"
+                  />
+                  <div className="truncate">
+                    <p className="text-sm font-medium truncate">
+                      {product.name}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      R$ {product.price.toFixed(2)} | Slots: {product.itemSize}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-7 w-7"
+                    onClick={() => handleRemoveFiller(product.id)}
+                    disabled={currentQty === 0}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="font-bold w-4 text-center">
+                    {currentQty}
+                  </span>
+                  <Button
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => handleAddFiller(product.id, maxQty)}
+                    disabled={isDisabled || isMaxed}
+                    style={{
+                      backgroundColor:
+                        isDisabled || isMaxed ? undefined : "var(--primary)",
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
+      </div>
     </div>
   );
+
+  const renderStep2 = () => (
+    <div className="space-y-6">
+      <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+        <Gift className="h-5 w-5 text-[var(--primary)]" /> Passo 2: Laço e
+        Acabamento
+      </h3>
+
+      {/* --- Opções de Laço --- */}
+      <div className="space-y-4">
+        <p className="font-semibold text-slate-700">
+          Escolha o Serviço de Laço:
+        </p>
+
+        {/* Opções de Laços Prontos (ACCESSORY) */}
+        {recipe.components.filter((c) => c.type === "LAÇO_PRONTO").length >
+          0 && (
+          <div className="bg-slate-50 p-4 rounded-xl">
+            <h4 className="font-medium mb-3 flex items-center gap-2 text-slate-700">
+              <CheckCircle2 className="h-4 w-4 text-green-600" /> Laços Prontos
+              em Estoque / Puxar
+            </h4>
+            <div className="grid grid-cols-2 gap-3">
+              {recipe.components
+                .filter((c) => c.type === "LAÇO_PRONTO")
+                .map((comp) => {
+                  const lacoPronto = availableReadyLaços.find(
+                    (p) => p.id === comp.componentId
+                  );
+                  if (!lacoPronto) return null;
+
+                  const isSelected =
+                    localState.selectedLaco.type === "LAÇO_PRONTO" &&
+                    localState.selectedLaco.id === lacoPronto.id;
+
+                  return (
+                    <div
+                      key={lacoPronto.id}
+                      onClick={() =>
+                        setLocalState({
+                          selectedLaco: {
+                            type: "LAÇO_PRONTO",
+                            id: lacoPronto.id,
+                            model: lacoPronto.laçoType || null,
+                            size: null,
+                          },
+                        })
+                      }
+                      className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                        isSelected
+                          ? "border-[var(--primary)] ring-2 ring-[var(--primary)] ring-opacity-20"
+                          : "bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <p className="text-sm font-medium">{lacoPronto.name}</p>
+                      <p className="text-xs text-slate-500">
+                        R$ {lacoPronto.price.toFixed(2)} (
+                        {lacoPronto.laçoType === "PUXAR" ? "Pacote" : "Unid."})
+                      </p>
+                      {isSelected && (
+                        <Badge
+                          variant="secondary"
+                          className="mt-1 bg-green-500 text-white"
+                        >
+                          Selecionado
+                        </Badge>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
+        {/* Serviço de Laço Customizado (RIBBON_SERVICE) */}
+        {recipe.components.some((c) => c.type === "RIBBON_SERVICE") && (
+          <div className="bg-slate-50 p-4 rounded-xl">
+            <h4 className="font-medium mb-3 flex items-center gap-2 text-slate-700">
+              <Scissors className="h-4 w-4 text-purple-600" /> Criar Laço
+              Customizado (Serviço)
+            </h4>
+
+            <div className="space-y-4">
+              {/* 2.1. Escolha da Fita */}
+              <p className="text-sm font-medium">1. Escolha a Fita:</p>
+              <div className="grid grid-cols-3 gap-3 max-h-[150px] overflow-y-auto p-1 custom-scrollbar border rounded-lg">
+                {availableRibbons.map((ribbon) => {
+                  const isSelected =
+                    localState.selectedLaco.type === "RIBBON_SERVICE" &&
+                    localState.selectedLaco.id === ribbon.id;
+                  return (
+                    <div
+                      key={ribbon.id}
+                      onClick={() =>
+                        setLocalState((prev) => ({
+                          selectedLaco: {
+                            ...prev.selectedLaco,
+                            type: "RIBBON_SERVICE",
+                            id: ribbon.id,
+                          },
+                        }))
+                      }
+                      className={`p-2 border rounded-lg cursor-pointer text-center transition-all ${
+                        isSelected
+                          ? "border-[var(--primary)] ring-2 ring-[var(--primary)] ring-opacity-20"
+                          : "bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <Image
+                        src={ribbon.imageUrl || "/placeholder.webp"}
+                        alt={ribbon.name}
+                        width={30}
+                        height={30}
+                        className="mx-auto rounded-full object-cover mb-1"
+                      />
+                      <p className="text-[10px] truncate">{ribbon.name}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 2.2. Escolha do Modelo e Tamanho */}
+              {localState.selectedLaco.id &&
+                localState.selectedLaco.type === "RIBBON_SERVICE" && (
+                  <div className="space-y-4 pt-3">
+                    <p className="text-sm font-medium">
+                      2. Escolha o Modelo e Tamanho:
+                    </p>
+
+                    {/* Modelos */}
+                    <div className="flex gap-4">
+                      {["BOLA", "COMUM_CHANEL"].map((model) => (
+                        <Button
+                          key={model}
+                          variant={
+                            localState.selectedLaco.model === model
+                              ? "default"
+                              : "outline"
+                          }
+                          onClick={() =>
+                            setLocalState((prev) => ({
+                              selectedLaco: {
+                                ...prev.selectedLaco,
+                                model: model as LacoModelType,
+                              },
+                            }))
+                          }
+                          style={{
+                            backgroundColor:
+                              localState.selectedLaco.model === model
+                                ? "var(--primary)"
+                                : undefined,
+                          }}
+                        >
+                          Laço {model === "BOLA" ? "Bola" : "Comum"}
+                        </Button>
+                      ))}
+                    </div>
+
+                    {/* Tamanhos */}
+                    <div className="flex gap-2">
+                      {["P", "M", "G"].map((size) => (
+                        <Button
+                          key={size}
+                          variant={
+                            localState.selectedLaco.size === size
+                              ? "default"
+                              : "secondary"
+                          }
+                          onClick={() =>
+                            setLocalState((prev) => ({
+                              selectedLaco: {
+                                ...prev.selectedLaco,
+                                size: size as "P" | "M" | "G",
+                              },
+                            }))
+                          }
+                          style={{
+                            backgroundColor:
+                              localState.selectedLaco.size === size
+                                ? "var(--primary)"
+                                : undefined,
+                          }}
+                        >
+                          {size}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderStep3 = () => (
+    <div className="space-y-6">
+      <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+        <ShoppingCart className="h-5 w-5 text-[var(--primary)]" /> Passo 3:
+        Resumo e Checkout
+      </h3>
+
+      <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4">
+        <h4 className="font-semibold text-lg text-slate-700">
+          Detalhes do Kit: {assembledKit.name}
+        </h4>
+        <Separator />
+
+        {/* Custo Base */}
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-500">
+            Base ({localState.baseProduct!.name}) + Montagem Kit
+          </span>
+          <span className="font-medium">
+            R$ {assembledKit.kitBasePrice.toFixed(2)}
+          </span>
+        </div>
+
+        {/* Recheios */}
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-500">
+            Itens Adicionais ({Object.keys(localState.fillerQuantities).length}{" "}
+            tipos)
+          </span>
+          <span className="font-medium">R$ {fillersCost.toFixed(2)}</span>
+        </div>
+
+        {/* Laço */}
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-500">Serviço de Laço: {lacoName}</span>
+          <span className="font-medium">R$ {lacoCost.toFixed(2)}</span>
+        </div>
+
+        <Separator className="my-4" />
+
+        {/* Total */}
+        <div className="flex justify-between items-center">
+          <span className="text-xl font-bold text-slate-800">TOTAL FINAL</span>
+          <span className="text-3xl font-bold text-[var(--primary)]">
+            R$ {kitTotal.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      <Button
+        onClick={handleAddToCart}
+        className="w-full h-12 text-lg font-bold shadow-lg hover:scale-[1.01] transition-transform"
+        style={{
+          backgroundColor: "var(--primary)",
+          color: "var(--primary-contrast)",
+        }}
+        disabled={!localState.selectedLaco.type}
+      >
+        <ShoppingCart className="mr-2 h-5 w-5" /> Adicionar Kit Personalizado
+        (R$ {kitTotal.toFixed(2)})
+      </Button>
+    </div>
+  );
+
+  // =================================================================
+  // RENDERIZAÇÃO DO MODAL
+  // =================================================================
+
+  const isStep2Valid =
+    localState.selectedLaco.type &&
+    (localState.selectedLaco.type === "LAÇO_PRONTO" ||
+      (localState.selectedLaco.id &&
+        localState.selectedLaco.model &&
+        localState.selectedLaco.size));
+  const isStep1Valid = true; // A base e fillers obrigatórios já são validados na seed/inicialização.
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="sm:max-w-[900px] h-[90vh] flex flex-col bg-slate-50 p-0 gap-0 [&>button]:hidden">
-        {/* HEADER */}
-        <div className="p-4 border-b flex flex-col gap-4 shrink-0 z-10 shadow-sm relative bg-white border-slate-100">
-          <div className="flex justify-between items-start">
-            <DialogTitle className="text-xl flex items-center gap-2 text-slate-800">
-              <Gift className="text-purple-600" /> Montador de Kits
-            </DialogTitle>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <span className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                  Total
-                </span>
-                <span className="text-xl font-bold text-green-600">
-                  R$ {totalPrice.toFixed(2)}
-                </span>
-              </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-2 rounded-full hover:bg-black/5 text-slate-400"
-              >
-                <X size={24} />
-              </button>
-            </div>
-          </div>
+    <Sheet open={isOpen} onOpenChange={onClose}>
+      <SheetContent side="right" className="w-full sm:max-w-xl flex flex-col">
+        <SheetHeader>
+          <SheetTitle>Montar Kit: {assembledKit.name}</SheetTitle>
+          <p className="text-sm text-slate-500">
+            Siga os 3 passos para montar o seu presente.
+          </p>
+        </SheetHeader>
+
+        <div className="flex-grow overflow-y-auto py-4">
+          {step === 1 && renderStep1()}
+          {step === 2 && renderStep2()}
+          {step === 3 && renderStep3()}
         </div>
 
-        {/* CORPO */}
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6 custom-scrollbar">
-          <div className="max-w-5xl mx-auto pb-4">
-            {/* PASSO 1: BASE */}
-            {step === 1 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                <div className="text-center md:text-left">
-                  <h2 className="text-lg font-bold text-slate-800">
-                    1. Escolha a Base
-                  </h2>
-                  <p className="text-slate-500 text-sm">
-                    Onde vamos montar seu presente?
-                  </p>
-                </div>
-                <div className="space-y-3">
-                  {Object.entries(baseCategories).map(([category, bases]) => (
-                    <div
-                      key={category}
-                      className="border rounded-xl bg-white overflow-hidden shadow-sm"
-                    >
-                      <button
-                        onClick={() =>
-                          setOpenBaseCategory(
-                            openBaseCategory === category ? null : category
-                          )
-                        }
-                        className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
-                      >
-                        <span className="font-bold text-slate-800 flex items-center gap-2">
-                          <Box size={16} className="text-purple-500" />{" "}
-                          {category} ({bases.length})
-                        </span>
-                        {openBaseCategory === category ? (
-                          <ChevronUp size={18} className="text-slate-400" />
-                        ) : (
-                          <ChevronDown size={18} className="text-slate-400" />
-                        )}
-                      </button>
-                      {openBaseCategory === category && (
-                        <div className="p-2 border-t border-slate-100 bg-slate-50/50">
-                          {renderBaseGrid(bases)}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {Object.keys(baseCategories).length === 0 && (
-                    <div className="text-center py-10 text-slate-400">
-                      <Package size={40} className="mx-auto mb-2 opacity-20" />
-                      <p>Nenhuma base cadastrada.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+        {/* CONTROLES DE NAVEGAÇÃO */}
+        <div className="mt-auto border-t pt-4 flex justify-between items-center">
+          <Button
+            variant="outline"
+            onClick={() => setStep(step - 1)}
+            disabled={step === 1}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
+          </Button>
 
-            {/* PASSO 2: RECHEIO (AGORA COM CATEGORIAS) */}
-            {step === 2 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                <div className="flex justify-between items-center bg-white p-3 rounded-lg border shadow-sm sticky top-0 z-10">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-800">
-                      2. Seleção de Itens
-                    </h2>
-                    <p className="text-slate-500 text-xs">
-                      O que vai compor o kit?
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setStep(1)}
-                  >
-                    Trocar Base
-                  </Button>
-                </div>
-
-                {/* Lista de Itens Agrupada */}
-                <div className="space-y-3">
-                  {Object.entries(itemCategories).map(([category, items]) => (
-                    <div
-                      key={category}
-                      className="border rounded-xl bg-white overflow-hidden shadow-sm"
-                    >
-                      <button
-                        onClick={() =>
-                          setOpenItemCategory(
-                            openItemCategory === category ? null : category
-                          )
-                        }
-                        className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
-                      >
-                        <span className="font-bold text-slate-800 flex items-center gap-2">
-                          <Layers size={16} className="text-blue-500" />{" "}
-                          {category} ({items.length})
-                        </span>
-                        {openItemCategory === category ? (
-                          <ChevronUp size={18} className="text-slate-400" />
-                        ) : (
-                          <ChevronDown size={18} className="text-slate-400" />
-                        )}
-                      </button>
-                      {openItemCategory === category && (
-                        <div className="p-2 border-t border-slate-100">
-                          {renderGrid(items, "normal")}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {Object.keys(itemCategories).length === 0 && (
-                    <div className="text-center py-10 text-slate-400">
-                      <Package size={40} className="mx-auto mb-2 opacity-20" />
-                      <p>Nenhum item disponível.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Outros Passos (Mantidos) */}
-            {step === 3 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex gap-3">
-                  <Package className="text-blue-600 shrink-0" size={20} />
-                  <div>
-                    <h3 className="font-bold text-blue-900 text-sm">
-                      Preenchimento
-                    </h3>
-                    <p className="text-xs text-blue-700">
-                      Escolha palha ou seda.
-                    </p>
-                  </div>
-                </div>
-                {fillerOptions.length > 0 ? (
-                  renderGrid(fillerOptions, "single_choice")
-                ) : (
-                  <p className="text-center text-slate-400 py-8">Sem opções.</p>
-                )}
-              </div>
-            )}
-            {step === 4 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                <div className="text-center py-4">
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center justify-center gap-2">
-                    <Lightbulb className="text-yellow-500 fill-yellow-500" />{" "}
-                    Luzes (Opcional)
-                  </h2>
-                </div>
-                {renderGrid(accessoryOptions, "normal")}
-                <div className="flex justify-center mt-4">
-                  <Button
-                    variant="ghost"
-                    onClick={handleNext}
-                    className="text-slate-400"
-                  >
-                    Pular
-                  </Button>
-                </div>
-              </div>
-            )}
-            {step === 5 && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                <div className="text-center md:text-left">
-                  <h2 className="text-lg font-bold text-slate-800">
-                    5. Embalagem
-                  </h2>
-                </div>
-                <div className="border rounded-xl bg-white overflow-hidden shadow-sm">
-                  <button
-                    onClick={() => setIsTransparentOpen(!isTransparentOpen)}
-                    className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
-                  >
-                    <span className="font-bold text-slate-800">
-                      Transparentes
-                    </span>
-                    {isTransparentOpen ? (
-                      <ChevronUp size={18} />
-                    ) : (
-                      <ChevronDown size={18} />
-                    )}
-                  </button>
-                  {isTransparentOpen && (
-                    <div className="p-4 border-t border-slate-100">
-                      {renderGrid(transparentWrappers, "single_choice")}
-                    </div>
-                  )}
-                </div>
-                <div className="border rounded-xl bg-white overflow-hidden shadow-sm">
-                  <button
-                    onClick={() => setIsDecoratedOpen(!isDecoratedOpen)}
-                    className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
-                  >
-                    <span className="font-bold text-slate-800">Decorados</span>
-                    {isDecoratedOpen ? (
-                      <ChevronUp size={18} />
-                    ) : (
-                      <ChevronDown size={18} />
-                    )}
-                  </button>
-                  {isDecoratedOpen && (
-                    <div className="p-4 border-t border-slate-100">
-                      {renderGrid(decoratedWrappers, "single_choice")}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            {step === 6 && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                <div className="text-center md:text-left">
-                  <h2 className="text-lg font-bold text-slate-800">
-                    6. Laço Final
-                  </h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
-                      <h3 className="font-bold text-purple-900 text-sm">
-                        Opção A: Laço Fácil
-                      </h3>
-                    </div>
-                    <div className="max-h-[300px] overflow-y-auto pr-1">
-                      {renderGrid(readyMadeBows, "single_choice")}
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="bg-pink-50 p-3 rounded-lg border border-pink-100">
-                      <h3 className="font-bold text-pink-900 text-sm">
-                        Opção B: Laço Bola
-                      </h3>
-                    </div>
-                    <div className="border rounded-xl p-6 flex flex-col items-center justify-center text-center gap-4 h-[250px] bg-white shadow-sm">
-                      <div className="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center text-pink-500 mb-2">
-                        <Gift size={32} />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-slate-800">
-                          Personalizar Laço Bola
-                        </h4>
-                      </div>
-                      <Link
-                        href="/laco-builder"
-                        target="_blank"
-                        className="w-full"
-                      >
-                        <Button className="w-full bg-pink-600 hover:bg-pink-700 text-white shadow-md">
-                          Ir para Atelier{" "}
-                          <ExternalLink size={14} className="ml-2" />
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {step === 7 && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                <h2 className="text-lg font-bold text-slate-800">
-                  7. Resumo do Pedido
-                </h2>
-                <div className="bg-white p-6 rounded-xl border shadow-sm divide-y">
-                  <div className="flex items-center gap-4 pb-4">
-                    <div className="w-12 h-12 bg-slate-100 rounded relative overflow-hidden shrink-0">
-                      {selectedBase?.imageUrl && (
-                        <Image
-                          src={selectedBase.imageUrl}
-                          alt=""
-                          fill
-                          className="object-cover"
-                        />
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-xs text-slate-400 uppercase font-bold">
-                        Base
-                      </p>
-                      <h3 className="font-bold text-slate-800">
-                        {selectedBase?.name}
-                      </h3>
-                    </div>
-                  </div>
-                  <div className="py-4 space-y-2">
-                    {selectedItems.map((item, idx) => (
-                      <div key={idx} className="flex justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-0.5 rounded">
-                            {item.quantity}x
-                          </span>
-                          <span className="text-slate-700">
-                            {item.product.name}
-                          </span>
-                        </div>
-                        <span className="font-medium text-slate-900">
-                          R$ {(item.product.price * item.quantity).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="pt-4 flex justify-between items-center">
-                    <span className="font-bold text-lg text-slate-600">
-                      Total Final
-                    </span>
-                    <span className="font-bold text-2xl text-green-600">
-                      R$ {totalPrice.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
+          <div className="text-sm font-medium text-slate-600">
+            Passo {step} de 3
           </div>
-        </div>
 
-        {/* FOOTER */}
-        <div className="p-4 border-t flex justify-between items-center shrink-0 z-10 bg-white">
-          {step > 1 ? (
-            <Button variant="outline" onClick={handleBack} className="gap-2">
-              <ChevronLeft className="h-4 w-4" /> Voltar
+          {step < 3 && (
+            <Button
+              onClick={() => setStep(step + 1)}
+              disabled={step === 2 && !isStep2Valid}
+              style={{
+                backgroundColor:
+                  step === 2 && !isStep2Valid ? undefined : "var(--primary)",
+              }}
+            >
+              Próximo <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
-          ) : (
-            <div />
           )}
-          {step < 7 ? (
+
+          {step === 3 && (
             <Button
-              onClick={handleNext}
-              disabled={step === 1 && !selectedBase}
-              className="gap-2 px-6 bg-slate-900 text-white hover:bg-slate-800 transition-all"
+              onClick={handleAddToCart}
+              style={{ backgroundColor: "var(--primary)" }}
             >
-              Próximo <ChevronRight className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              onClick={handleFinish}
-              className="bg-green-600 hover:bg-green-700 text-white px-8 gap-2 shadow-lg shadow-green-200"
-            >
-              <Check className="h-4 w-4" /> Adicionar ao Carrinho
+              Finalizar (R$ {kitTotal.toFixed(2)})
             </Button>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

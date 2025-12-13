@@ -1,3 +1,4 @@
+// src/components/features/ProductCard.tsx
 "use client";
 
 import { Product } from "@/lib/types";
@@ -6,7 +7,8 @@ import { Minus, Plus, ShoppingCart } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { ProductQuickView } from "./ProductQuickView"; // Importando o modal novo
+import { ProductQuickView } from "./ProductQuickView";
+import { useKitBuilderStore } from "@/store/kitBuilderStore"; // <-- NOVO IMPORT
 
 interface ProductCardProps {
   product: Product;
@@ -20,13 +22,17 @@ export function ProductCard({
   actionLabel = "Adicionar",
 }: ProductCardProps) {
   const { items, addItem, removeItem, updateQuantity } = useCartStore();
+  const { openKitBuilder } = useKitBuilderStore(); // <-- Uso da nova store
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
 
   // Verifica se já está no carrinho
   const cartItem = items.find((i) => i.product?.id === product.id);
   const quantity = cartItem ? cartItem.quantity : 0;
 
-  // Lógica de Adicionar/Remover
+  // Verifica se é um Kit Montado
+  const isAssembledKit = product.type === "ASSEMBLED_KIT";
+
+  // Lógica de Adicionar/Remover (Apenas para produtos simples)
   const handleUpdate = (e: React.MouseEvent, delta: number) => {
     e.stopPropagation(); // Não abrir o modal
 
@@ -35,6 +41,7 @@ export function ProductCard({
       return;
     }
 
+    // Ação normal de ADD/REMOVE para produtos simples
     if (quantity + delta <= 0) {
       if (cartItem) removeItem(cartItem.cartId);
     } else {
@@ -47,15 +54,77 @@ export function ProductCard({
           quantity: 1,
           product: product,
         });
-        // Removi o openCart() daqui como você pediu
       }
     }
+  };
+
+  // Ação principal de click no card (abre a QuickView ou o Kit Builder)
+  const handleCardClick = () => {
+    if (isAssembledKit) {
+      openKitBuilder(product.id); // Abre o Montador de Kits
+    } else {
+      setIsQuickViewOpen(true); // Abre a Visualização Rápida padrão
+    }
+  };
+
+  // Lógica do botão de Ação
+  const renderActionButton = () => {
+    if (isAssembledKit) {
+      return (
+        <Button
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            openKitBuilder(product.id);
+          }}
+          className="h-8 rounded-full p-2 px-4 bg-[var(--primary)] hover:bg-purple-700 text-white shadow-sm shrink-0 text-xs font-semibold"
+        >
+          Personalizar Kit
+        </Button>
+      );
+    }
+
+    // Controles de Quantidade (para produtos simples)
+    if (quantity > 0) {
+      return (
+        <div
+          className="flex items-center gap-2 bg-slate-100 rounded-full p-1 h-8 shadow-inner"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={(e) => handleUpdate(e, -1)}
+            className="w-6 h-6 flex items-center justify-center bg-white rounded-full text-slate-600 shadow-sm hover:text-red-500"
+          >
+            <Minus size={12} />
+          </button>
+          <span className="text-xs font-bold w-4 text-center">{quantity}</span>
+          <button
+            onClick={(e) => handleUpdate(e, 1)}
+            className="w-6 h-6 flex items-center justify-center bg-white rounded-full text-slate-600 shadow-sm hover:text-green-600"
+          >
+            <Plus size={12} />
+          </button>
+        </div>
+      );
+    }
+
+    // Botão Adicionar (para produtos simples)
+    return (
+      <Button
+        size="sm"
+        disabled={!product.inStock}
+        onClick={(e) => handleUpdate(e, 1)}
+        className="h-8 w-8 rounded-full p-0 bg-green-600 hover:bg-green-700 text-white shadow-sm shrink-0"
+      >
+        <Plus size={16} />
+      </Button>
+    );
   };
 
   return (
     <>
       <div
-        onClick={() => setIsQuickViewOpen(true)}
+        onClick={handleCardClick} // <-- Chamada unificada para Kits e QuickView
         className="group bg-white rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col h-full overflow-hidden relative cursor-pointer"
       >
         <div className="relative w-full aspect-square bg-slate-50 overflow-hidden">
@@ -98,48 +167,20 @@ export function ProductCard({
               </span>
             </div>
 
-            {/* CONTROLE DE QUANTIDADE INTEGRADO */}
-            {quantity > 0 ? (
-              <div
-                className="flex items-center gap-2 bg-slate-100 rounded-full p-1 h-8 shadow-inner"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  onClick={(e) => handleUpdate(e, -1)}
-                  className="w-6 h-6 flex items-center justify-center bg-white rounded-full text-slate-600 shadow-sm hover:text-red-500"
-                >
-                  <Minus size={12} />
-                </button>
-                <span className="text-xs font-bold w-4 text-center">
-                  {quantity}
-                </span>
-                <button
-                  onClick={(e) => handleUpdate(e, 1)}
-                  className="w-6 h-6 flex items-center justify-center bg-white rounded-full text-slate-600 shadow-sm hover:text-green-600"
-                >
-                  <Plus size={12} />
-                </button>
-              </div>
-            ) : (
-              <Button
-                size="sm"
-                disabled={!product.inStock}
-                onClick={(e) => handleUpdate(e, 1)}
-                className="h-8 w-8 rounded-full p-0 bg-green-600 hover:bg-green-700 text-white shadow-sm shrink-0"
-              >
-                <Plus size={16} />
-              </Button>
-            )}
+            {/* Renderiza o botão correto (Personalizar Kit ou Quantidade) */}
+            {renderActionButton()}
           </div>
         </div>
       </div>
 
-      {/* MODAL DE VISUALIZAÇÃO RÁPIDA */}
-      <ProductQuickView
-        product={product}
-        isOpen={isQuickViewOpen}
-        onClose={() => setIsQuickViewOpen(false)}
-      />
+      {/* MODAL DE VISUALIZAÇÃO RÁPIDA (Só abre para produtos não-Kit) */}
+      {!isAssembledKit && (
+        <ProductQuickView
+          product={product}
+          isOpen={isQuickViewOpen}
+          onClose={() => setIsQuickViewOpen(false)}
+        />
+      )}
     </>
   );
 }

@@ -1,3 +1,4 @@
+// src/app/page.tsx
 import {
   collection,
   getDocs,
@@ -7,7 +8,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Product, StoreSettings } from "@/lib/types";
+import { Product, StoreSettings } from "@/lib/types"; // Tipagem correta
 import HomeClient from "@/components/views/HomeClient";
 
 export const dynamic = "force-dynamic";

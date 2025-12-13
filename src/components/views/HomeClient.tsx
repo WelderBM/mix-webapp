@@ -1,20 +1,24 @@
+// src/components/views/HomeClient.tsx
 "use client";
 
 import { useEffect, useRef, useMemo } from "react";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useKitBuilderStore } from "@/store/kitBuilderStore"; // <-- NOVO IMPORT
 import { ProductCard } from "@/components/features/ProductCard";
 import { BuilderTrigger } from "@/components/features/BuilderTrigger";
-import {
-  KitBuilderModal,
-  openKitBuilder,
-} from "@/components/features/KitBuilderModal";
+import { KitBuilderModal } from "@/components/features/KitBuilderModal"; // <-- IMPORT CORRIGIDO
 import { RibbonBuilderTrigger } from "@/components/features/RibbonBuilderTrigger";
 import { NaturaBanner } from "@/components/features/NaturaBanner";
 import { StoreHeader } from "@/components/layout/StoreHeader";
 import { cn, hexToRgb, getContrastColor, adjustColor } from "@/lib/utils";
-import { Product, StoreSettings, StoreSection } from "@/lib/types";
+import {
+  Product,
+  StoreSettings,
+  StoreSection,
+  AssembledKitProduct,
+} from "@/lib/types";
 
 interface HomeClientProps {
   initialProducts: Product[];
@@ -29,6 +33,13 @@ export default function HomeClient({
   const { openCart, addItem } = useCartStore();
   const { settings } = useSettingsStore();
 
+  // NOVO: Controles do Kit Builder Modal
+  const {
+    isOpen: isKitModalOpen,
+    selectedKitId,
+    closeKitBuilder,
+  } = useKitBuilderStore();
+
   const shelvesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,18 +50,30 @@ export default function HomeClient({
     useSettingsStore.setState({ settings: initialSettings, isLoading: false });
   }, [initialProducts, initialSettings]);
 
+  // Usamos os produtos carregados pela Store (já filtrados) ou os iniciais
   const productsToRender =
     allProducts.length > 0 ? allProducts : initialProducts;
   const settingsToRender = settings.id ? settings : initialSettings;
+
+  // Encontra o Kit Montado a ser exibido no modal
+  const selectedKit = useMemo(() => {
+    if (!selectedKitId) return undefined;
+
+    // Busca o kit na lista de produtos renderizáveis
+    const kit = productsToRender.find(
+      (p) => p.id === selectedKitId && p.type === "ASSEMBLED_KIT"
+    );
+
+    return kit as AssembledKitProduct | undefined;
+  }, [selectedKitId, productsToRender]);
 
   const themeStyles = useMemo(() => {
     const primary = settingsToRender.theme?.primaryColor || "#7c3aed";
     const secondary = adjustColor(primary, -30);
 
-    // GERA VARIAÇÕES AUTOMÁTICAS BASEADAS NA COR PRINCIPAL
-    const bannerKitColor = primary; // Cor Principal
-    const bannerRibbonColor = adjustColor(primary, 40); // 40% Mais Claro (Tom Pastel)
-    const bannerNaturaColor = adjustColor(primary, -40); // 40% Mais Escuro (Tom Profundo)
+    const bannerKitColor = primary;
+    const bannerRibbonColor = adjustColor(primary, 40);
+    const bannerNaturaColor = adjustColor(primary, -40);
 
     return {
       "--primary": primary,
@@ -60,26 +83,23 @@ export default function HomeClient({
       "--secondary-rgb": hexToRgb(secondary),
       "--secondary-contrast": "#ffffff",
 
-      // Novas Variáveis para os Banners
       "--banner-kit": bannerKitColor,
       "--banner-ribbon": bannerRibbonColor,
       "--banner-natura": bannerNaturaColor,
     } as React.CSSProperties;
   }, [settingsToRender]);
 
+  // Função simplificada, pois Kits são tratados pelo ProductCard/KitBuilderStore
   const handleDirectAdd = (product: Product) => {
-    if (product.type === "KIT_TEMPLATE") {
-      openKitBuilder(product);
-    } else {
-      addItem({
-        cartId: crypto.randomUUID(),
-        type: "SIMPLE",
-        product: product,
-        quantity: 1,
-        kitTotalAmount: 0,
-      });
-      openCart();
-    }
+    // Apenas adiciona produtos simples que podem ser adicionados diretamente
+    addItem({
+      cartId: crypto.randomUUID(),
+      type: "SIMPLE",
+      product: product,
+      quantity: 1,
+      kitTotalAmount: 0,
+    });
+    openCart();
   };
 
   const handleNaturaClick = () => {
@@ -107,7 +127,6 @@ export default function HomeClient({
                 {section.title}
               </h2>
             )}
-            {/* flex-1 garante que a área de produtos ocupe todo o espaço vertical disponível */}
             <div className="flex-1 flex flex-col justify-center">
               <div className="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide snap-x md:mx-0 md:px-0 items-stretch h-full">
                 {sectionProducts.map((product) => (
@@ -117,11 +136,17 @@ export default function HomeClient({
                   >
                     <ProductCard
                       product={product}
-                      onSelect={() => handleDirectAdd(product)}
-                      actionLabel={
-                        product.type === "KIT_TEMPLATE" ? "Montar" : "Adicionar"
+                      // onSelect só é usado para forçar a adição direta em produtos simples que o ProductCard não adiciona sozinho
+                      onSelect={
+                        product.type === "ASSEMBLED_KIT"
+                          ? undefined
+                          : () => handleDirectAdd(product)
                       }
-                      // Passamos h-full para o card também se necessário, ou deixamos natural
+                      actionLabel={
+                        product.type === "ASSEMBLED_KIT"
+                          ? "Montar Kit"
+                          : "Adicionar"
+                      }
                     />
                   </div>
                 ))}
@@ -130,11 +155,7 @@ export default function HomeClient({
           </div>
         );
 
-      // 2. Banners (Envolvidos em h-full para esticar junto com o vizinho)
-      // OBS: Se o componente interno (ex: BuilderTrigger) tiver altura fixa, ele pode não esticar visualmente o conteúdo,
-      // mas o container vai esticar. O ideal é que os componentes de banner aceitem className="h-full".
-      // Aqui forçamos um container flex que tenta esticar os filhos.
-
+      // 2. Banners
       case "banner_kit":
         return (
           <div
@@ -174,13 +195,17 @@ export default function HomeClient({
     <main className="min-h-screen bg-slate-50 pb-20" style={themeStyles}>
       <StoreHeader />
 
-      <KitBuilderModal />
+      {/* RENDERIZAÇÃO DO MODAL DE MONTAGEM */}
+      {selectedKit && (
+        <KitBuilderModal
+          assembledKit={selectedKit}
+          isOpen={isKitModalOpen}
+          onClose={closeKitBuilder}
+        />
+      )}
 
       {/* SISTEMA DE GRID INTELIGENTE */}
       <div ref={shelvesRef} className="max-w-6xl mx-auto px-4 mt-8 mb-12">
-        {/* items-stretch: O segredo! Faz com que todos os filhos na mesma LINHA tenham a mesma altura.
-            gap-6: Espaçamento.
-         */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           {settingsToRender.homeSections
             ?.filter((s) => s.isActive)
@@ -188,11 +213,10 @@ export default function HomeClient({
               <div
                 key={section.id}
                 className={cn(
-                  "animate-in fade-in zoom-in-95 duration-500 h-full", // h-full aqui é essencial
+                  "animate-in fade-in zoom-in-95 duration-500 h-full",
                   section.width === "full" ? "md:col-span-2" : "md:col-span-1"
                 )}
               >
-                {/* O renderizador agora retorna componentes com h-full */}
                 {renderSectionComponent(section)}
               </div>
             ))}
