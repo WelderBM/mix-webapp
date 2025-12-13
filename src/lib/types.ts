@@ -74,6 +74,10 @@ export interface CartItem {
     tamanho: "P" | "M" | "G";
     metragemGasta: number;
   };
+  customizations?: {
+    style: string;
+    size: string;
+  };
 }
 
 export interface StoreSection {

@@ -1,195 +1,113 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Product, ProductVariant } from "@/lib/types";
-import { Box, Check } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Product } from "@/lib/types";
+import { useCartStore } from "@/store/cartStore";
+import { Minus, Plus, ShoppingCart, X } from "lucide-react";
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface ProductQuickViewProps {
-  product: Product;
+  product: Product | null;
   isOpen: boolean;
   onClose: () => void;
-  onAction?: (variant?: ProductVariant) => void;
-  actionLabel?: string;
-  isFull?: boolean;
-  currentUsage?: number;
-  maxCapacity?: number;
 }
 
 export function ProductQuickView({
   product,
   isOpen,
   onClose,
-  onAction,
-  actionLabel = "Adicionar",
-  isFull = false,
-  currentUsage = 0,
-  maxCapacity = 0,
 }: ProductQuickViewProps) {
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
-    null
-  );
+  const { items, addItem, removeItem, updateQuantity } = useCartStore();
 
-  useEffect(() => {
-    if (isOpen) setSelectedVariant(null);
-  }, [isOpen, product]);
+  if (!product) return null;
 
-  const hasVariants = product.variants && product.variants.length > 0;
+  const cartItem = items.find((i) => i.product?.id === product.id);
+  const quantity = cartItem ? cartItem.quantity : 0;
 
-  const handleAddToCart = () => {
-    if (onAction) {
-      if (hasVariants && !selectedVariant) return;
-      onAction(selectedVariant || undefined);
-      onClose();
+  const handleUpdate = (delta: number) => {
+    if (quantity + delta <= 0) {
+      if (cartItem) removeItem(cartItem.cartId);
+    } else {
+      if (cartItem) {
+        updateQuantity(cartItem.cartId, quantity + delta);
+      } else {
+        addItem({
+          cartId: crypto.randomUUID(),
+          type: "SIMPLE",
+          product: product,
+          quantity: 1,
+        });
+        toast.success("Adicionado ao carrinho!");
+      }
     }
   };
 
-  const formatMoney = (value: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
-
-  const activeImage = selectedVariant?.imageUrl || product.imageUrl;
-  const activePrice = selectedVariant?.price || product.price;
-  const itemSize = product.itemSize || 1;
-  const futureUsage = currentUsage + itemSize;
-  const usagePercentage =
-    maxCapacity > 0 ? Math.min((futureUsage / maxCapacity) * 100, 100) : 0;
-  const showCapacity = maxCapacity > 0 && product.type === "STANDARD_ITEM";
-
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden bg-white rounded-2xl gap-0 border-0 shadow-2xl">
-        <div className="grid md:grid-cols-2 h-full">
-          <div className="relative h-64 md:h-full bg-slate-50 min-h-[300px] transition-all duration-300">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md p-0 overflow-hidden bg-white border-0">
+        <div className="relative h-64 w-full bg-slate-100">
+          {product.imageUrl ? (
             <Image
-              src={activeImage}
+              src={product.imageUrl}
               alt={product.name}
               fill
-              className="object-contain p-4"
+              className="object-cover"
             />
-            {product.originalPrice && (
-              <Badge className="absolute top-4 left-4 bg-red-500 hover:bg-red-600 border-0">
-                Oferta
-              </Badge>
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-300">
+              <ShoppingCart size={48} />
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            className="absolute top-2 right-2 bg-white/80 p-2 rounded-full hover:bg-white text-slate-500"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6">
+          <div className="mb-4">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+              {product.category}
+            </p>
+            <h2 className="text-xl font-bold text-slate-800 leading-tight">
+              {product.name}
+            </h2>
+            {product.description && (
+              <p className="text-slate-500 text-sm mt-2">
+                {product.description}
+              </p>
             )}
           </div>
 
-          <div className="p-6 flex flex-col h-full max-h-[80vh] overflow-y-auto">
-            <DialogHeader className="mb-4 text-left">
-              <Badge
-                variant="outline"
-                className="w-fit mb-2 text-slate-500 border-slate-200"
+          <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
+            <span className="text-2xl font-bold text-purple-700">
+              R$ {product.price.toFixed(2)}
+            </span>
+
+            <div className="flex items-center gap-3 bg-slate-50 rounded-full p-1 border border-slate-200">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => handleUpdate(-1)}
+                className="h-8 w-8 rounded-full hover:bg-white hover:text-red-500"
               >
-                {product.category}
-              </Badge>
-              <DialogTitle className="text-xl font-bold text-slate-800 leading-tight">
-                {product.name}
-              </DialogTitle>
-              {selectedVariant && (
-                <p className="text-purple-600 font-medium text-sm mt-1">
-                  Selecionado: {selectedVariant.name}
-                </p>
-              )}
-            </DialogHeader>
-
-            {hasVariants && (
-              <div className="mb-6 space-y-3">
-                <span className="text-sm font-semibold text-slate-700">
-                  Escolha a opção:
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {product.variants?.map((variant) => (
-                    <button
-                      key={variant.id}
-                      onClick={() => setSelectedVariant(variant)}
-                      className={cn(
-                        "px-3 py-2 rounded-lg text-xs font-medium border transition-all flex items-center gap-2",
-                        selectedVariant?.id === variant.id
-                          ? "border-purple-600 bg-purple-50 text-purple-700 ring-1 ring-purple-600"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-purple-300"
-                      )}
-                    >
-                      {variant.name}
-                      {selectedVariant?.id === variant.id && (
-                        <Check size={12} />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {showCapacity && (
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 mb-6">
-                <div className="flex items-center gap-2 text-sm text-slate-700 font-semibold mb-2">
-                  <Box size={16} className="text-purple-600" /> Ocupação na
-                  Caixa
-                </div>
-                <div className="flex justify-between text-xs text-slate-500 mb-1">
-                  <span>Tamanho: {itemSize} slots</span>
-                  <span className={isFull ? "text-red-500 font-bold" : ""}>
-                    {isFull
-                      ? "Não cabe!"
-                      : `${futureUsage} / ${maxCapacity} slots`}
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all ${
-                      isFull ? "bg-red-500" : "bg-purple-600"
-                    }`}
-                    style={{ width: `${isFull ? 100 : usagePercentage}%` }}
-                  />
-                </div>
-                {isFull && (
-                  <p className="text-[10px] text-red-500 mt-1">
-                    Você precisará de uma caixa maior ou remover itens.
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="mt-auto pt-4 border-t flex items-center justify-between gap-4">
-              <div>
-                {product.originalPrice && (
-                  <span className="text-sm text-slate-400 line-through block">
-                    {formatMoney(product.originalPrice)}
-                  </span>
-                )}
-                <span className="text-2xl font-bold text-slate-900">
-                  {formatMoney(activePrice)}
-                </span>
-              </div>
-              {onAction && (
-                <Button
-                  onClick={handleAddToCart}
-                  disabled={(hasVariants && !selectedVariant) || isFull}
-                  className={cn(
-                    "px-6 font-bold transition-all",
-                    hasVariants && !selectedVariant
-                      ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                      : "bg-slate-900 hover:bg-slate-800 text-white"
-                  )}
-                >
-                  {isFull
-                    ? "Sem Espaço"
-                    : hasVariants && !selectedVariant
-                    ? "Escolha uma opção"
-                    : actionLabel}
-                </Button>
-              )}
+                <Minus size={16} />
+              </Button>
+              <span className="font-bold text-slate-800 w-4 text-center">
+                {quantity}
+              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => handleUpdate(1)}
+                className="h-8 w-8 rounded-full hover:bg-white hover:text-green-600"
+              >
+                <Plus size={16} />
+              </Button>
             </div>
           </div>
         </div>
