@@ -56,14 +56,14 @@ const MAX_SLOTS: Record<CapacityRef, number> = {
 
 // Mapeamento de caminhos das imagens placeholder
 const PLACEHOLDER_MAP: Record<ProductType | "DEFAULT", string> = {
-  RIBBON: "/assets/placeholders/placeholder_fita_rolo.webp",
-  ACCESSORY: "/assets/placeholders/placeholder_fita_rolo.webp",
-  BASE_CONTAINER: "/assets/placeholders/placeholder_cesta_base.webp",
-  ASSEMBLED_KIT: "/assets/placeholders/placeholder_cesta_base.webp",
-  STANDARD_ITEM: "/assets/placeholders/placeholder_produto_padrao.webp",
-  FILLER: "/assets/placeholders/placeholder_enchimento.webp",
-  WRAPPER: "/assets/placeholders/placeholder_embalagem_saco.webp",
-  DEFAULT: "/assets/placeholders/placeholder_produto_padrao.webp",
+  RIBBON: "placeholder_fita_rolo.webp",
+  ACCESSORY: "placeholder_fita_rolo.webp",
+  BASE_CONTAINER: "placeholder_cesta_base.webp",
+  ASSEMBLED_KIT: "placeholder_cesta_base.webp",
+  STANDARD_ITEM: "placeholder_produto_padrao.webp",
+  FILLER: "placeholder_enchimento.webp",
+  WRAPPER: "saco_placeholder.webp",
+  DEFAULT: "placeholder_produto_padrao.webp",
 };
 
 // Função auxiliar que retorna o caminho da imagem

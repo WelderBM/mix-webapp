@@ -30,19 +30,19 @@ interface ProductCardProps {
 // Mapeamento de caminhos das imagens placeholder consolidadas
 const PLACEHOLDER_MAP: Record<ProductType | "DEFAULT", string> = {
   // Fitas e Acessórios de Laço
-  RIBBON: "/assets/placeholders/placeholder_fita_rolo.webp",
-  ACCESSORY: "/assets/placeholders/placeholder_fita_rolo.webp",
+  RIBBON: "/placeholder_fita_rolo.webp",
+  ACCESSORY: "/placeholder_fita_rolo.webp",
 
   // Bases e Kits Montados (Cestas)
-  BASE_CONTAINER: "/assets/placeholders/placeholder_cesta_base.webp",
-  ASSEMBLED_KIT: "/assets/placeholders/placeholder_cesta_base.webp",
+  BASE_CONTAINER: "/placeholder_cesta_base.webp",
+  ASSEMBLED_KIT: "/placeholder_cesta_base.webp",
 
   // Itens e outros
-  STANDARD_ITEM: "/assets/placeholders/placeholder_produto_padrao.webp",
-  FILLER: "/assets/placeholders/placeholder_enchimento.webp",
-  WRAPPER: "/assets/placeholders/placeholder_embalagem_saco.webp",
+  STANDARD_ITEM: "/placeholder_produto_padrao.webp",
+  FILLER: "/placeholder_enchimento.webp",
+  WRAPPER: "/saco_placeholder.webp",
 
-  DEFAULT: "/assets/placeholders/placeholder_produto_padrao.webp", // Fallback
+  DEFAULT: "/placeholder_produto_padrao.webp", // Fallback
 };
 
 // Funçao auxiliar que retorna o caminho
@@ -80,7 +80,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     }
   };
 
-  const imageUrl = product.imageUrl || getPlaceholderUrl(product.type);
+  const imageUrl = getPlaceholderUrl(product.type);
+  // const imageUrl = product.imageUrl || getPlaceholderUrl(product.type);
+  console.log(imageUrl);
 
   return (
     <Link href={`/produto/${product.id}`} passHref>
