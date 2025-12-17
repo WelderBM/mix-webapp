@@ -1,7 +1,6 @@
-// src/components/features/KitBuilderModal.tsx (VERSÃO FINAL CONSOLIDADA COM PLACEHOLDERS .webp)
 "use client";
 
-import { useEffect, useRef, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,21 +13,16 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  Package,
   Gift,
   Feather,
   ShoppingCart,
   Check,
   ChevronRight,
   ChevronLeft,
-  XCircle,
   AlertTriangle,
-  Ruler,
   List,
   Box,
   PlusCircle,
-  SquareStack,
-  ShoppingBag,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -44,9 +38,8 @@ import {
   CapacityRef,
   CartItem,
   ProductType,
-} from "@/lib/types";
+} from "@/types";
 import { cn } from "@/lib/utils";
-import { LACO_STYLES_OPTIONS } from "@/lib/ribbon_config";
 
 interface KitBuilderModalProps {
   isOpen: boolean;
@@ -54,14 +47,14 @@ interface KitBuilderModalProps {
   assembledKit?: AssembledKitProduct;
 }
 
-// Capacidade máxima de slots por gabarito (Duplicado aqui para referência de UI)
+// Capacidade máxima de slots por gabarito
 const MAX_SLOTS: Record<CapacityRef, number> = {
   P: 5,
   M: 10,
   G: 15,
 };
 
-// NOVO: Mapeamento de caminhos das imagens placeholder consolidadas
+// Mapeamento de caminhos das imagens placeholder
 const PLACEHOLDER_MAP: Record<ProductType | "DEFAULT", string> = {
   RIBBON: "/assets/placeholders/placeholder_fita_rolo.webp",
   ACCESSORY: "/assets/placeholders/placeholder_fita_rolo.webp",
@@ -73,7 +66,7 @@ const PLACEHOLDER_MAP: Record<ProductType | "DEFAULT", string> = {
   DEFAULT: "/assets/placeholders/placeholder_produto_padrao.webp",
 };
 
-// Função auxiliar que retorna o caminho da imagem (ou placeholder)
+// Função auxiliar que retorna o caminho da imagem
 const getPlaceholderUrl = (type: ProductType) => {
   return PLACEHOLDER_MAP[type] || PLACEHOLDER_MAP["DEFAULT"];
 };
@@ -174,7 +167,7 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
   const kitTotal = calculateKitTotal();
   const progressValue = (currentStep / 3) * 100;
 
-  // Lógica de filtro e memorização
+  // Lógica de filtros
   const availableBases = useMemo(
     () =>
       allProductsStore.filter(
@@ -200,18 +193,14 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
     [allProductsStore]
   );
 
-  // --- Funções de Navegação e Validação ---
-
+  // --- Validação ---
   const isStepValid = useMemo(() => {
     switch (currentStep) {
       case 1:
-        // Deve ter uma base selecionada
         return !!composition.baseContainer && !!composition.capacityRef;
       case 2:
-        // Deve ter pelo menos um item interno
         return composition.internalItems.length > 0;
       case 3:
-        // Deve ter uma seleção de laço
         return !!composition.ribbonSelection;
       default:
         return false;
@@ -231,19 +220,17 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
   };
 
   const handleFinishAssembly = () => {
-    if (!isStepValid) {
+    if (!isStepValid)
       return toast.error("Por favor, complete todas as etapas.");
-    }
 
-    // 1. Montar o item final do carrinho
     const kitCartItem: CartItem = {
       cartId: crypto.randomUUID(),
       type: "CUSTOM_KIT",
-      quantity: 1, // Sempre 1 kit
+      quantity: 1,
       kitName: composition.baseContainer!.name,
       kitTotalAmount: kitTotal,
       kitComposition: {
-        recipeId: assembledKit?.recipeId || "CUSTOM_NATAL", // ID da receita base ou custom
+        recipeId: assembledKit?.recipeId || "CUSTOM_NATAL",
         baseProductId: composition.baseContainer!.id,
         items: composition.internalItems.map((item) => ({
           productId: item.product.id,
@@ -259,7 +246,7 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
             : composition.ribbonSelection?.type === "PRONTO"
             ? {
                 accessoryId: composition.ribbonSelection.accessoryId,
-                laçoType: "PUXAR", // Usado como placeholder para laço pronto
+                laçoType: "PUXAR",
               }
             : undefined,
       },
@@ -267,50 +254,35 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
         composition.ribbonSelection?.type === "CUSTOM"
           ? composition.ribbonSelection.ribbonDetails
           : undefined,
-      product: composition.baseContainer,
+      product: composition.baseContainer ?? undefined,
     };
 
-    // 2. Adicionar ao carrinho
     addCartItem(kitCartItem);
     toast.success("Cesta personalizada adicionada ao carrinho!");
-
-    // 3. Fechar e resetar
     closeStore();
     onClose();
-    router.push("/carrinho"); // Ou apenas abrir o CartSidebar
+    router.push("/carrinho");
   };
 
   // --- Renderização dos Passos ---
-
   const renderStep = () => {
     switch (currentStep) {
-      case 1: // Escolha da Embalagem Base
+      case 1: // Base
         return (
           <ScrollArea className="h-full max-h-[500px] p-2">
             <h4 className="text-lg font-semibold mb-4 flex items-center gap-2 text-slate-700">
-              <Box className="w-5 h-5" /> 1. Escolha a Embalagem Base (Caixa,
-              Cesta ou Saco)
+              <Box className="w-5 h-5" /> 1. Escolha a Embalagem Base
             </h4>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {availableBases.map((base: Product) => {
                 const isSelected = base.id === composition.baseContainer?.id;
-                const imageUrl = base.imageUrl || getPlaceholderUrl(base.type); // Usa placeholder
-
+                const imageUrl = base.imageUrl || getPlaceholderUrl(base.type);
                 return (
                   <div
                     key={base.id}
                     onClick={() => setBaseContainer(base)}
                     className={cn(
-                      "border-2 rounded-xl p-3 cursor-pointer transition-all relative",
-                      base.capacityRef
-                        ? `border-dashed border-${
-                            base.capacityRef === "P"
-                              ? "green"
-                              : base.capacityRef === "M"
-                              ? "yellow"
-                              : "red"
-                          }-400`
-                        : "",
+                      "border-2 rounded-xl p-3 cursor-pointer transition-all relative group",
                       isSelected
                         ? "border-green-600 ring-2 ring-green-300 shadow-lg bg-green-50"
                         : "border-slate-200 hover:border-green-300 bg-white"
@@ -319,7 +291,7 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                     {isSelected && (
                       <Check className="absolute top-2 right-2 text-green-600 w-5 h-5" />
                     )}
-                    <div className="w-full h-20 bg-slate-100 rounded-md mb-2 relative overflow-hidden">
+                    <div className="w-full h-20 bg-slate-100 rounded-md mb-2 relative overflow-hidden group-hover:scale-105 transition-transform">
                       <Image
                         src={imageUrl}
                         alt={base.name}
@@ -331,11 +303,12 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                       {base.name}
                     </p>
                     <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
-                      <span>R$ {base.price.toFixed(2)}</span>
+                      {/* Preço oculto ou discreto nesta etapa */}
+                      <span>Base</span>
                       {base.capacityRef && (
                         <span
                           className={cn(
-                            "font-bold px-2 py-0.5 rounded-full text-white",
+                            "font-bold px-2 py-0.5 rounded-full text-white text-[10px]",
                             base.capacityRef === "P"
                               ? "bg-green-500"
                               : base.capacityRef === "M"
@@ -343,7 +316,7 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                               : "bg-red-500"
                           )}
                         >
-                          {base.capacityRef}
+                          TAM: {base.capacityRef}
                         </span>
                       )}
                     </div>
@@ -354,25 +327,38 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
           </ScrollArea>
         );
 
-      case 2: // Adição de Itens
-        const capacityRef = composition.capacityRef;
+      case 2: // Itens (Com Barra Inteligente)
+        const capacityRef = composition.capacityRef as CapacityRef | undefined;
         const maxSlots = capacityRef ? MAX_SLOTS[capacityRef] : 0;
-        const currentSlotPercentage =
-          (composition.currentSlotCount / maxSlots) * 100;
+        const currentSlotPercentage = Math.min(
+          (composition.currentSlotCount / maxSlots) * 100,
+          100
+        );
         const isCapacityExceeded = composition.currentSlotCount > maxSlots;
 
+        // Lógica de "Smart Progress"
+        let progressColor = "bg-slate-300";
+        let progressMessage = "Vamos encher essa cesta?";
+        if (isCapacityExceeded) {
+          progressColor = "bg-red-500";
+          progressMessage = "Ops! Capacidade excedida.";
+        } else if (currentSlotPercentage > 80) {
+          progressColor = "bg-purple-600";
+          progressMessage = "Perfeito! Cesta bem recheada.";
+        } else if (currentSlotPercentage > 40) {
+          progressColor = "bg-green-500";
+          progressMessage = "Está ficando linda! Cabe mais.";
+        } else if (currentSlotPercentage > 0) {
+          progressColor = "bg-yellow-400";
+          progressMessage = "Começando bem...";
+        }
+
         const handleAddItem = (product: Product, quantity: number) => {
-          if (
-            composition.internalItems.find(
-              (item) => item.product.id === product.id
-            )
-          ) {
-            updateItemQuantity(
-              product.id,
-              composition.internalItems.find(
-                (item) => item.product.id === product.id
-              )!.quantity + quantity
-            );
+          const existing = composition.internalItems.find(
+            (item) => item.product.id === product.id
+          );
+          if (existing) {
+            updateItemQuantity(product.id, existing.quantity + quantity);
           } else {
             addItem(product, quantity);
           }
@@ -384,7 +370,7 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
           );
           if (item && item.quantity > 1) {
             updateItemQuantity(productId, item.quantity - 1);
-          } else if (item && item.quantity === 1) {
+          } else if (item) {
             removeItem(productId);
           }
         };
@@ -393,32 +379,48 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
           <div className="flex flex-col h-full">
             <div className="mb-4">
               <h4 className="text-lg font-semibold flex items-center gap-2 text-slate-700">
-                <List className="w-5 h-5" /> 2. Adicione os Itens Internos
+                <List className="w-5 h-5" /> 2. Adicione os Mimos
               </h4>
-              <div className="text-sm mt-2 p-3 rounded-lg border bg-slate-50">
-                <p className="font-medium text-slate-600 flex justify-between items-center">
-                  <span>Capacidade ({capacityRef}):</span>
-                  <span
-                    className={
-                      isCapacityExceeded
-                        ? "text-red-500 font-bold"
-                        : "text-slate-800"
-                    }
-                  >
-                    {composition.currentSlotCount} / {maxSlots} slots
+
+              {/* BARRA DE PROGRESSO INTELIGENTE */}
+              <div className="mt-2 p-3 rounded-lg border bg-slate-50 transition-colors duration-300">
+                <div className="flex justify-between items-end mb-1">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Ocupação da Cesta
                   </span>
-                </p>
-                <Progress
-                  value={currentSlotPercentage}
-                  className={cn(
-                    "mt-1",
-                    isCapacityExceeded ? "bg-red-500" : "bg-green-500"
-                  )}
-                />
+                  <span
+                    className={cn(
+                      "text-sm font-bold",
+                      isCapacityExceeded ? "text-red-600" : "text-slate-700"
+                    )}
+                  >
+                    {Math.round(currentSlotPercentage)}%
+                  </span>
+                </div>
+
+                <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full transition-all duration-500 ease-out",
+                      progressColor
+                    )}
+                    style={{ width: `${currentSlotPercentage}%` }}
+                  />
+                </div>
+
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-xs text-slate-500 italic">
+                    💡 {progressMessage}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {composition.currentSlotCount}/{maxSlots} slots
+                  </span>
+                </div>
+
                 {isCapacityExceeded && (
-                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3" /> Remova itens para
-                    continuar.
+                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
+                    <AlertTriangle className="w-3 h-3" /> Capacidade excedida!
+                    Remova itens.
                   </p>
                 )}
               </div>
@@ -438,7 +440,7 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                       onAdd={handleAddItem}
                       onRemove={handleRemoveItem}
                       currentQuantity={currentQuantity}
-                      disabled={isCapacityExceeded}
+                      disabled={isCapacityExceeded && currentQuantity === 0}
                     />
                   );
                 })}
@@ -447,12 +449,12 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
           </div>
         );
 
-      case 3: // Escolha do Laço e Finalização
+      case 3: // Laço
         const laçosProntos = availableAccessories.filter(
-          (a: Product) => a.laçoType && a.laçoType !== "PUXAR"
+          (a) => a.laçoType && a.laçoType !== "PUXAR"
         );
         const laçoPuxar = availableAccessories.find(
-          (a: Product) => a.laçoType === "PUXAR"
+          (a) => a.laçoType === "PUXAR"
         );
 
         return (
@@ -461,11 +463,11 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
               <Feather className="w-5 h-5" /> 3. Finalização e Laço
             </h4>
 
-            {/* RESUMO DO LAÇO ESCOLHIDO */}
             <div className="p-4 rounded-lg border border-purple-300 bg-purple-50 text-sm">
-              <p className="font-bold mb-2 text-purple-700">Opções de Laço:</p>
-              <div className="grid grid-cols-2 gap-4">
-                {/* Opção 1: Laço de Puxar Rápido */}
+              <p className="font-bold mb-2 text-purple-700">
+                Escolha o Acabamento:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {laçoPuxar && (
                   <div
                     onClick={() =>
@@ -481,62 +483,24 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                         : "hover:border-purple-500 bg-white"
                     )}
                   >
-                    <p className="font-bold">Laço de Puxar (Rápido)</p>
+                    <p className="font-bold">Laço Rápido (Puxar)</p>
                     <p className="text-xs text-slate-500">
-                      Adicione um laço pronto simples. R${" "}
-                      {laçoPuxar.price.toFixed(2)}.
+                      Simples e prático. (+R$ {laçoPuxar.price.toFixed(2)})
                     </p>
                   </div>
                 )}
 
-                {/* Opção 2: Laço Pronto de Estoque */}
-                {laçosProntos.length > 0 &&
-                  laçosProntos.map((laco: Product) => (
-                    <div
-                      key={laco.id}
-                      onClick={() =>
-                        setRibbonSelection({
-                          type: "PRONTO",
-                          accessoryId: laco.id,
-                        })
-                      }
-                      className={cn(
-                        "border-2 p-3 rounded-lg cursor-pointer transition-all",
-                        composition.ribbonSelection?.type === "PRONTO" &&
-                          composition.ribbonSelection.accessoryId === laco.id
-                          ? "border-green-600 bg-green-50"
-                          : "hover:border-purple-500 bg-white"
-                      )}
-                    >
-                      <p className="font-bold">Laço Pronto {laco.name}</p>
-                      <p className="text-xs text-slate-500">
-                        Temos este laço confeccionado. R${" "}
-                        {laco.price.toFixed(2)}.
-                      </p>
-                    </div>
-                  ))}
-
-                {/* Opção 3: Laço Customizado (Redireciona) */}
                 <Link href="/laco-builder" passHref>
-                  <div
-                    className={cn(
-                      "border-2 p-3 rounded-lg cursor-pointer transition-all border-purple-600 bg-purple-100 hover:bg-purple-200"
-                    )}
-                    onClick={() => {
-                      closeStore();
-                      onClose();
-                    }}
-                  >
-                    <p className="font-bold text-purple-700">
-                      Personalizar Laço
+                  <div className="border-2 p-3 rounded-lg cursor-pointer transition-all border-purple-600 bg-purple-100 hover:bg-purple-200 h-full flex flex-col justify-center">
+                    <p className="font-bold text-purple-700 flex items-center gap-2">
+                      ✨ Personalizar Laço
                     </p>
                     <p className="text-xs text-purple-600">
-                      Crie um laço com modelos Bola ou Borboleta (R$ 2/3/5).
+                      Escolha cor, modelo (Bola/Borboleta) e fitas.
                     </p>
                   </div>
                 </Link>
 
-                {/* Opção 4: Sem Laço */}
                 <div
                   onClick={() => setRibbonSelection({ type: "NENHUM" })}
                   className={cn(
@@ -547,19 +511,23 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                   )}
                 >
                   <p className="font-bold">Sem Laço</p>
-                  <p className="text-xs text-slate-500">
-                    Finalizar sem laço decorativo.
-                  </p>
+                  <p className="text-xs text-slate-500">Apenas embalado.</p>
                 </div>
               </div>
             </div>
 
-            {/* RESUMO TOTAL */}
-            <div className="pt-4 border-t border-dashed">
-              <h5 className="font-bold text-xl flex justify-between items-center">
-                <span>Total da Cesta:</span>
-                <span className="text-green-600">R$ {kitTotal.toFixed(2)}</span>
+            {/* RESUMO TOTAL - APENAS NA ÚLTIMA ETAPA */}
+            <div className="pt-6 border-t border-dashed animate-in fade-in slide-in-from-bottom-4">
+              <h5 className="font-bold text-xl flex justify-between items-center bg-slate-50 p-4 rounded-lg border">
+                <span>Total do Kit:</span>
+                <span className="text-green-600 text-2xl">
+                  R$ {kitTotal.toFixed(2)}
+                </span>
               </h5>
+              <p className="text-xs text-center text-slate-400 mt-2">
+                Itens: {composition.internalItems.length} | Base:{" "}
+                {composition.baseContainer?.name}
+              </p>
             </div>
           </div>
         );
@@ -574,33 +542,31 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
       <DialogContent className="max-w-4xl p-0 h-[80vh] flex flex-col">
         <DialogHeader className="p-6 pb-0 shrink-0">
           <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-slate-900">
-            <Gift className="w-7 h-7 text-primary" /> Monte Sua Cesta de
-            Presente
+            <Gift className="w-7 h-7 text-primary" /> Monte Sua Cesta
           </DialogTitle>
           <DialogDescription className="text-sm text-slate-500">
-            Siga as etapas para criar sua cesta personalizada para o Natal.
+            Personalize cada detalhe do seu presente.
           </DialogDescription>
-
           <div className="mt-4">
             <Progress value={progressValue} className="w-full h-2" />
-            <p className="text-xs text-slate-500 mt-1">
-              Etapa {currentStep} de 3
-            </p>
           </div>
         </DialogHeader>
 
-        {/* BODY DOS PASSOS */}
         <div className="flex-1 overflow-hidden p-6 pt-4">{renderStep()}</div>
 
-        {/* FOOTER DE NAVEGAÇÃO E TOTAL */}
-        <div className="flex justify-between items-center p-6 border-t shrink-0">
+        <div className="flex justify-between items-center p-6 border-t shrink-0 bg-slate-50/50">
+          {/* LADO ESQUERDO: Preço (Visível apenas no final para UX) */}
           <div className="text-sm font-semibold">
-            Total Parcial:{" "}
-            <span className="text-xl font-bold text-green-600">
-              R$ {kitTotal.toFixed(2)}
-            </span>
+            {currentStep === 3 ? (
+              <span className="text-slate-400">Pronto para finalizar?</span>
+            ) : (
+              <span className="text-slate-400 italic text-xs">
+                Continue montando...
+              </span>
+            )}
           </div>
 
+          {/* LADO DIREITO: Botões */}
           <div className="flex items-center space-x-3">
             <Button
               variant="outline"
@@ -614,7 +580,7 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
               <Button
                 onClick={nextStep}
                 disabled={!isStepValid}
-                style={{ backgroundColor: "var(--primary)" }}
+                className="bg-primary hover:bg-primary/90"
               >
                 Próxima Etapa <ChevronRight className="w-4 h-4 ml-2" />
               </Button>
@@ -622,9 +588,9 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
               <Button
                 onClick={handleFinishAssembly}
                 disabled={!isStepValid}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold text-lg h-10"
+                className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-green-200 shadow-lg"
               >
-                <ShoppingCart className="w-5 h-5 mr-2" /> Finalizar Pedido
+                <ShoppingCart className="w-5 h-5 mr-2" /> Adicionar à Sacola
               </Button>
             )}
           </div>

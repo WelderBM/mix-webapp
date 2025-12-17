@@ -2,7 +2,8 @@ export type SectionType =
   | "product_shelf"
   | "banner_kit"
   | "banner_ribbon"
-  | "banner_natura";
+  | "banner_natura"
+  | "assembled_kit_shelf";
 
 export type SectionWidth = "full" | "half";
 

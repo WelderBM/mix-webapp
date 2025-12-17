@@ -1,4 +1,3 @@
-// src/components/views/HomeClient.tsx
 "use client";
 
 import { useRef, useMemo } from "react";
@@ -18,22 +17,25 @@ import { useThemeStyles } from "@/hooks/useThemeStyles";
 import {
   Product,
   StoreSettings,
-  StoreSection,
   AssembledKitProduct,
+  StoreSection,
+  KitRecipe,
 } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface HomeClientProps {
   initialProducts: Product[];
   initialSettings: StoreSettings;
+  initialRecipes: KitRecipe[]; // Novo Prop
 }
 
 export default function HomeClient({
   initialProducts,
   initialSettings,
+  initialRecipes,
 }: HomeClientProps) {
-  // 1. Hook de Hidratação: Sincroniza dados iniciais com as Stores
-  useStoreHydration(initialProducts, initialSettings);
+  // 1. Hook de Hidratação: Agora recebe recipes também
+  useStoreHydration(initialProducts, initialSettings, initialRecipes);
 
   // 2. Acesso às Stores
   const { allProducts, getProductById } = useProductStore();
@@ -44,17 +46,14 @@ export default function HomeClient({
     closeKitBuilder,
   } = useKitBuilderStore();
 
-  // 3. Dados Computados e Estilos
-  // Prioriza dados da store (atualizados), fallback para iniciais (SSR)
+  // 3. Dados Computados
   const productsToRender =
     allProducts.length > 0 ? allProducts : initialProducts;
   const settingsToRender = settings.id ? settings : initialSettings;
 
-  // Hook de cálculo de tema
   const themeStyles = useThemeStyles(settingsToRender);
 
   // 4. Lógica do Modal de Kit
-  // Busca o kit selecionado usando a store para garantir dados frescos
   const selectedKit = useMemo(() => {
     if (!selectedKitId) return undefined;
     const kit = getProductById(selectedKitId);
@@ -87,7 +86,7 @@ export default function HomeClient({
       <div ref={shelvesRef} className="max-w-6xl mx-auto px-4 mt-8 mb-12">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           {settingsToRender.homeSections
-            ?.filter((section: StoreSection) => section.isActive)
+            ?.filter((s: StoreSection) => s.isActive)
             .map((section: StoreSection) => (
               <div
                 key={section.id}
@@ -96,7 +95,6 @@ export default function HomeClient({
                   section.width === "full" ? "md:col-span-2" : "md:col-span-1"
                 )}
               >
-                {/* O Renderizador decide qual componente mostrar baseada na section */}
                 <SectionRenderer
                   section={section}
                   products={productsToRender}
