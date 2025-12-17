@@ -1,4 +1,4 @@
-import { StoreSection, Product } from "@/lib/types";
+import { StoreSection, Product } from "@/types";
 import { SectionProductShelf } from "./SectionProductShelf";
 import { SectionBannerKit } from "./SectionBannerKit";
 import { SectionBannerRibbon } from "./SectionBannerRibbon";

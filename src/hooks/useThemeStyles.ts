@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { StoreSettings } from "@/lib/types";
+import { StoreSettings } from "@/types";
 import { hexToRgb, getContrastColor, adjustColor } from "@/lib/utils";
 
 export const useThemeStyles = (settings: StoreSettings) => {

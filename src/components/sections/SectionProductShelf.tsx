@@ -1,6 +1,6 @@
 "use client";
 
-import { Product, StoreSection, AssembledKitProduct } from "@/lib/types";
+import { Product, StoreSection, AssembledKitProduct } from "@/types";
 import { ProductCard } from "@/components/features/ProductCard";
 import { useCartStore } from "@/store/cartStore";
 

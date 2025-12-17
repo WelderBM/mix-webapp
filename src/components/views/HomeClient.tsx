@@ -15,7 +15,12 @@ import { EmptyStoreState } from "@/components/views/EmptyStoreState";
 import { useStoreHydration } from "@/hooks/useStoreHydration";
 import { useThemeStyles } from "@/hooks/useThemeStyles";
 // Types & Utils
-import { Product, StoreSettings, AssembledKitProduct } from "@/lib/types";
+import {
+  Product,
+  StoreSettings,
+  StoreSection,
+  AssembledKitProduct,
+} from "@/types";
 import { cn } from "@/lib/utils";
 
 interface HomeClientProps {
@@ -82,8 +87,8 @@ export default function HomeClient({
       <div ref={shelvesRef} className="max-w-6xl mx-auto px-4 mt-8 mb-12">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           {settingsToRender.homeSections
-            ?.filter((s) => s.isActive)
-            .map((section) => (
+            ?.filter((section: StoreSection) => section.isActive)
+            .map((section: StoreSection) => (
               <div
                 key={section.id}
                 className={cn(
