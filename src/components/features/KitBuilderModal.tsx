@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -14,516 +13,492 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   Gift,
-  Feather,
-  ShoppingCart,
-  Check,
-  ChevronRight,
-  ChevronLeft,
-  AlertTriangle,
-  List,
+  ShoppingBag,
   Box,
-  PlusCircle,
+  ChevronRight,
+  Plus,
+  Minus,
+  Check,
+  Info,
+  List,
 } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
-import { AssembledKitProduct, Product, CapacityRef, CartItem } from "@/types";
-import { cn } from "@/lib/utils";
-// Certifique-se de que este arquivo existe (criado no passo anterior)
+import { Product } from "@/types";
+import { cn, formatCurrency } from "@/lib/utils";
 import { getProductImage } from "@/lib/image-utils";
 
-interface KitBuilderModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  assembledKit?: AssembledKitProduct;
-}
+export function KitBuilderModal() {
+  const { allProducts } = useProductStore();
+  const { addItem: addCartItem, openCart: openGlobalCart } = useCartStore();
 
-const MAX_SLOTS: Record<CapacityRef, number> = { P: 5, M: 10, G: 15 };
-
-interface ItemSelectorProps {
-  product: Product;
-  onAdd: (product: Product, quantity: number) => void;
-  onRemove: (productId: string) => void;
-  currentQuantity: number;
-  disabled?: boolean;
-}
-
-const ItemSelector: React.FC<ItemSelectorProps> = ({
-  product,
-  onAdd,
-  onRemove,
-  currentQuantity,
-  disabled,
-}) => {
-  const imageUrl = getProductImage(product.imageUrl, product.type);
-
-  return (
-    <div
-      className={cn(
-        "flex justify-between items-center p-3 border rounded-lg transition-all",
-        disabled ? "bg-slate-100 opacity-60" : "bg-white hover:border-green-400"
-      )}
-    >
-      <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 rounded-md bg-slate-200 relative overflow-hidden shrink-0">
-          <Image
-            src={imageUrl}
-            alt={product.name}
-            fill
-            className="object-cover"
-          />
-        </div>
-        <div>
-          <p className="font-semibold text-sm line-clamp-1">{product.name}</p>
-          <p className="text-xs text-slate-500">
-            R$ {product.price.toFixed(2)}
-          </p>
-        </div>
-      </div>
-      <div className="flex items-center space-x-2">
-        {currentQuantity > 0 && (
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => onRemove(product.id)}
-            disabled={disabled}
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-        )}
-        {currentQuantity > 0 && (
-          <span className="w-6 text-center text-sm font-bold">
-            {currentQuantity}
-          </span>
-        )}
-        <Button
-          variant="default"
-          size="icon"
-          onClick={() => onAdd(product, 1)}
-          disabled={disabled}
-        >
-          <PlusCircle className="w-4 h-4" />
-        </Button>
-      </div>
-    </div>
-  );
-};
-
-export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
-  isOpen,
-  onClose,
-  assembledKit,
-}) => {
-  const router = useRouter();
-  const { allProducts: allProductsStore } = useProductStore();
-  const { addItem: addCartItem } = useCartStore();
   const {
+    isOpen,
     currentStep,
     composition,
+    selectedStyle,
     setStep,
-    setBaseContainer,
+    setStyle,
     addItem,
     updateItemQuantity,
-    removeItem,
-    setRibbonSelection,
+    setBaseContainer,
+    setWrapper,
+    getValidWrappers,
     calculateKitTotal,
-    closeKitBuilder: closeStore,
+    resetBuilder,
+    closeKitBuilder,
   } = useKitBuilderStore();
 
-  const kitTotal = calculateKitTotal();
-  const progressValue = (currentStep / 3) * 100;
-
-  const availableBases = useMemo(
-    () =>
-      allProductsStore.filter(
-        (p): p is Product => p.type === "BASE_CONTAINER" && p.inStock
+  // Filtragem de produtos por tipo
+  const catalog = useMemo(
+    () => ({
+      items: allProducts.filter((p) => p.type === "STANDARD_ITEM" && p.inStock),
+      bases: allProducts.filter(
+        (p) => p.type === "BASE_CONTAINER" && p.inStock
       ),
-    [allProductsStore]
-  );
-  const availableItems = useMemo(
-    () =>
-      allProductsStore.filter(
-        (p): p is Product =>
-          (p.type === "STANDARD_ITEM" || p.type === "FILLER") && p.inStock
-      ),
-    [allProductsStore]
-  );
-  const availableAccessories = useMemo(
-    () =>
-      allProductsStore.filter(
-        (p): p is Product => p.type === "ACCESSORY" && p.inStock
-      ),
-    [allProductsStore]
+      wrappers: allProducts.filter((p) => p.type === "WRAPPER" && p.inStock),
+      fillers: allProducts.filter((p) => p.type === "FILLER" && p.inStock),
+    }),
+    [allProducts]
   );
 
-  const isStepValid = useMemo(() => {
-    switch (currentStep) {
-      case 1:
-        return !!composition.baseContainer && !!composition.capacityRef;
-      case 2:
-        return composition.internalItems.length > 0;
-      case 3:
-        return !!composition.ribbonSelection;
-      default:
-        return false;
-    }
-  }, [currentStep, composition]);
+  const progress = (currentStep / 4) * 100;
 
-  const nextStep = () => {
-    if (isStepValid && currentStep < 3) setStep((currentStep + 1) as 1 | 2 | 3);
-  };
-  const prevStep = () => {
-    if (currentStep > 1) setStep((currentStep - 1) as 1 | 2 | 3);
+  // --- Handlers ---
+  const handleAddItem = (p: Product) => {
+    const result = addItem(p, 1);
+    if (!result.success) toast.error(result.reason);
   };
 
-  const handleFinishAssembly = () => {
-    if (!isStepValid)
-      return toast.error("Por favor, complete todas as etapas.");
-
-    const kitCartItem: CartItem = {
+  const handleFinish = () => {
+    const total = calculateKitTotal();
+    addCartItem({
       cartId: crypto.randomUUID(),
       type: "CUSTOM_KIT",
       quantity: 1,
-      kitName: composition.baseContainer!.name,
-      kitTotalAmount: kitTotal,
+      kitName: `Presente ${
+        selectedStyle === "CESTA_VITRINE" ? "na Cesta" : "Personalizado"
+      }`,
+      kitTotalAmount: total,
+      product: composition.baseContainer || undefined,
       kitComposition: {
-        recipeId: assembledKit?.recipeId || "CUSTOM_NATAL",
-        baseProductId: composition.baseContainer!.id,
-        items: composition.internalItems.map((item) => ({
-          productId: item.product.id,
-          quantity: item.quantity,
+        baseProductId: composition.baseContainer?.id || "",
+        wrapperProductId: composition.selectedWrapper?.id,
+        items: composition.internalItems.map((i) => ({
+          productId: i.product.id,
+          quantity: i.quantity,
         })),
-        finalRibbonDetails:
-          composition.ribbonSelection?.type === "CUSTOM"
-            ? {
-                laçoType: composition.ribbonSelection.ribbonDetails!.modelo,
-                fitaId:
-                  composition.ribbonSelection.ribbonDetails!.fitaPrincipalId,
-              }
-            : composition.ribbonSelection?.type === "PRONTO"
-            ? {
-                accessoryId: composition.ribbonSelection.accessoryId,
-                laçoType: "PUXAR",
-              }
-            : undefined,
       },
-      ribbonDetails:
-        composition.ribbonSelection?.type === "CUSTOM"
-          ? composition.ribbonSelection.ribbonDetails
-          : undefined,
-
-      // === CORREÇÃO CRÍTICA ===
-      // Se baseContainer for null, transformamos em undefined para agradar o TypeScript
-      product: composition.baseContainer ?? undefined,
-    };
-
-    addCartItem(kitCartItem);
-    toast.success("Cesta personalizada adicionada ao carrinho!");
-    closeStore();
-    onClose();
-    router.push("/carrinho");
-  };
-
-  const renderStep = () => {
-    switch (currentStep) {
-      case 1:
-        return (
-          <ScrollArea className="h-full max-h-[500px] p-2">
-            <h4 className="text-lg font-semibold mb-4 flex items-center gap-2 text-slate-700">
-              <Box className="w-5 h-5" /> 1. Escolha a Embalagem Base
-            </h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {availableBases.map((base: Product) => {
-                const isSelected = base.id === composition.baseContainer?.id;
-                const imageUrl = getProductImage(base.imageUrl, base.type);
-                return (
-                  <div
-                    key={base.id}
-                    onClick={() => setBaseContainer(base)}
-                    className={cn(
-                      "border-2 rounded-xl p-3 cursor-pointer transition-all relative group",
-                      isSelected
-                        ? "border-green-600 ring-2 ring-green-300 shadow-lg bg-green-50"
-                        : "border-slate-200 hover:border-green-300 bg-white"
-                    )}
-                  >
-                    {isSelected && (
-                      <Check className="absolute top-2 right-2 text-green-600 w-5 h-5" />
-                    )}
-                    <div className="w-full h-20 bg-slate-100 rounded-md mb-2 relative overflow-hidden group-hover:scale-105 transition-transform">
-                      <Image
-                        src={imageUrl}
-                        alt={base.name}
-                        fill
-                        className="object-contain"
-                      />
-                    </div>
-                    <p className="font-bold text-sm line-clamp-2">
-                      {base.name}
-                    </p>
-                    <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
-                      <span>Base</span>
-                      {base.capacityRef && (
-                        <span
-                          className={cn(
-                            "font-bold px-2 py-0.5 rounded-full text-white text-[10px]",
-                            base.capacityRef === "P"
-                              ? "bg-green-500"
-                              : base.capacityRef === "M"
-                              ? "bg-yellow-500"
-                              : "bg-red-500"
-                          )}
-                        >
-                          TAM: {base.capacityRef}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
-        );
-      case 2:
-        const capacityRef = composition.capacityRef as CapacityRef | undefined;
-        const maxSlots = capacityRef ? MAX_SLOTS[capacityRef] : 0;
-        const currentSlotPercentage = Math.min(
-          (composition.currentSlotCount / maxSlots) * 100,
-          100
-        );
-        const isCapacityExceeded = composition.currentSlotCount > maxSlots;
-        let progressColor = "bg-slate-300";
-        let progressMessage = "Vamos encher essa cesta?";
-        if (isCapacityExceeded) {
-          progressColor = "bg-red-500";
-          progressMessage = "Ops! Capacidade excedida.";
-        } else if (currentSlotPercentage > 80) {
-          progressColor = "bg-purple-600";
-          progressMessage = "Perfeito! Cesta bem recheada.";
-        } else if (currentSlotPercentage > 40) {
-          progressColor = "bg-green-500";
-          progressMessage = "Está ficando linda! Cabe mais.";
-        } else if (currentSlotPercentage > 0) {
-          progressColor = "bg-yellow-400";
-          progressMessage = "Começando bem...";
-        }
-
-        const handleAddItem = (product: Product, quantity: number) => {
-          const existing = composition.internalItems.find(
-            (item) => item.product.id === product.id
-          );
-          if (existing)
-            updateItemQuantity(product.id, existing.quantity + quantity);
-          else addItem(product, quantity);
-        };
-        const handleRemoveItem = (productId: string) => {
-          const item = composition.internalItems.find(
-            (item) => item.product.id === productId
-          );
-          if (item && item.quantity > 1)
-            updateItemQuantity(productId, item.quantity - 1);
-          else if (item) removeItem(productId);
-        };
-
-        return (
-          <div className="flex flex-col h-full">
-            <div className="mb-4">
-              <h4 className="text-lg font-semibold flex items-center gap-2 text-slate-700">
-                <List className="w-5 h-5" /> 2. Adicione os Mimos
-              </h4>
-              <div className="mt-2 p-3 rounded-lg border bg-slate-50 transition-colors duration-300">
-                <div className="flex justify-between items-end mb-1">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Ocupação da Cesta
-                  </span>
-                  <span
-                    className={cn(
-                      "text-sm font-bold",
-                      isCapacityExceeded ? "text-red-600" : "text-slate-700"
-                    )}
-                  >
-                    {Math.round(currentSlotPercentage)}%
-                  </span>
-                </div>
-                <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full transition-all duration-500 ease-out",
-                      progressColor
-                    )}
-                    style={{ width: `${currentSlotPercentage}%` }}
-                  />
-                </div>
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-xs text-slate-500 italic">
-                    💡 {progressMessage}
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    {composition.currentSlotCount}/{maxSlots} slots
-                  </span>
-                </div>
-                {isCapacityExceeded && (
-                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
-                    <AlertTriangle className="w-3 h-3" /> Capacidade excedida!
-                    Remova itens.
-                  </p>
-                )}
-              </div>
-            </div>
-            <ScrollArea className="flex-1 max-h-[400px] p-2">
-              <div className="space-y-3">
-                {availableItems.map((product: Product) => {
-                  const currentQuantity =
-                    composition.internalItems.find(
-                      (item) => item.product.id === product.id
-                    )?.quantity || 0;
-                  return (
-                    <ItemSelector
-                      key={product.id}
-                      product={product}
-                      onAdd={handleAddItem}
-                      onRemove={handleRemoveItem}
-                      currentQuantity={currentQuantity}
-                      disabled={isCapacityExceeded && currentQuantity === 0}
-                    />
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </div>
-        );
-      case 3:
-        const laçosProntos = availableAccessories.filter(
-          (a) => a.laçoType && a.laçoType !== "PUXAR"
-        );
-        const laçoPuxar = availableAccessories.find(
-          (a) => a.laçoType === "PUXAR"
-        );
-        return (
-          <div className="space-y-6 h-full">
-            <h4 className="text-lg font-semibold flex items-center gap-2 text-slate-700">
-              <Feather className="w-5 h-5" /> 3. Finalização e Laço
-            </h4>
-            <div className="p-4 rounded-lg border border-purple-300 bg-purple-50 text-sm">
-              <p className="font-bold mb-2 text-purple-700">
-                Escolha o Acabamento:
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {laçoPuxar && (
-                  <div
-                    onClick={() =>
-                      setRibbonSelection({
-                        type: "PUXAR",
-                        accessoryId: laçoPuxar.id,
-                      })
-                    }
-                    className={cn(
-                      "border-2 p-3 rounded-lg cursor-pointer transition-all",
-                      composition.ribbonSelection?.type === "PUXAR"
-                        ? "border-green-600 bg-green-50"
-                        : "hover:border-purple-500 bg-white"
-                    )}
-                  >
-                    <p className="font-bold">Laço Rápido (Puxar)</p>
-                    <p className="text-xs text-slate-500">
-                      Simples e prático. (+R$ {laçoPuxar.price.toFixed(2)})
-                    </p>
-                  </div>
-                )}
-                <Link href="/fitas?aba=laco" passHref>
-                  <div className="border-2 p-3 rounded-lg cursor-pointer transition-all border-purple-600 bg-purple-100 hover:bg-purple-200 h-full flex flex-col justify-center">
-                    <p className="font-bold text-purple-700 flex items-center gap-2">
-                      ✨ Personalizar Laço
-                    </p>
-                    <p className="text-xs text-purple-600">
-                      Escolha cor, modelo (Bola/Borboleta) e fitas.
-                    </p>
-                  </div>
-                </Link>
-                <div
-                  onClick={() => setRibbonSelection({ type: "NENHUM" })}
-                  className={cn(
-                    "border-2 p-3 rounded-lg cursor-pointer transition-all",
-                    composition.ribbonSelection?.type === "NENHUM"
-                      ? "border-green-600 bg-green-50"
-                      : "hover:border-slate-500 bg-white"
-                  )}
-                >
-                  <p className="font-bold">Sem Laço</p>
-                  <p className="text-xs text-slate-500">Apenas embalado.</p>
-                </div>
-              </div>
-            </div>
-            <div className="pt-6 border-t border-dashed animate-in fade-in slide-in-from-bottom-4">
-              <h5 className="font-bold text-xl flex justify-between items-center bg-slate-50 p-4 rounded-lg border">
-                <span>Total do Kit:</span>
-                <span className="text-green-600 text-2xl">
-                  R$ {kitTotal.toFixed(2)}
-                </span>
-              </h5>
-              <p className="text-xs text-center text-slate-400 mt-2">
-                Itens: {composition.internalItems.length} | Base:{" "}
-                {composition.baseContainer?.name}
-              </p>
-            </div>
-          </div>
-        );
-      default:
-        return null;
-    }
+    });
+    toast.success("Presente montado com sucesso!");
+    closeKitBuilder();
+    resetBuilder();
+    openGlobalCart();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl p-0 h-[80vh] flex flex-col">
-        <DialogHeader className="p-6 pb-0 shrink-0">
-          <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-slate-900">
-            <Gift className="w-7 h-7 text-primary" /> Monte Sua Cesta
-          </DialogTitle>
-          <DialogDescription className="text-sm text-slate-500">
-            Personalize cada detalhe do seu presente.
-          </DialogDescription>
-          <div className="mt-4">
-            <Progress value={progressValue} className="w-full h-2" />
+    <Dialog open={isOpen} onOpenChange={(open) => !open && closeKitBuilder()}>
+      <DialogContent className="max-w-4xl p-0 h-[90vh] flex flex-col overflow-hidden">
+        {/* HEADER COM PROGRESSO */}
+        <DialogHeader className="p-6 pb-2 border-b">
+          <div className="flex justify-between items-center mb-4">
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <Gift className="text-primary" /> Montador de Presentes
+            </DialogTitle>
+            <span className="text-sm font-bold text-primary">
+              R$ {calculateKitTotal().toFixed(2)}
+            </span>
           </div>
+          <Progress value={progress} className="h-2" />
         </DialogHeader>
-        <div className="flex-1 overflow-hidden p-6 pt-4">{renderStep()}</div>
-        <div className="flex justify-between items-center p-6 border-t shrink-0 bg-slate-50/50">
-          <div className="text-sm font-semibold">
-            {currentStep === 3 ? (
-              <span className="text-slate-400">Pronto para finalizar?</span>
-            ) : (
-              <span className="text-slate-400 italic text-xs">
-                Continue montando...
-              </span>
+
+        {/* ÁREA DE CONTEÚDO DINÂMICO */}
+        <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+          <div className="flex-1 flex flex-col border-r">
+            <ScrollArea className="flex-1 p-6">
+              {/* PASSO 1: ESCOLHA DOS ITENS (O CONTEÚDO) */}
+              {currentStep === 1 && (
+                <div className="space-y-6">
+                  <header>
+                    <h3 className="text-lg font-bold">
+                      1. O que vamos presentear?
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      Escolha os produtos que irão dentro do presente.
+                    </p>
+                  </header>
+                  <div className="grid grid-cols-2 gap-4">
+                    {catalog.items.map((p) => (
+                      <div
+                        key={p.id}
+                        className="border rounded-xl p-3 flex flex-col gap-2 bg-white hover:border-primary transition-colors"
+                      >
+                        <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-100">
+                          <Image
+                            src={getProductImage(p.imageUrl, p.type)}
+                            alt={p.name}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <p className="text-sm font-bold line-clamp-1">
+                          {p.name}
+                        </p>
+                        <p className="text-xs text-primary font-bold">
+                          {formatCurrency(p.price)}
+                        </p>
+                        <Button
+                          size="sm"
+                          onClick={() => handleAddItem(p)}
+                          className="w-full"
+                        >
+                          <Plus className="w-4 h-4 mr-1" /> Adicionar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* PASSO 2: ESTILO DO PRESENTE */}
+              {currentStep === 2 && (
+                <div className="space-y-6">
+                  <header>
+                    <h3 className="text-lg font-bold">
+                      2. Como deseja embalar?
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      Escolha o formato da apresentação.
+                    </p>
+                  </header>
+                  <div className="grid grid-cols-1 gap-4">
+                    <button
+                      onClick={() => setStyle("SACO_EXPRESS")}
+                      className={cn(
+                        "flex items-center gap-4 p-4 border-2 rounded-2xl text-left transition-all",
+                        selectedStyle === "SACO_EXPRESS"
+                          ? "border-primary bg-primary/5"
+                          : "hover:border-slate-300"
+                      )}
+                    >
+                      <div className="p-3 bg-blue-100 rounded-full text-blue-600">
+                        <ShoppingBag />
+                      </div>
+                      <div>
+                        <p className="font-bold">Saco de Presente</p>
+                        <p className="text-xs text-slate-500">
+                          Prático, rápido e econômico.
+                        </p>
+                      </div>
+                      {selectedStyle === "SACO_EXPRESS" && (
+                        <Check className="ml-auto text-primary" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setStyle("CAIXA_FECHADA")}
+                      className={cn(
+                        "flex items-center gap-4 p-4 border-2 rounded-2xl text-left transition-all",
+                        selectedStyle === "CAIXA_FECHADA"
+                          ? "border-primary bg-primary/5"
+                          : "hover:border-slate-300"
+                      )}
+                    >
+                      <div className="p-3 bg-purple-100 rounded-full text-purple-600">
+                        <Box />
+                      </div>
+                      <div>
+                        <p className="font-bold">Caixa Surpresa</p>
+                        <p className="text-xs text-slate-500">
+                          Elegante e misterioso com seda.
+                        </p>
+                      </div>
+                      {selectedStyle === "CAIXA_FECHADA" && (
+                        <Check className="ml-auto text-primary" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setStyle("CESTA_VITRINE")}
+                      className={cn(
+                        "flex items-center gap-4 p-4 border-2 rounded-2xl text-left transition-all",
+                        selectedStyle === "CESTA_VITRINE"
+                          ? "border-primary bg-primary/5"
+                          : "hover:border-slate-300"
+                      )}
+                    >
+                      <div className="p-3 bg-orange-100 rounded-full text-orange-600">
+                        <Gift />
+                      </div>
+                      <div>
+                        <p className="font-bold">Cesta Vitrine</p>
+                        <p className="text-xs text-slate-500">
+                          A opção mais premium e visual.
+                        </p>
+                      </div>
+                      {selectedStyle === "CESTA_VITRINE" && (
+                        <Check className="ml-auto text-primary" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* PASSO 3: ESCOLHA DA BASE/SACO (FILTRADO) */}
+              {currentStep === 3 && (
+                <div className="space-y-6">
+                  <header>
+                    <h3 className="text-lg font-bold">
+                      3. Escolha a Embalagem
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      Mostrando apenas opções que comportam seus itens.
+                    </p>
+                  </header>
+
+                  {/* Se for Cesta ou Caixa, escolhe a base primeiro */}
+                  {(selectedStyle === "CESTA_VITRINE" ||
+                    selectedStyle === "CAIXA_FECHADA") && (
+                    <div className="grid grid-cols-2 gap-4">
+                      {catalog.bases
+                        .filter((b) => b.kitStyle === selectedStyle)
+                        .map((base) => (
+                          <div
+                            key={base.id}
+                            onClick={() => setBaseContainer(base)}
+                            className={cn(
+                              "cursor-pointer border-2 p-3 rounded-xl transition-all",
+                              composition.baseContainer?.id === base.id
+                                ? "border-primary bg-primary/5"
+                                : "border-slate-100"
+                            )}
+                          >
+                            <div className="relative aspect-video mb-2">
+                              <Image
+                                src={getProductImage(base.imageUrl, base.type)}
+                                alt=""
+                                fill
+                                className="object-contain"
+                              />
+                            </div>
+                            <p className="text-xs font-bold text-center">
+                              {base.name}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
+                  {/* Se for Saco Express ou após escolher a base da cesta, escolhe o saco/fechamento */}
+                  <div className="mt-8">
+                    <h4 className="text-sm font-bold mb-3">
+                      Escolha o Saco/Estampa:
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      {getValidWrappers(catalog.wrappers).map((w) => (
+                        <div
+                          key={w.id}
+                          onClick={() => setWrapper(w)}
+                          className={cn(
+                            "cursor-pointer border p-2 rounded-lg flex items-center gap-2",
+                            composition.selectedWrapper?.id === w.id
+                              ? "border-primary bg-primary/5"
+                              : "border-slate-100"
+                          )}
+                        >
+                          <div className="w-10 h-10 relative bg-slate-100 rounded">
+                            <Image
+                              src={getProductImage(w.imageUrl, w.type)}
+                              alt=""
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <span className="text-[10px] font-medium leading-tight">
+                            {w.name}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PASSO 4: RESUMO E FINALIZAÇÃO */}
+              {currentStep === 4 && (
+                <div className="space-y-6">
+                  <header>
+                    <h3 className="text-lg font-bold">4. Quase pronto!</h3>
+                    <p className="text-sm text-slate-500">
+                      Confira se está tudo como você deseja.
+                    </p>
+                  </header>
+                  <div className="bg-slate-50 p-4 rounded-2xl border-2 border-dashed border-slate-200">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center text-primary shadow-sm">
+                        <Check size={32} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800">
+                          Tudo verificado!
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Itens cabem perfeitamente na embalagem.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Mão de obra (Montagem)</span>
+                        <span className="font-bold">Incluído</span>
+                      </div>
+                      <div className="flex justify-between text-primary font-bold text-lg pt-2 border-t">
+                        <span>Total</span>
+                        <span>{formatCurrency(calculateKitTotal())}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+
+          {/* SIDEBAR DE RESUMO (DIREITA) */}
+          <div className="w-full md:w-80 bg-slate-50 p-6 flex flex-col gap-4">
+            <h4 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase tracking-wider">
+              <List size={14} /> Seu Kit
+            </h4>
+
+            <ScrollArea className="flex-1 pr-2">
+              <div className="space-y-3">
+                {composition.internalItems.map((item) => (
+                  <div
+                    key={item.product.id}
+                    className="flex gap-3 bg-white p-2 rounded-lg border shadow-sm group"
+                  >
+                    <div className="w-10 h-10 relative rounded overflow-hidden flex-shrink-0">
+                      <Image
+                        src={getProductImage(
+                          item.product.imageUrl,
+                          item.product.type
+                        )}
+                        alt=""
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold truncate">
+                        {item.product.name}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          onClick={() =>
+                            updateItemQuantity(
+                              item.product.id,
+                              item.quantity - 1
+                            )
+                          }
+                          className="p-0.5 bg-slate-100 rounded-full hover:bg-slate-200"
+                        >
+                          <Minus size={10} />
+                        </button>
+                        <span className="text-xs font-bold">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            updateItemQuantity(
+                              item.product.id,
+                              item.quantity + 1
+                            )
+                          }
+                          className="p-0.5 bg-slate-100 rounded-full hover:bg-slate-200"
+                        >
+                          <Plus size={10} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {composition.internalItems.length === 0 && (
+                  <div className="text-center py-10 opacity-40">
+                    <Info className="mx-auto mb-2" />
+                    <p className="text-xs">Nenhum item adicionado</p>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+
+            {/* STATUS DE CAPACIDADE */}
+            {composition.baseContainer && (
+              <div className="bg-white p-3 rounded-xl border border-primary/20">
+                <div className="flex justify-between text-[10px] font-bold mb-1 uppercase text-slate-400">
+                  <span>Espaço Ocupado</span>
+                  <span>{composition.currentSlotCount} slots</span>
+                </div>
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-500"
+                    style={{
+                      width: `${
+                        (composition.currentSlotCount /
+                          (composition.baseContainer.capacity || 10)) *
+                        100
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
             )}
           </div>
-          <div className="flex items-center space-x-3">
-            <Button
-              variant="outline"
-              onClick={prevStep}
-              disabled={currentStep === 1}
-            >
-              <ChevronLeft className="w-4 h-4 mr-2" /> Anterior
-            </Button>
-            {currentStep < 3 ? (
+        </div>
+
+        {/* FOOTER - NAVEGAÇÃO */}
+        <div className="p-6 border-t bg-white flex justify-between items-center">
+          <Button
+            variant="ghost"
+            onClick={
+              currentStep === 1
+                ? closeKitBuilder
+                : () => setStep(currentStep - 1)
+            }
+          >
+            {currentStep === 1 ? "Cancelar" : "Voltar"}
+          </Button>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden md:block text-right">
+              <p className="text-[10px] text-slate-400 font-bold uppercase">
+                Total Estimado
+              </p>
+              <p className="font-bold text-primary">
+                {formatCurrency(calculateKitTotal())}
+              </p>
+            </div>
+
+            {currentStep < 4 ? (
               <Button
-                onClick={nextStep}
-                disabled={!isStepValid}
-                className="bg-primary hover:bg-primary/90"
+                onClick={() => setStep(currentStep + 1)}
+                disabled={
+                  (currentStep === 1 &&
+                    composition.internalItems.length === 0) ||
+                  (currentStep === 2 && !selectedStyle) ||
+                  (currentStep === 3 && !composition.selectedWrapper)
+                }
+                className="gap-2"
               >
-                Próxima Etapa <ChevronRight className="w-4 h-4 ml-2" />
+                Próximo <ChevronRight size={16} />
               </Button>
             ) : (
               <Button
-                onClick={handleFinishAssembly}
-                disabled={!isStepValid}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold shadow-green-200 shadow-lg"
+                onClick={handleFinish}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold gap-2"
               >
-                <ShoppingCart className="w-5 h-5 mr-2" /> Adicionar à Sacola
+                <Check size={18} /> Finalizar e Comprar
               </Button>
             )}
           </div>
@@ -531,4 +506,4 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
       </DialogContent>
     </Dialog>
   );
-};
+}

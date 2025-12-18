@@ -1,9 +1,9 @@
-// src/store/kitBuilderStore.ts (VERSÃO FINAL CORRIGIDA)
-
 import { create } from "zustand";
-import { Product, CapacityRef, LacoModelType } from "@/types"; // Importação correta de @/lib/types
+import { Product, CapacityRef, LacoModelType, KitStyle } from "@/lib/types";
+import { KitValidator } from "@/lib/kitValidator";
 
-// Tipos auxiliares para o estado interno do Builder
+// --- Tipos de Estado ---
+
 interface RibbonSelectionState {
   type: "NENHUM" | "PUXAR" | "PRONTO" | "CUSTOM";
   accessoryId?: string;
@@ -24,40 +24,49 @@ interface KitCompositionState {
   currentSlotCount: number;
   internalItems: { product: Product; quantity: number }[];
   ribbonSelection: RibbonSelectionState | null;
+  selectedWrapper: Product | null; // Novo: Para validar Saco/Base
+  selectedFiller: Product | null;
 }
 
 interface KitBuilderState {
-  // Estado de Controle
+  // Controle de UI
   isOpen: boolean;
-  currentStep: 1 | 2 | 3;
+  currentStep: 1 | 2 | 3 | 4; // Expandido para comportar o novo fluxo
   selectedKitId: string | null;
+  selectedStyle: KitStyle | null;
 
-  // Estado da Composição
+  // Composição
   composition: KitCompositionState;
 
-  // Getters
-  itemsCount: number;
-  totalPrice: number;
-
   // Ações
-  // CORREÇÃO AQUI: Aceita kitId opcional (string | null)
   openKitBuilder: (kitId?: string | null) => void;
-
   closeKitBuilder: () => void;
-  setStep: (step: 1 | 2 | 3) => void;
-  selectKit: (kitId: string) => void;
+  setStep: (step: number) => void;
+  setStyle: (style: KitStyle) => void;
 
+  // Gestão de Base e Embalagem (Com Blindagem)
   setBaseContainer: (product: Product) => void;
+  setWrapper: (product: Product | null) => void;
+  getValidWrappers: (allWrappers: Product[]) => Product[];
 
-  // Retorna boolean para indicar se conseguiu adicionar (validação de capacidade)
-  addItem: (product: Product, quantity: number) => boolean;
-  updateItemQuantity: (productId: string, quantity: number) => boolean;
+  // Gestão de Itens (Com Validação de Volume e Altura)
+  addItem: (
+    product: Product,
+    quantity: number
+  ) => { success: boolean; reason?: string };
+  updateItemQuantity: (
+    productId: string,
+    quantity: number
+  ) => { success: boolean; reason?: string };
   removeItem: (productId: string) => void;
 
+  // Finalização
   setRibbonSelection: (selection: RibbonSelectionState) => void;
   resetBuilder: () => void;
   calculateKitTotal: () => number;
 }
+
+// --- Configurações e Constantes ---
 
 const INITIAL_COMPOSITION: KitCompositionState = {
   baseContainer: null,
@@ -65,40 +74,41 @@ const INITIAL_COMPOSITION: KitCompositionState = {
   currentSlotCount: 0,
   internalItems: [],
   ribbonSelection: null,
+  selectedWrapper: null,
+  selectedFiller: null,
 };
 
-// Capacidade máxima de slots por gabarito
-const MAX_SLOTS: Record<CapacityRef, number> = {
-  P: 5,
-  M: 10,
-  G: 15,
-};
+const MAX_SLOTS: Record<CapacityRef, number> = { P: 5, M: 10, G: 15 };
+
+// --- Store ---
 
 export const useKitBuilderStore = create<KitBuilderState>((set, get) => ({
   isOpen: false,
   currentStep: 1,
   selectedKitId: null,
+  selectedStyle: null,
   composition: INITIAL_COMPOSITION,
-  itemsCount: 0,
-  totalPrice: 0,
 
-  // IMPLEMENTAÇÃO CORRIGIDA: Recebe o ID e abre o modal
   openKitBuilder: (kitId) =>
     set({
       isOpen: true,
-      selectedKitId: kitId ?? null, // Se vier undefined, vira null
-      // Reset opcional ao abrir, dependendo da regra de negócio:
-      // composition: INITIAL_COMPOSITION,
-      // currentStep: 1
+      selectedKitId: kitId ?? null,
     }),
 
   closeKitBuilder: () => set({ isOpen: false }),
 
-  setStep: (step) => set({ currentStep: step }),
+  setStep: (step: any) => set({ currentStep: step }),
 
-  selectKit: (kitId) => {
-    set({ selectedKitId: kitId });
-  },
+  setStyle: (style) =>
+    set({
+      selectedStyle: style,
+      currentStep: 2,
+      composition: {
+        ...get().composition,
+        baseContainer: null,
+        selectedWrapper: null,
+      },
+    }),
 
   setBaseContainer: (product) => {
     set((state) => ({
@@ -106,49 +116,68 @@ export const useKitBuilderStore = create<KitBuilderState>((set, get) => ({
         ...state.composition,
         baseContainer: product,
         capacityRef: product.capacityRef || null,
+        selectedWrapper: null, // Resetar saco ao mudar base (força re-validação)
       },
     }));
   },
 
-  // Adiciona com verificação de capacidade
-  addItem: (product, quantity) => {
-    const state = get();
-    const { composition } = state;
+  setWrapper: (product) =>
+    set((state) => ({
+      composition: { ...state.composition, selectedWrapper: product },
+    })),
 
-    // Se não tiver base selecionada, permite adicionar (fallback) ou bloqueia
-    // Aqui assumimos que se tem capacityRef, validamos.
+  /**
+   * BLINDAGEM: Retorna apenas sacos que cabem no perímetro da base atual
+   */
+  getValidWrappers: (allWrappers) => {
+    const { baseContainer } = get().composition;
+    if (!baseContainer) return allWrappers;
+    return allWrappers.filter((w) =>
+      KitValidator.canWrapperFitBase(w, baseContainer)
+    );
+  },
+
+  /**
+   * ADICIONAR ITEM: Valida Volume (Slots) e Altura (Geometria)
+   */
+  addItem: (product, quantity) => {
+    const { composition } = get();
+
+    // 1. Validação de Volume (Slots)
     if (composition.capacityRef) {
       const maxSlots = MAX_SLOTS[composition.capacityRef];
       const itemSize = product.itemSize || 1;
-      const requiredSlots = itemSize * quantity;
-
-      if (composition.currentSlotCount + requiredSlots > maxSlots) {
-        // Retorna false para a UI saber que falhou (opcional: disparar toast aqui)
-        return false;
+      if (composition.currentSlotCount + itemSize * quantity > maxSlots) {
+        return {
+          success: false,
+          reason: "A base escolhida não tem espaço suficiente.",
+        };
       }
+    }
+
+    // 2. Validação de Altura (Se for caixa fechada)
+    if (
+      composition.baseContainer &&
+      !KitValidator.canBoxClose(
+        [{ product, quantity }],
+        composition.baseContainer
+      )
+    ) {
+      return {
+        success: false,
+        reason: "Este item é alto demais para esta embalagem.",
+      };
     }
 
     set((state) => {
       const currentItems = [...state.composition.internalItems];
-      const itemIndex = currentItems.findIndex(
-        (i) => i.product.id === product.id
-      );
+      const idx = currentItems.findIndex((i) => i.product.id === product.id);
 
-      if (itemIndex >= 0) {
-        currentItems[itemIndex].quantity += quantity;
-      } else {
-        currentItems.push({ product, quantity });
-      }
+      if (idx >= 0) currentItems[idx].quantity += quantity;
+      else currentItems.push({ product, quantity });
 
-      // Recalcula slots
       const newSlotCount = currentItems.reduce(
-        (acc, item) => acc + (item.product.itemSize || 1) * item.quantity,
-        0
-      );
-
-      // Recalcula contagem de itens
-      const newCount = currentItems.reduce(
-        (acc, item) => acc + item.quantity,
+        (acc, i) => acc + (i.product.itemSize || 1) * i.quantity,
         0
       );
 
@@ -158,119 +187,87 @@ export const useKitBuilderStore = create<KitBuilderState>((set, get) => ({
           internalItems: currentItems,
           currentSlotCount: newSlotCount,
         },
-        itemsCount: newCount,
       };
     });
 
-    return true; // Sucesso
+    return { success: true };
   },
 
   updateItemQuantity: (productId, quantity) => {
-    const state = get();
-    const { composition } = state;
+    const { composition } = get();
+    const item = composition.internalItems.find(
+      (i) => i.product.id === productId
+    );
 
-    // Validação de Capacidade na atualização
-    if (composition.capacityRef && quantity > 0) {
-      const item = composition.internalItems.find(
-        (i) => i.product.id === productId
-      );
-      if (item) {
-        const diff = quantity - item.quantity;
-        if (diff > 0) {
-          // Se está aumentando
-          const itemSize = item.product.itemSize || 1;
-          const requiredSlots = itemSize * diff;
-          const maxSlots = MAX_SLOTS[composition.capacityRef];
-
-          if (composition.currentSlotCount + requiredSlots > maxSlots) {
-            return false;
-          }
-        }
-      }
+    if (item && quantity > item.quantity) {
+      const result = get().addItem(item.product, quantity - item.quantity);
+      return result;
     }
 
     set((state) => {
-      let currentItems = [...state.composition.internalItems];
-
-      if (quantity <= 0) {
-        currentItems = currentItems.filter((i) => i.product.id !== productId);
-      } else {
-        const itemIndex = currentItems.findIndex(
-          (i) => i.product.id === productId
-        );
-        if (itemIndex >= 0) {
-          currentItems[itemIndex].quantity = quantity;
-        }
+      let newItems = [...state.composition.internalItems];
+      if (quantity <= 0)
+        newItems = newItems.filter((i) => i.product.id !== productId);
+      else {
+        const idx = newItems.findIndex((i) => i.product.id === productId);
+        if (idx >= 0) newItems[idx].quantity = quantity;
       }
 
-      const newSlotCount = currentItems.reduce(
-        (acc, item) => acc + (item.product.itemSize || 1) * item.quantity,
+      const newSlotCount = newItems.reduce(
+        (acc, i) => acc + (i.product.itemSize || 1) * i.quantity,
         0
       );
-      const newCount = currentItems.reduce(
-        (acc, item) => acc + item.quantity,
-        0
-      );
-
       return {
         composition: {
           ...state.composition,
-          internalItems: currentItems,
+          internalItems: newItems,
           currentSlotCount: newSlotCount,
         },
-        itemsCount: newCount,
       };
     });
 
-    return true;
+    return { success: true };
   },
 
-  removeItem: (productId) => {
-    get().updateItemQuantity(productId, 0);
-  },
+  removeItem: (productId) => get().updateItemQuantity(productId, 0),
 
-  setRibbonSelection: (selection) => {
+  setRibbonSelection: (selection) =>
     set((state) => ({
-      composition: {
-        ...state.composition,
-        ribbonSelection: selection,
-      },
-    }));
-  },
+      composition: { ...state.composition, ribbonSelection: selection },
+    })),
 
-  resetBuilder: () => {
+  resetBuilder: () =>
     set({
       currentStep: 1,
       selectedKitId: null,
+      selectedStyle: null,
       composition: INITIAL_COMPOSITION,
-      itemsCount: 0,
-      totalPrice: 0,
-    });
-  },
+    }),
 
   calculateKitTotal: () => {
-    const state = get();
+    const { composition } = get();
     let total = 0;
 
-    // 1. Base
-    if (state.composition.baseContainer) {
-      total += state.composition.baseContainer.price;
-    }
+    // 1. Base, Saco e Enchimento
+    total += composition.baseContainer?.price || 0;
+    total += composition.selectedWrapper?.price || 0;
+    total += composition.selectedFiller?.price || 0;
 
-    // 2. Itens
-    state.composition.internalItems.forEach((item) => {
-      total += item.product.price * item.quantity;
+    // 2. Itens Internos
+    composition.internalItems.forEach((i) => {
+      total += i.product.price * i.quantity;
     });
 
-    // 3. Laço/Fita
-    const ribbon = state.composition.ribbonSelection;
-    if (ribbon) {
-      if (ribbon.type === "PUXAR" || ribbon.type === "PRONTO") {
-        // Custo do acessório seria somado se tivéssemos o preço aqui.
-        // Em um cenário real, você buscaria o preço do acessório pelo ID no productStore
-      } else if (ribbon.type === "CUSTOM" && ribbon.ribbonDetails) {
-        total += ribbon.ribbonDetails.assemblyCost;
-      }
+    // 3. Taxa de Serviço Dinâmica (Blindagem de lucro)
+    const totalItems = composition.internalItems.reduce(
+      (acc, i) => acc + i.quantity,
+      0
+    );
+    total += KitValidator.calculateServiceFee(totalItems);
+
+    // 4. Customização de Laço
+    if (composition.ribbonSelection?.type === "CUSTOM") {
+      total += composition.ribbonSelection.ribbonDetails?.assemblyCost || 0;
     }
 
     return total;

@@ -54,4 +54,8 @@ export interface Product {
     minSlots: number;
     maxSlots: number;
   };
+  width?: number;
+  height?: number;
+  depth?: number;
+  weight?: number;
 }
