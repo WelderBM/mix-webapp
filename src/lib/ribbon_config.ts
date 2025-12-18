@@ -1,6 +1,6 @@
 // src/lib/ribbon_config.ts (VERSÃO FINAL CONSOLIDADA E CORRIGIDA)
 
-import { MeasureUnit, CapacityRef } from "./types";
+import { Unit, CapacityRef } from "./types";
 
 export type LacoSizeType = "P" | "M" | "G";
 
@@ -10,7 +10,7 @@ export interface LacoSize {
   servicePrice: number; // PREÇO FIXO DO SERVIÇO DE MONTAGEM (R$2, R$3, R$5)
   name: string;
   description: string;
-  unit: MeasureUnit; // Deve ser 'm' (metro)
+  unit: Unit; // Deve ser 'm' (metro)
 }
 
 // Valores de preço fixo conforme regra (P: R$2, M: R$3, G: R$5)

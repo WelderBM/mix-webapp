@@ -20,18 +20,15 @@ import {
   Feather,
   SquareStack,
   ShoppingBag,
-  Gift, // CORRIGIDO: Ícone Gift importado
+  Gift,
 } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ProductCard } from "@/components/features/ProductCard";
-// CORRIGIDO: Removido import de 'formatMoney'
-import { cn, hexToRgb, getContrastColor } from "@/lib/utils";
+import { getContrastColor } from "@/lib/utils";
 import { useEffect, useMemo } from "react";
+import { SafeImage } from "../ui/SafeImage";
 
-// NOVO: Função para gerar Placeholder (local para ProductDetailClient)
 const getPlaceholder = (type: ProductType, size: number = 100) => {
   const baseClasses =
     "w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400";
@@ -135,7 +132,7 @@ export default function ProductDetailClient({
           {/* Coluna 1: Imagem */}
           <div className="relative aspect-square md:aspect-[4/3] bg-slate-50 rounded-2xl overflow-hidden border border-slate-100">
             {product.imageUrl ? (
-              <Image
+              <SafeImage
                 src={product.imageUrl}
                 alt={product.name}
                 fill

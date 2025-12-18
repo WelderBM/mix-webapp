@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { StoreSettings } from "@/lib/types";
+import { StoreSettings } from "@/ltypes";
 
 interface SettingsStore {
   settings: StoreSettings;

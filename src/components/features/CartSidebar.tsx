@@ -39,7 +39,6 @@ import {
   SquareStack,
   Gift,
 } from "lucide-react";
-import Image from "next/image";
 import { cn, formatCurrency } from "@/lib/utils"; // Importa do utils agora
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -52,6 +51,7 @@ import {
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { getProductImage } from "@/lib/image-utils"; // Usa o gerenciador de imagens
+import { SafeImage } from "../ui/SafeImage";
 
 // Componente CartIcon EXPORTADO para uso no Navbar
 export function CartIcon() {
@@ -203,7 +203,7 @@ export function CartSidebar() {
                       className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3 relative"
                     >
                       <div className="relative w-16 h-16 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0 border">
-                        <Image
+                        <SafeImage
                           src={imageUrl}
                           alt=""
                           fill

@@ -7,11 +7,9 @@ import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
-import Image from "next/image";
-// NOVO IMPORT
 import { getProductImage } from "@/lib/image-utils";
+import { SafeImage } from "../ui/SafeImage";
 
-// NOTA: No futuro, esses modelos podem vir do banco de dados (Firebase)
 const BOW_STYLES = [
   {
     id: "bola",
@@ -109,7 +107,7 @@ export function LacoBuilder() {
                   }`}
                 >
                   <div className="w-10 h-10 rounded-full bg-slate-100 relative overflow-hidden shrink-0">
-                    <Image
+                    <SafeImage
                       src={imgUrl}
                       alt={ribbon.name}
                       fill
@@ -150,7 +148,7 @@ export function LacoBuilder() {
               >
                 <div className="w-16 h-16 bg-slate-200 rounded-md flex items-center justify-center text-slate-400 relative overflow-hidden">
                   {/* Em breve: getProductImage para modelos */}
-                  <Image
+                  <SafeImage
                     src={style.image}
                     alt={style.name}
                     fill
@@ -203,7 +201,7 @@ export function LacoBuilder() {
               {selectedRibbon && selectedStyle ? (
                 <div className="text-center">
                   <div className="relative w-24 h-24 mx-auto mb-2 rounded-full overflow-hidden border-2 border-white shadow-sm">
-                    <Image
+                    <SafeImage
                       src={getProductImage(
                         selectedRibbon.imageUrl,
                         selectedRibbon.type

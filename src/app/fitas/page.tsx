@@ -19,11 +19,11 @@ import {
 } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { toast } from "sonner";
-import Image from "next/image";
 import { hexToRgb, getContrastColor } from "@/lib/utils";
 import { LacoBuilder } from "@/components/features/LacoBuilder";
 // NOVO IMPORT
 import { getProductImage } from "@/lib/image-utils";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 function FitasContent() {
   const { allProducts, fetchProducts } = useProductStore();
@@ -216,7 +216,7 @@ function FitasContent() {
                             }`}
                           >
                             <div className="w-12 h-12 rounded-full bg-slate-100 relative overflow-hidden shrink-0">
-                              <Image
+                              <SafeImage
                                 src={imgUrl}
                                 alt={ribbon.name}
                                 fill
@@ -297,7 +297,7 @@ function FitasContent() {
                             r?.type || "RIBBON"
                           );
                           return (
-                            <Image
+                            <SafeImage
                               src={imgUrl}
                               alt=""
                               fill

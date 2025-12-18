@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Product, CapacityRef, LacoModelType, KitStyle } from "@/lib/types";
+import { Product, CapacityRef, LacoModelType, KitStyle } from "@/types";
 import { KitValidator } from "@/lib/kitValidator";
 
 // --- Tipos de Estado ---

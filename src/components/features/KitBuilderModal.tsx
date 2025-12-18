@@ -22,13 +22,13 @@ import {
   Info,
   List,
 } from "lucide-react";
-import Image from "next/image";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
 import { Product } from "@/types";
 import { cn, formatCurrency } from "@/lib/utils";
 import { getProductImage } from "@/lib/image-utils";
+import { SafeImage } from "../ui/SafeImage";
 
 export function KitBuilderModal() {
   const { allProducts } = useProductStore();
@@ -136,7 +136,7 @@ export function KitBuilderModal() {
                         className="border rounded-xl p-3 flex flex-col gap-2 bg-white hover:border-primary transition-colors"
                       >
                         <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-100">
-                          <Image
+                          <SafeImage
                             src={getProductImage(p.imageUrl, p.type)}
                             alt={p.name}
                             fill
@@ -276,7 +276,7 @@ export function KitBuilderModal() {
                             )}
                           >
                             <div className="relative aspect-video mb-2">
-                              <Image
+                              <SafeImage
                                 src={getProductImage(base.imageUrl, base.type)}
                                 alt=""
                                 fill
@@ -309,7 +309,7 @@ export function KitBuilderModal() {
                           )}
                         >
                           <div className="w-10 h-10 relative bg-slate-100 rounded">
-                            <Image
+                            <SafeImage
                               src={getProductImage(w.imageUrl, w.type)}
                               alt=""
                               fill
@@ -379,7 +379,7 @@ export function KitBuilderModal() {
                     className="flex gap-3 bg-white p-2 rounded-lg border shadow-sm group"
                   >
                     <div className="w-10 h-10 relative rounded overflow-hidden flex-shrink-0">
-                      <Image
+                      <SafeImage
                         src={getProductImage(
                           item.product.imageUrl,
                           item.product.type

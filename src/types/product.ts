@@ -7,11 +7,11 @@ export type ProductType =
   | "RIBBON"
   | "ASSEMBLED_KIT";
 
-export type MeasureUnit = "m" | "un" | "kg" | "l" | "pct";
-export type SaleUnitType = "UNITARIO" | "PACOTE";
+export type Unit = "m" | "un" | "pct";
 export type LacoModelType = "BOLA" | "BORBOLETA" | "PUXAR";
 export type CapacityRef = "P" | "M" | "G";
 export type RibbonRollStatus = "FECHADO" | "ABERTO";
+export type KitStyle = "SACO_EXPRESS" | "CAIXA_FECHADA" | "CESTA_VITRINE";
 
 export interface RibbonInventory {
   status: RibbonRollStatus;
@@ -36,13 +36,12 @@ export interface Product {
   type: ProductType;
   category: string;
   imageUrl?: string;
-  unit: MeasureUnit;
+  unit: Unit;
   inStock: boolean;
   disabled: boolean;
   itemSize?: number;
   capacity?: number;
   capacityRef?: CapacityRef;
-  saleUnitType?: SaleUnitType;
   canBeSoldAsRoll?: boolean;
   isAvailableForCustomBow?: boolean;
   ribbonInventory?: RibbonInventory;
@@ -58,4 +57,7 @@ export interface Product {
   height?: number;
   depth?: number;
   weight?: number;
+  kitStyle?: KitStyle;
+  requiredWrapperSize?: string;
+  wrapperSize?: string;
 }

@@ -17,7 +17,7 @@ import {
   Order,
   StoreSection,
   SectionType,
-} from "@/lib/types";
+} from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -76,9 +76,9 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
-import Image from "next/image";
 import Link from "next/link";
 import { SuperAdminZone } from "@/components/admin/SuperAdminZone";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -309,7 +309,7 @@ export default function AdminPage() {
   // Seções (Helpers)
   const handleSaveSection = () => {
     if (!editingSection) return;
-    setSettings((prev) => {
+    setSettings((prev: StoreSettings) => {
       const currentSections = prev.homeSections || [];
       const exists = currentSections.find((s) => s.id === editingSection.id);
       const newSections = exists
@@ -322,9 +322,9 @@ export default function AdminPage() {
     setIsSectionModalOpen(false);
   };
   const deleteSection = (id: string) => {
-    setSettings((prev) => ({
+    setSettings((prev: StoreSettings) => ({
       ...prev,
-      homeSections: prev.homeSections.filter((s) => s.id !== id),
+      homeSections: (prev.homeSections || []).filter((s) => s.id !== id),
     }));
   };
   const moveSection = (index: number, direction: "up" | "down") => {
@@ -339,7 +339,10 @@ export default function AdminPage() {
         newSections[index + 1],
         newSections[index],
       ];
-    setSettings((prev) => ({ ...prev, homeSections: newSections }));
+    setSettings((prev: StoreSettings) => ({
+      ...prev,
+      homeSections: newSections,
+    }));
   };
   const addProductToSection = (productId: string) => {
     if (editingSection && !editingSection.productIds.includes(productId))
@@ -470,7 +473,7 @@ export default function AdminPage() {
                     {orders.map((order) => (
                       <TableRow key={order.id}>
                         <TableCell className="font-mono text-xs text-slate-500">
-                          #{order.id.slice(0, 6)}
+                          #{order.id?.slice(0, 6)}
                         </TableCell>
                         <TableCell>
                           {new Date(order.createdAt).toLocaleDateString()}{" "}
@@ -487,7 +490,9 @@ export default function AdminPage() {
                               {order.customerName}
                             </span>
                             <div className="flex items-center gap-1 text-xs text-slate-500">
-                              <Phone size={10} /> {order.customerPhone}
+                              {/* CORREÇÃO: Adicionado customerPhone opcional nos tipos, tratando aqui */}
+                              <Phone size={10} />{" "}
+                              {(order as any).customerPhone || "N/A"}
                             </div>
                           </div>
                         </TableCell>
@@ -505,7 +510,7 @@ export default function AdminPage() {
                         <TableCell className="text-right whitespace-nowrap">
                           <Link
                             href={`https://wa.me/55${(
-                              order.customerPhone || ""
+                              (order as any).customerPhone || ""
                             ).replace(/\D/g, "")}`}
                             target="_blank"
                           >
@@ -623,7 +628,7 @@ export default function AdminPage() {
                       <Switch
                         checked={section.isActive}
                         onCheckedChange={(c) => {
-                          const ns = [...settings.homeSections];
+                          const ns = [...(settings.homeSections || [])];
                           ns[index].isActive = c;
                           setSettings({ ...settings, homeSections: ns });
                         }}
@@ -660,7 +665,8 @@ export default function AdminPage() {
               {/* BARRA DE FERRAMENTAS */}
               <div className="flex flex-col xl:flex-row justify-between gap-4 items-start xl:items-center">
                 <div className="flex flex-col md:flex-row gap-2 w-full xl:w-auto flex-1 flex-wrap">
-                  <div className="relative flex-grow md:flex-grow-0 md:w-[300px]">
+                  {/* CORREÇÃO: flex-grow -> grow, md:flex-grow-0 -> md:grow-0 */}
+                  <div className="relative grow md:grow-0 md:w-[300px]">
                     <Search
                       className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                       size={18}
@@ -746,9 +752,9 @@ export default function AdminPage() {
                         <TableCell>
                           <div className="w-8 h-8 bg-slate-100 rounded overflow-hidden relative border">
                             {product.imageUrl ? (
-                              <Image
+                              <SafeImage
                                 src={product.imageUrl}
-                                alt=""
+                                alt={product.name}
                                 fill
                                 className="object-cover"
                               />
@@ -1006,9 +1012,9 @@ export default function AdminPage() {
                             <div className="flex items-center gap-2 overflow-hidden">
                               <div className="w-8 h-8 bg-gray-100 rounded shrink-0 relative">
                                 {p.imageUrl && (
-                                  <Image
+                                  <SafeImage
                                     src={p.imageUrl}
-                                    alt=""
+                                    alt={p.name}
                                     fill
                                     className="object-cover"
                                   />
@@ -1023,7 +1029,7 @@ export default function AdminPage() {
                         ))}
                     </ScrollArea>
                   </div>
-                  {/* LISTA DE PRODUTOS SELECIONADOS (COM CORREÇÃO DE LARGURA) */}
+                  {/* LISTA DE PRODUTOS SELECIONADOS */}
                   <div className="flex flex-col border rounded-lg bg-white overflow-hidden border-blue-100">
                     <div className="p-2 border-b bg-blue-50 text-blue-800 text-xs font-bold">
                       Selecionados ({editingSection?.productIds.length})
@@ -1057,21 +1063,17 @@ export default function AdminPage() {
                             </div>
                             <div className="w-8 h-8 relative bg-gray-200 rounded overflow-hidden shrink-0">
                               {prod.imageUrl && (
-                                <Image
+                                <SafeImage
                                   src={prod.imageUrl}
-                                  alt=""
+                                  alt={prod.name}
                                   fill
                                   className="object-cover"
                                 />
                               )}
                             </div>
-
-                            {/* CORREÇÃO APLICADA: Nome do produto que encolhe (min-w-0) para não expulsar o botão */}
                             <span className="text-xs truncate flex-1 min-w-0 font-medium text-slate-700">
                               {prod.name}
                             </span>
-
-                            {/* CORREÇÃO APLICADA: Botão que não encolhe (shrink-0) e fica na ponta */}
                             <button
                               onClick={() => removeProductFromSection(id)}
                               className="text-red-500 hover:bg-red-100 p-1.5 rounded shrink-0 ml-auto"

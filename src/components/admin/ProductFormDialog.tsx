@@ -10,7 +10,7 @@ import {
   ProductType,
   RibbonInventory,
   RibbonRollStatus,
-} from "@/lib/types";
+} from "@/ltypes";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

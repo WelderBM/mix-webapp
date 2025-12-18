@@ -1,8 +1,8 @@
 "use client";
 
-import { MapPin, Clock } from "lucide-react";
-import Image from "next/image";
+import { MapPin } from "lucide-react";
 import { StoreStatusBadge } from "./StoreStatusBadge";
+import { SafeImage } from "../ui/SafeImage";
 
 export function StoreHeader() {
   return (
@@ -11,7 +11,7 @@ export function StoreHeader() {
       <div className="relative h-[280px] md:h-[350px] w-full overflow-hidden rounded-3xl shadow-xl flex justify-center items-center bg-slate-900">
         {/* A imagem continua contida para não perder qualidade */}
         <div className="relative h-full w-full max-w-5xl">
-          <Image
+          <SafeImage
             src="/loja-fachada.webp"
             alt="Fachada da loja de presentes Mix Novidades"
             fill

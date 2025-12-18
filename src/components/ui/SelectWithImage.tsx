@@ -1,8 +1,3 @@
-// src/components/ui/SelectWithImage.tsx
-
-import * as React from "react";
-import { Check, ChevronDown } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -12,14 +7,13 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-  SelectSeparator,
 } from "@/components/ui/select";
-import Image from "next/image";
+import { SafeImage } from "./SafeImage";
 
 interface SelectItemData {
   value: string;
   label: string;
-  imageUrl?: string; // URL da imagem para o preview
+  imageUrl?: string;
   disabled?: boolean;
 }
 
@@ -49,9 +43,8 @@ export function SelectWithImage({
         <SelectValue>
           {selectedItem?.imageUrl ? (
             <div className="flex items-center gap-3 w-full">
-              {/* AJUSTE AQUI: Adicionado mr-2 para margin right, mantendo p-0.5 (padding interno) */}
               <div className="relative w-8 h-8 rounded overflow-hidden shrink-0 p-0.5 bg-slate-100 border border-slate-200 mr-2">
-                <Image
+                <SafeImage
                   src={selectedItem.imageUrl}
                   alt={`Amostra visual da opção ${selectedItem.label}`}
                   fill
@@ -77,9 +70,8 @@ export function SelectWithImage({
             >
               <div className="flex items-center gap-3">
                 {item.imageUrl && (
-                  /* AJUSTE AQUI: Adicionado mr-2 para margin right (na lista de opções) */
                   <div className="relative w-8 h-8 rounded overflow-hidden shrink-0 p-0.5 bg-slate-100 border border-slate-200 mr-2">
-                    <Image
+                    <SafeImage
                       src={item.imageUrl}
                       alt={`Visualização da opção ${item.label}`}
                       fill

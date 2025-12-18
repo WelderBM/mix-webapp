@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { CartItem } from "@/lib/types";
+import { CartItem } from "@/ltypes";
 import { toast } from "sonner";
 
 interface CartStore {

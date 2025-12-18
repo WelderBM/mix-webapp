@@ -1,12 +1,12 @@
 "use client";
 
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Product } from "@/lib/types";
+import { Product } from "@/types";
 import { useCartStore } from "@/store/cartStore";
 import { Minus, Plus, ShoppingCart, X } from "lucide-react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { SafeImage } from "../ui/SafeImage";
 
 interface ProductQuickViewProps {
   product: Product | null;
@@ -49,7 +49,7 @@ export function ProductQuickView({
       <DialogContent className="max-w-md p-0 overflow-hidden bg-white border-0">
         <div className="relative h-64 w-full bg-slate-100">
           {product.imageUrl ? (
-            <Image
+            <SafeImage
               src={product.imageUrl}
               alt={product.name}
               fill

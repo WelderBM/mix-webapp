@@ -74,13 +74,7 @@ export default function HomeClient({
       <StoreHeader />
 
       {/* RENDERIZAÇÃO DO MODAL DE MONTAGEM */}
-      {selectedKit && isKitModalOpen && (
-        <KitBuilderModal
-          assembledKit={selectedKit}
-          isOpen={isKitModalOpen}
-          onClose={closeKitBuilder}
-        />
-      )}
+      {isKitModalOpen && <KitBuilderModal />}
 
       {/* GRID DE SEÇÕES */}
       <div ref={shelvesRef} className="max-w-6xl mx-auto px-4 mt-8 mb-12">

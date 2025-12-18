@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Order, OrderStatus } from "@/lib/types";
+import { Order, OrderStatus } from "@/types";
 import {
   User,
   MapPin,
@@ -24,8 +24,8 @@ import {
   Bike,
   Package,
 } from "lucide-react";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { SafeImage } from "../ui/SafeImage";
 
 interface OrderDetailsSheetProps {
   order: Order | null;
@@ -132,7 +132,7 @@ export function OrderDetailsSheet({
                     <div className="flex gap-4">
                       <div className="relative w-16 h-16 bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-100">
                         {item.type === "SIMPLE" ? (
-                          <Image
+                          <SafeImage
                             src={
                               item.selectedVariant?.imageUrl ||
                               item.product?.imageUrl ||
