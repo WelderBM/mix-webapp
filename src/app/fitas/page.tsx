@@ -1,3 +1,4 @@
+// src/app/fitas/page.tsx
 "use client";
 
 import { useEffect, useState, useMemo, Suspense } from "react";
@@ -20,20 +21,16 @@ import { useCartStore } from "@/store/cartStore";
 import { toast } from "sonner";
 import Image from "next/image";
 import { hexToRgb, getContrastColor } from "@/lib/utils";
-
-// IMPORTAÇÃO DO NOVO COMPONENTE
 import { LacoBuilder } from "@/components/features/LacoBuilder";
+// NOVO IMPORT
+import { getProductImage } from "@/lib/image-utils";
 
-// Componente Wrapper para lidar com SearchParams de forma segura no Next.js
 function FitasContent() {
   const { allProducts, fetchProducts } = useProductStore();
   const { addItem } = useCartStore();
   const { settings, fetchSettings } = useSettingsStore();
-
-  // Hook para ler parâmetros da URL
   const searchParams = useSearchParams();
 
-  // Estados
   const [activeTab, setActiveTab] = useState("rolls");
   const [selectedRibbonId, setSelectedRibbonId] = useState<string>("");
   const [meterAmount, setMeterAmount] = useState<number>(1);
@@ -43,8 +40,6 @@ function FitasContent() {
     fetchSettings();
   }, [fetchProducts, fetchSettings]);
 
-  // EFEITO DO BANNER TRIGGER
-  // Se a URL for /fitas?aba=laco, muda a aba automaticamente
   useEffect(() => {
     const tabParam = searchParams.get("aba");
     if (
@@ -65,7 +60,6 @@ function FitasContent() {
     } as React.CSSProperties;
   }, [settings]);
 
-  // FILTRAGEM DE PRODUTOS
   const ribbonProducts = useMemo(
     () => allProducts.filter((p) => p.type === "RIBBON"),
     [allProducts]
@@ -76,7 +70,6 @@ function FitasContent() {
   );
   const cutRibbons = useMemo(() => ribbonProducts, [ribbonProducts]);
 
-  // Lógica de Adicionar Rolo
   const handleAddRoll = (product: any) => {
     addItem({
       cartId: crypto.randomUUID(),
@@ -88,13 +81,10 @@ function FitasContent() {
     toast.success("Rolo adicionado ao carrinho!");
   };
 
-  // Lógica de Adicionar Metro
   const handleAddMeter = () => {
     const product = cutRibbons.find((p) => p.id === selectedRibbonId);
     if (!product) return;
-
     const totalPrice = product.price * meterAmount;
-
     addItem({
       cartId: crypto.randomUUID(),
       type: "SIMPLE",
@@ -102,7 +92,6 @@ function FitasContent() {
       quantity: meterAmount,
       kitTotalAmount: totalPrice,
     });
-
     toast.success(
       <div className="flex flex-col">
         <span className="font-bold">Adicionado!</span>
@@ -111,7 +100,6 @@ function FitasContent() {
         </span>
       </div>
     );
-
     setSelectedRibbonId("");
     setMeterAmount(1);
   };
@@ -119,10 +107,8 @@ function FitasContent() {
   return (
     <main className="min-h-screen bg-slate-50 pb-20" style={themeStyles}>
       <StoreHeader />
-
       <div className="max-w-6xl mx-auto px-4 -mt-4 relative z-10">
         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-h-[600px]">
-          {/* CABEÇALHO DA PÁGINA */}
           <div className="p-8 border-b bg-gradient-to-r from-slate-50 to-white">
             <h1 className="text-3xl font-bold text-slate-800 mb-2">
               Central de Fitas & Laços
@@ -132,7 +118,6 @@ function FitasContent() {
               laço personalizado.
             </p>
           </div>
-
           <Tabs
             value={activeTab}
             onValueChange={setActiveTab}
@@ -164,7 +149,6 @@ function FitasContent() {
               </TabsList>
             </div>
 
-            {/* ABA 1: ROLOS */}
             <TabsContent
               value="rolls"
               className="p-8 animate-in fade-in slide-in-from-bottom-2 duration-500"
@@ -177,7 +161,6 @@ function FitasContent() {
                   {fullRolls.length} opções disponíveis
                 </span>
               </div>
-
               {fullRolls.length === 0 ? (
                 <div className="text-center py-20 text-slate-400 bg-slate-50 rounded-xl border-2 border-dashed">
                   <Package size={48} className="mx-auto mb-4 opacity-20" />
@@ -197,13 +180,11 @@ function FitasContent() {
               )}
             </TabsContent>
 
-            {/* ABA 2: POR METRO */}
             <TabsContent
               value="meter"
               className="p-8 animate-in fade-in slide-in-from-bottom-2 duration-500"
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                {/* Seleção */}
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-xl font-bold text-slate-700 mb-2 flex items-center gap-2">
@@ -214,55 +195,54 @@ function FitasContent() {
                       Escolha a fita e diga quantos metros precisa.
                     </p>
                   </div>
-
                   <div className="space-y-4">
                     <label className="text-sm font-medium text-slate-700">
                       1. Escolha a Fita
                     </label>
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[400px] overflow-y-auto p-1 custom-scrollbar">
-                      {cutRibbons.map((ribbon) => (
-                        <div
-                          key={ribbon.id}
-                          onClick={() => setSelectedRibbonId(ribbon.id)}
-                          className={`
-                            cursor-pointer rounded-lg border p-2 flex flex-col items-center gap-2 transition-all hover:shadow-md h-full relative
-                            ${
+                      {cutRibbons.map((ribbon) => {
+                        const imgUrl = getProductImage(
+                          ribbon.imageUrl,
+                          ribbon.type
+                        );
+                        return (
+                          <div
+                            key={ribbon.id}
+                            onClick={() => setSelectedRibbonId(ribbon.id)}
+                            className={`cursor-pointer rounded-lg border p-2 flex flex-col items-center gap-2 transition-all hover:shadow-md h-full relative ${
                               selectedRibbonId === ribbon.id
                                 ? "border-[var(--primary)] ring-2 ring-[var(--primary)] ring-opacity-20 bg-purple-50 transform scale-105"
                                 : "border-slate-200 bg-white"
-                            }
-                          `}
-                        >
-                          <div className="w-12 h-12 rounded-full bg-slate-100 relative overflow-hidden shrink-0">
-                            {ribbon.imageUrl && (
+                            }`}
+                          >
+                            <div className="w-12 h-12 rounded-full bg-slate-100 relative overflow-hidden shrink-0">
                               <Image
-                                src={ribbon.imageUrl}
+                                src={imgUrl}
                                 alt={ribbon.name}
                                 fill
                                 className="object-cover"
                               />
+                            </div>
+                            <span className="text-[10px] text-center leading-tight line-clamp-2 w-full">
+                              {ribbon.name}
+                            </span>
+                            <span className="text-xs font-bold text-slate-600 mt-auto">
+                              R$ {ribbon.price.toFixed(2)}/m
+                            </span>
+                            {selectedRibbonId === ribbon.id && (
+                              <div className="absolute top-1 right-1 text-[var(--primary)] bg-white rounded-full p-0.5 shadow-sm">
+                                <CheckCircle2
+                                  size={12}
+                                  fill="currentColor"
+                                  className="text-white"
+                                />
+                              </div>
                             )}
                           </div>
-                          <span className="text-[10px] text-center leading-tight line-clamp-2 w-full">
-                            {ribbon.name}
-                          </span>
-                          <span className="text-xs font-bold text-slate-600 mt-auto">
-                            R$ {ribbon.price.toFixed(2)}/m
-                          </span>
-                          {selectedRibbonId === ribbon.id && (
-                            <div className="absolute top-1 right-1 text-[var(--primary)] bg-white rounded-full p-0.5 shadow-sm">
-                              <CheckCircle2
-                                size={12}
-                                fill="currentColor"
-                                className="text-white"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
-
                   <div
                     className={`space-y-4 transition-opacity duration-300 ${
                       selectedRibbonId
@@ -303,8 +283,6 @@ function FitasContent() {
                     </div>
                   </div>
                 </div>
-
-                {/* Resumo */}
                 <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200 flex flex-col justify-center items-center text-center space-y-6">
                   {selectedRibbonId ? (
                     <div className="animate-in zoom-in duration-300 w-full flex flex-col items-center">
@@ -313,15 +291,18 @@ function FitasContent() {
                           const r = cutRibbons.find(
                             (i) => i.id === selectedRibbonId
                           );
-                          return r?.imageUrl ? (
+                          // USO DO UTILITÁRIO
+                          const imgUrl = getProductImage(
+                            r?.imageUrl,
+                            r?.type || "RIBBON"
+                          );
+                          return (
                             <Image
-                              src={r.imageUrl}
+                              src={imgUrl}
                               alt=""
                               fill
                               className="object-cover"
                             />
-                          ) : (
-                            <Package className="m-auto text-slate-300" />
                           );
                         })()}
                       </div>
@@ -372,7 +353,6 @@ function FitasContent() {
               </div>
             </TabsContent>
 
-            {/* ABA 3: MONTADOR DE LAÇOS (Novo Componente) */}
             <TabsContent
               value="service"
               className="p-8 animate-in fade-in slide-in-from-bottom-2 duration-500"
@@ -386,7 +366,6 @@ function FitasContent() {
   );
 }
 
-// Default export com Suspense para evitar erro de build no Next.js com useSearchParams
 export default function FitasPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-slate-50"></div>}>

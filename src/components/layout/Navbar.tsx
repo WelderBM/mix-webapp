@@ -31,7 +31,7 @@ const navLinks: NavLinkItem[] = [
   { href: "/", label: "Início", isModal: false },
   { href: "/fitas", label: "Fitas", isModal: false },
   {
-    href: "/laco-builder",
+    href: "/fitas?aba=laco",
     label: "Personalizar Laço",
     Icon: Sparkles,
     isModal: false,

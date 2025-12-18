@@ -10,7 +10,7 @@ import {
   SaleUnitType,
   LacoModelType,
   MeasureUnit,
-} from "@/lib/types";
+} from "@/types";
 
 // Coleções
 const ALL_PRODUCTS_REF = collection(db, "products");
@@ -25,10 +25,6 @@ export const seedDatabase = async () => {
     id: "general",
     storeName: "Mix Novidades & Embalagens",
     whatsappNumber: "5595984244194",
-    theme: {
-      primaryColor: "#C0392B", // Vermelho Natal
-      activeTheme: "christmas",
-    },
     filters: {
       activeCategories: ["Fitas", "Bases", "Natura", "Acessórios"],
       categoryOrder: ["Fitas", "Bases", "Natura", "Acessórios"],
@@ -59,6 +55,13 @@ export const seedDatabase = async () => {
         isActive: true,
       },
     ],
+    theme: {
+      primaryColor: "",
+      secondaryColor: "",
+      accentColor: "",
+      backgroundColor: "",
+      activeTheme: "default",
+    },
   };
   batch.set(SETTINGS_REF, initialSettings);
 

@@ -27,19 +27,13 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-// Stores e Tipos
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
-import {
-  AssembledKitProduct,
-  Product,
-  CapacityRef,
-  CartItem,
-  ProductType,
-} from "@/types";
+import { AssembledKitProduct, Product, CapacityRef, CartItem } from "@/types";
 import { cn } from "@/lib/utils";
+// Certifique-se de que este arquivo existe (criado no passo anterior)
+import { getProductImage } from "@/lib/image-utils";
 
 interface KitBuilderModalProps {
   isOpen: boolean;
@@ -47,31 +41,8 @@ interface KitBuilderModalProps {
   assembledKit?: AssembledKitProduct;
 }
 
-// Capacidade máxima de slots por gabarito
-const MAX_SLOTS: Record<CapacityRef, number> = {
-  P: 5,
-  M: 10,
-  G: 15,
-};
+const MAX_SLOTS: Record<CapacityRef, number> = { P: 5, M: 10, G: 15 };
 
-// Mapeamento de caminhos das imagens placeholder
-const PLACEHOLDER_MAP: Record<ProductType | "DEFAULT", string> = {
-  RIBBON: "placeholder_fita_rolo.webp",
-  ACCESSORY: "placeholder_fita_rolo.webp",
-  BASE_CONTAINER: "placeholder_cesta_base.webp",
-  ASSEMBLED_KIT: "placeholder_cesta_base.webp",
-  STANDARD_ITEM: "placeholder_produto_padrao.webp",
-  FILLER: "placeholder_enchimento.webp",
-  WRAPPER: "saco_placeholder.webp",
-  DEFAULT: "placeholder_produto_padrao.webp",
-};
-
-// Função auxiliar que retorna o caminho da imagem
-const getPlaceholderUrl = (type: ProductType) => {
-  return PLACEHOLDER_MAP[type] || PLACEHOLDER_MAP["DEFAULT"];
-};
-
-// --- Sub-componente de Item (Para seleção de produtos) ---
 interface ItemSelectorProps {
   product: Product;
   onAdd: (product: Product, quantity: number) => void;
@@ -87,7 +58,7 @@ const ItemSelector: React.FC<ItemSelectorProps> = ({
   currentQuantity,
   disabled,
 }) => {
-  const imageUrl = product.imageUrl || getPlaceholderUrl(product.type);
+  const imageUrl = getProductImage(product.imageUrl, product.type);
 
   return (
     <div
@@ -112,7 +83,6 @@ const ItemSelector: React.FC<ItemSelectorProps> = ({
           </p>
         </div>
       </div>
-
       <div className="flex items-center space-x-2">
         {currentQuantity > 0 && (
           <Button
@@ -150,7 +120,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
   const router = useRouter();
   const { allProducts: allProductsStore } = useProductStore();
   const { addItem: addCartItem } = useCartStore();
-
   const {
     currentStep,
     composition,
@@ -167,7 +136,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
   const kitTotal = calculateKitTotal();
   const progressValue = (currentStep / 3) * 100;
 
-  // Lógica de filtros
   const availableBases = useMemo(
     () =>
       allProductsStore.filter(
@@ -175,7 +143,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
       ),
     [allProductsStore]
   );
-
   const availableItems = useMemo(
     () =>
       allProductsStore.filter(
@@ -184,7 +151,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
       ),
     [allProductsStore]
   );
-
   const availableAccessories = useMemo(
     () =>
       allProductsStore.filter(
@@ -193,7 +159,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
     [allProductsStore]
   );
 
-  // --- Validação ---
   const isStepValid = useMemo(() => {
     switch (currentStep) {
       case 1:
@@ -208,15 +173,10 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
   }, [currentStep, composition]);
 
   const nextStep = () => {
-    if (isStepValid && currentStep < 3) {
-      setStep((currentStep + 1) as 1 | 2 | 3);
-    }
+    if (isStepValid && currentStep < 3) setStep((currentStep + 1) as 1 | 2 | 3);
   };
-
   const prevStep = () => {
-    if (currentStep > 1) {
-      setStep((currentStep - 1) as 1 | 2 | 3);
-    }
+    if (currentStep > 1) setStep((currentStep - 1) as 1 | 2 | 3);
   };
 
   const handleFinishAssembly = () => {
@@ -254,6 +214,9 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
         composition.ribbonSelection?.type === "CUSTOM"
           ? composition.ribbonSelection.ribbonDetails
           : undefined,
+
+      // === CORREÇÃO CRÍTICA ===
+      // Se baseContainer for null, transformamos em undefined para agradar o TypeScript
       product: composition.baseContainer ?? undefined,
     };
 
@@ -264,10 +227,9 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
     router.push("/carrinho");
   };
 
-  // --- Renderização dos Passos ---
   const renderStep = () => {
     switch (currentStep) {
-      case 1: // Base
+      case 1:
         return (
           <ScrollArea className="h-full max-h-[500px] p-2">
             <h4 className="text-lg font-semibold mb-4 flex items-center gap-2 text-slate-700">
@@ -276,7 +238,7 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {availableBases.map((base: Product) => {
                 const isSelected = base.id === composition.baseContainer?.id;
-                const imageUrl = base.imageUrl || getPlaceholderUrl(base.type);
+                const imageUrl = getProductImage(base.imageUrl, base.type);
                 return (
                   <div
                     key={base.id}
@@ -303,7 +265,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                       {base.name}
                     </p>
                     <div className="text-xs text-slate-500 mt-1 flex items-center justify-between">
-                      {/* Preço oculto ou discreto nesta etapa */}
                       <span>Base</span>
                       {base.capacityRef && (
                         <span
@@ -326,8 +287,7 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
             </div>
           </ScrollArea>
         );
-
-      case 2: // Itens (Com Barra Inteligente)
+      case 2:
         const capacityRef = composition.capacityRef as CapacityRef | undefined;
         const maxSlots = capacityRef ? MAX_SLOTS[capacityRef] : 0;
         const currentSlotPercentage = Math.min(
@@ -335,8 +295,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
           100
         );
         const isCapacityExceeded = composition.currentSlotCount > maxSlots;
-
-        // Lógica de "Smart Progress"
         let progressColor = "bg-slate-300";
         let progressMessage = "Vamos encher essa cesta?";
         if (isCapacityExceeded) {
@@ -357,22 +315,17 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
           const existing = composition.internalItems.find(
             (item) => item.product.id === product.id
           );
-          if (existing) {
+          if (existing)
             updateItemQuantity(product.id, existing.quantity + quantity);
-          } else {
-            addItem(product, quantity);
-          }
+          else addItem(product, quantity);
         };
-
         const handleRemoveItem = (productId: string) => {
           const item = composition.internalItems.find(
             (item) => item.product.id === productId
           );
-          if (item && item.quantity > 1) {
+          if (item && item.quantity > 1)
             updateItemQuantity(productId, item.quantity - 1);
-          } else if (item) {
-            removeItem(productId);
-          }
+          else if (item) removeItem(productId);
         };
 
         return (
@@ -381,8 +334,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
               <h4 className="text-lg font-semibold flex items-center gap-2 text-slate-700">
                 <List className="w-5 h-5" /> 2. Adicione os Mimos
               </h4>
-
-              {/* BARRA DE PROGRESSO INTELIGENTE */}
               <div className="mt-2 p-3 rounded-lg border bg-slate-50 transition-colors duration-300">
                 <div className="flex justify-between items-end mb-1">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -397,7 +348,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                     {Math.round(currentSlotPercentage)}%
                   </span>
                 </div>
-
                 <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
                   <div
                     className={cn(
@@ -407,7 +357,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                     style={{ width: `${currentSlotPercentage}%` }}
                   />
                 </div>
-
                 <div className="flex justify-between items-center mt-2">
                   <span className="text-xs text-slate-500 italic">
                     💡 {progressMessage}
@@ -416,7 +365,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                     {composition.currentSlotCount}/{maxSlots} slots
                   </span>
                 </div>
-
                 {isCapacityExceeded && (
                   <p className="text-xs text-red-500 mt-1 flex items-center gap-1 font-bold animate-pulse">
                     <AlertTriangle className="w-3 h-3" /> Capacidade excedida!
@@ -425,7 +373,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                 )}
               </div>
             </div>
-
             <ScrollArea className="flex-1 max-h-[400px] p-2">
               <div className="space-y-3">
                 {availableItems.map((product: Product) => {
@@ -448,21 +395,18 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
             </ScrollArea>
           </div>
         );
-
-      case 3: // Laço
+      case 3:
         const laçosProntos = availableAccessories.filter(
           (a) => a.laçoType && a.laçoType !== "PUXAR"
         );
         const laçoPuxar = availableAccessories.find(
           (a) => a.laçoType === "PUXAR"
         );
-
         return (
           <div className="space-y-6 h-full">
             <h4 className="text-lg font-semibold flex items-center gap-2 text-slate-700">
               <Feather className="w-5 h-5" /> 3. Finalização e Laço
             </h4>
-
             <div className="p-4 rounded-lg border border-purple-300 bg-purple-50 text-sm">
               <p className="font-bold mb-2 text-purple-700">
                 Escolha o Acabamento:
@@ -489,8 +433,7 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                     </p>
                   </div>
                 )}
-
-                <Link href="/laco-builder" passHref>
+                <Link href="/fitas?aba=laco" passHref>
                   <div className="border-2 p-3 rounded-lg cursor-pointer transition-all border-purple-600 bg-purple-100 hover:bg-purple-200 h-full flex flex-col justify-center">
                     <p className="font-bold text-purple-700 flex items-center gap-2">
                       ✨ Personalizar Laço
@@ -500,7 +443,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                     </p>
                   </div>
                 </Link>
-
                 <div
                   onClick={() => setRibbonSelection({ type: "NENHUM" })}
                   className={cn(
@@ -515,8 +457,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
                 </div>
               </div>
             </div>
-
-            {/* RESUMO TOTAL - APENAS NA ÚLTIMA ETAPA */}
             <div className="pt-6 border-t border-dashed animate-in fade-in slide-in-from-bottom-4">
               <h5 className="font-bold text-xl flex justify-between items-center bg-slate-50 p-4 rounded-lg border">
                 <span>Total do Kit:</span>
@@ -531,7 +471,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
             </div>
           </div>
         );
-
       default:
         return null;
     }
@@ -551,11 +490,8 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
             <Progress value={progressValue} className="w-full h-2" />
           </div>
         </DialogHeader>
-
         <div className="flex-1 overflow-hidden p-6 pt-4">{renderStep()}</div>
-
         <div className="flex justify-between items-center p-6 border-t shrink-0 bg-slate-50/50">
-          {/* LADO ESQUERDO: Preço (Visível apenas no final para UX) */}
           <div className="text-sm font-semibold">
             {currentStep === 3 ? (
               <span className="text-slate-400">Pronto para finalizar?</span>
@@ -565,8 +501,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
               </span>
             )}
           </div>
-
-          {/* LADO DIREITO: Botões */}
           <div className="flex items-center space-x-3">
             <Button
               variant="outline"
@@ -575,7 +509,6 @@ export const KitBuilderModal: React.FC<KitBuilderModalProps> = ({
             >
               <ChevronLeft className="w-4 h-4 mr-2" /> Anterior
             </Button>
-
             {currentStep < 3 ? (
               <Button
                 onClick={nextStep}

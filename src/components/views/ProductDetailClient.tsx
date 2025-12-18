@@ -3,7 +3,7 @@
 "use client";
 
 // CORRIGIDO: Importar ProductType
-import { Product, ProductType } from "@/lib/types";
+import { Product, ProductType } from "@/types";
 import { useCartStore } from "@/store/cartStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { StoreHeader } from "@/components/layout/StoreHeader";

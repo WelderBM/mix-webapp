@@ -5,16 +5,16 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 interface ThemeSettings {
-  primaryColor: string; // Ex: #ff0000 (Vermelho)
-  secondaryColor: string; // Ex: #00ff00 (Verde)
+  primaryColor: string;
+  secondaryColor: string;
 }
 
 const ThemeContext = createContext<ThemeSettings | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<ThemeSettings>({
-    primaryColor: "#7c3aed", // Roxo (Padrão)
-    secondaryColor: "#db2777", // Rosa (Padrão)
+    primaryColor: "#1d11889e",
+    secondaryColor: "#459cff",
   });
 
   useEffect(() => {
