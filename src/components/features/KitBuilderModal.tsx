@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
   Gift,
@@ -21,14 +20,19 @@ import {
   Check,
   Info,
   List,
+  ChevronDown,
+  ChevronUp,
+  Trash2,
 } from "lucide-react";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
 import { Product } from "@/types";
 import { cn, formatCurrency } from "@/lib/utils";
-import { getProductImage } from "@/lib/image-utils";
 import { SafeImage } from "../ui/SafeImage";
+
+// Helper de soma segura para evitar 0.1 + 0.2 = 0.3000004
+const safeSum = (a: number, b: number) => Number((a + b).toFixed(2));
 
 export function KitBuilderModal() {
   const { allProducts } = useProductStore();
@@ -46,12 +50,30 @@ export function KitBuilderModal() {
     setBaseContainer,
     setWrapper,
     getValidWrappers,
-    calculateKitTotal,
     resetBuilder,
     closeKitBuilder,
   } = useKitBuilderStore();
 
-  // Filtragem de produtos por tipo
+  // --- CÁLCULO REATIVO DO PREÇO ---
+  // Calcula o total baseado na 'composition' que está na tela agora.
+  // Isso garante 100% de sincronia visual.
+  const kitTotal = useMemo(() => {
+    let total = 0;
+    // 1. Itens
+    composition.internalItems.forEach((item) => {
+      total = safeSum(total, (item.product.price || 0) * item.quantity);
+    });
+    // 2. Base
+    if (composition.baseContainer) {
+      total = safeSum(total, composition.baseContainer.price || 0);
+    }
+    // 3. Wrapper
+    if (composition.selectedWrapper) {
+      total = safeSum(total, composition.selectedWrapper.price || 0);
+    }
+    return total;
+  }, [composition]); // Recalcula sempre que a composição mudar
+
   const catalog = useMemo(
     () => ({
       items: allProducts.filter((p) => p.type === "STANDARD_ITEM" && p.inStock),
@@ -59,21 +81,55 @@ export function KitBuilderModal() {
         (p) => p.type === "BASE_CONTAINER" && p.inStock
       ),
       wrappers: allProducts.filter((p) => p.type === "WRAPPER" && p.inStock),
-      fillers: allProducts.filter((p) => p.type === "FILLER" && p.inStock),
     }),
     [allProducts]
   );
 
+  const itemsByCategory = useMemo(() => {
+    const groups: Record<string, Product[]> = {};
+    catalog.items.forEach((item) => {
+      const cat = item.category || "Diversos";
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(item);
+    });
+    return Object.keys(groups)
+      .sort()
+      .reduce((obj, key) => {
+        obj[key] = groups[key];
+        return obj;
+      }, {} as Record<string, Product[]>);
+  }, [catalog.items]);
+
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    const categories = Object.keys(itemsByCategory);
+    if (
+      isOpen &&
+      currentStep === 1 &&
+      categories.length > 0 &&
+      expandedCategories.length === 0
+    ) {
+      setExpandedCategories([categories[0]]);
+    }
+  }, [isOpen, currentStep, itemsByCategory]);
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category]
+    );
+  };
+
   const progress = (currentStep / 4) * 100;
 
-  // --- Handlers ---
   const handleAddItem = (p: Product) => {
     const result = addItem(p, 1);
     if (!result.success) toast.error(result.reason);
   };
 
   const handleFinish = () => {
-    const total = calculateKitTotal();
     addCartItem({
       cartId: crypto.randomUUID(),
       type: "CUSTOM_KIT",
@@ -81,7 +137,7 @@ export function KitBuilderModal() {
       kitName: `Presente ${
         selectedStyle === "CESTA_VITRINE" ? "na Cesta" : "Personalizado"
       }`,
-      kitTotalAmount: total,
+      kitTotalAmount: kitTotal, // Usa o valor calculado
       product: composition.baseContainer || undefined,
       kitComposition: {
         baseProductId: composition.baseContainer?.id || "",
@@ -98,27 +154,33 @@ export function KitBuilderModal() {
     openGlobalCart();
   };
 
+  const getItemQuantity = (productId: string) => {
+    return (
+      composition.internalItems.find((i) => i.product.id === productId)
+        ?.quantity || 0
+    );
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeKitBuilder()}>
-      <DialogContent className="max-w-4xl p-0 h-[90vh] flex flex-col overflow-hidden">
-        {/* HEADER COM PROGRESSO */}
-        <DialogHeader className="p-6 pb-2 border-b">
+      <DialogContent className="max-w-4xl p-0 h-[90vh] flex flex-col overflow-hidden bg-white">
+        {/* HEADER */}
+        <DialogHeader className="p-6 pb-2 border-b shrink-0">
           <div className="flex justify-between items-center mb-4">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2">
               <Gift className="text-primary" /> Montador de Presentes
             </DialogTitle>
             <span className="text-sm font-bold text-primary">
-              R$ {calculateKitTotal().toFixed(2)}
+              {formatCurrency(kitTotal)}
             </span>
           </div>
           <Progress value={progress} className="h-2" />
         </DialogHeader>
 
-        {/* ÁREA DE CONTEÚDO DINÂMICO */}
         <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-          <div className="flex-1 flex flex-col border-r">
-            <ScrollArea className="flex-1 p-6">
-              {/* PASSO 1: ESCOLHA DOS ITENS (O CONTEÚDO) */}
+          <div className="flex-1 flex flex-col border-r min-h-0">
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+              {/* PASSO 1 */}
               {currentStep === 1 && (
                 <div className="space-y-6">
                   <header>
@@ -129,41 +191,130 @@ export function KitBuilderModal() {
                       Escolha os produtos que irão dentro do presente.
                     </p>
                   </header>
-                  <div className="grid grid-cols-2 gap-4">
-                    {catalog.items.map((p) => (
-                      <div
-                        key={p.id}
-                        className="border rounded-xl p-3 flex flex-col gap-2 bg-white hover:border-primary transition-colors"
-                      >
-                        <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-100">
-                          <SafeImage
-                            src={p.imageUrl}
-                            alt={p.name}
-                            name={p.name}
-                            fill
-                            className="object-cover"
-                          />
-                        </div>
-                        <p className="text-sm font-bold line-clamp-1">
-                          {p.name}
-                        </p>
-                        <p className="text-xs text-primary font-bold">
-                          {formatCurrency(p.price)}
-                        </p>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAddItem(p)}
-                          className="w-full"
-                        >
-                          <Plus className="w-4 h-4 mr-1" /> Adicionar
-                        </Button>
-                      </div>
-                    ))}
+                  <div className="space-y-3">
+                    {Object.entries(itemsByCategory).map(
+                      ([category, items]) => {
+                        const isExpanded =
+                          expandedCategories.includes(category);
+                        return (
+                          <div
+                            key={category}
+                            className="border rounded-xl overflow-hidden bg-white shadow-sm"
+                          >
+                            <button
+                              onClick={() => toggleCategory(category)}
+                              className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition-colors"
+                            >
+                              <span className="font-bold text-slate-800 flex items-center gap-2">
+                                {category}
+                                <span className="text-xs font-normal text-slate-500 bg-white px-2 py-0.5 rounded-full border">
+                                  {items.length}
+                                </span>
+                              </span>
+                              {isExpanded ? (
+                                <ChevronUp
+                                  className="text-slate-400"
+                                  size={20}
+                                />
+                              ) : (
+                                <ChevronDown
+                                  className="text-slate-400"
+                                  size={20}
+                                />
+                              )}
+                            </button>
+                            {isExpanded && (
+                              <div className="p-4 bg-white border-t animate-in slide-in-from-top-2 fade-in duration-200">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                                  {items.map((p) => {
+                                    const qty = getItemQuantity(p.id);
+                                    return (
+                                      <div
+                                        key={p.id}
+                                        className={cn(
+                                          "border rounded-xl p-3 flex flex-col gap-2 bg-white transition-all group",
+                                          qty > 0
+                                            ? "border-primary ring-1 ring-primary/20"
+                                            : "hover:border-primary"
+                                        )}
+                                      >
+                                        <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-100">
+                                          <SafeImage
+                                            src={p.imageUrl}
+                                            name={p.type}
+                                            alt={p.name}
+                                            fill
+                                            className="object-cover group-hover:scale-105 transition-transform"
+                                          />
+                                          {qty > 0 && (
+                                            <div className="absolute top-2 right-2 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                                              {qty}x
+                                            </div>
+                                          )}
+                                        </div>
+                                        <p
+                                          className="text-sm font-bold line-clamp-1"
+                                          title={p.name}
+                                        >
+                                          {p.name}
+                                        </p>
+                                        <p className="text-xs text-primary font-bold">
+                                          {formatCurrency(p.price)}
+                                        </p>
+                                        <div className="mt-auto pt-1">
+                                          {qty === 0 ? (
+                                            <Button
+                                              size="sm"
+                                              onClick={() => handleAddItem(p)}
+                                              className="w-full"
+                                            >
+                                              <Plus className="w-4 h-4 mr-1" />{" "}
+                                              Adicionar
+                                            </Button>
+                                          ) : (
+                                            <div className="flex items-center justify-between w-full h-9 bg-slate-50 rounded-md border border-slate-200 overflow-hidden">
+                                              <button
+                                                onClick={() =>
+                                                  updateItemQuantity(
+                                                    p.id,
+                                                    qty - 1
+                                                  )
+                                                }
+                                                className="h-full px-3 hover:bg-red-50 hover:text-red-600 text-slate-500 transition-colors flex items-center justify-center border-r border-slate-100"
+                                              >
+                                                {qty === 1 ? (
+                                                  <Trash2 size={14} />
+                                                ) : (
+                                                  <Minus size={14} />
+                                                )}
+                                              </button>
+                                              <span className="text-sm font-bold text-slate-800 flex-1 text-center">
+                                                {qty}
+                                              </span>
+                                              <button
+                                                onClick={() => handleAddItem(p)}
+                                                className="h-full px-3 hover:bg-primary/10 hover:text-primary text-slate-500 transition-colors flex items-center justify-center border-l border-slate-100"
+                                              >
+                                                <Plus size={14} />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* PASSO 2: ESTILO DO PRESENTE */}
+              {/* PASSO 2 */}
               {currentStep === 2 && (
                 <div className="space-y-6">
                   <header>
@@ -175,79 +326,58 @@ export function KitBuilderModal() {
                     </p>
                   </header>
                   <div className="grid grid-cols-1 gap-4">
-                    <button
-                      onClick={() => setStyle("SACO_EXPRESS")}
-                      className={cn(
-                        "flex items-center gap-4 p-4 border-2 rounded-2xl text-left transition-all",
-                        selectedStyle === "SACO_EXPRESS"
-                          ? "border-primary bg-primary/5"
-                          : "hover:border-slate-300"
-                      )}
-                    >
-                      <div className="p-3 bg-blue-100 rounded-full text-blue-600">
-                        <ShoppingBag />
-                      </div>
-                      <div>
-                        <p className="font-bold">Saco de Presente</p>
-                        <p className="text-xs text-slate-500">
-                          Prático, rápido e econômico.
-                        </p>
-                      </div>
-                      {selectedStyle === "SACO_EXPRESS" && (
-                        <Check className="ml-auto text-primary" />
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => setStyle("CAIXA_FECHADA")}
-                      className={cn(
-                        "flex items-center gap-4 p-4 border-2 rounded-2xl text-left transition-all",
-                        selectedStyle === "CAIXA_FECHADA"
-                          ? "border-primary bg-primary/5"
-                          : "hover:border-slate-300"
-                      )}
-                    >
-                      <div className="p-3 bg-purple-100 rounded-full text-purple-600">
-                        <Box />
-                      </div>
-                      <div>
-                        <p className="font-bold">Caixa Surpresa</p>
-                        <p className="text-xs text-slate-500">
-                          Elegante e misterioso com seda.
-                        </p>
-                      </div>
-                      {selectedStyle === "CAIXA_FECHADA" && (
-                        <Check className="ml-auto text-primary" />
-                      )}
-                    </button>
-
-                    <button
-                      onClick={() => setStyle("CESTA_VITRINE")}
-                      className={cn(
-                        "flex items-center gap-4 p-4 border-2 rounded-2xl text-left transition-all",
-                        selectedStyle === "CESTA_VITRINE"
-                          ? "border-primary bg-primary/5"
-                          : "hover:border-slate-300"
-                      )}
-                    >
-                      <div className="p-3 bg-orange-100 rounded-full text-orange-600">
-                        <Gift />
-                      </div>
-                      <div>
-                        <p className="font-bold">Cesta Vitrine</p>
-                        <p className="text-xs text-slate-500">
-                          A opção mais premium e visual.
-                        </p>
-                      </div>
-                      {selectedStyle === "CESTA_VITRINE" && (
-                        <Check className="ml-auto text-primary" />
-                      )}
-                    </button>
+                    {[
+                      {
+                        id: "SACO_EXPRESS",
+                        label: "Saco de Presente",
+                        desc: "Prático, rápido e econômico.",
+                        icon: <ShoppingBag />,
+                        color: "blue",
+                      },
+                      {
+                        id: "CAIXA_FECHADA",
+                        label: "Caixa Surpresa",
+                        desc: "Elegante e misterioso com seda.",
+                        icon: <Box />,
+                        color: "purple",
+                      },
+                      {
+                        id: "CESTA_VITRINE",
+                        label: "Cesta Vitrine",
+                        desc: "A opção mais premium e visual.",
+                        icon: <Gift />,
+                        color: "orange",
+                      },
+                    ].map((style) => (
+                      <button
+                        key={style.id}
+                        onClick={() => setStyle(style.id as any)}
+                        className={cn(
+                          "flex items-center gap-4 p-4 border-2 rounded-2xl text-left transition-all",
+                          selectedStyle === style.id
+                            ? "border-primary bg-primary/5"
+                            : "hover:border-slate-300"
+                        )}
+                      >
+                        <div
+                          className={`p-3 bg-${style.color}-100 rounded-full text-${style.color}-600`}
+                        >
+                          {style.icon}
+                        </div>
+                        <div>
+                          <p className="font-bold">{style.label}</p>
+                          <p className="text-xs text-slate-500">{style.desc}</p>
+                        </div>
+                        {selectedStyle === style.id && (
+                          <Check className="ml-auto text-primary" />
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* PASSO 3: ESCOLHA DA BASE/SACO (FILTRADO) */}
+              {/* PASSO 3 */}
               {currentStep === 3 && (
                 <div className="space-y-6">
                   <header>
@@ -258,8 +388,6 @@ export function KitBuilderModal() {
                       Mostrando apenas opções que comportam seus itens.
                     </p>
                   </header>
-
-                  {/* Se for Cesta ou Caixa, escolhe a base primeiro */}
                   {(selectedStyle === "CESTA_VITRINE" ||
                     selectedStyle === "CAIXA_FECHADA") && (
                     <div className="grid grid-cols-2 gap-4">
@@ -279,8 +407,8 @@ export function KitBuilderModal() {
                             <div className="relative aspect-video mb-2">
                               <SafeImage
                                 src={base.imageUrl}
+                                name={base.type}
                                 alt={base.name}
-                                name={base.name}
                                 fill
                                 className="object-contain"
                               />
@@ -292,8 +420,6 @@ export function KitBuilderModal() {
                         ))}
                     </div>
                   )}
-
-                  {/* Se for Saco Express ou após escolher a base da cesta, escolhe o saco/fechamento */}
                   <div className="mt-8">
                     <h4 className="text-sm font-bold mb-3">
                       Escolha o Saco/Estampa:
@@ -310,11 +436,11 @@ export function KitBuilderModal() {
                               : "border-slate-100"
                           )}
                         >
-                          <div className="w-10 h-10 relative bg-slate-100 rounded">
+                          <div className="w-10 h-10 relative bg-slate-100 rounded overflow-hidden">
                             <SafeImage
                               src={w.imageUrl}
+                              name={w.type}
                               alt={w.name}
-                              name={w.name}
                               fill
                               className="object-cover"
                             />
@@ -329,7 +455,7 @@ export function KitBuilderModal() {
                 </div>
               )}
 
-              {/* PASSO 4: RESUMO E FINALIZAÇÃO */}
+              {/* PASSO 4 */}
               {currentStep === 4 && (
                 <div className="space-y-6">
                   <header>
@@ -354,27 +480,26 @@ export function KitBuilderModal() {
                     </div>
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span>Mão de obra (Montagem)</span>
+                        <span>Mão de obra</span>
                         <span className="font-bold">Incluído</span>
                       </div>
                       <div className="flex justify-between text-primary font-bold text-lg pt-2 border-t">
                         <span>Total</span>
-                        <span>{formatCurrency(calculateKitTotal())}</span>
+                        <span>{formatCurrency(kitTotal)}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
-            </ScrollArea>
+            </div>
           </div>
 
-          {/* SIDEBAR DE RESUMO (DIREITA) */}
-          <div className="w-full md:w-80 bg-slate-50 p-6 flex flex-col gap-4">
-            <h4 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase tracking-wider">
+          {/* SIDEBAR RESUMO */}
+          <div className="w-full md:w-80 bg-slate-50 p-6 flex flex-col gap-4 border-l min-h-0">
+            <h4 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase tracking-wider shrink-0">
               <List size={14} /> Seu Kit
             </h4>
-
-            <ScrollArea className="flex-1 pr-2">
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
               <div className="space-y-3">
                 {composition.internalItems.map((item) => (
                   <div
@@ -384,8 +509,8 @@ export function KitBuilderModal() {
                     <div className="w-10 h-10 relative rounded overflow-hidden flex-shrink-0">
                       <SafeImage
                         src={item.product.imageUrl}
+                        name={item.product.type}
                         alt={item.product.name}
-                        name={item.product.name}
                         fill
                         className="object-cover"
                       />
@@ -424,7 +549,6 @@ export function KitBuilderModal() {
                     </div>
                   </div>
                 ))}
-
                 {composition.internalItems.length === 0 && (
                   <div className="text-center py-10 opacity-40">
                     <Info className="mx-auto mb-2" />
@@ -432,13 +556,11 @@ export function KitBuilderModal() {
                   </div>
                 )}
               </div>
-            </ScrollArea>
-
-            {/* STATUS DE CAPACIDADE */}
+            </div>
             {composition.baseContainer && (
-              <div className="bg-white p-3 rounded-xl border border-primary/20">
+              <div className="bg-white p-3 rounded-xl border border-primary/20 shrink-0">
                 <div className="flex justify-between text-[10px] font-bold mb-1 uppercase text-slate-400">
-                  <span>Espaço Ocupado</span>
+                  <span>Espaço</span>
                   <span>{composition.currentSlotCount} slots</span>
                 </div>
                 <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -458,8 +580,8 @@ export function KitBuilderModal() {
           </div>
         </div>
 
-        {/* FOOTER - NAVEGAÇÃO */}
-        <div className="p-6 border-t bg-white flex justify-between items-center">
+        {/* FOOTER */}
+        <div className="p-6 border-t bg-white flex justify-between items-center shrink-0">
           <Button
             variant="ghost"
             onClick={
@@ -470,17 +592,15 @@ export function KitBuilderModal() {
           >
             {currentStep === 1 ? "Cancelar" : "Voltar"}
           </Button>
-
           <div className="flex items-center gap-3">
             <div className="hidden md:block text-right">
               <p className="text-[10px] text-slate-400 font-bold uppercase">
                 Total Estimado
               </p>
               <p className="font-bold text-primary">
-                {formatCurrency(calculateKitTotal())}
+                {formatCurrency(kitTotal)}
               </p>
             </div>
-
             {currentStep < 4 ? (
               <Button
                 onClick={() => setStep(currentStep + 1)}

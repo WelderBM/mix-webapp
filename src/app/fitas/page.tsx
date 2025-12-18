@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useMemo, Suspense } from "react";
-// ... imports (mantenha os mesmos)
 import { useSearchParams } from "next/navigation";
 import { useProductStore } from "@/store/productStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -18,6 +17,7 @@ import {
   CheckCircle2,
   Lock,
   Unlock,
+  AlertCircle,
 } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { toast } from "sonner";
@@ -79,13 +79,10 @@ function FitasContent() {
     [ribbonProducts]
   );
 
-  // Manipulador ajustado para garantir que o preço do rolo seja usado
   const handleAddRoll = (product: any) => {
-    // Se o produto tiver rollPrice, usamos ele como preço base para o item no carrinho
-    // Criamos um objeto temporário para garantir que o carrinho pegue o valor certo
     const productToAdd = {
       ...product,
-      price: product.rollPrice || product.price, // Força o preço do rolo se existir
+      price: product.rollPrice || product.price,
       name: `${product.name} (Rolo Fechado)`,
     };
 
@@ -167,15 +164,16 @@ function FitasContent() {
               </TabsList>
             </div>
 
-            {/* ABA ROLOS FECHADOS */}
+            {/* CONTEÚDO: ROLOS FECHADOS */}
             <TabsContent
               value="rolls"
               className="p-8 animate-in fade-in slide-in-from-bottom-2 duration-500"
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-slate-700">
-                  Estoque Lacrado
-                </h2>
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <Lock size={20} className="text-[var(--primary)]" /> Estoque
+                  Lacrado
+                </h3>
                 <span className="text-sm text-slate-400">
                   {closedRolls.length} opções disponíveis
                 </span>
@@ -188,8 +186,6 @@ function FitasContent() {
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                   {closedRolls.map((product) => {
-                    // TRUQUE VISUAL: Criamos um objeto clone só para exibição
-                    // Trocamos o 'price' pelo 'rollPrice' para o Card mostrar o valor certo (R$ 40,00)
                     const displayProduct = {
                       ...product,
                       price: product.rollPrice || product.price,
@@ -212,71 +208,67 @@ function FitasContent() {
               )}
             </TabsContent>
 
-            {/* ABA POR METRO */}
+            {/* CONTEÚDO: POR METRO (APENAS ABERTOS) */}
             <TabsContent
               value="meter"
               className="p-8 animate-in fade-in slide-in-from-bottom-2 duration-500"
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-700 mb-2 flex items-center gap-2">
-                      <Unlock className="text-[var(--primary)]" size={20} />{" "}
-                      Corte de Fitas Abertas
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                      Apenas fitas abertas podem ser fracionadas.
-                    </p>
-                  </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                  {/* SEÇÃO 1: ESCOLHA DA FITA (ESTILO BUILDER) */}
+                  <section>
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <span className="bg-slate-800 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">
+                        1
+                      </span>{" "}
+                      Escolha a Fita (Estoque Aberto)
+                    </h3>
 
-                  <div className="space-y-4">
-                    <label className="text-sm font-medium text-slate-700">
-                      1. Escolha a Fita (Estoque Aberto)
-                    </label>
                     {openRibbons.length === 0 ? (
-                      <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg text-sm border border-yellow-100">
-                        No momento, não temos fitas disponíveis para venda por
-                        metro. Confira a aba de <strong>Rolos Fechados</strong>!
+                      <div className="p-6 bg-yellow-50 text-yellow-800 rounded-xl border border-yellow-100 flex items-center gap-3 text-sm">
+                        <AlertCircle size={20} className="shrink-0" />
+                        <div>
+                          No momento, não temos fitas disponíveis para venda por
+                          metro.
+                          <br />
+                          Confira a aba de <strong>Rolos Fechados</strong>!
+                        </div>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 max-h-[400px] overflow-y-auto p-1 custom-scrollbar">
+                      // GRID PADRONIZADO COM LACO BUILDER
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-[400px] overflow-y-auto p-1 custom-scrollbar">
                         {openRibbons.map((ribbon) => {
                           const imgUrl = getProductImage(
                             ribbon.imageUrl,
-                            ribbon.name || "Sem imagem"
+                            ribbon.type
                           );
                           return (
                             <div
                               key={ribbon.id}
                               onClick={() => setSelectedRibbonId(ribbon.id)}
-                              className={`cursor-pointer rounded-lg border p-2 flex flex-col items-center gap-2 transition-all hover:shadow-md h-full relative ${
+                              className={`cursor-pointer rounded-lg border p-2 flex flex-col items-center gap-2 transition-all hover:shadow-md relative ${
                                 selectedRibbonId === ribbon.id
-                                  ? "border-[var(--primary)] ring-2 ring-[var(--primary)] ring-opacity-20 bg-purple-50 transform scale-105"
+                                  ? "border-[var(--primary)] ring-2 ring-[var(--primary)] ring-opacity-20 bg-purple-50"
                                   : "border-slate-200 bg-white"
                               }`}
                             >
-                              <div className="w-12 h-12 rounded-full bg-slate-100 relative overflow-hidden shrink-0">
+                              <div className="w-10 h-10 rounded-full bg-slate-100 relative overflow-hidden shrink-0">
                                 <SafeImage
                                   src={imgUrl}
                                   alt={ribbon.name}
-                                  name={ribbon.name}
                                   fill
                                   className="object-cover"
                                 />
                               </div>
-                              <span className="text-[10px] text-center leading-tight line-clamp-2 w-full">
+                              <span className="text-[10px] text-center line-clamp-2 leading-tight">
                                 {ribbon.name}
                               </span>
-                              <span className="text-xs font-bold text-slate-600 mt-auto">
+                              <span className="text-[10px] font-bold text-slate-500 mt-auto">
                                 R$ {ribbon.price.toFixed(2)}/m
                               </span>
                               {selectedRibbonId === ribbon.id && (
-                                <div className="absolute top-1 right-1 text-[var(--primary)] bg-white rounded-full p-0.5 shadow-sm">
-                                  <CheckCircle2
-                                    size={12}
-                                    fill="currentColor"
-                                    className="text-white"
-                                  />
+                                <div className="absolute top-1 right-1 text-[var(--primary)]">
+                                  <CheckCircle2 size={16} />
                                 </div>
                               )}
                             </div>
@@ -284,25 +276,29 @@ function FitasContent() {
                         })}
                       </div>
                     )}
-                  </div>
+                  </section>
 
-                  <div
-                    className={`space-y-4 transition-opacity duration-300 ${
+                  {/* SEÇÃO 2: QUANTIDADE (ESTILO BUILDER) */}
+                  <section
+                    className={`transition-opacity duration-300 ${
                       selectedRibbonId
                         ? "opacity-100"
                         : "opacity-50 pointer-events-none"
                     }`}
                   >
-                    <label className="text-sm font-medium text-slate-700">
-                      2. Quantos Metros?
-                    </label>
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center border rounded-lg bg-white overflow-hidden shadow-sm w-40">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <span className="bg-slate-800 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">
+                        2
+                      </span>{" "}
+                      Quantos Metros?
+                    </h3>
+                    <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 w-fit">
+                      <div className="flex items-center border rounded-lg bg-white overflow-hidden shadow-sm">
                         <button
                           onClick={() =>
                             setMeterAmount(Math.max(0.5, meterAmount - 0.5))
                           }
-                          className="px-3 py-2 hover:bg-slate-100 text-slate-500"
+                          className="px-3 py-2 hover:bg-slate-100 text-slate-500 border-r"
                         >
                           -
                         </button>
@@ -313,57 +309,91 @@ function FitasContent() {
                           onChange={(e) =>
                             setMeterAmount(parseFloat(e.target.value))
                           }
-                          className="w-full text-center border-none font-bold text-lg focus:ring-0 outline-none"
+                          className="w-20 text-center border-none font-bold text-lg focus:ring-0 outline-none"
                         />
                         <button
                           onClick={() => setMeterAmount(meterAmount + 0.5)}
-                          className="px-3 py-2 hover:bg-slate-100 text-slate-500"
+                          className="px-3 py-2 hover:bg-slate-100 text-slate-500 border-l"
                         >
                           +
                         </button>
                       </div>
-                      <span className="text-sm text-slate-500">metros</span>
+                      <span className="text-sm font-medium text-slate-600">
+                        metros
+                      </span>
                     </div>
-                  </div>
+                  </section>
                 </div>
 
-                <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200 flex flex-col justify-center items-center text-center space-y-6">
-                  {selectedRibbonId ? (
-                    <div className="animate-in zoom-in duration-300 w-full flex flex-col items-center">
-                      <div className="w-32 h-32 bg-white rounded-full shadow-md relative overflow-hidden border-4 border-white mb-4">
-                        {(() => {
-                          const r = openRibbons.find(
-                            (i) => i.id === selectedRibbonId
-                          );
-                          const imgUrl = getProductImage(
-                            r?.imageUrl,
-                            r?.name || "Sem imagem"
-                          );
-                          return (
-                            <SafeImage
-                              src={imgUrl}
-                              name={r?.name}
-                              alt={r?.name}
-                              fill
-                              className="object-cover"
-                            />
-                          );
-                        })()}
+                {/* PAINEL DIREITO (Resumo - Igual ao Builder) */}
+                <div className="lg:col-span-1">
+                  <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 sticky top-24">
+                    <h3 className="text-xl font-bold text-slate-800 mb-6 text-center">
+                      Resumo do Corte
+                    </h3>
+                    <div className="space-y-6">
+                      <div className="w-full aspect-square bg-slate-50 rounded-xl border border-dashed border-slate-300 flex items-center justify-center relative overflow-hidden">
+                        {selectedRibbonId ? (
+                          <div className="text-center animate-in zoom-in duration-300">
+                            <div className="relative w-24 h-24 mx-auto mb-2 rounded-full overflow-hidden border-2 border-white shadow-sm">
+                              {(() => {
+                                const r = openRibbons.find(
+                                  (i) => i.id === selectedRibbonId
+                                );
+                                const imgUrl = getProductImage(
+                                  r?.imageUrl,
+                                  r?.type || "RIBBON"
+                                );
+                                return (
+                                  <SafeImage
+                                    src={imgUrl}
+                                    alt=""
+                                    fill
+                                    className="object-cover"
+                                  />
+                                );
+                              })()}
+                            </div>
+                            <p className="text-sm font-bold text-[var(--primary)] px-2">
+                              {
+                                openRibbons.find(
+                                  (i) => i.id === selectedRibbonId
+                                )?.name
+                              }
+                            </p>
+                            <p className="text-xs text-slate-400 mt-1">
+                              {meterAmount} metros
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="text-slate-400 flex flex-col items-center">
+                            <Ruler size={32} className="opacity-40 mb-2" />
+                            <p className="text-sm">Selecione uma fita</p>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-800">
-                          {
-                            openRibbons.find((i) => i.id === selectedRibbonId)
-                              ?.name
-                          }
-                        </h3>
-                        <p className="text-slate-500 text-sm">
-                          Corte de {meterAmount} metros
-                        </p>
+
+                      <div className="space-y-3 text-sm">
+                        <div className="flex justify-between py-2 border-b border-slate-100">
+                          <span className="text-slate-500">Item</span>
+                          <span className="font-medium text-slate-800 text-right max-w-[150px] truncate">
+                            {openRibbons.find((i) => i.id === selectedRibbonId)
+                              ?.name || "-"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-slate-100">
+                          <span className="text-slate-500">Quantidade</span>
+                          <span className="font-medium text-slate-800">
+                            {meterAmount}m
+                          </span>
+                        </div>
                       </div>
-                      <div className="w-full pt-4 border-t border-slate-200 mt-6">
-                        <div className="flex justify-between items-center mb-4">
-                          <span className="text-slate-500">Total Estimado</span>
+
+                      <div className="pt-4">
+                        <div className="flex justify-between items-end mb-4">
+                          <span className="text-slate-500 font-medium">
+                            Valor Total
+                          </span>
                           <span className="text-3xl font-bold text-[var(--primary)]">
                             R${" "}
                             {(
@@ -375,9 +405,12 @@ function FitasContent() {
                         </div>
                         <Button
                           onClick={handleAddMeter}
-                          className="w-full h-12 text-lg font-bold shadow-lg"
+                          disabled={!selectedRibbonId}
+                          className="w-full h-12 text-lg font-bold shadow-md"
                           style={{
-                            backgroundColor: "var(--primary)",
+                            backgroundColor: selectedRibbonId
+                              ? "var(--primary)"
+                              : undefined,
                             color: "var(--primary-contrast)",
                           }}
                         >
@@ -385,16 +418,7 @@ function FitasContent() {
                         </Button>
                       </div>
                     </div>
-                  ) : (
-                    <div className="text-slate-400 flex flex-col items-center">
-                      <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                        <Ruler size={32} className="opacity-40" />
-                      </div>
-                      <p className="font-medium">
-                        Selecione uma fita aberta ao lado
-                      </p>
-                    </div>
-                  )}
+                  </div>
                 </div>
               </div>
             </TabsContent>

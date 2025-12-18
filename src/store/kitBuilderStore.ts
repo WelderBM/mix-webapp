@@ -1,275 +1,222 @@
 import { create } from "zustand";
-import { Product, CapacityRef, LacoModelType, KitStyle } from "@/types";
-import { KitValidator } from "@/lib/kitValidator";
+import { Product } from "@/types";
 
-// --- Tipos de Estado ---
-
-interface RibbonSelectionState {
-  type: "NENHUM" | "PUXAR" | "PRONTO" | "CUSTOM";
-  accessoryId?: string;
-  ribbonDetails?: {
-    modelo: LacoModelType;
-    fitaPrincipalId: string;
-    fitaSecundariaId?: string;
-    cor?: string;
-    tamanho: CapacityRef;
-    metragemGasta: number;
-    assemblyCost: number;
-  };
+export interface KitItem {
+  product: Product;
+  quantity: number;
 }
 
-interface KitCompositionState {
+interface KitComposition {
   baseContainer: Product | null;
-  capacityRef: CapacityRef | null;
+  selectedWrapper: Product | null;
+  internalItems: KitItem[];
   currentSlotCount: number;
-  internalItems: { product: Product; quantity: number }[];
-  ribbonSelection: RibbonSelectionState | null;
-  selectedWrapper: Product | null; // Novo: Para validar Saco/Base
-  selectedFiller: Product | null;
 }
 
 interface KitBuilderState {
-  // Controle de UI
   isOpen: boolean;
-  currentStep: 1 | 2 | 3 | 4; // Expandido para comportar o novo fluxo
-  selectedKitId: string | null;
-  selectedStyle: KitStyle | null;
+  currentStep: number;
+  selectedStyle: "SACO_EXPRESS" | "CAIXA_FECHADA" | "CESTA_VITRINE" | null;
+  composition: KitComposition;
 
-  // Composição
-  composition: KitCompositionState;
-
-  // Ações
-  openKitBuilder: (kitId?: string | null) => void;
+  openKitBuilder: () => void;
   closeKitBuilder: () => void;
   setStep: (step: number) => void;
-  setStyle: (style: KitStyle) => void;
+  setStyle: (style: "SACO_EXPRESS" | "CAIXA_FECHADA" | "CESTA_VITRINE") => void;
+  resetBuilder: () => void;
 
-  // Gestão de Base e Embalagem (Com Blindagem)
-  setBaseContainer: (product: Product) => void;
-  setWrapper: (product: Product | null) => void;
-  getValidWrappers: (allWrappers: Product[]) => Product[];
-
-  // Gestão de Itens (Com Validação de Volume e Altura)
   addItem: (
     product: Product,
-    quantity: number
-  ) => { success: boolean; reason?: string };
-  updateItemQuantity: (
-    productId: string,
-    quantity: number
+    quantity?: number
   ) => { success: boolean; reason?: string };
   removeItem: (productId: string) => void;
+  updateItemQuantity: (productId: string, quantity: number) => void;
 
-  // Finalização
-  setRibbonSelection: (selection: RibbonSelectionState) => void;
-  resetBuilder: () => void;
-  calculateKitTotal: () => number;
+  setBaseContainer: (base: Product) => void;
+  setWrapper: (wrapper: Product) => void;
+
+  getValidWrappers: (allWrappers: Product[]) => Product[];
 }
-
-// --- Configurações e Constantes ---
-
-const INITIAL_COMPOSITION: KitCompositionState = {
-  baseContainer: null,
-  capacityRef: null,
-  currentSlotCount: 0,
-  internalItems: [],
-  ribbonSelection: null,
-  selectedWrapper: null,
-  selectedFiller: null,
-};
-
-const MAX_SLOTS: Record<CapacityRef, number> = { P: 5, M: 10, G: 15 };
-
-// --- Store ---
 
 export const useKitBuilderStore = create<KitBuilderState>((set, get) => ({
   isOpen: false,
   currentStep: 1,
-  selectedKitId: null,
   selectedStyle: null,
-  composition: INITIAL_COMPOSITION,
+  composition: {
+    baseContainer: null,
+    selectedWrapper: null,
+    internalItems: [],
+    currentSlotCount: 0,
+  },
 
-  openKitBuilder: (kitId) =>
-    set({
-      isOpen: true,
-      selectedKitId: kitId ?? null,
-    }),
-
+  openKitBuilder: () => set({ isOpen: true }),
   closeKitBuilder: () => set({ isOpen: false }),
-
-  setStep: (step: any) => set({ currentStep: step }),
-
-  setStyle: (style) =>
-    set({
-      selectedStyle: style,
-      currentStep: 2,
-      composition: {
-        ...get().composition,
-        baseContainer: null,
-        selectedWrapper: null,
-      },
-    }),
-
-  setBaseContainer: (product) => {
-    set((state) => ({
-      composition: {
-        ...state.composition,
-        baseContainer: product,
-        capacityRef: product.capacityRef || null,
-        selectedWrapper: null, // Resetar saco ao mudar base (força re-validação)
-      },
-    }));
-  },
-
-  setWrapper: (product) =>
-    set((state) => ({
-      composition: { ...state.composition, selectedWrapper: product },
-    })),
-
-  /**
-   * BLINDAGEM: Retorna apenas sacos que cabem no perímetro da base atual
-   */
-  getValidWrappers: (allWrappers) => {
-    const { baseContainer } = get().composition;
-    if (!baseContainer) return allWrappers;
-    return allWrappers.filter((w) =>
-      KitValidator.canWrapperFitBase(w, baseContainer)
-    );
-  },
-
-  /**
-   * ADICIONAR ITEM: Valida Volume (Slots) e Altura (Geometria)
-   */
-  addItem: (product, quantity) => {
-    const { composition } = get();
-
-    // 1. Validação de Volume (Slots)
-    if (composition.capacityRef) {
-      const maxSlots = MAX_SLOTS[composition.capacityRef];
-      const itemSize = product.itemSize || 1;
-      if (composition.currentSlotCount + itemSize * quantity > maxSlots) {
-        return {
-          success: false,
-          reason: "A base escolhida não tem espaço suficiente.",
-        };
-      }
-    }
-
-    // 2. Validação de Altura (Se for caixa fechada)
-    if (
-      composition.baseContainer &&
-      !KitValidator.canBoxClose(
-        [{ product, quantity }],
-        composition.baseContainer
-      )
-    ) {
-      return {
-        success: false,
-        reason: "Este item é alto demais para esta embalagem.",
-      };
-    }
-
-    set((state) => {
-      const currentItems = [...state.composition.internalItems];
-      const idx = currentItems.findIndex((i) => i.product.id === product.id);
-
-      if (idx >= 0) currentItems[idx].quantity += quantity;
-      else currentItems.push({ product, quantity });
-
-      const newSlotCount = currentItems.reduce(
-        (acc, i) => acc + (i.product.itemSize || 1) * i.quantity,
-        0
-      );
-
-      return {
-        composition: {
-          ...state.composition,
-          internalItems: currentItems,
-          currentSlotCount: newSlotCount,
-        },
-      };
-    });
-
-    return { success: true };
-  },
-
-  updateItemQuantity: (productId, quantity) => {
-    const { composition } = get();
-    const item = composition.internalItems.find(
-      (i) => i.product.id === productId
-    );
-
-    if (item && quantity > item.quantity) {
-      const result = get().addItem(item.product, quantity - item.quantity);
-      return result;
-    }
-
-    set((state) => {
-      let newItems = [...state.composition.internalItems];
-      if (quantity <= 0)
-        newItems = newItems.filter((i) => i.product.id !== productId);
-      else {
-        const idx = newItems.findIndex((i) => i.product.id === productId);
-        if (idx >= 0) newItems[idx].quantity = quantity;
-      }
-
-      const newSlotCount = newItems.reduce(
-        (acc, i) => acc + (i.product.itemSize || 1) * i.quantity,
-        0
-      );
-      return {
-        composition: {
-          ...state.composition,
-          internalItems: newItems,
-          currentSlotCount: newSlotCount,
-        },
-      };
-    });
-
-    return { success: true };
-  },
-
-  removeItem: (productId) => get().updateItemQuantity(productId, 0),
-
-  setRibbonSelection: (selection) =>
-    set((state) => ({
-      composition: { ...state.composition, ribbonSelection: selection },
-    })),
 
   resetBuilder: () =>
     set({
       currentStep: 1,
-      selectedKitId: null,
       selectedStyle: null,
-      composition: INITIAL_COMPOSITION,
+      composition: {
+        baseContainer: null,
+        selectedWrapper: null,
+        internalItems: [],
+        currentSlotCount: 0,
+      },
     }),
 
-  calculateKitTotal: () => {
+  setStep: (step) => set({ currentStep: step }),
+
+  setStyle: (style) => {
+    set((state) => ({
+      selectedStyle: style,
+      composition: {
+        ...state.composition,
+        baseContainer: null,
+        selectedWrapper: null,
+      },
+    }));
+  },
+
+  addItem: (product, quantity = 1) => {
     const { composition } = get();
-    let total = 0;
 
-    // 1. Base, Saco e Enchimento
-    total += composition.baseContainer?.price || 0;
-    total += composition.selectedWrapper?.price || 0;
-    total += composition.selectedFiller?.price || 0;
+    if (!product.inStock) return { success: false, reason: "Fora de estoque." };
 
-    // 2. Itens Internos
-    composition.internalItems.forEach((i) => {
-      total += i.product.price * i.quantity;
-    });
+    const itemSize = product.itemSize || 1;
+    const sizeToAdd = itemSize * quantity;
 
-    // 3. Taxa de Serviço Dinâmica (Blindagem de lucro)
-    const totalItems = composition.internalItems.reduce(
-      (acc, i) => acc + i.quantity,
-      0
-    );
-    total += KitValidator.calculateServiceFee(totalItems);
-
-    // 4. Customização de Laço
-    if (composition.ribbonSelection?.type === "CUSTOM") {
-      total += composition.ribbonSelection.ribbonDetails?.assemblyCost || 0;
+    if (composition.baseContainer) {
+      const capacity = composition.baseContainer.capacity || 10;
+      if (composition.currentSlotCount + sizeToAdd > capacity) {
+        return {
+          success: false,
+          reason: "A embalagem não comporta mais itens.",
+        };
+      }
     }
 
-    return total;
+    // IMUTABILIDADE ESTRITA AQUI
+    const newItems = [...composition.internalItems];
+    const existingIndex = newItems.findIndex(
+      (i) => i.product.id === product.id
+    );
+
+    if (existingIndex >= 0) {
+      // Cria um NOVO objeto para o item atualizado
+      newItems[existingIndex] = {
+        ...newItems[existingIndex],
+        quantity: newItems[existingIndex].quantity + quantity,
+      };
+    } else {
+      newItems.push({ product, quantity });
+    }
+
+    set((state) => ({
+      composition: {
+        ...state.composition,
+        internalItems: newItems,
+        currentSlotCount: state.composition.currentSlotCount + sizeToAdd,
+      },
+    }));
+
+    return { success: true };
+  },
+
+  removeItem: (productId) => {
+    const { composition } = get();
+    const targetItem = composition.internalItems.find(
+      (i) => i.product.id === productId
+    );
+    if (!targetItem) return;
+
+    const sizeToRemove =
+      (targetItem.product.itemSize || 1) * targetItem.quantity;
+    const newItems = composition.internalItems.filter(
+      (i) => i.product.id !== productId
+    );
+
+    set((state) => ({
+      composition: {
+        ...state.composition,
+        internalItems: newItems,
+        currentSlotCount: Math.max(
+          0,
+          state.composition.currentSlotCount - sizeToRemove
+        ),
+      },
+    }));
+  },
+
+  updateItemQuantity: (productId, quantity) => {
+    if (quantity <= 0) {
+      get().removeItem(productId);
+      return;
+    }
+
+    const { composition } = get();
+    const itemIndex = composition.internalItems.findIndex(
+      (i) => i.product.id === productId
+    );
+    if (itemIndex === -1) return;
+
+    const item = composition.internalItems[itemIndex];
+    const sizePerUnit = item.product.itemSize || 1;
+    const diff = quantity - item.quantity;
+    const sizeDiff = diff * sizePerUnit;
+
+    if (diff > 0 && composition.baseContainer) {
+      const capacity = composition.baseContainer.capacity || 10;
+      if (composition.currentSlotCount + sizeDiff > capacity) return;
+    }
+
+    // IMUTABILIDADE ESTRITA
+    const newItems = [...composition.internalItems];
+    newItems[itemIndex] = { ...item, quantity: quantity };
+
+    set((state) => ({
+      composition: {
+        ...state.composition,
+        internalItems: newItems,
+        currentSlotCount: state.composition.currentSlotCount + sizeDiff,
+      },
+    }));
+  },
+
+  setBaseContainer: (base) => {
+    set((state) => ({
+      composition: {
+        ...state.composition,
+        baseContainer: base,
+        selectedWrapper: null, // Reseta o saco ao mudar a base
+      },
+    }));
+  },
+
+  setWrapper: (wrapper) => {
+    set((state) => ({
+      composition: {
+        ...state.composition,
+        selectedWrapper: wrapper,
+      },
+    }));
+  },
+
+  getValidWrappers: (allWrappers) => {
+    const { composition } = get();
+    const { baseContainer } = composition;
+
+    if (!baseContainer)
+      return allWrappers.filter((w) => w.kitStyle === "SACO_EXPRESS");
+
+    const reqSize = baseContainer.requiredWrapperSize;
+    if (!reqSize || reqSize === "N/A") {
+      return allWrappers.filter(
+        (w) => w.category === "Decorados" || w.wrapperSize === "N/A"
+      );
+    }
+
+    return allWrappers.filter(
+      (w) => w.wrapperSize === reqSize || w.wrapperSize === "60x80"
+    );
   },
 }));

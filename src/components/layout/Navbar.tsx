@@ -4,9 +4,8 @@
 
 import Link from "next/link";
 import React, { useState, ElementType } from "react";
-import { ShoppingCart, Sparkles, Gift, Menu, X } from "lucide-react";
+import { Sparkles, Gift, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useCartStore } from "@/store/cartStore";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
 // CORRIGIDO: Importa CartSidebar (o painel) e CartIcon (o botão inteligente)
 import { CartSidebar, CartIcon } from "@/components/features/CartSidebar";
@@ -18,6 +17,7 @@ import {
   SheetTitle,
   SheetClose,
 } from "@/components/ui/sheet";
+import { usePathname } from "next/navigation";
 
 // Links da navegação principal (Estrutura de dados unificada)
 interface NavLinkItem {
@@ -42,6 +42,12 @@ const navLinks: NavLinkItem[] = [
 const Navbar = () => {
   const openKitBuilder = useKitBuilderStore((state) => state.openKitBuilder);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Se a rota começar com "/admin", não renderiza nada
+  if (pathname && pathname.startsWith("/admin")) {
+    return null;
+  }
 
   // Componente auxiliar para links de navegação interna
   // CORRIGIDO: Removido legacyBehavior.

@@ -7,6 +7,8 @@ import { Footer } from "@/components/layout/Footer";
 import { Toaster } from "@/components/ui/sonner";
 import { CartSidebar } from "@/components/features/CartSidebar";
 import { SeasonalAtmosphere } from "@/components/layout/SeasonalAtmosphere";
+// 1. IMPORT DO MODAL
+import { KitBuilderModal } from "@/components/features/KitBuilderModal";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -30,13 +32,13 @@ export default function RootLayout({
         <ThemeProvider>
           <SeasonalAtmosphere />
 
-          {/* NAVBAR FIXA NO TOPO */}
           <Navbar />
 
-          {/* CONTEÚDO DA PÁGINA */}
+          {/* 2. MODAL DISPONÍVEL GLOBALMENTE */}
+          <KitBuilderModal />
+
           <div className="min-h-screen">{children}</div>
 
-          {/* RODAPÉ E MODAIS GLOBAIS */}
           <Footer />
           <CartSidebar />
           <Toaster richColors position="top-center" />
