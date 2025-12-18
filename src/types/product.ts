@@ -57,4 +57,15 @@ export interface Product {
   height?: number;
   depth?: number;
   weight?: number;
+
+  kitStyle?: string;
+  requiredWrapperSize?: string;
+  wrapperSize?: string;
+  recipeId?: string;
+  kitBasePrice?: number;
+}
+export interface AssembledKitProduct extends Product {
+  type: "ASSEMBLED_KIT";
+  recipeId: string;
+  kitBasePrice: number;
 }
