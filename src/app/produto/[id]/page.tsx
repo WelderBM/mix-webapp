@@ -92,6 +92,7 @@ export default function ProductPage() {
               <SafeImage
                 src={product.imageUrl}
                 alt={product.name}
+                name={product.name}
                 fill
                 className="object-cover"
               />

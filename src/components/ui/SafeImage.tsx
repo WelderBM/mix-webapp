@@ -2,28 +2,30 @@
 
 import { useState, useEffect } from "react";
 import Image, { ImageProps } from "next/image";
-import { getProductImage, UNIVERSAL_FALLBACK_SVG } from "@/lib/image-utils";
+import { getDynamicPlaceholder, getProductImage } from "@/lib/image-utils";
 import { ProductType } from "@/types";
 
 interface SafeImageProps extends Omit<ImageProps, "src"> {
   src?: string | null;
-  productType?: ProductType | string;
+  name?: string;
 }
 
 export function SafeImage({
   src,
-  productType = "DEFAULT",
   alt,
   className,
+  name,
   ...props
 }: SafeImageProps) {
-  const initialSrc = getProductImage(src, productType as ProductType);
+  const initialSrc = getProductImage(src, name);
   const [imgSrc, setImgSrc] = useState(initialSrc);
 
-  useEffect(() => {
-    setImgSrc(getProductImage(src, productType as ProductType));
-  }, [src, productType]);
+  const [hasError, setHasError] = useState(false);
 
+  useEffect(() => {
+    setImgSrc(getProductImage(src, name));
+    setHasError(false);
+  }, [src, name]);
   return (
     <Image
       {...props}
@@ -31,8 +33,15 @@ export function SafeImage({
       alt={alt || "Imagem do produto"}
       className={className}
       onError={() => {
-        if (imgSrc !== UNIVERSAL_FALLBACK_SVG) {
-          setImgSrc(UNIVERSAL_FALLBACK_SVG);
+        if (!hasError) {
+          setHasError(true);
+          const fallback = getDynamicPlaceholder(
+            (name || "Sem imagem") as string
+          );
+
+          if (imgSrc !== fallback) {
+            setImgSrc(fallback);
+          }
         }
       }}
     />

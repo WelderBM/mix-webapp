@@ -34,8 +34,9 @@ export function SectionAssembledKits({ products }: SectionAssembledKitsProps) {
             >
               <div className="relative aspect-square mb-4 rounded-xl overflow-hidden bg-slate-100">
                 <SafeImage
-                  src={getProductImage(kit.imageUrl, kit.type)}
+                  src={kit.imageUrl}
                   alt={kit.name}
+                  name={kit.name}
                   fill
                   className="object-cover group-hover:scale-105 transition-transform"
                 />

@@ -205,6 +205,7 @@ export function CartSidebar() {
                       <div className="relative w-16 h-16 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0 border">
                         <SafeImage
                           src={imageUrl}
+                          name={item.product?.name}
                           alt=""
                           fill
                           className="object-cover"

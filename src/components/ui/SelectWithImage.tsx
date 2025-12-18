@@ -46,7 +46,8 @@ export function SelectWithImage({
               <div className="relative w-8 h-8 rounded overflow-hidden shrink-0 p-0.5 bg-slate-100 border border-slate-200 mr-2">
                 <SafeImage
                   src={selectedItem.imageUrl}
-                  alt={`Amostra visual da opção ${selectedItem.label}`}
+                  alt={selectedItem.label}
+                  name={selectedItem.label}
                   fill
                   className="object-cover"
                   sizes="32px"
@@ -74,6 +75,7 @@ export function SelectWithImage({
                     <SafeImage
                       src={item.imageUrl}
                       alt={`Visualização da opção ${item.label}`}
+                      name={item.label}
                       fill
                       className="object-cover"
                       sizes="32px"

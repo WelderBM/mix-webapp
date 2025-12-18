@@ -11,7 +11,6 @@ export type Unit = "m" | "un" | "pct";
 export type LacoModelType = "BOLA" | "BORBOLETA" | "PUXAR";
 export type CapacityRef = "P" | "M" | "G";
 export type RibbonRollStatus = "FECHADO" | "ABERTO";
-export type KitStyle = "SACO_EXPRESS" | "CAIXA_FECHADA" | "CESTA_VITRINE";
 
 export interface RibbonInventory {
   status: RibbonRollStatus;
@@ -32,6 +31,7 @@ export interface Product {
   name: string;
   description?: string;
   price: number;
+  rollPrice?: number;
   originalPrice?: number;
   type: ProductType;
   category: string;
@@ -57,7 +57,4 @@ export interface Product {
   height?: number;
   depth?: number;
   weight?: number;
-  kitStyle?: KitStyle;
-  requiredWrapperSize?: string;
-  wrapperSize?: string;
 }

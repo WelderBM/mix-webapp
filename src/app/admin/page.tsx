@@ -55,7 +55,6 @@ import {
   Trash2,
   LogOut,
   Package,
-  Palette,
   Layout,
   ArrowUp,
   ArrowDown,
@@ -439,12 +438,6 @@ export default function AdminPage() {
             <TabsTrigger value="products" className="gap-2 flex-1 md:flex-none">
               <Package size={16} /> Produtos
             </TabsTrigger>
-            <TabsTrigger
-              value="appearance"
-              className="gap-2 flex-1 md:flex-none"
-            >
-              <Palette size={16} /> Aparência
-            </TabsTrigger>
             <TabsTrigger value="system" className="gap-2 text-red-600">
               <Layout size={16} /> Sistema
             </TabsTrigger>
@@ -755,6 +748,7 @@ export default function AdminPage() {
                               <SafeImage
                                 src={product.imageUrl}
                                 alt={product.name}
+                                name={product.name}
                                 fill
                                 className="object-cover"
                               />
@@ -831,49 +825,6 @@ export default function AdminPage() {
               </div>
               <div className="text-xs text-slate-400 text-right">
                 Exibindo {filteredProducts.length} produtos
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* ABA APARÊNCIA */}
-          <TabsContent value="appearance">
-            <div className="bg-white p-6 rounded-xl shadow-sm max-w-2xl">
-              <h2 className="text-lg font-bold text-slate-800 mb-4">
-                Decoração da Loja
-              </h2>
-              <div className="p-4 border rounded-xl bg-slate-50 space-y-4">
-                <Label>Tema Sazonal</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { id: "default", label: "Padrão", icon: "☀️" },
-                    { id: "christmas", label: "Natal", icon: "🎄" },
-                    { id: "valentines", label: "Namorados", icon: "💘" },
-                    { id: "mothers_day", label: "Dia das Mães", icon: "🌸" },
-                  ].map((t) => (
-                    <div
-                      key={t.id}
-                      onClick={() =>
-                        setSettings({
-                          ...settings,
-                          theme: {
-                            ...settings.theme,
-                            activeTheme: t.id as any,
-                          },
-                        })
-                      }
-                      className={`cursor-pointer p-4 rounded-lg border flex items-center gap-3 ${
-                        settings.theme.activeTheme === t.id
-                          ? "bg-white border-slate-900 ring-2 ring-slate-900"
-                          : "bg-white"
-                      }`}
-                    >
-                      <span className="text-2xl">{t.icon}</span>
-                      <span className="font-bold text-slate-700">
-                        {t.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           </TabsContent>
@@ -1015,6 +966,7 @@ export default function AdminPage() {
                                   <SafeImage
                                     src={p.imageUrl}
                                     alt={p.name}
+                                    name={p.name}
                                     fill
                                     className="object-cover"
                                   />
@@ -1066,6 +1018,7 @@ export default function AdminPage() {
                                 <SafeImage
                                   src={prod.imageUrl}
                                   alt={prod.name}
+                                  name={prod.name}
                                   fill
                                   className="object-cover"
                                 />

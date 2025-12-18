@@ -14,6 +14,7 @@ export function StoreHeader() {
           <SafeImage
             src="/loja-fachada.webp"
             alt="Fachada da loja de presentes Mix Novidades"
+            name="Fachada da loja de presentes Mix Novidades"
             fill
             className="object-contain opacity-90 hover:scale-105 transition-transform duration-700"
             priority

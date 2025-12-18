@@ -1,4 +1,3 @@
-// src/lib/seed.ts (NOVA VERSÃO EXTENSA)
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -9,15 +8,18 @@ import {
   Unit,
 } from "@/types";
 
-// Coleções
 const ALL_PRODUCTS_REF = collection(db, "products");
 const SETTINGS_REF = doc(db, "settings", "general");
 const KIT_RECIPES_REF = collection(db, "kit_recipes");
 
+// Helper para gerar imagem com texto
+const getPlaceholdImage = (text: string) =>
+  `https://placehold.co/400x400/f1f5f9/334155?text=${encodeURIComponent(text)}`;
+
 export const seedDatabase = async () => {
   const batch = writeBatch(db);
 
-  // 1. CONFIGURAÇÕES INICIAIS
+  // 1. CONFIGURAÇÕES DA LOJA
   const initialSettings: StoreSettings = {
     id: "general",
     storeName: "Mix Novidades & Embalagens",
@@ -26,338 +28,306 @@ export const seedDatabase = async () => {
       activeCategories: ["Fitas", "Bases", "Natura", "Acessórios"],
       categoryOrder: ["Fitas", "Bases", "Natura", "Acessórios"],
     },
-    homeSections: [
-      {
-        id: "sec_natal",
-        title: "🎁 Kits Prontos de Natal",
-        type: "product_shelf",
-        productIds: ["KIT001", "KIT002"], // Kits Montados
-        width: "full",
-        isActive: true,
-      },
-      {
-        id: "sec_natura",
-        title: "✨ Área Natura - Recheios",
-        type: "product_shelf",
-        productIds: ["PROD_NAT01", "PROD_NAT02", "PROD_NAT03", "PROD_NAT04"],
-        width: "half",
-        isActive: true,
-      },
-      {
-        id: "sec_fitas_32",
-        title: "🎀 Fitas 32mm (Rolos Fechados)",
-        type: "product_shelf",
-        productIds: ["FITA001", "FITA002"],
-        width: "half",
-        isActive: true,
-      },
-    ],
-    theme: {
-      primaryColor: "",
-      secondaryColor: "",
-      accentColor: "",
-      backgroundColor: "",
-      activeTheme: "default",
-    },
+    homeSections: [],
+    theme: { activeTheme: "default" } as any,
   };
   batch.set(SETTINGS_REF, initialSettings);
 
-  // =================================================================
-  // 2. PRODUTOS (Fitas, Bases, Recheios, Laços Prontos)
-  // =================================================================
-
+  // 2. PRODUTOS
   const products: Product[] = [
-    // --- 6 x FITAS (RIBBON) ---
+    // =======================================================================
+    // FITAS (RIBBON) - Preços ajustados (32mm = 0.50/m, 16mm = 0.25/m)
+    // =======================================================================
     {
       id: "FITA001",
       name: "Fita Laminada Ouro 32mm",
-      price: 1.8,
+      price: 0.5, // Preço Metro
+      rollPrice: 40.0, // Preço Rolo 100m (Padrão)
       type: "RIBBON",
       category: "Fitas 32mm",
       unit: "m" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/fitas/ouro-32.webp",
+      imageUrl: getPlaceholdImage("Fita Ouro 32mm"),
       canBeSoldAsRoll: true,
-      originalPrice: 2.5,
       itemSize: 1.0,
-      capacity: 100.0, // 100 metros
+      capacity: 100.0,
+      ribbonInventory: {
+        status: "FECHADO",
+        remainingMeters: 100,
+        totalRollMeters: 100,
+      },
     },
     {
       id: "FITA002",
       name: "Fita PP Metalizada Verde 32mm",
-      price: 2.2,
+      price: 0.5,
+      rollPrice: 40.0,
       type: "RIBBON",
       category: "Fitas 32mm",
       unit: "m" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/fitas/verde-32.webp",
+      imageUrl: getPlaceholdImage("Fita Verde 32mm"),
       canBeSoldAsRoll: true,
       itemSize: 1.0,
       capacity: 100.0,
+      // Exemplo de fita aberta para venda por metro
+      ribbonInventory: {
+        status: "ABERTO",
+        remainingMeters: 45.5,
+        totalRollMeters: 100,
+      },
     },
     {
       id: "FITA003",
-      name: "Fita PP Brilho Holográfico 16mm",
-      price: 0.9,
+      name: "Fita Holográfica 16mm",
+      price: 0.25, // Preço Metro (16mm)
+      rollPrice: 40.0, // Preço Rolo 100m (Padrão)
       type: "RIBBON",
       category: "Fitas 16mm",
       unit: "m" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/fitas/holografica-16.webp",
+      imageUrl: getPlaceholdImage("Fita Holográfica"),
       canBeSoldAsRoll: true,
       itemSize: 0.5,
       capacity: 100.0,
+      ribbonInventory: {
+        status: "FECHADO",
+        remainingMeters: 100,
+        totalRollMeters: 100,
+      },
     },
     {
       id: "FITA004",
-      name: "Fita Cetim Nº5 (Cores Sortidas)",
-      price: 0.7,
+      name: "Fita Cetim Nº5 Sortida",
+      price: 0.35, // Preço estimado para sortidas/mexidas
       type: "RIBBON",
-      category: "Fitas 16mm",
+      category: "Fitas 22mm",
       unit: "m" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "https://placehold.co/400x400/png?text=Fita+Cetim",
-      canBeSoldAsRoll: false,
+      imageUrl: getPlaceholdImage("Fita Cetim Sortida"),
+      canBeSoldAsRoll: false, // Não vende rolo fechado
       itemSize: 0.5,
-      capacity: 50.0, // Rolo mexido
+      capacity: 50.0,
+      ribbonInventory: {
+        status: "ABERTO",
+        remainingMeters: 50,
+        totalRollMeters: 50,
+      },
     },
     {
       id: "FITA005",
       name: "Fita Laminada Prata 32mm",
-      price: 1.9,
+      price: 0.5,
+      rollPrice: 40.0,
       type: "RIBBON",
       category: "Fitas 32mm",
       unit: "m" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/fitas/prata-32.webp",
+      imageUrl: getPlaceholdImage("Fita Prata 32mm"),
       canBeSoldAsRoll: true,
       itemSize: 1.0,
       capacity: 100.0,
+      ribbonInventory: {
+        status: "FECHADO",
+        remainingMeters: 100,
+        totalRollMeters: 100,
+      },
     },
     {
       id: "FITA006",
       name: "Fita Xadrez Natal 16mm",
-      price: 1.1,
+      price: 0.25, // Preço Metro (16mm)
+      rollPrice: 35.0, // Preço Rolo (Exceção de Natal)
       type: "RIBBON",
       category: "Fitas 16mm",
       unit: "m" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/fitas/xadrez-16.webp",
+      imageUrl: getPlaceholdImage("Fita Natal"),
       canBeSoldAsRoll: true,
       itemSize: 0.5,
       capacity: 100.0,
+      ribbonInventory: {
+        status: "ABERTO",
+        remainingMeters: 80,
+        totalRollMeters: 100,
+      },
     },
 
-    // --- 4 x BASES (BASE_CONTAINER) ---
+    // =======================================================================
+    // BASES (BASE_CONTAINER)
+    // =======================================================================
     {
       id: "BASE001",
-      name: "Cesta com Arco de Madeira",
+      name: "Cesta Arco Madeira",
       price: 35.0,
       type: "BASE_CONTAINER",
       category: "Cestas",
       unit: "un" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/bases/cesta-madeira.webp",
+      imageUrl: getPlaceholdImage("Cesta Madeira"),
       isKitBase: true,
       capacity: 20.0,
       itemSize: 1.0,
     },
     {
       id: "BASE002",
-      name: "Caixa Cartonada Fechada (Grande)",
+      name: "Caixa Cartonada G",
       price: 18.0,
       type: "BASE_CONTAINER",
       category: "Caixas",
       unit: "un" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/bases/caixa-cartonada.webp",
+      imageUrl: getPlaceholdImage("Caixa Grande"),
       isKitBase: true,
       capacity: 12.0,
       itemSize: 1.0,
     },
     {
       id: "BASE003",
-      name: "Sacola de Papel (Cor Única)",
+      name: "Sacola Papel",
       price: 3.0,
       type: "BASE_CONTAINER",
       category: "Sacolas",
       unit: "un" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/bases/sacola-papel.webp",
+      imageUrl: getPlaceholdImage("Sacola Papel"),
       isKitBase: true,
       capacity: 5.0,
       itemSize: 1.0,
     },
+    // PACOTE DE SACOLAS - Sem saleUnitType, usando apenas unit: 'pct'
     {
       id: "BASE004",
-      name: "Sacola de Papel (Pacote 50 un.)",
+      name: "Pacote Sacolas 50un",
       price: 99.0,
       type: "BASE_CONTAINER",
       category: "Sacolas",
       unit: "pct" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/bases/sacola-pacote.webp",
-      isKitBase: false, // Não é base de kit, é venda de pacote
+      imageUrl: getPlaceholdImage("Pacote Sacolas"),
+      isKitBase: false,
       capacity: 0,
       itemSize: 0,
-      description: "Pacote fechado com 50 sacolas de papel cor única.",
+      description: "Pacote fechado com 50 unidades.",
     },
 
-    // --- 6 x RECHEIOS/ITENS (STANDARD_ITEM) ---
+    // =======================================================================
+    // RECHEIOS (STANDARD_ITEM)
+    // =======================================================================
     {
       id: "PROD_NAT01",
-      name: "Sabonete TodoDia (Unidade)",
+      name: "Sabonete TodoDia",
       price: 6.5,
       type: "STANDARD_ITEM",
       category: "Natura",
       unit: "un" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/natura/sabonete.webp",
+      imageUrl: getPlaceholdImage("Sabonete Natura"),
       itemSize: 1.0,
     },
     {
       id: "PROD_NAT02",
-      name: "Hidratante Algodão 400ml",
+      name: "Hidratante 400ml",
       price: 69.9,
       type: "STANDARD_ITEM",
       category: "Natura",
       unit: "un" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/natura/hidratante.webp",
+      imageUrl: getPlaceholdImage("Hidratante Natura"),
       itemSize: 3.0,
     },
     {
       id: "PROD_BRINQ01",
-      name: "Ursinho Pelúcia (Pequeno)",
+      name: "Ursinho Pelúcia",
       price: 25.0,
       type: "STANDARD_ITEM",
       category: "Brinquedos",
       unit: "un" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/recheios/ursinho.webp",
+      imageUrl: getPlaceholdImage("Ursinho"),
       itemSize: 2.0,
     },
     {
-      id: "PROD_ESCOLAR01",
-      name: "Caneta Colorida Gel (Unidade)",
-      price: 5.0,
-      type: "STANDARD_ITEM",
-      category: "Material Escolar",
-      unit: "un" as Unit,
-      inStock: true,
-      disabled: false,
-      imageUrl: "/images/recheios/caneta.webp",
-      itemSize: 0.5,
-    },
-    {
       id: "PROD_ESCOLAR02",
-      name: "Kit Canetas (Pacote 10 uni.)",
+      name: "Kit Canetas 10un",
       price: 35.0,
       type: "STANDARD_ITEM",
       category: "Material Escolar",
       unit: "pct" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/recheios/caneta-pacote.webp",
+      imageUrl: getPlaceholdImage("Kit Canetas"),
       itemSize: 3.0,
     },
     {
       id: "PROD_FILLER01",
-      name: "Papel Seda (Pacote 10 fls)",
+      name: "Papel Seda 10fls",
       price: 8.0,
       type: "FILLER",
       category: "Preenchimento",
       unit: "pct" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/recheios/papel-seda.webp",
+      imageUrl: getPlaceholdImage("Papel Seda"),
       itemSize: 1.0,
     },
 
-    // --- 4 x LAÇOS PRONTOS/ACESSÓRIOS (ACCESSORY) ---
+    // =======================================================================
+    // ACESSÓRIOS (ACCESSORY)
+    // =======================================================================
     {
       id: "LACO_PRONTO01",
-      name: "Laço de Puxar Vermelho (Pacote)",
+      name: "Laço Puxar (Pct)",
       price: 12.0,
       type: "ACCESSORY",
       category: "Laços Prontos",
       unit: "pct" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/acessorios/laco-puxar.webp",
+      imageUrl: getPlaceholdImage("Laço Puxar"),
       laçoType: "PUXAR",
       itemSize: 0.1,
-      description: "Pacote com 10 laços de puxar.",
     },
     {
       id: "LACO_PRONTO02",
-      name: "Laço Bola Ouro (Unidade)",
+      name: "Laço Bola Ouro",
       price: 4.5,
       type: "ACCESSORY",
       category: "Laços Prontos",
       unit: "un" as Unit,
       inStock: true,
       disabled: false,
-      imageUrl: "/images/acessorios/laco-bola.webp",
+      imageUrl: getPlaceholdImage("Laço Bola"),
       laçoType: "BOLA",
-      itemSize: 0.5,
-    },
-    {
-      id: "LACO_PRONTO03",
-      name: "Tag 'De/Para' Natalino (Pacote)",
-      price: 5.0,
-      type: "ACCESSORY",
-      category: "Acessórios",
-      unit: "pct" as Unit,
-      inStock: true,
-      disabled: false,
-      imageUrl: "/images/acessorios/tag.webp",
-      itemSize: 0.1,
-      description: "Pacote com 20 tags natalinas.",
-    },
-    {
-      id: "LACO_PRONTO04",
-      name: "Fio de Fada Led (1m)",
-      price: 15.0,
-      type: "ACCESSORY",
-      category: "Acessórios",
-      unit: "un" as Unit,
-      inStock: true,
-      disabled: false,
-      imageUrl: "/images/acessorios/fio-fada.webp",
       itemSize: 0.5,
     },
   ];
 
-  // =================================================================
-  // 3. RECEITAS DE KITS (KitRecipe)
-  // =================================================================
-
+  // 3. RECEITAS DE KITS
   const initialKitRecipes: KitRecipe[] = [
     {
       id: "KREC001",
-      name: "Receita Essencial Sacola - Sacola + Natura",
-      description:
-        "Kit ideal para pequenos presentes Natura. Foca na Sacola como base.",
+      name: "Receita Essencial Sacola",
+      description: "Sacola + Natura",
       disabled: false,
       assemblyCost: 5.0,
       components: [
         {
           componentId: "BASE003",
-          name: "Sacola de Papel (Base)",
+          name: "Sacola de Papel",
           type: "BASE",
           required: true,
           maxQuantity: 1,
@@ -373,7 +343,7 @@ export const seedDatabase = async () => {
         },
         {
           componentId: "LAÇO_PRONTO01",
-          name: "Laço de Puxar Vermelho",
+          name: "Laço de Puxar",
           type: "LAÇO_PRONTO",
           required: false,
           maxQuantity: 1,
@@ -381,7 +351,7 @@ export const seedDatabase = async () => {
         },
         {
           componentId: "SERVICE-RIBBON",
-          name: "Serviço Laço Customizado",
+          name: "Serviço Laço",
           type: "RIBBON_SERVICE",
           required: false,
           maxQuantity: 1,
@@ -391,15 +361,14 @@ export const seedDatabase = async () => {
     },
     {
       id: "KREC002",
-      name: "Receita Afeto - Cesta e Ursinho",
-      description:
-        "Kit com Cesta Vime, Ursinho e Fio de Fada. Foco em Laços BOLA/COMUM.",
+      name: "Receita Afeto",
+      description: "Cesta Vime + Ursinho",
       disabled: false,
       assemblyCost: 10.0,
       components: [
         {
           componentId: "BASE001",
-          name: "Cesta com Arco de Madeira",
+          name: "Cesta Madeira",
           type: "BASE",
           required: true,
           maxQuantity: 1,
@@ -431,49 +400,7 @@ export const seedDatabase = async () => {
         },
         {
           componentId: "SERVICE-RIBBON",
-          name: "Serviço Laço Customizado",
-          type: "RIBBON_SERVICE",
-          required: false,
-          maxQuantity: 1,
-          defaultQuantity: 0,
-        },
-      ],
-    },
-    {
-      id: "KREC003",
-      name: "Receita Escolar - Caixa e Canetas",
-      description:
-        "Kit focado em material escolar. Base Caixa Cartonada e itens do tipo PACOTE.",
-      disabled: false,
-      assemblyCost: 4.0,
-      components: [
-        {
-          componentId: "BASE002",
-          name: "Caixa Cartonada Fechada",
-          type: "BASE",
-          required: true,
-          maxQuantity: 1,
-          defaultQuantity: 1,
-        },
-        {
-          componentId: "PROD_ESCOLAR02",
-          name: "Kit Canetas (Pacote 10 uni.)",
-          type: "FILLER",
-          required: true,
-          maxQuantity: 1,
-          defaultQuantity: 1,
-        },
-        {
-          componentId: "LAÇO_PRONTO03",
-          name: "Tag Natalina (Pacote)",
-          type: "LAÇO_PRONTO",
-          required: false,
-          maxQuantity: 1,
-          defaultQuantity: 0,
-        },
-        {
-          componentId: "SERVICE-RIBBON",
-          name: "Serviço Laço Customizado",
+          name: "Serviço Laço",
           type: "RIBBON_SERVICE",
           required: false,
           maxQuantity: 1,
@@ -483,18 +410,15 @@ export const seedDatabase = async () => {
     },
   ];
 
-  // =================================================================
-  // 4. PRODUTOS KITS MONTADOS (Para Vitrine)
-  // =================================================================
-
+  // 4. KITS MONTADOS (VITRINE)
   const initialAssembledKitProducts: AssembledKitProduct[] = [
     {
       id: "KIT001",
-      name: "Kit Essencial Natura (Montado)",
-      description: "Sacola e 2 Sabonetes de Brinde. Personalize o Laço!",
-      price: 18.0, // BASE003(3.0) + PROD_NAT01x2(13.0) + assembly(5.0) = 21.0. Colocando 18.0 para promoção.
+      name: "Kit Essencial Natura",
+      description: "Sacola e 2 Sabonetes de Brinde.",
+      price: 18.0,
       type: "ASSEMBLED_KIT",
-      imageUrl: "/images/kits/kit001-natura.webp",
+      imageUrl: getPlaceholdImage("Kit Natura"),
       category: "Kits Rápidos",
       unit: "un" as Unit,
       inStock: true,
@@ -505,12 +429,11 @@ export const seedDatabase = async () => {
     },
     {
       id: "KIT002",
-      name: "Kit Afeto Ursinho Completo",
-      description:
-        "Cesta de Vime, Ursinho e Embalagem Premium. Ideal para Natal.",
-      price: 70.0, // BASE001(35.0) + PROD_BRINQ01(25.0) + assembly(10.0) = 70.0
+      name: "Kit Afeto Ursinho",
+      description: "Cesta de Vime, Ursinho e Embalagem Premium.",
+      price: 70.0,
       type: "ASSEMBLED_KIT",
-      imageUrl: "/images/kits/kit002-afeto.webp",
+      imageUrl: getPlaceholdImage("Kit Ursinho"),
       category: "Kits Premium",
       unit: "un" as Unit,
       inStock: true,
@@ -519,40 +442,25 @@ export const seedDatabase = async () => {
       recipeId: "KREC002",
       kitBasePrice: 70.0,
     },
-    {
-      id: "KIT003",
-      name: "Kit Escolar (Canetas + Caixa)",
-      description: "Perfeito para crianças. Inclui Caixa e Pacote de Canetas.",
-      price: 57.0, // BASE002(18.0) + PROD_ESCOLAR02(35.0) + assembly(4.0) = 57.0
-      type: "ASSEMBLED_KIT",
-      imageUrl: "/images/kits/kit003-escolar.webp",
-      category: "Kits Rápidos",
-      unit: "un" as Unit,
-      inStock: true,
-      disabled: false,
-      canBeSoldAsRoll: false,
-      recipeId: "KREC003",
-      kitBasePrice: 57.0,
-    },
   ];
 
   // =================================================================
-  // 5. FUNÇÃO PRINCIPAL
+  // EXECUÇÃO DO BATCH
   // =================================================================
 
-  // Limpa produtos antigos e insere novos
+  // Produtos Normais
   products.forEach((prod) => {
     const ref = doc(ALL_PRODUCTS_REF, prod.id);
     batch.set(ref, prod);
   });
 
-  // Insere Kits Montados na coleção de produtos para exibição
+  // Kits Montados
   initialAssembledKitProducts.forEach((kit) => {
     const ref = doc(ALL_PRODUCTS_REF, kit.id);
     batch.set(ref, kit);
   });
 
-  // Insere Receitas de Kits (Configuração do Builder)
+  // Receitas
   initialKitRecipes.forEach((recipe) => {
     const ref = doc(KIT_RECIPES_REF, recipe.id);
     batch.set(ref, recipe);
@@ -560,10 +468,8 @@ export const seedDatabase = async () => {
 
   try {
     await batch.commit();
-    console.log(
-      "Banco de dados populado com a nova estrutura de Kits e Tipos!"
-    );
+    console.log("✅ Seed completa realizada com sucesso!");
   } catch (error) {
-    console.error("Erro durante a seed do banco de dados:", error);
+    console.error("Erro durante a seed:", error);
   }
 };

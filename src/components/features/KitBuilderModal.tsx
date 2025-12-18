@@ -137,8 +137,9 @@ export function KitBuilderModal() {
                       >
                         <div className="relative aspect-square rounded-lg overflow-hidden bg-slate-100">
                           <SafeImage
-                            src={getProductImage(p.imageUrl, p.type)}
+                            src={p.imageUrl}
                             alt={p.name}
+                            name={p.name}
                             fill
                             className="object-cover"
                           />
@@ -277,8 +278,9 @@ export function KitBuilderModal() {
                           >
                             <div className="relative aspect-video mb-2">
                               <SafeImage
-                                src={getProductImage(base.imageUrl, base.type)}
-                                alt=""
+                                src={base.imageUrl}
+                                alt={base.name}
+                                name={base.name}
                                 fill
                                 className="object-contain"
                               />
@@ -310,8 +312,9 @@ export function KitBuilderModal() {
                         >
                           <div className="w-10 h-10 relative bg-slate-100 rounded">
                             <SafeImage
-                              src={getProductImage(w.imageUrl, w.type)}
-                              alt=""
+                              src={w.imageUrl}
+                              alt={w.name}
+                              name={w.name}
                               fill
                               className="object-cover"
                             />
@@ -380,11 +383,9 @@ export function KitBuilderModal() {
                   >
                     <div className="w-10 h-10 relative rounded overflow-hidden flex-shrink-0">
                       <SafeImage
-                        src={getProductImage(
-                          item.product.imageUrl,
-                          item.product.type
-                        )}
-                        alt=""
+                        src={item.product.imageUrl}
+                        alt={item.product.name}
+                        name={item.product.name}
                         fill
                         className="object-cover"
                       />

@@ -52,6 +52,7 @@ export function ProductQuickView({
             <SafeImage
               src={product.imageUrl}
               alt={product.name}
+              name={product.name}
               fill
               className="object-cover"
             />

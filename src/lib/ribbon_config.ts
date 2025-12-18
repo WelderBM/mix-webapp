@@ -1,6 +1,6 @@
 // src/lib/ribbon_config.ts (VERSÃO FINAL CONSOLIDADA E CORRIGIDA)
 
-import { Unit, CapacityRef } from "./types";
+import { Unit, CapacityRef } from "@/types";
 
 export type LacoSizeType = "P" | "M" | "G";
 

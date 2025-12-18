@@ -49,6 +49,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     }
   };
 
+  console.log(product);
   return (
     <Link href={`/produto/${product.id}`} passHref>
       <div className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-xl bg-white shadow-lg transition-all hover:shadow-xl">
@@ -56,7 +57,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {/* SUBSTITUIÇÃO AQUI */}
           <SafeImage
             src={product.imageUrl}
-            productType={product.type}
+            name={product.name}
             alt={product.name}
             fill
             className="object-cover transition-transform duration-300 group-hover:scale-105"

@@ -135,6 +135,7 @@ export default function ProductDetailClient({
               <SafeImage
                 src={product.imageUrl}
                 alt={product.name}
+                name={product.name}
                 fill
                 className="object-contain hover:scale-105 transition-transform duration-500"
               />
