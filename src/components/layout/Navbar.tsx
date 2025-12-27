@@ -123,6 +123,9 @@ const Navbar = () => {
 
         {/* Ícones de Ação (Carrinho, Mobile Menu) */}
         <div className="flex items-center space-x-2">
+          {/* 2. Carrinho: USANDO O ÍCONE INTELIGENTE */}
+          <CartIcon />
+
           {/* 1. Mobile Hamburger Menu (Toggle) */}
           <Button
             variant="ghost"
@@ -132,9 +135,6 @@ const Navbar = () => {
           >
             <Menu className="h-5 w-5" />
           </Button>
-
-          {/* 2. Carrinho: USANDO O ÍCONE INTELIGENTE */}
-          <CartIcon />
         </div>
       </div>
 

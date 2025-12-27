@@ -16,7 +16,6 @@ import {
   Ruler,
   CheckCircle2,
   Lock,
-  Unlock,
   AlertCircle,
 } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
@@ -117,49 +116,71 @@ function FitasContent() {
     );
     setSelectedRibbonId("");
     setMeterAmount(1);
+
+    // Scroll top no mobile para facilitar nova escolha
+    if (window.innerWidth < 1024) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
+  const selectedMeterProduct = openRibbons.find(
+    (p) => p.id === selectedRibbonId
+  );
+  const meterTotalPrice = selectedMeterProduct
+    ? selectedMeterProduct.price * meterAmount
+    : 0;
+
   return (
-    <main className="min-h-screen bg-slate-50 pb-20" style={themeStyles}>
+    <main
+      className="min-h-screen bg-slate-50 pb-32 lg:pb-20 transition-colors"
+      style={themeStyles}
+    >
       <StoreHeader />
-      <div className="max-w-6xl mx-auto px-4 -mt-4 relative z-10">
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden min-h-[600px]">
-          <div className="p-8 border-b bg-gradient-to-r from-slate-50 to-white">
-            <h1 className="text-3xl font-bold text-slate-800 mb-2">
-              Central de Fitas & Laços
+
+      {/* Container Principal */}
+      <div className="max-w-6xl mx-auto px-0 sm:px-4 -mt-4 relative z-10">
+        <div className="bg-white sm:rounded-3xl shadow-sm border-t sm:border border-slate-100 overflow-hidden min-h-[600px]">
+          {/* Header da Página */}
+          <div className="p-6 sm:p-8 border-b bg-gradient-to-r from-slate-50 to-white">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">
+              Central de Fitas
             </h1>
-            <p className="text-slate-500">
+            <p className="text-sm sm:text-base text-slate-500">
               Gerencie seu estoque: Rolo Fechado para atacado, Aberto para corte
-              e laços.
+              e laços personalizados.
             </p>
           </div>
+
           <Tabs
             value={activeTab}
             onValueChange={setActiveTab}
             className="w-full"
           >
-            <div className="px-8 pt-6">
+            {/* Lista de Abas Sticky Mobile */}
+            <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-slate-100 px-4 sm:px-8 py-3 sm:py-6 shadow-sm sm:shadow-none sm:static">
               <TabsList className="w-full md:w-auto grid grid-cols-3 h-auto p-1 bg-slate-100 rounded-xl">
                 <TabsTrigger
                   value="rolls"
-                  className="py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-[var(--primary)] data-[state=active]:shadow-sm transition-all"
+                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-[var(--primary)] data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
-                  <Lock size={16} />{" "}
-                  <span className="hidden md:inline">Rolos Fechados</span>
+                  <Lock className="w-4 h-4" />{" "}
+                  <span className="md:inline">
+                    Rolos <span className="hidden sm:inline">Fechados</span>
+                  </span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="meter"
-                  className="py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-[var(--primary)] data-[state=active]:shadow-sm transition-all"
+                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-[var(--primary)] data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
-                  <Scissors size={16} />{" "}
-                  <span className="hidden md:inline">Por Metro (Abertos)</span>
+                  <Scissors className="w-4 h-4" />{" "}
+                  <span className="md:inline">Por Metro</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="service"
-                  className="py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-[var(--primary)] data-[state=active]:shadow-sm transition-all"
+                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-[var(--primary)] data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
-                  <Gift size={16} />{" "}
-                  <span className="hidden md:inline">Criar Laço</span>
+                  <Gift className="w-4 h-4" />{" "}
+                  <span className="md:inline">Criar Laço</span>
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -167,24 +188,25 @@ function FitasContent() {
             {/* CONTEÚDO: ROLOS FECHADOS */}
             <TabsContent
               value="rolls"
-              className="p-8 animate-in fade-in slide-in-from-bottom-2 duration-500"
+              className="p-4 sm:p-8 animate-in fade-in slide-in-from-bottom-2 duration-500 m-0"
             >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
                   <Lock size={20} className="text-[var(--primary)]" /> Estoque
                   Lacrado
                 </h3>
-                <span className="text-sm text-slate-400">
-                  {closedRolls.length} opções disponíveis
+                <span className="text-xs sm:text-sm text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
+                  {closedRolls.length} opções
                 </span>
               </div>
+
               {closedRolls.length === 0 ? (
-                <div className="text-center py-20 text-slate-400 bg-slate-50 rounded-xl border-2 border-dashed">
+                <div className="text-center py-20 text-slate-400 bg-slate-50 rounded-xl border-2 border-dashed mx-4 sm:mx-0">
                   <Package size={48} className="mx-auto mb-4 opacity-20" />
                   <p>Nenhum rolo fechado disponível.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
                   {closedRolls.map((product) => {
                     const displayProduct = {
                       ...product,
@@ -196,7 +218,7 @@ function FitasContent() {
                         <ProductCard
                           product={displayProduct}
                           onSelect={() => handleAddRoll(product)}
-                          actionLabel="Comprar Rolo"
+                          actionLabel="Comprar"
                         />
                         <div className="absolute top-2 right-2 bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm z-10">
                           <Lock size={10} /> LACRADO
@@ -211,32 +233,31 @@ function FitasContent() {
             {/* CONTEÚDO: POR METRO (APENAS ABERTOS) */}
             <TabsContent
               value="meter"
-              className="p-8 animate-in fade-in slide-in-from-bottom-2 duration-500"
+              className="p-4 sm:p-8 animate-in fade-in slide-in-from-bottom-2 duration-500 m-0"
             >
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-8">
-                  {/* SEÇÃO 1: ESCOLHA DA FITA (ESTILO BUILDER) */}
+                <div className="lg:col-span-2 space-y-6 sm:space-y-8">
+                  {/* SEÇÃO 1: ESCOLHA DA FITA */}
                   <section>
-                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                      <span className="bg-slate-800 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <span className="bg-slate-800 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0">
                         1
                       </span>{" "}
-                      Escolha a Fita (Estoque Aberto)
+                      Escolha a Fita
                     </h3>
 
                     {openRibbons.length === 0 ? (
                       <div className="p-6 bg-yellow-50 text-yellow-800 rounded-xl border border-yellow-100 flex items-center gap-3 text-sm">
                         <AlertCircle size={20} className="shrink-0" />
                         <div>
-                          No momento, não temos fitas disponíveis para venda por
-                          metro.
+                          Sem fitas abertas no momento.
                           <br />
-                          Confira a aba de <strong>Rolos Fechados</strong>!
+                          Confira os <strong>Rolos Fechados</strong>!
                         </div>
                       </div>
                     ) : (
-                      // GRID PADRONIZADO COM LACO BUILDER
-                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-[400px] overflow-y-auto p-1 custom-scrollbar">
+                      // Grid responsivo ajustado para mobile e desktop
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-[50vh] sm:max-h-[400px] overflow-y-auto p-1 custom-scrollbar">
                         {openRibbons.map((ribbon) => {
                           const imgUrl = getProductImage(
                             ribbon.imageUrl,
@@ -246,29 +267,30 @@ function FitasContent() {
                             <div
                               key={ribbon.id}
                               onClick={() => setSelectedRibbonId(ribbon.id)}
-                              className={`cursor-pointer rounded-lg border p-2 flex flex-col items-center gap-2 transition-all hover:shadow-md relative ${
+                              className={`cursor-pointer rounded-lg border p-2 flex flex-col items-center gap-2 transition-all hover:shadow-md relative group ${
                                 selectedRibbonId === ribbon.id
                                   ? "border-[var(--primary)] ring-2 ring-[var(--primary)] ring-opacity-20 bg-purple-50"
-                                  : "border-slate-200 bg-white"
+                                  : "border-slate-200 bg-white hover:border-[var(--primary)]/50"
                               }`}
                             >
-                              <div className="w-10 h-10 rounded-full bg-slate-100 relative overflow-hidden shrink-0">
+                              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 relative overflow-hidden shrink-0">
                                 <SafeImage
                                   src={imgUrl}
                                   alt={ribbon.name}
+                                  name={ribbon.name}
                                   fill
                                   className="object-cover"
                                 />
                               </div>
-                              <span className="text-[10px] text-center line-clamp-2 leading-tight">
+                              <span className="text-[10px] sm:text-xs text-center line-clamp-2 leading-tight font-medium text-slate-600 group-hover:text-slate-900">
                                 {ribbon.name}
                               </span>
                               <span className="text-[10px] font-bold text-slate-500 mt-auto">
                                 R$ {ribbon.price.toFixed(2)}/m
                               </span>
                               {selectedRibbonId === ribbon.id && (
-                                <div className="absolute top-1 right-1 text-[var(--primary)]">
-                                  <CheckCircle2 size={16} />
+                                <div className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow-sm">
+                                  <CheckCircle2 className="text-[var(--primary)] w-3 h-3 sm:w-4 sm:h-4" />
                                 </div>
                               )}
                             </div>
@@ -278,27 +300,28 @@ function FitasContent() {
                     )}
                   </section>
 
-                  {/* SEÇÃO 2: QUANTIDADE (ESTILO BUILDER) */}
+                  {/* SEÇÃO 2: QUANTIDADE */}
                   <section
                     className={`transition-opacity duration-300 ${
                       selectedRibbonId
                         ? "opacity-100"
-                        : "opacity-50 pointer-events-none"
+                        : "opacity-40 pointer-events-none grayscale"
                     }`}
                   >
-                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                      <span className="bg-slate-800 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <span className="bg-slate-800 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0">
                         2
                       </span>{" "}
                       Quantos Metros?
                     </h3>
-                    <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 w-fit">
-                      <div className="flex items-center border rounded-lg bg-white overflow-hidden shadow-sm">
+
+                    <div className="bg-slate-50 p-4 sm:p-6 rounded-xl border border-slate-100 flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                      <div className="flex items-center border rounded-xl bg-white overflow-hidden shadow-sm h-12 sm:h-14">
                         <button
                           onClick={() =>
                             setMeterAmount(Math.max(0.5, meterAmount - 0.5))
                           }
-                          className="px-3 py-2 hover:bg-slate-100 text-slate-500 border-r"
+                          className="w-12 sm:w-14 h-full hover:bg-slate-50 text-slate-500 border-r text-xl flex items-center justify-center active:bg-slate-100 touch-manipulation"
                         >
                           -
                         </button>
@@ -309,24 +332,24 @@ function FitasContent() {
                           onChange={(e) =>
                             setMeterAmount(parseFloat(e.target.value))
                           }
-                          className="w-20 text-center border-none font-bold text-lg focus:ring-0 outline-none"
+                          className="w-20 sm:w-24 text-center border-none font-bold text-lg sm:text-xl focus:ring-0 outline-none text-slate-800"
                         />
                         <button
                           onClick={() => setMeterAmount(meterAmount + 0.5)}
-                          className="px-3 py-2 hover:bg-slate-100 text-slate-500 border-l"
+                          className="w-12 sm:w-14 h-full hover:bg-slate-50 text-slate-500 border-l text-xl flex items-center justify-center active:bg-slate-100 touch-manipulation"
                         >
                           +
                         </button>
                       </div>
-                      <span className="text-sm font-medium text-slate-600">
-                        metros
+                      <span className="text-sm font-medium text-slate-500 uppercase tracking-wide">
+                        metros lineares
                       </span>
                     </div>
                   </section>
                 </div>
 
-                {/* PAINEL DIREITO (Resumo - Igual ao Builder) */}
-                <div className="lg:col-span-1">
+                {/* PAINEL LATERAL (DESKTOP SOMENTE) */}
+                <div className="lg:col-span-1 hidden lg:block">
                   <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 sticky top-24">
                     <h3 className="text-xl font-bold text-slate-800 mb-6 text-center">
                       Resumo do Corte
@@ -334,32 +357,21 @@ function FitasContent() {
                     <div className="space-y-6">
                       <div className="w-full aspect-square bg-slate-50 rounded-xl border border-dashed border-slate-300 flex items-center justify-center relative overflow-hidden">
                         {selectedRibbonId ? (
-                          <div className="text-center animate-in zoom-in duration-300">
-                            <div className="relative w-24 h-24 mx-auto mb-2 rounded-full overflow-hidden border-2 border-white shadow-sm">
-                              {(() => {
-                                const r = openRibbons.find(
-                                  (i) => i.id === selectedRibbonId
-                                );
-                                const imgUrl = getProductImage(
-                                  r?.imageUrl,
-                                  r?.type || "RIBBON"
-                                );
-                                return (
-                                  <SafeImage
-                                    src={imgUrl}
-                                    alt=""
-                                    fill
-                                    className="object-cover"
-                                  />
-                                );
-                              })()}
+                          <div className="text-center animate-in zoom-in duration-300 w-full p-4">
+                            <div className="relative w-24 h-24 mx-auto mb-3 rounded-full overflow-hidden border-4 border-white shadow-md">
+                              <SafeImage
+                                src={getProductImage(
+                                  selectedMeterProduct?.imageUrl,
+                                  selectedMeterProduct?.type
+                                )}
+                                alt={selectedMeterProduct?.name || ""}
+                                name={selectedMeterProduct?.name || ""}
+                                fill
+                                className="object-cover"
+                              />
                             </div>
-                            <p className="text-sm font-bold text-[var(--primary)] px-2">
-                              {
-                                openRibbons.find(
-                                  (i) => i.id === selectedRibbonId
-                                )?.name
-                              }
+                            <p className="text-sm font-bold text-[var(--primary)] line-clamp-2 leading-tight px-2">
+                              {selectedMeterProduct?.name}
                             </p>
                             <p className="text-xs text-slate-400 mt-1">
                               {meterAmount} metros
@@ -375,10 +387,10 @@ function FitasContent() {
 
                       <div className="space-y-3 text-sm">
                         <div className="flex justify-between py-2 border-b border-slate-100">
-                          <span className="text-slate-500">Item</span>
-                          <span className="font-medium text-slate-800 text-right max-w-[150px] truncate">
-                            {openRibbons.find((i) => i.id === selectedRibbonId)
-                              ?.name || "-"}
+                          <span className="text-slate-500">Valor Unit.</span>
+                          <span className="font-medium text-slate-800">
+                            R${" "}
+                            {selectedMeterProduct?.price.toFixed(2) || "0.00"}/m
                           </span>
                         </div>
                         <div className="flex justify-between py-2 border-b border-slate-100">
@@ -389,24 +401,19 @@ function FitasContent() {
                         </div>
                       </div>
 
-                      <div className="pt-4">
+                      <div className="pt-2">
                         <div className="flex justify-between items-end mb-4">
                           <span className="text-slate-500 font-medium">
-                            Valor Total
+                            Total
                           </span>
                           <span className="text-3xl font-bold text-[var(--primary)]">
-                            R${" "}
-                            {(
-                              (openRibbons.find(
-                                (i) => i.id === selectedRibbonId
-                              )?.price || 0) * meterAmount
-                            ).toFixed(2)}
+                            R$ {meterTotalPrice.toFixed(2)}
                           </span>
                         </div>
                         <Button
                           onClick={handleAddMeter}
                           disabled={!selectedRibbonId}
-                          className="w-full h-12 text-lg font-bold shadow-md"
+                          className="w-full h-12 text-lg font-bold shadow-md transition-transform hover:scale-[1.02]"
                           style={{
                             backgroundColor: selectedRibbonId
                               ? "var(--primary)"
@@ -420,12 +427,43 @@ function FitasContent() {
                     </div>
                   </div>
                 </div>
+
+                {/* BARRA FIXA MOBILE (Para aba "Por Metro") */}
+                <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 lg:hidden flex items-center justify-between gap-4 safe-area-pb">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-slate-500 font-medium">
+                      Total ({meterAmount}m)
+                    </span>
+                    <span className="text-xl font-bold text-[var(--primary)]">
+                      R$ {meterTotalPrice.toFixed(2)}
+                    </span>
+                  </div>
+                  <Button
+                    onClick={handleAddMeter}
+                    disabled={!selectedRibbonId}
+                    className="flex-1 h-12 text-base font-bold rounded-xl shadow-sm"
+                    style={{
+                      backgroundColor: selectedRibbonId
+                        ? "var(--primary)"
+                        : undefined,
+                    }}
+                  >
+                    {selectedRibbonId ? (
+                      <>
+                        <ShoppingCart className="mr-2 h-5 w-5" /> Adicionar
+                      </>
+                    ) : (
+                      "Selecione..."
+                    )}
+                  </Button>
+                </div>
               </div>
             </TabsContent>
 
+            {/* CONTEÚDO: MONTADOR DE LAÇO */}
             <TabsContent
               value="service"
-              className="p-8 animate-in fade-in slide-in-from-bottom-2 duration-500"
+              className="p-4 sm:p-8 animate-in fade-in slide-in-from-bottom-2 duration-500 m-0"
             >
               <LacoBuilder />
             </TabsContent>
@@ -438,7 +476,13 @@ function FitasContent() {
 
 export default function FitasPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-50"></div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-[var(--primary)] rounded-full animate-spin"></div>
+        </div>
+      }
+    >
       <FitasContent />
     </Suspense>
   );
