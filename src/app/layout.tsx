@@ -6,7 +6,6 @@ import Navbar from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Toaster } from "@/components/ui/sonner";
 import { CartSidebar } from "@/components/features/CartSidebar";
-import { SeasonalAtmosphere } from "@/components/layout/SeasonalAtmosphere";
 // 1. IMPORT DO MODAL
 import { KitBuilderModal } from "@/components/features/KitBuilderModal";
 
@@ -30,8 +29,6 @@ export default function RootLayout({
       */}
       <body className={inter.className} suppressHydrationWarning={true}>
         <ThemeProvider>
-          <SeasonalAtmosphere />
-
           <Navbar />
 
           {/* 2. MODAL DISPONÍVEL GLOBALMENTE */}

@@ -489,13 +489,51 @@ export function KitBuilderModal() {
                       </div>
                     </div>
                   </div>
+
+                  {/* RESUMO MOBILE (Somente no Passo 4) */}
+                  <div className="md:hidden space-y-4">
+                    <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                      <List size={16} /> Itens do Kit
+                    </h4>
+                    <div className="space-y-3">
+                      {composition.internalItems.map((item) => (
+                        <div
+                          key={item.product.id}
+                          className="flex gap-3 bg-white p-2 rounded-lg border shadow-sm"
+                        >
+                          <div className="w-12 h-12 relative rounded overflow-hidden flex-shrink-0 bg-slate-100">
+                            <SafeImage
+                              src={item.product.imageUrl}
+                              name={item.product.type}
+                              alt={item.product.name}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex justify-between">
+                              <p className="text-sm font-bold text-slate-800 line-clamp-2">
+                                {item.product.name}
+                              </p>
+                              <p className="text-xs font-bold text-slate-500 whitespace-nowrap ml-2">
+                                x{item.quantity}
+                              </p>
+                            </div>
+                            <p className="text-xs text-primary font-bold mt-1">
+                              {formatCurrency(item.product.price || 0)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* SIDEBAR RESUMO */}
-          <div className="w-full md:w-80 bg-slate-50 p-6 flex flex-col gap-4 border-l min-h-0">
+          {/* SIDEBAR RESUMO (Desktop) */}
+          <div className="hidden md:flex w-80 bg-slate-50 p-6 flex-col gap-4 border-l min-h-0">
             <h4 className="font-bold text-slate-700 flex items-center gap-2 text-sm uppercase tracking-wider shrink-0">
               <List size={14} /> Seu Kit
             </h4>

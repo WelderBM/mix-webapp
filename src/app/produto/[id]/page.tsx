@@ -104,7 +104,7 @@ export default function ProductPage() {
           </div>
 
           {/* DETALHES */}
-          <div className="md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
+          <div className="md:w-1/2 p-6 md:p-12 flex flex-col justify-center">
             <div className="mb-2">
               <Badge variant="secondary" className="mb-2">
                 {product.category || "Geral"}

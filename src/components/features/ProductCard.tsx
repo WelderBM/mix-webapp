@@ -33,7 +33,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const handleAction = (e: React.MouseEvent) => {
     e.preventDefault();
     if (product.type === "ASSEMBLED_KIT" && product.id) {
-      openKitBuilder(product.id);
+      openKitBuilder();
     } else if (onSelect) {
       onSelect(product);
     } else {
@@ -49,7 +49,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     }
   };
 
-  console.log(product);
   return (
     <Link href={`/produto/${product.id}`} passHref>
       <div className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-xl bg-white shadow-lg transition-all hover:shadow-xl">
