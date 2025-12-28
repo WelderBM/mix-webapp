@@ -247,20 +247,22 @@ export function BalloonBuilder() {
                 </Button>
               </div>
 
-              <div className="bg-linear-to-br from-purple-600 to-indigo-700 p-6 rounded-3xl mb-8 flex items-center justify-between text-white shadow-xl shadow-purple-200">
-                <div>
-                  <p className="text-[10px] opacity-70 uppercase font-black tracking-widest">
+              <div className="bg-linear-to-br from-purple-600 to-indigo-700 p-5 rounded-3xl mb-6 flex flex-col md:flex-row items-center justify-between text-white shadow-xl shadow-purple-200 gap-4 text-center md:text-left">
+                <div className="w-full md:w-auto">
+                  <p className="text-[10px] opacity-70 uppercase font-black tracking-widest mb-1">
                     Modelo Escolhido
                   </p>
-                  <p className="font-black text-xl">
-                    {selectedType?.name} · {selectedSize?.size}"
+                  <p className="font-black text-lg sm:text-xl leading-tight text-balance">
+                    {selectedType?.name}{" "}
+                    <span className="opacity-50 mx-1 hidden sm:inline">|</span>{" "}
+                    <br className="sm:hidden" /> {selectedSize?.size}"
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] opacity-70 uppercase font-black tracking-widest">
-                    Preço do pacote
+                <div className="flex items-center justify-between md:block w-full md:w-auto bg-white/10 p-3 rounded-2xl backdrop-blur-md border border-white/10">
+                  <p className="text-[10px] opacity-70 uppercase font-black tracking-widest text-left md:text-right">
+                    Preço
                   </p>
-                  <p className="font-black text-2xl">
+                  <p className="font-black text-2xl md:text-2xl leading-none">
                     {formatCurrency(selectedSize?.price || 0)}
                   </p>
                 </div>
@@ -295,41 +297,41 @@ export function BalloonBuilder() {
       </div>
 
       {/* STICKY FOOTER */}
-      <div className="sticky bottom-4 z-40 bg-white/95 backdrop-blur-md rounded-[2.5rem] border border-slate-200 p-4 md:p-6 shadow-[0_20px_50px_rgba(0,0,0,0.1)] transition-all duration-500">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="sticky bottom-2 z-40 mx-2 mb-2 bg-white/95 backdrop-blur-xl rounded-4xl border border-slate-200/50 shadow-[0_8px_30px_rgba(0,0,0,0.12)] p-4 md:p-6 transition-all duration-500 ring-1 ring-slate-100">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 md:gap-6">
           {/* Escondemos a quantidade no Passo 1 para simplificar, como solicitado */}
           {step === 2 ? (
-            <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-start">
-              <div className="flex flex-col gap-1">
-                <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest ml-1">
-                  Quantidade
-                </p>
-                <div className="flex items-center border-2 border-slate-100 rounded-2xl bg-white h-14 p-1 shadow-sm">
+            <div className="flex items-center justify-between gap-4 w-full md:w-auto p-1">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center border border-slate-200 rounded-xl bg-slate-50 h-10 p-1">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-12 h-full flex items-center justify-center text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all"
+                    className="w-8 h-full flex items-center justify-center text-slate-400 hover:text-purple-600 hover:bg-white rounded-lg transition-all"
                   >
-                    <Minus size={20} />
+                    <Minus size={16} />
                   </button>
-                  <span className="w-10 text-center font-black text-xl text-slate-800">
+                  <span className="min-w-8 text-center font-black text-lg text-slate-700">
                     {quantity}
                   </span>
                   <button
                     onClick={() => setQuantity(quantity + 1)}
-                    className="w-12 h-full flex items-center justify-center text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all"
+                    className="w-8 h-full flex items-center justify-center text-slate-400 hover:text-purple-600 hover:bg-white rounded-lg transition-all"
                   >
-                    <Plus size={20} />
+                    <Plus size={16} />
                   </button>
                 </div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">
+                  Quant.
+                </p>
               </div>
 
               <div className="text-right">
-                <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">
-                  Total deste item
+                <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">
+                  Total
                 </p>
-                <div className="text-3xl font-black text-purple-600 leading-none">
+                <p className="text-xl font-black text-purple-600 leading-none">
                   {formatCurrency(totalPrice)}
-                </div>
+                </p>
               </div>
             </div>
           ) : (
@@ -345,7 +347,7 @@ export function BalloonBuilder() {
               onClick={() => setStep(2)}
               disabled={!isStep1Complete}
               className={cn(
-                "w-full md:w-auto h-16 px-12 text-lg font-black rounded-2xl shadow-xl transition-all",
+                "w-full md:w-auto h-14 md:h-16 text-base md:text-lg font-black rounded-xl md:rounded-2xl shadow-lg transition-all",
                 isStep1Complete
                   ? "bg-purple-600 hover:bg-purple-700 text-white hover:scale-[1.02] active:scale-95 shadow-purple-200"
                   : "bg-slate-100 text-slate-300"
@@ -354,7 +356,7 @@ export function BalloonBuilder() {
               Escolher Cor
             </Button>
           ) : (
-            <div className="flex gap-3 w-full md:w-auto">
+            <div className="flex gap-2 w-full md:w-auto h-12 md:h-16">
               <Button
                 onClick={() => {
                   handleAddToBundle();
@@ -362,14 +364,14 @@ export function BalloonBuilder() {
                 }}
                 disabled={!isComplete}
                 className={cn(
-                  "flex-1 md:flex-none h-16 px-10 text-lg font-black rounded-2xl shadow-xl transition-all",
+                  "flex-1 md:flex-none h-full px-4 md:px-10 text-sm md:text-lg font-black rounded-xl md:rounded-2xl shadow-lg transition-all",
                   isComplete
                     ? "bg-purple-600 hover:bg-purple-700 text-white hover:scale-[1.02] active:scale-95 shadow-purple-200"
-                    : "bg-slate-100 text-slate-300"
+                    : "bg-slate-100 text-slate-400 border border-slate-200"
                 )}
               >
-                <ShoppingCart className="mr-2 h-6 w-6" />
-                Adicionar Pacote
+                <ShoppingCart className="mr-2 h-4 w-4 md:h-6 md:w-6" />
+                <span className="truncate">Adicionar</span>
               </Button>
               <Button
                 onClick={() => {
@@ -380,9 +382,9 @@ export function BalloonBuilder() {
                 }}
                 disabled={!isComplete}
                 variant="outline"
-                className="h-16 w-16 p-0 rounded-2xl border-2 border-slate-200 text-slate-400 hover:border-purple-600 hover:text-purple-600 transition-all"
+                className="h-full w-14 md:w-16 p-0 rounded-xl md:rounded-2xl border-2 border-slate-200 text-slate-400 hover:border-purple-600 hover:text-purple-600 transition-all shrink-0"
               >
-                <CheckCircle className="h-8 w-8" />
+                <CheckCircle className="h-6 w-6 md:h-8 md:w-8" />
               </Button>
             </div>
           )}

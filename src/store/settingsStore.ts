@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { StoreSettings } from "@/ltypes";
+import { StoreSettings } from "@/types";
 
 interface SettingsStore {
   settings: StoreSettings;
@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS: StoreSettings = {
     activeCategories: [],
     categoryOrder: [], // Aqui salvaremos a ordem dos Grupos
   },
+  homeSections: [],
 };
 
 export const useSettingsStore = create<SettingsStore>((set) => ({

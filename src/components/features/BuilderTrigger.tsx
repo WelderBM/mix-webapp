@@ -12,7 +12,7 @@ export function BuilderTrigger() {
 
   return (
     <div
-      onClick={() => openKitBuilder(SAMPLE_KIT_ID)}
+      onClick={() => openKitBuilder()}
       // UNIFICADO: Fundo Neutro (Slate-50)
       className="relative w-full h-full min-h-[180px] rounded-3xl overflow-hidden shadow-sm cursor-pointer group transition-all hover:shadow-xl hover:scale-[1.02] border border-slate-200 bg-slate-50"
     >

@@ -23,9 +23,3 @@ export interface KitRecipe {
   components: KitComponent[];
   assemblyCost: number;
 }
-
-export interface AssembledKitProduct extends Product {
-  type: "ASSEMBLED_KIT";
-  recipeId: string;
-  kitBasePrice: number;
-}

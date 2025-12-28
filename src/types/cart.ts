@@ -26,8 +26,9 @@ export interface CartItem {
   };
   customizations?: CustomizationDetails;
   kitComposition?: {
-    recipeId: string;
+    recipeId?: string;
     baseProductId: string;
+    wrapperProductId?: string;
     finalRibbonDetails?: {
       laçoType: LacoModelType;
       fitaId?: string;

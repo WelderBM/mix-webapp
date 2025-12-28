@@ -7,6 +7,8 @@ import {
   Package,
   Scissors,
   Home,
+  PartyPopper,
+  Gift,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -44,6 +46,18 @@ export function Footer() {
               className="hover:text-purple-400 flex items-center gap-2"
             >
               <Scissors size={14} /> Central de Fitas
+            </Link>
+            <Link
+              href="/baloes"
+              className="hover:text-purple-400 flex items-center gap-2"
+            >
+              <PartyPopper size={14} /> Orçamento de Balões
+            </Link>
+            <Link
+              href="/fitas?aba=service" // Atalho direto
+              className="hover:text-purple-400 flex items-center gap-2"
+            >
+              <Gift size={14} /> Criar Laço Personalizado
             </Link>
             <button
               onClick={() => {

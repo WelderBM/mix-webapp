@@ -10,7 +10,8 @@ import {
   orderBy,
   setDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { auth, db } from "@/lib/firebase";
 import { Product, StoreSettings, StoreSection, SectionType } from "@/types";
 import { Order } from "@/types/order";
 import { BalloonConfig, BalloonTypeConfig } from "@/types/balloon";
@@ -79,6 +80,7 @@ import {
   Settings2,
   ChevronDown,
   Ruler,
+  Loader2,
 } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
 import Link from "next/link";
@@ -87,10 +89,11 @@ import { SafeImage } from "@/components/ui/SafeImage";
 import { cn, formatCurrency } from "@/lib/utils";
 
 import { OrdersTab } from "@/components/admin/OrdersTab";
+import { AdminLogin } from "@/components/admin/AdminLogin";
 
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState("");
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
   const [viewMode, setViewMode] = useState<"orders" | "inventory">("orders"); // Defaults to orders since user emphasized it
 
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -142,20 +145,15 @@ export default function AdminPage() {
 
   // Auth & Data
   useEffect(() => {
-    if (localStorage.getItem("mix_admin_auth") === "true")
-      setIsAuthenticated(true);
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setLoadingAuth(false);
+    });
+    return () => unsubAuth();
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === "admin123") {
-      localStorage.setItem("mix_admin_auth", "true");
-      setIsAuthenticated(true);
-    } else toast.error("Senha errada");
-  };
-
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!currentUser) return;
 
     // Buscar Produtos
     const unsubProd = onSnapshot(
@@ -182,7 +180,7 @@ export default function AdminPage() {
 
       unsubBall();
     };
-  }, [isAuthenticated]);
+  }, [currentUser]);
 
   // Lógica de Filtros de Produtos
   const filteredProducts = useMemo(() => {
@@ -440,24 +438,17 @@ export default function AdminPage() {
       });
   };
 
-  if (!isAuthenticated)
+  if (loadingAuth) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-100">
-        <form
-          onSubmit={handleLogin}
-          className="bg-white p-8 rounded shadow w-full max-w-sm"
-        >
-          <h1 className="text-xl font-bold mb-4">Login Admin</h1>
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Senha"
-          />
-          <Button className="w-full mt-2">Entrar</Button>
-        </form>
+        <Loader2 className="animate-spin text-purple-600 w-8 h-8" />
       </div>
     );
+  }
+
+  if (!currentUser) {
+    return <AdminLogin />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
@@ -482,8 +473,7 @@ export default function AdminPage() {
             </Link>
             <Button
               onClick={() => {
-                localStorage.removeItem("mix_admin_auth");
-                setIsAuthenticated(false);
+                signOut(auth);
               }}
               variant="ghost"
             >

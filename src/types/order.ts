@@ -6,6 +6,7 @@ export type OrderStatus =
   | "delivered" // Entregue
   | "cancelled"; // Cancelado
 
+import { CartItem } from "./cart";
 export type PaymentMethod = "pix" | "credit_card" | "debit_card" | "cash";
 
 export interface OrderItem {
@@ -25,6 +26,6 @@ export interface Order {
   deliveryMethod: "pickup" | "delivery";
   address?: string;
   createdAt: string; // ISO String
-  items: OrderItem[]; // Resumo dos itens para exibição rápida
+  items: CartItem[]; // Itens completos do carrinho
   timestamp?: any; // Firebase Server Timestamp
 }

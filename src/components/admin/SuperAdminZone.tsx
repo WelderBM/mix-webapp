@@ -9,20 +9,7 @@ import { seedBalloons } from "@/services/seedService";
 import { toast } from "sonner";
 
 export function SuperAdminZone() {
-  const [password, setPassword] = useState("");
-  const [isUnlocked, setIsUnlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleUnlock = () => {
-    // Defina sua SENHA MESTRA aqui (só você sabe)
-    if (password === "mastermix2025") {
-      setIsUnlocked(true);
-      toast.success("Acesso Master liberado");
-    } else {
-      toast.error("Senha Mestra incorreta");
-      setPassword("");
-    }
-  };
 
   const handleRunSeed = async () => {
     if (
@@ -56,34 +43,6 @@ export function SuperAdminZone() {
       setIsLoading(false);
     }
   };
-
-  if (!isUnlocked) {
-    return (
-      <div className="bg-red-50 border border-red-100 p-6 rounded-xl flex flex-col items-center gap-4 text-center max-w-md mx-auto mt-8">
-        <div className="bg-red-100 p-3 rounded-full text-red-600">
-          <Lock size={24} />
-        </div>
-        <div>
-          <h3 className="font-bold text-red-900">Área Restrita (Seed)</h3>
-          <p className="text-sm text-red-700">
-            Digite a senha mestra para acessar ferramentas de sistema.
-          </p>
-        </div>
-        <div className="flex gap-2 w-full">
-          <Input
-            type="password"
-            placeholder="Senha Mestra"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="bg-white"
-          />
-          <Button onClick={handleUnlock} variant="destructive">
-            Liberar
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="bg-slate-900 text-slate-100 p-8 rounded-xl border border-slate-700 space-y-6">

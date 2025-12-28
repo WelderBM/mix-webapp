@@ -11,6 +11,8 @@ import {
   X,
   PartyPopper,
   ChevronRight,
+  ChevronDown,
+  Scissors,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
@@ -87,51 +89,56 @@ const Navbar = () => {
     return null;
   }
 
-  // Componente auxiliar para links de navegação interna (Desktop Simples)
-  const NavButton: React.FC<{
-    href: string;
-    label: string;
-    Icon?: ElementType;
-    onClick?: () => void;
-  }> = ({ href, label, Icon, onClick }) => (
-    <Link href={href} passHref>
-      <Button
-        variant="ghost"
-        className="text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-purple-600"
-        onClick={() => {
-          onClick && onClick();
-          setIsMobileMenuOpen(false);
-        }}
-      >
-        {Icon && <Icon className="mr-2 h-4 w-4" />}
-        {label}
-      </Button>
-    </Link>
-  );
-
-  // Componente auxiliar para botões que abrem modais (Desktop Simples)
-  const ModalButton: React.FC<{
-    label: string;
-    Icon: ElementType;
-    onClick: () => void;
-  }> = ({ label, Icon, onClick }) => (
-    <Button
-      variant="ghost"
-      className="text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-purple-600"
-      onClick={() => {
-        onClick();
-        setIsMobileMenuOpen(false);
-      }}
-    >
-      <Icon className="mr-2 h-4 w-4" />
-      {label}
-    </Button>
-  );
+  // Definição estruturada das Categorias e Sub-itens
+  const navCategories = [
+    {
+      label: "Início",
+      href: "/",
+      type: "link",
+    },
+    {
+      label: "Fitas & Laços",
+      type: "group",
+      children: [
+        {
+          label: "Central de Fitas",
+          href: "/fitas",
+          description: "Rolos fechados e metro",
+          Icon: Scissors,
+        },
+        {
+          label: "Criar Laço",
+          href: "/fitas?aba=service",
+          description: "Personalize seu laço",
+          Icon: Sparkles,
+        },
+      ],
+    },
+    {
+      label: "Balões & Presentes",
+      type: "group",
+      children: [
+        {
+          label: "Orçamento de Balões",
+          href: "/baloes",
+          description: "Monte seu arranjo",
+          Icon: PartyPopper,
+        },
+        {
+          label: "Monte Sua Cesta",
+          href: null,
+          isModal: true,
+          description: "Presente perfeito",
+          Icon: Gift,
+        },
+      ],
+    },
+  ];
 
   return (
     <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md shadow-sm border-b border-slate-100/50">
       <div className="mx-auto flex max-w-7xl items-center justify-between p-4">
-        {/* Logo/Nome da Loja */}
+        {/* Logo */}
         <Link
           href="/"
           className="text-xl font-bold bg-linear-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
@@ -139,33 +146,80 @@ const Navbar = () => {
           Mix WebApp
         </Link>
 
-        {/* Links Principais (Desktop) */}
-        <div className="hidden items-center space-x-1 md:flex">
-          {navLinks.map((link) =>
-            link.isModal ? (
-              <ModalButton
-                key={link.label}
-                label={link.label}
-                Icon={link.Icon!}
-                onClick={openKitBuilder}
-              />
-            ) : (
-              <NavButton
-                key={link.href}
-                href={link.href!}
-                label={link.label}
-                Icon={link.Icon}
-              />
-            )
-          )}
+        {/* Desktop Navigation */}
+        <div className="hidden md:flex items-center space-x-6">
+          {navCategories.map((cat) => (
+            <div key={cat.label} className="relative group">
+              {cat.type === "link" ? (
+                <Link
+                  href={cat.href!}
+                  className="text-sm font-medium text-slate-700 hover:text-purple-600 transition-colors"
+                >
+                  {cat.label}
+                </Link>
+              ) : (
+                <>
+                  <button className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-purple-600 transition-colors group-hover:text-purple-600 py-2">
+                    {cat.label}
+                    <ChevronDown
+                      size={14}
+                      className="group-hover:rotate-180 transition-transform"
+                    />
+                  </button>
+
+                  {/* Dropdown Menu (Hover CSS) */}
+                  <div className="absolute top-full left-0 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 w-64 z-50">
+                    <div className="bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden p-2">
+                      {cat.children?.map((child) => {
+                        const ItemIcon = child.Icon!;
+                        const content = (
+                          <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors">
+                            <div className="bg-purple-50 text-purple-600 p-2 rounded-md shrink-0">
+                              <ItemIcon size={18} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-700">
+                                {child.label}
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                {child.description}
+                              </p>
+                            </div>
+                          </div>
+                        );
+
+                        if (child.isModal) {
+                          return (
+                            <button
+                              key={child.label}
+                              onClick={openKitBuilder}
+                              className="w-full text-left"
+                            >
+                              {content}
+                            </button>
+                          );
+                        }
+                        return (
+                          <Link
+                            key={child.label}
+                            href={child.href!}
+                            className="block"
+                          >
+                            {content}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
         </div>
 
-        {/* Ícones de Ação (Carrinho, Mobile Menu) */}
+        {/* Actions */}
         <div className="flex items-center space-x-2">
-          {/* 2. Carrinho: USANDO O ÍCONE INTELIGENTE */}
           <CartIcon />
-
-          {/* 1. Mobile Hamburger Menu (Toggle) */}
           <Button
             variant="ghost"
             size="icon"
@@ -177,7 +231,7 @@ const Navbar = () => {
         </div>
       </div>
 
-      {/* MENU MOBILE (Sheet Component) */}
+      {/* Mobile Menu */}
       <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
         <SheetContent
           side="left"
@@ -189,81 +243,75 @@ const Navbar = () => {
             </SheetTitle>
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto py-6 px-4 space-y-4">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">
-              Navegação Principal
-            </p>
-
-            {/* Renderizar todos os links como CARDS visuais */}
-            {navLinks.map((link) => {
-              // Render logic for content inside the card
-              const content = (
-                <>
-                  {/* Coluna da Imagem (Simulada com Div ou Img) */}
-                  <div className="w-16 h-16 rounded-lg bg-slate-200 shrink-0 overflow-hidden relative border border-slate-100">
-                    {/* Caso não tenha imagem real, usamos um gradiente ou ícone fallback */}
-                    {link.image ? (
-                      <img
-                        src={`https://placehold.co/100x100/f3f4f6/a855f7?text=${link.label
-                          .substring(0, 2)
-                          .toUpperCase()}`}
-                        alt={link.label}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-purple-100 text-purple-600">
-                        {link.Icon ? (
-                          <link.Icon size={24} />
-                        ) : (
-                          <span className="font-bold">?</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0 text-left">
-                    <h4 className="font-bold text-slate-800 text-base">
-                      {link.label}
-                    </h4>
-                    {link.description && (
-                      <p className="text-xs text-slate-500 line-clamp-2 mt-0.5 leading-tight">
-                        {link.description}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="text-slate-300">
-                    <ChevronRight size={16} />
-                  </div>
-                </>
-              );
-
-              if (link.isModal) {
-                return (
-                  <button
-                    key={link.label}
-                    onClick={() => {
-                      openKitBuilder();
-                      setIsMobileMenuOpen(false);
-                    }}
-                    className="w-full flex items-center gap-4 p-3 rounded-2xl bg-white border border-slate-100 shadow-sm transition-all active:scale-95 active:shadow-none"
+          <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6">
+            {navCategories.map((cat) => (
+              <div key={cat.label} className="space-y-3">
+                {cat.type === "link" ? (
+                  <Link
+                    href={cat.href!}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block font-bold text-lg text-slate-800"
                   >
-                    {content}
-                  </button>
-                );
-              }
+                    {cat.label}
+                  </Link>
+                ) : (
+                  <>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      {cat.label}
+                    </h4>
+                    <div className="grid gap-3">
+                      {cat.children?.map((child) => {
+                        const ItemIcon = child.Icon!;
+                        const content = (
+                          <>
+                            <div className="w-10 h-10 rounded-lg bg-white border border-slate-100 flex items-center justify-center text-purple-600 shrink-0">
+                              <ItemIcon size={20} />
+                            </div>
+                            <div className="flex-1 text-left">
+                              <h5 className="font-bold text-slate-800">
+                                {child.label}
+                              </h5>
+                              <p className="text-xs text-slate-500">
+                                {child.description}
+                              </p>
+                            </div>
+                            <ChevronRight
+                              size={16}
+                              className="text-slate-300"
+                            />
+                          </>
+                        );
 
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href!}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="w-full flex items-center gap-4 p-3 rounded-2xl bg-white border border-slate-100 shadow-sm transition-all active:scale-95 active:shadow-none"
-                >
-                  {content}
-                </Link>
-              );
-            })}
+                        if (child.isModal) {
+                          return (
+                            <button
+                              key={child.label}
+                              onClick={() => {
+                                openKitBuilder();
+                                setIsMobileMenuOpen(false);
+                              }}
+                              className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 shadow-sm active:scale-95 transition-transform"
+                            >
+                              {content}
+                            </button>
+                          );
+                        }
+                        return (
+                          <Link
+                            key={child.label}
+                            href={child.href!}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 shadow-sm active:scale-95 transition-transform"
+                          >
+                            {content}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
           </div>
 
           <div className="p-6 bg-white border-t text-center text-xs text-slate-400">

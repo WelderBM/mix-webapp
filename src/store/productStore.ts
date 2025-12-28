@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Product, AssembledKitProduct } from "@/ltypes";
+import { Product, AssembledKitProduct } from "@/types";
 import { useKitStore } from "./kitStore";
 
 interface ProductState {

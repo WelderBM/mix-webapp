@@ -192,7 +192,7 @@ export function OrdersTab() {
         </Badge>
       </div>
 
-      <div className="border rounded-xl bg-white shadow-sm overflow-hidden">
+      <div className="border rounded-xl bg-white shadow-sm overflow-x-auto">
         <Table>
           <TableHeader className="bg-slate-50">
             <TableRow>

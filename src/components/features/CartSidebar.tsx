@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -56,7 +57,15 @@ import { SafeImage } from "../ui/SafeImage";
 // Componente CartIcon EXPORTADO para uso no Navbar
 export function CartIcon() {
   const { items, openCart } = useCartStore();
-  const count = items.reduce((acc, item) => acc + item.quantity, 0);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const count = isMounted
+    ? items.reduce((acc, item) => acc + item.quantity, 0)
+    : 0;
 
   return (
     <Button variant="ghost" size="icon" className="relative" onClick={openCart}>
@@ -84,23 +93,84 @@ export function CartSidebar() {
   } = useCartStore();
   const { getProductById } = useProductStore();
 
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+
+  // Address State
+  const [cep, setCep] = useState("");
+  const [street, setStreet] = useState("");
+  const [number, setNumber] = useState("");
+  const [neighborhood, setNeighborhood] = useState("");
+  const [city, setCity] = useState("Boa Vista");
+  const [uf, setUf] = useState("RR");
+  const [isInvalidLocation, setIsInvalidLocation] = useState(false);
+  const [isLoadingCep, setIsLoadingCep] = useState(false);
+
   const [deliveryMethod, setDeliveryMethod] =
     useState<DeliveryMethod>("pickup");
   const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>("prepaid");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
-  const [address, setAddress] = useState("");
+  // Novo estado para controlar destino do pagamento PIX
+  const [pixPaymentDestination, setPixPaymentDestination] = useState<
+    "store" | "carrier"
+  >("store");
+
+  // Previously: const [address, setAddress] = useState(""); - REMOVED
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [observation, setObservation] = useState("");
 
   const getProductName = (id: string | undefined) =>
     id ? getProductById(id)?.name || "Produto Desconhecido" : "N/A";
 
   useEffect(() => {
     if (deliveryMethod === "delivery") {
-      if (paymentMethod === "card") setPaymentMethod("pix");
+      // If delivery is selected, default logic can go here if needed
     }
-  }, [deliveryMethod, paymentMethod]);
+  }, [deliveryMethod]);
+
+  const handleCepBlur = async () => {
+    const cleanCep = cep.replace(/\D/g, "");
+    if (cleanCep.length !== 8) return;
+
+    setIsLoadingCep(true);
+    setIsInvalidLocation(false); // Reset invalid state on new search
+
+    try {
+      const response = await fetch(
+        `https://viacep.com.br/ws/${cleanCep}/json/`
+      );
+      const data = await response.json();
+
+      if (!data.erro) {
+        if (data.localidade !== "Boa Vista" || data.uf !== "RR") {
+          setIsInvalidLocation(true);
+          setStreet("");
+          setNeighborhood("");
+          setCity(data.localidade); // Show the wrong city to confirm we found it
+          setUf(data.uf);
+          toast.error("Entregas apenas para Boa Vista - RR");
+        } else {
+          setStreet(data.logradouro);
+          setNeighborhood(data.bairro);
+          setCity(data.localidade);
+          setUf(data.uf);
+          setIsInvalidLocation(false);
+        }
+      } else {
+        toast.error("CEP não encontrado.");
+      }
+    } catch (error) {
+      toast.error("Erro ao buscar CEP.");
+    } finally {
+      setIsLoadingCep(false);
+    }
+  };
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
@@ -115,32 +185,70 @@ export function CartSidebar() {
       return;
     }
 
-    if (deliveryMethod === "delivery" && address.trim().length < 5) {
-      toast.warning("Por favor, digite o endereço completo para entrega.");
-      return;
+    if (deliveryMethod === "delivery") {
+      if (!street.trim() || !number.trim() || !neighborhood.trim()) {
+        toast.warning(
+          "Por favor, preencha o endereço completo (Rua, Número e Bairro)."
+        );
+        return;
+      }
+
+      if (isInvalidLocation) {
+        toast.error(
+          "Endereço fora da área de entrega permitida (Boa Vista - RR)."
+        );
+        return;
+      }
+
+      // Secondary check just in case
+      if (city !== "Boa Vista" || uf !== "RR") {
+        setIsInvalidLocation(true);
+        toast.error("Desculpe, realizamos entregas apenas em Boa Vista - RR.");
+        return;
+      }
     }
 
     setIsCheckingOut(true);
 
     try {
+      const fullAddress = `${street}, ${number}, ${neighborhood} - ${city}`;
       const orderData = {
-        createdAt: new Date().toISOString(), // Use ISO string for consistency
+        createdAt: new Date().toISOString(),
         total: getCartTotal(),
         status: "pending",
         items: items,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         deliveryMethod,
-        address: deliveryMethod === "delivery" ? address : null,
+        address: deliveryMethod === "delivery" ? fullAddress : null,
+        addressDetails:
+          deliveryMethod === "delivery"
+            ? {
+                cep,
+                street,
+                city,
+              }
+            : null,
         paymentMethod,
         paymentTiming,
+        pixPaymentDestination:
+          paymentMethod === "pix" ? pixPaymentDestination : null,
+        observation: observation.trim() || null,
       };
 
       const cleanOrderData = JSON.parse(JSON.stringify(orderData));
       await addDoc(collection(db, "orders"), cleanOrderData);
 
-      // Montagem da mensagem do WhatsApp (Lógica simplificada para brevidade)
-      let message = `*Novo Pedido*\n👤 ${customerName || "Cliente"}\n`;
+      // --- WhatsApp Message Construction ---
+      const totalValue = formatCurrency(getCartTotal());
+      let message = "";
+
+      // === PARTE 1: MENSAGEM PARA A ATENDENTE (DETALHADA) ===
+      message += `�️ *NOVO PEDIDO - MIX NOVIDADES*\n`;
+      message += `👤 *Cliente:* ${customerName}\n`;
+      message += `📞 *Telefone:* ${customerPhone}\n\n`;
+
+      message += `📋 *ITENS DO PEDIDO:*\n`;
       items.forEach((item, idx) => {
         let name = "";
         if (item.type === "CUSTOM_BALLOON" && item.balloonDetails) {
@@ -153,21 +261,70 @@ export function CartSidebar() {
         }
         message += `${idx + 1}. ${item.quantity}x ${name}\n`;
       });
-      message += `\n*Total: ${formatCurrency(getCartTotal())}*`;
 
-      if (deliveryMethod === "delivery") message += `\n📍 Entrega: ${address}`;
-      else message += `\n📍 Retirada na Loja`;
-
-      message += `\n💰 Pagamento: ${
+      message += `\n💰 *VALOR TOTAL DOS ITENS:* ${totalValue}\n`;
+      message += `💳 *Pagamento:* ${
         paymentMethod === "pix"
           ? "PIX"
-          : paymentMethod === "card"
-          ? "Cartão (Máquina)"
-          : paymentMethod === "cash"
-          ? "Dinheiro"
-          : "Outro"
-      }`;
-      message += `\n📞 Contato: ${customerPhone}`;
+          : paymentMethod === "credit_card"
+          ? "Cartão de Crédito"
+          : paymentMethod === "debit_card"
+          ? "Cartão de Débito"
+          : "Dinheiro"
+      }\n`;
+      if (paymentMethod === "pix") {
+        message += `ℹ️ Destino PIX: ${
+          pixPaymentDestination === "store" ? "Loja" : "Moto Táxi"
+        }\n`;
+      }
+
+      if (observation.trim()) {
+        message += `📝 *Obs do Cliente:* ${observation}\n`;
+      }
+
+      // === PARTE 2: COPY PARA O MOTOBOY (APENAS SE FOR ENTREGA) ===
+      if (deliveryMethod === "delivery") {
+        message += `\n\n✂️ --- *AREA DE COPY PARA O MOTOBOY* --- ✂️\n\n`;
+
+        message += `📦 *SOLICITAÇÃO DE ENTREGA*\n\n`;
+
+        // ENDEREÇO DE RETIRADA (LOJA)
+        message += `📍 *RETIRADA (LOJA):*\n`;
+        message += `*Mix Novidades*\n`;
+        message += `Rua Pedro Aldemar Bantim, 945 - Silvio Botelho\n\n`;
+
+        // ENDEREÇO DE ENTREGA (CLIENTE)
+        message += `🏁 *ENTREGA (CLIENTE):*\n`;
+        message += `*${street.toUpperCase()}, ${number}*\n`;
+        message += `*${neighborhood.toUpperCase()}* - Boa Vista/RR\n`;
+        if (observation.trim()) {
+          message += `(Obs: ${observation})\n`;
+        }
+        message += `\n`;
+
+        // INFORMAÇÕES FINANCEIRAS (FORMAL)
+        message += `💰 *FINANCEIRO:*\n`;
+        if (paymentMethod === "pix") {
+          if (pixPaymentDestination === "store") {
+            message += `✅ *Entrega Paga na Loja via PIX.*\n`;
+            message += `⚠️ Motoboy recebe apenas valor da corrida.\n`;
+          } else {
+            message += `⚠️ *Cobrar Entrega + Itens no Local (Pix Moto)*\n`;
+            message += `Valor dos Produtos: ${totalValue}\n`;
+          }
+        } else {
+          // Pagamento na entrega (Dinheiro ou Cartão)
+          message += `⚠️ *Cobrar Entrega + Itens no Local*\n`;
+          message += `Valor a cobrar dos Itens: ${totalValue} (${
+            paymentMethod === "cash" ? "Dinheiro" : "Cartão"
+          })\n`;
+        }
+
+        // CONTATO
+        message += `\n📞 *CONTATO:* ${customerPhone}`;
+      } else {
+        message += `\n⚠️ *CLIENTE IRÁ RETIRAR NA LOJA*`;
+      }
 
       const whatsappUrl = `https://wa.me/5595991111111?text=${encodeURIComponent(
         message
@@ -188,6 +345,8 @@ export function CartSidebar() {
   const handleContinueShopping = () => {
     closeCart();
   };
+
+  if (!isMounted) return null;
 
   return (
     <Sheet open={isCartOpen} onOpenChange={(open) => !open && closeCart()}>
@@ -213,8 +372,11 @@ export function CartSidebar() {
           </div>
         ) : (
           <>
-            <ScrollArea className="flex-1 p-6">
-              <div className="space-y-4">
+            {/* Substituído ScrollArea por div nativa para melhor UX mobile */}
+            <div className="flex-1 overflow-y-auto bg-slate-50">
+              <div className="p-6 space-y-4 pb-48">
+                {" "}
+                {/* Aumentado padding bottom */}
                 {items.map((item) => {
                   const imageUrl = getProductImage(
                     item.product?.imageUrl,
@@ -304,10 +466,12 @@ export function CartSidebar() {
                 })}
               </div>
 
-              <div className="h-px bg-slate-200 my-6" />
+              <div className="h-px bg-slate-200 mx-6 mb-6" />
 
               {/* Formulário Resumido */}
-              <div className="space-y-4">
+              <div className="px-6 pb-48 space-y-4">
+                {" "}
+                {/* Padding extra aqui também */}
                 <div className="space-y-2">
                   <Label>Seu Nome</Label>
                   <Input
@@ -317,17 +481,27 @@ export function CartSidebar() {
                     className="bg-white"
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label>Seu Telefone / WhatsApp *</Label>
                   <Input
                     value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, "");
+                      if (value.length > 11) value = value.slice(0, 11);
+
+                      if (value.length > 2) {
+                        value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
+                      }
+                      if (value.length > 9) {
+                        value = `${value.slice(0, 10)}-${value.slice(10)}`;
+                      }
+                      setCustomerPhone(value);
+                    }}
                     placeholder="(99) 99999-9999"
                     className="bg-white"
+                    maxLength={15}
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label>Forma de Pagamento</Label>
                   <Select
@@ -338,18 +512,58 @@ export function CartSidebar() {
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pix">PIX</SelectItem>
+                      <SelectItem value="pix">💠 PIX</SelectItem>
                       <SelectItem value="credit_card">
-                        Cartão de Crédito
+                        💳 Cartão de Crédito
                       </SelectItem>
                       <SelectItem value="debit_card">
-                        Cartão de Débito
+                        💳 Cartão de Débito
                       </SelectItem>
-                      <SelectItem value="cash">Dinheiro</SelectItem>
+                      <SelectItem value="cash">💵 Dinheiro</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-
+                {paymentMethod === "pix" && (
+                  <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <Label className="text-blue-800">
+                      Para quem você vai fazer o PIX?
+                    </Label>
+                    <RadioGroup
+                      value={pixPaymentDestination}
+                      onValueChange={(v: "store" | "carrier") =>
+                        setPixPaymentDestination(v)
+                      }
+                      className="flex flex-col gap-2 mt-1"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem
+                          value="store"
+                          id="pay-store"
+                          className="text-blue-600 border-blue-400"
+                        />
+                        <Label
+                          htmlFor="pay-store"
+                          className="font-normal cursor-pointer"
+                        >
+                          Pagar para a <b>Loja</b> (Chave da Loja)
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem
+                          value="carrier"
+                          id="pay-carrier"
+                          className="text-blue-600 border-blue-400"
+                        />
+                        <Label
+                          htmlFor="pay-carrier"
+                          className="font-normal cursor-pointer"
+                        >
+                          Pagar para o <b>Moto Táxi</b> (Na entrega)
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Entrega</Label>
                   <RadioGroup
@@ -367,18 +581,111 @@ export function CartSidebar() {
                     </div>
                   </RadioGroup>
                   {deliveryMethod === "delivery" && (
-                    <Input
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="Endereço de entrega..."
-                      className="bg-white mt-2"
-                    />
+                    <div
+                      className={cn(
+                        "space-y-3 mt-3 p-3 rounded-lg border transition-colors",
+                        isInvalidLocation
+                          ? "bg-red-50 border-red-200"
+                          : "bg-slate-50 border-slate-200"
+                      )}
+                    >
+                      {isInvalidLocation && (
+                        <div className="p-2 mb-2 text-xs text-red-600 bg-red-100 rounded border border-red-200 font-medium text-center">
+                          ⚠️ Entregas indisponíveis para esta região. <br />{" "}
+                          Apenas Boa Vista - RR.
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-1">
+                          <Label className="text-xs">CEP</Label>
+                          <div className="relative">
+                            <Input
+                              value={cep}
+                              onChange={(e) => {
+                                let value = e.target.value.replace(/\D/g, "");
+                                if (value.length > 8) value = value.slice(0, 8);
+                                if (value.length > 5) {
+                                  value = `${value.slice(0, 5)}-${value.slice(
+                                    5
+                                  )}`;
+                                }
+                                setCep(value);
+                              }}
+                              onBlur={handleCepBlur}
+                              placeholder="00000-000"
+                              className={cn(
+                                "bg-white h-9",
+                                isInvalidLocation &&
+                                  "border-red-300 ring-offset-red-100"
+                              )}
+                              maxLength={9}
+                            />
+                            {isLoadingCep && (
+                              <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-slate-400" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="col-span-1">
+                          <Label className="text-xs">Número</Label>
+                          <Input
+                            value={number}
+                            onChange={(e) => setNumber(e.target.value)}
+                            placeholder="Nº"
+                            disabled={isInvalidLocation}
+                            className="bg-white h-9"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs">Rua</Label>
+                        <Input
+                          value={street}
+                          onChange={(e) => setStreet(e.target.value)}
+                          placeholder="Nome da rua"
+                          disabled={isInvalidLocation}
+                          className="bg-white h-9"
+                        />
+                      </div>
+
+                      <div>
+                        <Label className="text-xs">Bairro</Label>
+                        <Input
+                          value={neighborhood}
+                          onChange={(e) => setNeighborhood(e.target.value)}
+                          placeholder="Bairro"
+                          disabled={isInvalidLocation}
+                          className="bg-white h-9"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Cidade (Fixo)</Label>
+                        <Input
+                          value={`${city} - ${uf}`}
+                          readOnly
+                          className={cn(
+                            "h-9 bg-slate-100 text-slate-500 cursor-not-allowed",
+                            isInvalidLocation && "text-red-500 font-medium"
+                          )}
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
+                <div className="space-y-2">
+                  <Label>Observação (Opcional)</Label>
+                  <Textarea
+                    placeholder="Ex: Ponto de referência, troco para R$ 50, deixar na portaria..."
+                    value={observation}
+                    onChange={(e) => setObservation(e.target.value)}
+                    className="bg-white min-h-[80px]"
+                  />
+                </div>
               </div>
-            </ScrollArea>
+            </div>
 
-            <SheetFooter className="p-6 bg-white border-t space-y-3 block flex-shrink-0 z-10 shadow-lg">
+            <SheetFooter className="p-6 bg-white border-t space-y-3 block shrink-0 z-10 shadow-lg">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-slate-500">Total</span>
                 <span className="text-2xl font-bold text-slate-900">

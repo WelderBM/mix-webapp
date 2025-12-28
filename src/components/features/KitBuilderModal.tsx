@@ -179,7 +179,7 @@ export function KitBuilderModal() {
 
         <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
           <div className="flex-1 flex flex-col border-r min-h-0">
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-6 pb-24 custom-scrollbar">
               {/* PASSO 1 */}
               {currentStep === 1 && (
                 <div className="space-y-6">
