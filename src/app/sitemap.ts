@@ -2,18 +2,23 @@ import { MetadataRoute } from "next";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-const BASE_URL = "https://sua-loja-mix.vercel.app"; // URL do seu site
+const BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL || "https://mixnovidades.com.br";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Buscar todos os produtos para gerar URLs dinâmicas
-  const productsSnap = await getDocs(collection(db, "products"));
-
-  const productsUrls = productsSnap.docs.map((doc) => ({
-    url: `${BASE_URL}/produto/${doc.id}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }));
+  let productsUrls: MetadataRoute.Sitemap = [];
+  try {
+    const productsSnap = await getDocs(collection(db, "products"));
+    productsUrls = productsSnap.docs.map((doc) => ({
+      url: `${BASE_URL}/produto/${doc.id}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    }));
+  } catch (error) {
+    console.error("Erro ao gerar sitemap de produtos:", error);
+  }
 
   return [
     {
@@ -23,9 +28,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1,
     },
     {
-      url: `${BASE_URL}/laco-builder`,
+      url: `${BASE_URL}/fitas`,
       lastModified: new Date(),
-      changeFrequency: "monthly",
+      changeFrequency: "daily",
+      priority: 0.9,
+    },
+    {
+      url: `${BASE_URL}/baloes`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
       priority: 0.9,
     },
     ...productsUrls,
