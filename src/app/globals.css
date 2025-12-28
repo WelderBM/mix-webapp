@@ -116,7 +116,7 @@
   * {
     @apply border-border outline-ring/50;
   }
-  
+
   /* Scroll Suave Global */
   html {
     scroll-behavior: smooth;
@@ -154,5 +154,19 @@
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: var(--primary);
+  }
+
+  /* Safe Area Utilities for Modern Mobile Devices */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-area-pl {
+    padding-left: env(safe-area-inset-left);
+  }
+  .safe-area-pr {
+    padding-right: env(safe-area-inset-right);
   }
 }

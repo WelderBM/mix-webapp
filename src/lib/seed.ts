@@ -24,7 +24,9 @@ const SETTINGS_REF = doc(db, "settings", "general");
 const KIT_RECIPES_REF = collection(db, "kit_recipes");
 
 const getPlaceholdImage = (text: string) =>
-  `https://placehold.co/400x400/f1f5f9/334155?text=${encodeURIComponent(text)}`;
+  `https://placehold.co/400x400/f1f5f9/334155.png?text=${encodeURIComponent(
+    text
+  )}`;
 
 // Nome da função DEVE ser seedDatabase para bater com seu SuperAdminZone
 export const seedDatabase = async () => {

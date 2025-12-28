@@ -8,7 +8,7 @@ export interface CustomizationDetails {
 
 export interface CartItem {
   cartId: string;
-  type: "SIMPLE" | "CUSTOM_KIT" | "CUSTOM_RIBBON";
+  type: "SIMPLE" | "CUSTOM_KIT" | "CUSTOM_RIBBON" | "CUSTOM_BALLOON";
   quantity: number;
   product?: Product;
   selectedVariant?: ProductVariant;
@@ -34,6 +34,13 @@ export interface CartItem {
       accessoryId?: string;
     };
     items: { productId: string; quantity: number }[];
+  };
+  balloonDetails?: {
+    typeId: string;
+    typeName: string;
+    size: string;
+    color: string;
+    unitsPerPackage: number;
   };
 }
 

@@ -84,9 +84,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                     R$ {product.originalPrice.toFixed(2)}
                   </span>
                 )}
-              <span className="text-xl font-extrabold text-primary">
-                R$ {finalPrice.toFixed(2)}
-              </span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-xl font-extrabold text-primary">
+                  {new Intl.NumberFormat("pt-BR", {
+                    style: "currency",
+                    currency: "BRL",
+                  }).format(finalPrice)}
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                  / {product.unit || "un"}
+                </span>
+              </div>
             </div>
             <Button
               onClick={handleAction}

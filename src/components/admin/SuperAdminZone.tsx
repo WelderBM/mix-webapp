@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AlertTriangle, Database, Lock, CheckCircle } from "lucide-react";
-import { seedDatabase } from "@/lib/seed"; // Importa a função acima
+import { seedDatabase } from "@/lib/seed";
+import { seedBalloons } from "@/services/seedService";
 import { toast } from "sonner";
 
 export function SuperAdminZone() {
@@ -38,6 +39,19 @@ export function SuperAdminZone() {
     } catch (error) {
       console.error(error);
       toast.error("Erro ao rodar seed.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSeedBalloons = async () => {
+    setIsLoading(true);
+    try {
+      await seedBalloons();
+      toast.success("Configurações de balões importadas!");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao importar balões.");
     } finally {
       setIsLoading(false);
     }
@@ -97,12 +111,20 @@ export function SuperAdminZone() {
           </Button>
         </div>
 
-        {/* Espaço para futuras ferramentas (ex: Limpar Pedidos Antigos) */}
-        <div className="space-y-2 opacity-50 cursor-not-allowed">
-          <h3 className="font-bold text-white">Limpar Pedidos Antigos</h3>
-          <p className="text-sm text-slate-400">Em breve...</p>
-          <Button disabled variant="secondary" className="w-full">
-            Executar
+        {/* Seed de Balões */}
+        <div className="space-y-2">
+          <h3 className="font-bold text-white">Importar Catálogo de Balões</h3>
+          <p className="text-sm text-slate-400">
+            Atualiza apenas os preços e tipos de balões (Simples, Metálico,
+            Candy, etc) sem apagar seus produtos ou outras configurações.
+          </p>
+          <Button
+            onClick={handleSeedBalloons}
+            disabled={isLoading}
+            variant="secondary"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold"
+          >
+            {isLoading ? "Processando..." : "🚀 Atualizar Apenas Balões"}
           </Button>
         </div>
       </div>

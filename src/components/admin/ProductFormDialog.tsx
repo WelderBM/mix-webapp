@@ -10,7 +10,7 @@ import {
   ProductType,
   RibbonInventory,
   RibbonRollStatus,
-} from "@/ltypes";
+} from "@/types/product";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,7 +31,15 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Check, Ruler, Save, Loader2, X } from "lucide-react";
+import {
+  Check,
+  Ruler,
+  Save,
+  Loader2,
+  X,
+  Image as ImageIcon,
+} from "lucide-react";
+import { ImageUpload } from "./ImageUpload";
 
 // Definindo o tipo base de dados do formulário (simplificado)
 interface ProductFormData extends Product {
@@ -101,6 +109,33 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // VALIDATIONS
+    if (!formData.name.trim()) {
+      toast.error("O nome do produto é obrigatório.");
+      return;
+    }
+
+    if (Number(formData.price) <= 0) {
+      toast.error("O preço deve ser maior que zero.");
+      return;
+    }
+
+    if (!formData.category || formData.category.trim() === "") {
+      toast.error("A categoria é obrigatória.");
+      return;
+    }
+
+    if (!formData.type) {
+      toast.error("O tipo do produto é obrigatório.");
+      return;
+    }
+
+    if (!formData.unit || formData.unit.trim() === "") {
+      toast.error("A unidade de venda (un, m, kg) é obrigatória.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -110,14 +145,16 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       const productData: Product = {
         ...formData,
         id: productId,
-        price: Number(formData.price), // Garante número
-        // Limpa campos undefined/vazios se necessário
+        price: Number(formData.price),
+        category: formData.category.trim(),
+        unit: formData.unit.trim() as any,
       };
 
       await setDoc(doc(db, "products", productId), productData);
 
       toast.success(productToEdit ? "Produto atualizado!" : "Produto criado!");
       onSuccess();
+      onClose();
     } catch (error) {
       console.error("Erro ao salvar produto:", error);
       toast.error("Erro ao salvar produto.");
@@ -307,15 +344,20 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="unit">Unidade de Venda</Label>
-                  <Input
-                    id="unit"
+                  <Label>Unidade de Venda</Label>
+                  <Select
                     value={formData.unit}
-                    onChange={(e) =>
-                      handleInputChange("unit", e.target.value as "un")
-                    }
-                    placeholder="ex: un, m, kg"
-                  />
+                    onValueChange={(v) => handleInputChange("unit", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione Unidade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="un">UNIDADE (un)</SelectItem>
+                      <SelectItem value="m">METRO (m)</SelectItem>
+                      <SelectItem value="pct">PACOTE (pct)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -343,15 +385,11 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                 <Label htmlFor="inStock">Em Estoque</Label>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="imageUrl">URL da Imagem</Label>
-                <Input
-                  id="imageUrl"
+              <div className="space-y-4">
+                <ImageUpload
                   value={formData.imageUrl || ""}
-                  onChange={(e) =>
-                    handleInputChange("imageUrl", e.target.value)
-                  }
-                  placeholder="https://exemplo.com/imagem.jpg"
+                  onChange={(url) => handleInputChange("imageUrl", url)}
+                  disabled={loading}
                 />
               </div>
 

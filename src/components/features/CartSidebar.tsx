@@ -91,6 +91,7 @@ export function CartSidebar() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
   const [address, setAddress] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
 
   const getProductName = (id: string | undefined) =>
     id ? getProductById(id)?.name || "Produto Desconhecido" : "N/A";
@@ -104,6 +105,16 @@ export function CartSidebar() {
   const handleCheckout = async () => {
     if (items.length === 0) return;
 
+    if (!customerName.trim()) {
+      toast.warning("Por favor, digite seu nome.");
+      return;
+    }
+
+    if (!customerPhone.trim() || customerPhone.length < 8) {
+      toast.warning("Por favor, digite um telefone válido para contato.");
+      return;
+    }
+
     if (deliveryMethod === "delivery" && address.trim().length < 5) {
       toast.warning("Por favor, digite o endereço completo para entrega.");
       return;
@@ -113,11 +124,12 @@ export function CartSidebar() {
 
     try {
       const orderData = {
-        createdAt: Date.now(),
+        createdAt: new Date().toISOString(), // Use ISO string for consistency
         total: getCartTotal(),
         status: "pending",
         items: items,
-        customerName: customerName || "Cliente do Site",
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
         deliveryMethod,
         address: deliveryMethod === "delivery" ? address : null,
         paymentMethod,
@@ -130,16 +142,32 @@ export function CartSidebar() {
       // Montagem da mensagem do WhatsApp (Lógica simplificada para brevidade)
       let message = `*Novo Pedido*\n👤 ${customerName || "Cliente"}\n`;
       items.forEach((item, idx) => {
-        const name =
-          item.type === "CUSTOM_KIT"
-            ? `Kit ${item.kitName}`
-            : item.product?.name;
+        let name = "";
+        if (item.type === "CUSTOM_BALLOON" && item.balloonDetails) {
+          name = `${item.balloonDetails.typeName} ${item.balloonDetails.size}" (${item.balloonDetails.color})`;
+        } else {
+          name =
+            item.type === "CUSTOM_KIT"
+              ? `Kit ${item.kitName}`
+              : item.product?.name || "Produto";
+        }
         message += `${idx + 1}. ${item.quantity}x ${name}\n`;
       });
       message += `\n*Total: ${formatCurrency(getCartTotal())}*`;
 
       if (deliveryMethod === "delivery") message += `\n📍 Entrega: ${address}`;
       else message += `\n📍 Retirada na Loja`;
+
+      message += `\n💰 Pagamento: ${
+        paymentMethod === "pix"
+          ? "PIX"
+          : paymentMethod === "card"
+          ? "Cartão (Máquina)"
+          : paymentMethod === "cash"
+          ? "Dinheiro"
+          : "Outro"
+      }`;
+      message += `\n📞 Contato: ${customerPhone}`;
 
       const whatsappUrl = `https://wa.me/5595991111111?text=${encodeURIComponent(
         message
@@ -213,17 +241,27 @@ export function CartSidebar() {
                       </div>
                       <div className="flex-1 min-w-0 pr-6">
                         <h4 className="font-medium text-slate-800 text-sm line-clamp-2">
-                          {item.type === "CUSTOM_KIT"
+                          {item.type === "CUSTOM_BALLOON" && item.balloonDetails
+                            ? `${item.balloonDetails.typeName} - ${item.balloonDetails.size}"`
+                            : item.type === "CUSTOM_KIT"
                             ? `Kit: ${item.kitName}`
                             : item.product?.name}
                         </h4>
+                        {item.type === "CUSTOM_BALLOON" &&
+                          item.balloonDetails && (
+                            <p className="text-xs text-slate-500 mt-1">
+                              Cor: {item.balloonDetails.color} |{" "}
+                              {item.balloonDetails.unitsPerPackage} un/pac
+                            </p>
+                          )}
                         <div className="flex items-center justify-between mt-2">
                           <p className="font-bold text-sm text-primary">
                             {formatCurrency(itemPrice)}
                           </p>
                           <div className="flex items-center gap-2">
-                            {/* Controles de quantidade simplificados */}
-                            {item.type === "SIMPLE" && (
+                            {/* Controles de quantidade para simples e balões */}
+                            {(item.type === "SIMPLE" ||
+                              item.type === "CUSTOM_BALLOON") && (
                               <div className="flex items-center border rounded-md">
                                 <button
                                   onClick={() =>
@@ -279,6 +317,39 @@ export function CartSidebar() {
                     className="bg-white"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Seu Telefone / WhatsApp *</Label>
+                  <Input
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="(99) 99999-9999"
+                    className="bg-white"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Forma de Pagamento</Label>
+                  <Select
+                    value={paymentMethod}
+                    onValueChange={(v: any) => setPaymentMethod(v)}
+                  >
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pix">PIX</SelectItem>
+                      <SelectItem value="credit_card">
+                        Cartão de Crédito
+                      </SelectItem>
+                      <SelectItem value="debit_card">
+                        Cartão de Débito
+                      </SelectItem>
+                      <SelectItem value="cash">Dinheiro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-2">
                   <Label>Entrega</Label>
                   <RadioGroup

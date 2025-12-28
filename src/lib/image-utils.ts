@@ -11,9 +11,9 @@ export function getDynamicPlaceholder(
   // Garante que haja um texto
   const cleanText = text || "Sem imagem";
   // Cores: Fundo Cinza Claro (#f1f5f9) / Texto Cinza Escuro (#334155)
-  return `https://placehold.co/${size}/f1f5f9/334155.png?text=${encodeURIComponent(
-    cleanText
-  )}`;
+  // Adicionamos .png explicitamente se não estiver presente para evitar SVG em alguns casos do Next.js
+  const baseUrl = `https://placehold.co/${size}/f1f5f9/334155.png`;
+  return `${baseUrl}?text=${encodeURIComponent(cleanText)}`;
 }
 
 /**
