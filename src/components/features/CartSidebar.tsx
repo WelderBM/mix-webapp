@@ -282,29 +282,11 @@ export function CartSidebar() {
         message += `📝 *Obs do Cliente:* ${observation}\n`;
       }
 
-      // === PARTE 2: COPY PARA O MOTOBOY (APENAS SE FOR ENTREGA) ===
+      // (Motoboy copy section removed as per user request to keep customer message clean)
       if (deliveryMethod === "delivery") {
-        message += `\n\n✂️ --- *AREA DE COPY PARA O MOTOBOY* --- ✂️\n\n`;
-
-        message += `🛵 *Entrega Para Mix Novidades*\n\n`;
-        message += `👤 *Cliente:* ${customerName}\n`;
-        message += `📍 *Endereço de retirada:* Rua Pedro Aldemar Bantim, 945, Doutor Sílvio Botelho\n`;
-        message += `📍 *Entregar em:* ${street}, ${number} - ${neighborhood}\n`;
-        
-        // Lógica de Pagamento Simplificada
-        if (paymentMethod === "pix" && pixPaymentDestination === "store") {
-             message += `💰 *Pagamento na loja (Já pago)*\n`;
-             message += `⚠️ Motoboy recebe apenas a corrida no destino.`;
-        } else {
-             message += `💰 *Pagamento no destino (Cobrar: ${totalValue})*\n`;
-             message += `⚠️ Item: ${totalValue} + Corrida.`;
-        }
-        }
-
-        // CONTATO
-        message += `\n📞 *CONTATO:* ${customerPhone}`;
+        message += `\n📍 *Endereço de Entrega:* ${street}, ${number} - ${neighborhood}`;
       } else {
-        message += `\n⚠️ *CLIENTE IRÁ RETIRAR NA LOJA*`;
+        message += `\n📍 *Retirada na Loja*`;
       }
 
       const phoneNumber =

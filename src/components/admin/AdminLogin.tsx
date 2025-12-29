@@ -79,12 +79,13 @@ export function AdminLogin() {
             className="w-full h-12 text-base font-bold bg-purple-600 hover:bg-purple-700 transition-colors"
             disabled={isLoading}
           >
-             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-             {isLoading ? "Validando..." : "Acessar Painel"}
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
+            {isLoading ? "Validando..." : "Acessar Painel"}
           </Button>
         </form>
       </div>
     </div>
   );
 }
-```

@@ -227,7 +227,9 @@ export function OrdersTab() {
                       <div className="flex flex-col">
                         <span className="font-bold">
                           {(() => {
-                            const diff = Date.now() - (order.createdAt || 0);
+                            const diff =
+                              Date.now() -
+                              (new Date(order.createdAt).getTime() || 0);
                             const mins = Math.floor(diff / 60000);
                             const hours = Math.floor(mins / 60);
 
@@ -242,7 +244,9 @@ export function OrdersTab() {
                           className={cn(
                             "text-[10px]",
                             order.status === "pending" &&
-                              Date.now() - (order.createdAt || 0) > 15 * 60000
+                              Date.now() -
+                                (new Date(order.createdAt).getTime() || 0) >
+                                15 * 60000
                               ? "text-red-500 font-bold"
                               : "text-slate-500"
                           )}
