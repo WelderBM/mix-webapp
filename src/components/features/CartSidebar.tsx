@@ -294,7 +294,7 @@ export function CartSidebar() {
       }
 
       // Adiciona link de rastreamento
-      const trackingUrl = `${window.location.origin}/meu-pedido`;
+      const trackingUrl = `${window.location.origin}/meu-pedido?id=${docRef.id}`;
       message += `\n\n🔍 *Acompanhe seu pedido em:* ${trackingUrl}`;
 
       const phoneNumber =
