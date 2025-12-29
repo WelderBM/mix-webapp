@@ -4,8 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AlertTriangle, Database, Lock, CheckCircle } from "lucide-react";
-import { seedDatabase } from "@/lib/seed";
-import { seedBalloons } from "@/services/seedService";
+import { seedDatabase, seedBalloons } from "@/lib/seed";
 import { toast } from "sonner";
 
 export function SuperAdminZone() {
