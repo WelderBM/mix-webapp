@@ -44,7 +44,11 @@ async function getInitialData() {
 
     return { products, settings, recipes };
   } catch (error) {
-    console.error("Erro ao buscar dados iniciais no servidor:", error);
+    console.error(
+      `Erro ao buscar dados iniciais: ${
+        (error as any)?.message || "Erro desconhecido"
+      }`
+    );
     return {
       products: [],
       settings: {} as StoreSettings,

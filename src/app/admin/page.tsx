@@ -490,7 +490,7 @@ export default function AdminPage() {
             >
               <LogOut size={16} />
             </Button>
-            
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="text-slate-400">
@@ -498,9 +498,12 @@ export default function AdminPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                 <DropdownMenuItem onClick={() => setIsSysToolsOpen(true)} className="text-red-600 gap-2">
-                    <Database size={14} /> Ferramentas de Sistema
-                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setIsSysToolsOpen(true)}
+                  className="text-red-600 gap-2"
+                >
+                  <Database size={14} /> Ferramentas de Sistema
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -1736,20 +1739,19 @@ export default function AdminPage() {
                 )}
               </div>
             </TabsContent>
-
-            </TabsContent>
           </Tabs>
         )}
 
         {/* --- DISCREET SUPER ADMIN DIALOG --- */}
         <Dialog open={isSysToolsOpen} onOpenChange={setIsSysToolsOpen}>
           <DialogContent className="max-w-3xl bg-slate-900 border-slate-800 text-slate-100">
-             <DialogHeader>
-               <DialogTitle className="flex items-center gap-2">
-                 <Settings2 className="text-red-500"/> Ferramentas de Sistema (Danger Zone)
-               </DialogTitle>
-             </DialogHeader>
-             <SuperAdminZone />
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Settings2 className="text-red-500" /> Ferramentas de Sistema
+                (Danger Zone)
+              </DialogTitle>
+            </DialogHeader>
+            <SuperAdminZone />
           </DialogContent>
         </Dialog>
 
