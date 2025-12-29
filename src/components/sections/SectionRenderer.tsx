@@ -32,9 +32,24 @@ const SectionNaturaBanner = dynamic(
   }
 );
 
+const SectionCustomBanner = dynamic(
+  () => import("./SectionCustomBanner").then((mod) => mod.SectionCustomBanner),
+  {
+    loading: () => <SectionSkeleton />,
+  }
+);
+
 // Componente simples de Loading para evitar "pulos" na tela
 const SectionSkeleton = () => (
   <div className="w-full h-48 bg-slate-100 animate-pulse rounded-lg my-4" />
+);
+
+const SectionBannerBalloon = dynamic(
+  () =>
+    import("./SectionBannerBalloon").then((mod) => mod.SectionBannerBalloon),
+  {
+    loading: () => <SectionSkeleton />,
+  }
 );
 
 interface SectionRendererProps {
@@ -59,8 +74,14 @@ export const SectionRenderer = ({
       case "banner_ribbon":
         return <SectionBannerRibbon />;
 
+      case "banner_balloon":
+        return <SectionBannerBalloon />;
+
       case "banner_natura":
         return <SectionNaturaBanner onScrollRequest={onScrollRequest} />;
+
+      case "custom_banner":
+        return <SectionCustomBanner section={section} />;
 
       default:
         return null;

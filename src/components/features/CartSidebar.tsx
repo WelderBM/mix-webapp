@@ -237,14 +237,18 @@ export function CartSidebar() {
       };
 
       const cleanOrderData = JSON.parse(JSON.stringify(orderData));
-      await addDoc(collection(db, "orders"), cleanOrderData);
+      const docRef = await addDoc(collection(db, "orders"), cleanOrderData);
+
+      // Salva o ID do pedido para rastreamento automático
+      localStorage.setItem("lastOrderId", docRef.id);
 
       // --- WhatsApp Message Construction ---
       const totalValue = formatCurrency(getCartTotal());
       let message = "";
 
       // === PARTE 1: MENSAGEM PARA A ATENDENTE (DETALHADA) ===
-      message += `�️ *NOVO PEDIDO - MIX NOVIDADES*\n`;
+      message += `️ *NOVO PEDIDO - MIX NOVIDADES*\n`;
+      message += `🆔 *ID:* ${docRef.id.slice(0, 8).toUpperCase()}\n`;
       message += `👤 *Cliente:* ${customerName}\n`;
       message += `📞 *Telefone:* ${customerPhone}\n\n`;
 
@@ -289,6 +293,10 @@ export function CartSidebar() {
         message += `\n📍 *Retirada na Loja*`;
       }
 
+      // Adiciona link de rastreamento
+      const trackingUrl = `${window.location.origin}/meu-pedido`;
+      message += `\n\n🔍 *Acompanhe seu pedido em:* ${trackingUrl}`;
+
       const phoneNumber =
         process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5595984244194";
       const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
@@ -319,9 +327,6 @@ export function CartSidebar() {
         <SheetHeader className="p-6 bg-white border-b shrink-0">
           <SheetTitle className="flex items-center gap-2 text-xl">
             <ShoppingCart className="text-purple-600" /> Seu Carrinho
-            <span className="ml-auto text-sm font-normal text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-              {items.length}
-            </span>
           </SheetTitle>
         </SheetHeader>
 

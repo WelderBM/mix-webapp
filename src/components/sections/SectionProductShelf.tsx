@@ -49,7 +49,7 @@ export const SectionProductShelf = ({
           {sectionProducts.map((product) => (
             <div
               key={product.id}
-              className="min-w-[160px] w-[45%] md:w-[220px] snap-center h-full"
+              className="min-w-[200px] w-[200px] md:w-[220px] snap-center h-full shrink-0"
             >
               <ProductCard
                 product={product}

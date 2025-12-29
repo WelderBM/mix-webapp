@@ -3,7 +3,9 @@ export type SectionType =
   | "banner_kit"
   | "banner_ribbon"
   | "banner_natura"
-  | "assembled_kit_shelf";
+  | "banner_balloon"
+  | "assembled_kit_shelf"
+  | "custom_banner";
 
 export type SectionWidth = "full" | "half";
 
@@ -14,6 +16,8 @@ export interface StoreSection {
   width: SectionWidth;
   productIds: string[];
   isActive: boolean;
+  bannerUrl?: string;
+  bannerLink?: string;
 }
 
 export interface StoreSettings {

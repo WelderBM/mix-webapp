@@ -30,13 +30,13 @@ export function StoreHeader() {
 
           <div className="flex flex-col sm:flex-row gap-3 text-sm font-medium text-slate-100">
             <a
-              href="https://maps.google.com/?q=Rua+Pedro+Aldemar+Bantim,+945"
+              href="https://maps.google.com/?q=Rua+Pedro+Aldemar+Bantim,+945,+Doutor+Silvio+Botelho,+Boa+Vista+-+RR"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 hover:text-purple-400 transition-colors bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10"
             >
               <MapPin size={16} className="text-purple-400" />
-              Rua Pedro Aldemar Bantim, 945
+              Dr. Silvio Botelho, Boa Vista - RR
             </a>
             <StoreStatusBadge />
           </div>
