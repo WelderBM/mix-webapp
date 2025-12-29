@@ -76,7 +76,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <p className="line-clamp-3 text-sm text-slate-500">
             {product.description}
           </p>
-          <div className="mt-3 flex items-center justify-between">
+          <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
             <div className="flex flex-col">
               {product.originalPrice &&
                 product.originalPrice > product.price && (
@@ -85,7 +85,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   </span>
                 )}
               <div className="flex items-baseline gap-1">
-                <span className="text-xl font-extrabold text-primary">
+                <span className="text-lg font-extrabold text-primary">
                   {new Intl.NumberFormat("pt-BR", {
                     style: "currency",
                     currency: "BRL",
@@ -100,16 +100,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               onClick={handleAction}
               size="sm"
               className={cn(
-                "rounded-lg transition-all duration-300",
+                "rounded-xl font-bold shadow-sm transition-all duration-300",
                 product.type === "ASSEMBLED_KIT"
-                  ? "bg-purple-600 hover:bg-purple-700"
-                  : "bg-green-600 hover:bg-green-700"
+                  ? "bg-purple-600 hover:bg-purple-700 w-auto px-4"
+                  : "bg-green-600 hover:bg-green-700 aspect-square p-0 w-10 shrink-0"
               )}
             >
-              {actionLabel === "Adicionar" ? (
-                <ShoppingCart className="h-4 w-4" />
+              {product.type === "ASSEMBLED_KIT" ? (
+                "Montar"
               ) : (
-                actionLabel
+                <ShoppingCart className="h-4 w-4" />
               )}
             </Button>
           </div>
