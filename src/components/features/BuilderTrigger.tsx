@@ -16,13 +16,16 @@ export function BuilderTrigger() {
       // UNIFICADO: Fundo Neutro (Slate-50)
       className="relative w-full h-full min-h-[180px] rounded-3xl overflow-hidden shadow-sm cursor-pointer group transition-all hover:shadow-xl hover:scale-[1.02] border border-slate-200 bg-slate-50"
     >
-      <div className="absolute top-[-40%] right-[-20%] w-64 h-64 bg-white rounded-full opacity-80 blur-3xl" />
-      <div className="absolute bottom-[-20%] left-[-10%] w-40 h-40 bg-white rounded-full opacity-60 blur-2xl" />
+      <div className="absolute top-[-40%] right-[-20%] w-64 h-64 bg-white rounded-full opacity-80 blur-3xl group-hover:bg-purple-100 transition-colors" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-40 h-40 bg-white rounded-full opacity-60 blur-2xl group-hover:bg-pink-100 transition-colors" />
 
       <div className="relative z-10 h-full p-8 flex flex-col justify-between">
         <div className="space-y-3">
           <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full text-slate-600 text-xs font-bold border border-white/50 shadow-sm w-fit">
-            <Gift size={12} />
+            <Gift
+              size={12}
+              className="group-hover:text-purple-500 transition-colors"
+            />
             <span>Presente Personalizado</span>
           </div>
 
@@ -37,16 +40,16 @@ export function BuilderTrigger() {
 
         {/* UNIFICADO: Botão Preto Neutro */}
         <div className="flex items-center gap-3 mt-2 group/btn">
-          <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+          <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-md group-hover:scale-110 group-hover:bg-purple-600 transition-all duration-300">
             <Plus size={18} />
           </div>
-          <span className="text-slate-900 font-bold text-sm group-hover:underline underline-offset-4 decoration-2 transition-all">
+          <span className="text-slate-900 font-bold text-sm group-hover:underline underline-offset-4 decoration-2 decoration-purple-300 transition-all">
             Começar Agora
           </span>
         </div>
       </div>
 
-      <div className="absolute bottom-6 right-6 text-slate-200 group-hover:text-slate-300 transition-colors duration-500 rotate-[-10deg]">
+      <div className="absolute bottom-6 right-6 text-slate-200 group-hover:text-purple-200/50 transition-colors duration-500 rotate-[-10deg]">
         <Gift size={100} strokeWidth={1} />
       </div>
     </div>
