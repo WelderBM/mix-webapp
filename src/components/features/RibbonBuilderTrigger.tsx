@@ -47,7 +47,7 @@ export function RibbonBuilderTrigger() {
 
         <div className="absolute bottom-0 left-0 w-full h-2 bg-slate-200 border-t border-slate-300 flex justify-between px-2">
           {[...Array(20)].map((_, i) => (
-            <div key={i} className="w-[1px] h-full bg-slate-300"></div>
+            <div key={i} className="w-px h-full bg-slate-300"></div>
           ))}
         </div>
       </div>

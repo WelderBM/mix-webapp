@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import Navbar from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+import ConditionalFooter from "@/components/layout/ConditionalFooter";
 import { Toaster } from "@/components/ui/sonner";
 import { CartSidebar } from "@/components/features/CartSidebar";
 // 1. IMPORT DO MODAL
@@ -95,7 +96,7 @@ export default function RootLayout({
 
           <div className="min-h-screen">{children}</div>
 
-          <Footer />
+          <ConditionalFooter />
           <CartSidebar />
           <Toaster richColors position="top-center" />
           <OrganizationJsonLd />

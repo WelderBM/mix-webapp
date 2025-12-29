@@ -9,7 +9,7 @@ export const SectionNaturaBanner = ({
 }: SectionNaturaBannerProps) => {
   return (
     <div
-      className="h-full flex flex-col [&>*]:flex-1"
+      className="h-full flex flex-col *:flex-1"
       style={{ "--dynamic-bg": "var(--banner-natura)" } as any}
     >
       <NaturaBanner onClick={onScrollRequest} />

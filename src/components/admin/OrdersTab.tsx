@@ -192,7 +192,8 @@ export function OrdersTab() {
         </Badge>
       </div>
 
-      <div className="border rounded-xl bg-white shadow-sm overflow-x-auto">
+      {/* DESKTOP VIEW (Table) */}
+      <div className="hidden md:block border rounded-xl bg-white shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-slate-50">
             <TableRow>
@@ -210,7 +211,7 @@ export function OrdersTab() {
               <>
                 <TableRow
                   key={order.id}
-                  className="cursor-pointer hover:bg-slate-50"
+                  className="cursor-pointer hover:bg-slate-50 transition-colors"
                   onClick={() => toggleExpand(order.id)}
                 >
                   <TableCell>
@@ -225,10 +226,34 @@ export function OrdersTab() {
                   <TableCell className="font-medium text-xs">
                     <div className="flex flex-col">
                       <span className="font-bold">
-                        {formatDate(order.createdAt)}
+                        {(() => {
+                          const diff =
+                            Date.now() -
+                            (new Date(order.createdAt).getTime() || 0);
+                          const mins = Math.floor(diff / 60000);
+                          const hours = Math.floor(mins / 60);
+                          if (mins < 60) return `Há ${mins} min`;
+                          if (hours < 24) return `Há ${hours} h`;
+                          return new Date(order.createdAt).toLocaleDateString(
+                            "pt-BR"
+                          );
+                        })()}
                       </span>
-                      <span className="text-slate-500">
-                        {formatTime(order.createdAt)}
+                      <span
+                        className={cn(
+                          "text-[10px]",
+                          order.status === "pending" &&
+                            Date.now() -
+                              (new Date(order.createdAt).getTime() || 0) >
+                              15 * 60000
+                            ? "text-red-500 font-bold"
+                            : "text-slate-500"
+                        )}
+                      >
+                        {new Date(order.createdAt).toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
                     </div>
                   </TableCell>
@@ -307,104 +332,80 @@ export function OrdersTab() {
                           copyDeliveryInfo(order);
                         }}
                       >
-                        <Copy size={12} />
-                        Info Moto
+                        <Copy size={12} /> Moto
                       </Button>
                     )}
                   </TableCell>
                 </TableRow>
-
-                {/* Expanded Details */}
+                {/* Expanded Row Content (Desktop) */}
                 {expandedOrders[order.id] && (
                   <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
                     <TableCell colSpan={7} className="p-0">
                       <div className="p-4 border-b">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {/* Items List */}
+                        <div className="grid grid-cols-2 gap-6">
                           <div className="space-y-3">
                             <h4 className="text-sm font-bold flex items-center gap-2 text-slate-700">
-                              <Package size={16} /> Itens do Pedido
+                              <Package size={16} /> Itens
                             </h4>
                             <div className="space-y-2">
-                              {order.items.map((item: any, idx) => {
-                                // Calcular subtotal se possível ou estimar
-                                const estimatedTotal =
-                                  item.kitTotalAmount ||
-                                  (item.product?.price || 0) * item.quantity;
-                                return (
-                                  <div
-                                    key={idx}
-                                    className="flex justify-between items-start text-sm border-b border-slate-100 pb-2 last:border-0 text-slate-700"
-                                  >
-                                    <div>
-                                      <span className="font-medium text-slate-800">
-                                        {item.quantity}x{" "}
-                                        {item.product?.name ||
-                                          item.kitName ||
-                                          "Produto"}
-                                      </span>
-                                      {/* Detalhes extras se houver (Balloon config, etc) */}
-                                      {item.type === "CUSTOM_BALLOON" &&
-                                        item.balloonDetails && (
-                                          <p className="text-xs text-slate-500">
-                                            {item.balloonDetails.typeName} -{" "}
-                                            {item.balloonDetails.size}" (
-                                            {item.balloonDetails.color})
-                                          </p>
-                                        )}
-                                    </div>
-                                    <span className="font-semibold text-slate-600">
-                                      {formatCurrency(estimatedTotal)}
+                              {order.items.map((item: any, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex justify-between items-start text-sm border-b border-slate-100 pb-2 last:border-0 text-slate-700"
+                                >
+                                  <div>
+                                    <span className="font-medium text-slate-800">
+                                      {item.quantity}x{" "}
+                                      {item.product?.name ||
+                                        item.kitName ||
+                                        "Produto"}
                                     </span>
+                                    {item.type === "CUSTOM_BALLOON" &&
+                                      item.balloonDetails && (
+                                        <p className="text-xs text-slate-500">
+                                          {item.balloonDetails.typeName} -{" "}
+                                          {item.balloonDetails.size}"
+                                        </p>
+                                      )}
                                   </div>
-                                );
-                              })}
+                                </div>
+                              ))}
                             </div>
                           </div>
-
-                          {/* Delivery & Customer Info */}
                           <div className="space-y-3">
                             <h4 className="text-sm font-bold flex items-center gap-2 text-slate-700">
-                              <MapPin size={16} /> Endereço de Entrega
+                              <MapPin size={16} /> Entrega
                             </h4>
-                            <div className="bg-white p-3 rounded-lg border border-slate-200 text-sm">
-                              {order.deliveryMethod === "delivery" ? (
-                                <p className="text-slate-700 leading-relaxed">
-                                  {order.address}
-                                </p>
-                              ) : (
-                                <p className="text-slate-500 italic">
-                                  Retirada na Loja
-                                </p>
-                              )}
-                            </div>
-                            <div className="pt-2">
-                              <Button
-                                variant="secondary"
-                                className="w-full gap-2"
-                                onClick={() => {
-                                  const text = `Olá ${
-                                    order.customerName
-                                  }, tudo bem? Sobre seu pedido *#${order.id.slice(
-                                    0,
-                                    5
-                                  )}*...`;
-                                  window.open(
-                                    `https://wa.me/55${order.customerPhone?.replace(
-                                      /\D/g,
-                                      ""
-                                    )}?text=${encodeURIComponent(text)}`,
-                                    "_blank"
-                                  );
-                                }}
-                              >
-                                <MessageCircle
-                                  size={16}
-                                  className="text-green-600"
-                                />
-                                Falar com Cliente no WhatsApp
-                              </Button>
-                            </div>
+                            <p className="text-sm text-slate-700 bg-white p-3 rounded border">
+                              {order.deliveryMethod === "delivery"
+                                ? order.address
+                                : "Retirada na Loja"}
+                            </p>
+                            <Button
+                              variant="secondary"
+                              className="w-full gap-2 text-xs"
+                              onClick={() => {
+                                const text = `Olá ${
+                                  order.customerName
+                                }, sobre seu pedido #${order.id.slice(
+                                  0,
+                                  5
+                                )}...`;
+                                window.open(
+                                  `https://wa.me/55${order.customerPhone?.replace(
+                                    /\D/g,
+                                    ""
+                                  )}?text=${encodeURIComponent(text)}`,
+                                  "_blank"
+                                );
+                              }}
+                            >
+                              <MessageCircle
+                                size={14}
+                                className="text-green-600"
+                              />{" "}
+                              WhatsApp Cliente
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -415,6 +416,163 @@ export function OrdersTab() {
             ))}
           </TableBody>
         </Table>
+      </div>
+
+      {/* MOBILE VIEW (Cards) */}
+      <div className="md:hidden space-y-4 pb-20">
+        {orders.map((order) => (
+          <div
+            key={order.id}
+            className="bg-white border rounded-xl shadow-sm overflow-hidden"
+          >
+            {/* Header do Card */}
+            <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="font-bold text-sm">{order.customerName}</span>
+                <span className="text-xs text-slate-500 flex items-center gap-1">
+                  <Clock size={10} />
+                  {(() => {
+                    const diff =
+                      Date.now() - (new Date(order.createdAt).getTime() || 0);
+                    const mins = Math.floor(diff / 60000);
+                    if (mins < 60) return `${mins} min atrás`;
+                    const hours = Math.floor(mins / 60);
+                    if (hours < 24) return `${hours}h atrás`;
+                    return new Date(order.createdAt).toLocaleDateString(
+                      "pt-BR"
+                    );
+                  })()}
+                </span>
+              </div>
+              <div>
+                <Select
+                  defaultValue={order.status}
+                  onValueChange={(v) =>
+                    updateStatus(order.id, v as OrderStatus)
+                  }
+                >
+                  <SelectTrigger className="h-8 w-[110px] text-xs bg-white">
+                    {getStatusBadge(order.status)}
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pendente</SelectItem>
+                    <SelectItem value="preparing">Preparando</SelectItem>
+                    <SelectItem value="ready">Pronto</SelectItem>
+                    <SelectItem value="out_for_delivery">Em Rota</SelectItem>
+                    <SelectItem value="delivered">Entregue</SelectItem>
+                    <SelectItem value="cancelled">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Corpo do Card */}
+            <div
+              className="p-4 space-y-3"
+              onClick={() => toggleExpand(order.id)}
+            >
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <div className="bg-slate-100 p-2 rounded-lg text-green-600">
+                    {getPaymentIcon(order.paymentMethod)}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 uppercase">
+                      {order.paymentMethod === "pix"
+                        ? "PIX"
+                        : order.paymentMethod === "cash"
+                        ? "Dinheiro"
+                        : "Cartão"}
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      {order.deliveryMethod === "delivery"
+                        ? "Entrega"
+                        : "Retirada"}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-400">Total</p>
+                  <p className="text-lg font-bold text-green-700">
+                    {formatCurrency(order.total)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Área Expandida Mobile */}
+              {expandedOrders[order.id] && (
+                <div className="pt-3 border-t mt-3 animate-in slide-in-from-top-2">
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">
+                        Itens
+                      </h4>
+                      {order.items.map((item: any, idx) => (
+                        <div
+                          key={idx}
+                          className="flex justify-between text-sm py-1 border-b border-dashed border-slate-100 last:border-0"
+                        >
+                          <span className="text-slate-700">
+                            {item.quantity}x{" "}
+                            {item.product?.name || item.kitName}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {order.deliveryMethod === "delivery" && (
+                      <div className="bg-slate-50 p-3 rounded border text-xs text-slate-600">
+                        <p className="font-bold mb-1">📍 Endereço:</p>
+                        {order.address}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full mt-2 gap-2 bg-white"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyDeliveryInfo(order);
+                          }}
+                        >
+                          <Copy size={12} /> Copiar p/ Motoboy
+                        </Button>
+                      </div>
+                    )}
+
+                    <Button
+                      className="w-full gap-2"
+                      variant="secondary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const text = `Olá ${
+                          order.customerName
+                        }, sobre seu pedido #${order.id.slice(0, 5)}...`;
+                        window.open(
+                          `https://wa.me/55${order.customerPhone?.replace(
+                            /\D/g,
+                            ""
+                          )}?text=${encodeURIComponent(text)}`,
+                          "_blank"
+                        );
+                      }}
+                    >
+                      <MessageCircle size={16} className="text-green-600" />{" "}
+                      Falar no WhatsApp
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {!expandedOrders[order.id] && (
+              <div
+                className="bg-slate-50 p-2 text-center"
+                onClick={() => toggleExpand(order.id)}
+              >
+                <ChevronDown className="mx-auto text-slate-400" size={16} />
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

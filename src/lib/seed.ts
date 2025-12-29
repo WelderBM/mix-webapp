@@ -113,3 +113,103 @@ export const seedDatabase = async () => {
     throw error;
   }
 };
+
+// --- MIGRATED FROM seedService.ts ---
+import { BalloonConfig } from "@/types/balloon";
+import { setDoc } from "firebase/firestore";
+
+export const seedBalloons = async () => {
+  console.log("Iniciando Seed de Balões...");
+
+  const balloonConfig: BalloonConfig = {
+    types: [
+      {
+        id: "simples",
+        name: "Balão Simples",
+        colors: [
+          "Vermelho",
+          "Azul",
+          "Amarelo",
+          "Rosa",
+          "Branco",
+          "Preto",
+          "Verde",
+          "Laranja",
+        ],
+        sizes: [
+          { size: "5", price: 11.0, unitsPerPackage: 50 },
+          { size: "6.5", price: 7.5, unitsPerPackage: 50 },
+          { size: "7", price: 10.0, unitsPerPackage: 50 },
+          { size: "8", price: 13.0, unitsPerPackage: 50 },
+          { size: "9", price: 16.0, unitsPerPackage: 50 },
+          { size: "16", price: 20.0, unitsPerPackage: 20 },
+        ],
+      },
+      {
+        id: "metalico",
+        name: "Metálico",
+        colors: [
+          "Dourado",
+          "Prata",
+          "Rose Gold",
+          "Azul Metálico",
+          "Vermelho Metálico",
+        ],
+        sizes: [
+          { size: "5", price: 17.5, unitsPerPackage: 25 },
+          { size: "9", price: 27.0, unitsPerPackage: 25 },
+          { size: "16", price: 38.0, unitsPerPackage: 10 },
+        ],
+      },
+      {
+        id: "candy",
+        name: "Candy Colors",
+        colors: [
+          "Rosa Candy",
+          "Azul Candy",
+          "Verde Candy",
+          "Lilás Candy",
+          "Amarelo Candy",
+        ],
+        sizes: [
+          { size: "5", price: 6.5, unitsPerPackage: 25 },
+          { size: "9", price: 10.0, unitsPerPackage: 25 },
+          { size: "16", price: 20.0, unitsPerPackage: 10 },
+        ],
+      },
+      {
+        id: "cintilante",
+        name: "Cintilante",
+        colors: ["Perolado", "Champagne", "Branco Cintilante"],
+        sizes: [
+          { size: "7", price: 17.5, unitsPerPackage: 50 },
+          { size: "8", price: 10.0, unitsPerPackage: 25 },
+          { size: "9", price: 13.0, unitsPerPackage: 25 },
+        ],
+      },
+      {
+        id: "canudo",
+        name: "Canudo",
+        colors: ["Sortido"],
+        sizes: [{ size: "Único", price: 15.0, unitsPerPackage: 50 }],
+      },
+      {
+        id: "uniq16",
+        name: "Uniq 16",
+        colors: ["Sortido"],
+        sizes: [{ size: "Único", price: 20.0, unitsPerPackage: 1 }],
+      },
+    ],
+    allColors: [],
+  };
+
+  try {
+    // Note: We need to use database instance here. Assuming 'db' is available from top level import
+    await setDoc(doc(db, "settings", "balloons"), balloonConfig);
+    console.log("✅ Seed de balões realizada com sucesso!");
+    return { success: true };
+  } catch (error) {
+    console.error("Erro na seed de balões:", error);
+    throw error;
+  }
+};

@@ -139,8 +139,15 @@ export function Footer() {
         </div>
       </div>
       <div className="border-t border-slate-800 mt-12 pt-8 text-center">
-        <p className="text-xs text-slate-600">
+        <p className="text-xs text-slate-600 flex justify-center items-center gap-2">
           © {new Date().getFullYear()} Mix WebApp. Todos os direitos reservados.
+          <Link
+            href="/admin"
+            className="text-slate-800 hover:text-slate-600 ml-2"
+            aria-label="Acesso Administrativo"
+          >
+            .
+          </Link>
         </p>
       </div>
     </footer>

@@ -46,6 +46,12 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
@@ -80,7 +86,9 @@ import {
   Settings2,
   ChevronDown,
   Ruler,
+  Ruler,
   Loader2,
+  MoreHorizontal,
 } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
 import Link from "next/link";
@@ -142,6 +150,9 @@ export default function AdminPage() {
   // Sub-tabs para fitas
   const [ribbonTab, setRibbonTab] = useState<"edition" | "visual">("visual");
   const [ribbonSearchTerm, setRibbonSearchTerm] = useState("");
+
+  // System Tools Modal
+  const [isSysToolsOpen, setIsSysToolsOpen] = useState(false);
 
   // Auth & Data
   useEffect(() => {
@@ -479,6 +490,19 @@ export default function AdminPage() {
             >
               <LogOut size={16} />
             </Button>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-slate-400">
+                  <MoreHorizontal size={18} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                 <DropdownMenuItem onClick={() => setIsSysToolsOpen(true)} className="text-red-600 gap-2">
+                    <Database size={14} /> Ferramentas de Sistema
+                 </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -535,9 +559,6 @@ export default function AdminPage() {
                 className="gap-2 flex-1 md:flex-none"
               >
                 <Scissors size={16} /> Fitas
-              </TabsTrigger>
-              <TabsTrigger value="seed" className="gap-2 text-red-600">
-                <Database size={16} /> Seed / Sistema
               </TabsTrigger>
             </TabsList>
 
@@ -1716,12 +1737,21 @@ export default function AdminPage() {
               </div>
             </TabsContent>
 
-            {/* === ABA SEED / SISTEMA === */}
-            <TabsContent value="seed">
-              <SuperAdminZone />
             </TabsContent>
           </Tabs>
         )}
+
+        {/* --- DISCREET SUPER ADMIN DIALOG --- */}
+        <Dialog open={isSysToolsOpen} onOpenChange={setIsSysToolsOpen}>
+          <DialogContent className="max-w-3xl bg-slate-900 border-slate-800 text-slate-100">
+             <DialogHeader>
+               <DialogTitle className="flex items-center gap-2">
+                 <Settings2 className="text-red-500"/> Ferramentas de Sistema (Danger Zone)
+               </DialogTitle>
+             </DialogHeader>
+             <SuperAdminZone />
+          </DialogContent>
+        </Dialog>
 
         {/* MODAL CONFIGURAR SEÇÃO (Mantido do original para não quebrar) */}
         <Dialog open={isSectionModalOpen} onOpenChange={setIsSectionModalOpen}>

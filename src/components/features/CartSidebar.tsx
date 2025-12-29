@@ -282,51 +282,16 @@ export function CartSidebar() {
         message += `📝 *Obs do Cliente:* ${observation}\n`;
       }
 
-      // === PARTE 2: COPY PARA O MOTOBOY (APENAS SE FOR ENTREGA) ===
+      // (Motoboy copy section removed as per user request to keep customer message clean)
       if (deliveryMethod === "delivery") {
-        message += `\n\n✂️ --- *AREA DE COPY PARA O MOTOBOY* --- ✂️\n\n`;
-
-        message += `📦 *SOLICITAÇÃO DE ENTREGA*\n\n`;
-
-        // ENDEREÇO DE RETIRADA (LOJA)
-        message += `📍 *RETIRADA (LOJA):*\n`;
-        message += `*Mix Novidades*\n`;
-        message += `Rua Pedro Aldemar Bantim, 945 - Silvio Botelho\n\n`;
-
-        // ENDEREÇO DE ENTREGA (CLIENTE)
-        message += `🏁 *ENTREGA (CLIENTE):*\n`;
-        message += `*${street.toUpperCase()}, ${number}*\n`;
-        message += `*${neighborhood.toUpperCase()}* - Boa Vista/RR\n`;
-        if (observation.trim()) {
-          message += `(Obs: ${observation})\n`;
-        }
-        message += `\n`;
-
-        // INFORMAÇÕES FINANCEIRAS (FORMAL)
-        message += `💰 *FINANCEIRO:*\n`;
-        if (paymentMethod === "pix") {
-          if (pixPaymentDestination === "store") {
-            message += `✅ *Entrega Paga na Loja via PIX.*\n`;
-            message += `⚠️ Motoboy recebe apenas valor da corrida.\n`;
-          } else {
-            message += `⚠️ *Cobrar Entrega + Itens no Local (Pix Moto)*\n`;
-            message += `Valor dos Produtos: ${totalValue}\n`;
-          }
-        } else {
-          // Pagamento na entrega (Dinheiro ou Cartão)
-          message += `⚠️ *Cobrar Entrega + Itens no Local*\n`;
-          message += `Valor a cobrar dos Itens: ${totalValue} (${
-            paymentMethod === "cash" ? "Dinheiro" : "Cartão"
-          })\n`;
-        }
-
-        // CONTATO
-        message += `\n📞 *CONTATO:* ${customerPhone}`;
+        message += `\n📍 *Endereço de Entrega:* ${street}, ${number} - ${neighborhood}`;
       } else {
-        message += `\n⚠️ *CLIENTE IRÁ RETIRAR NA LOJA*`;
+        message += `\n📍 *Retirada na Loja*`;
       }
 
-      const whatsappUrl = `https://wa.me/5595991111111?text=${encodeURIComponent(
+      const phoneNumber =
+        process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5595984244194";
+      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
         message
       )}`;
 
@@ -351,7 +316,7 @@ export function CartSidebar() {
   return (
     <Sheet open={isCartOpen} onOpenChange={(open) => !open && closeCart()}>
       <SheetContent className="flex flex-col w-full sm:max-w-md bg-slate-50 p-0 h-full">
-        <SheetHeader className="p-6 bg-white border-b flex-shrink-0">
+        <SheetHeader className="p-6 bg-white border-b shrink-0">
           <SheetTitle className="flex items-center gap-2 text-xl">
             <ShoppingCart className="text-purple-600" /> Seu Carrinho
             <span className="ml-auto text-sm font-normal text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
@@ -392,7 +357,7 @@ export function CartSidebar() {
                       key={item.cartId}
                       className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3 relative"
                     >
-                      <div className="relative w-16 h-16 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0 border">
+                      <div className="relative w-16 h-16 bg-slate-100 rounded-lg overflow-hidden shrink-0 border">
                         <SafeImage
                           src={imageUrl}
                           name={item.product?.name}

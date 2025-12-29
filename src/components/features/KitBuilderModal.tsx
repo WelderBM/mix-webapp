@@ -501,7 +501,7 @@ export function KitBuilderModal() {
                           key={item.product.id}
                           className="flex gap-3 bg-white p-2 rounded-lg border shadow-sm"
                         >
-                          <div className="w-12 h-12 relative rounded overflow-hidden flex-shrink-0 bg-slate-100">
+                          <div className="w-12 h-12 relative rounded overflow-hidden shrink-0 bg-slate-100">
                             <SafeImage
                               src={item.product.imageUrl}
                               name={item.product.type}
@@ -544,7 +544,7 @@ export function KitBuilderModal() {
                     key={item.product.id}
                     className="flex gap-3 bg-white p-2 rounded-lg border shadow-sm group"
                   >
-                    <div className="w-10 h-10 relative rounded overflow-hidden flex-shrink-0">
+                    <div className="w-10 h-10 relative rounded overflow-hidden shrink-0">
                       <SafeImage
                         src={item.product.imageUrl}
                         name={item.product.type}

@@ -124,8 +124,8 @@ export function LacoBuilder() {
                       onClick={() => setSelectedRibbonId(ribbon.id)}
                       className={`cursor-pointer rounded-lg border p-2 flex flex-col items-center gap-2 transition-all hover:shadow-md relative group ${
                         selectedRibbonId === ribbon.id
-                          ? "border-[var(--primary)] ring-2 ring-[var(--primary)] ring-opacity-20 bg-purple-50"
-                          : "border-slate-200 bg-white hover:border-[var(--primary)] hover:border-opacity-50"
+                          ? "border-primary ring-2 ring-primary ring-opacity-20 bg-purple-50"
+                          : "border-slate-200 bg-white hover:border-primary hover:border-opacity-50"
                       }`}
                     >
                       <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-100 relative overflow-hidden shrink-0 shadow-sm">
@@ -142,7 +142,7 @@ export function LacoBuilder() {
                       </span>
                       {selectedRibbonId === ribbon.id && (
                         <div className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow-sm">
-                          <CheckCircle2 className="text-[var(--primary)] w-4 h-4 fill-white" />
+                          <CheckCircle2 className="text-primary w-4 h-4 fill-white" />
                         </div>
                       )}
                     </div>
@@ -174,7 +174,7 @@ export function LacoBuilder() {
                   onClick={() => setSelectedStyleId(style.id)}
                   className={`cursor-pointer rounded-xl border p-4 flex flex-col items-center gap-3 transition-all relative ${
                     selectedStyleId === style.id
-                      ? "border-[var(--primary)] bg-purple-50 ring-1 ring-[var(--primary)] shadow-md"
+                      ? "border-primary bg-purple-50 ring-1 ring-primary shadow-md"
                       : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
                   }`}
                 >
@@ -197,7 +197,7 @@ export function LacoBuilder() {
                   </div>
                   {selectedStyleId === style.id && (
                     <div className="absolute top-2 right-2">
-                      <CheckCircle2 className="text-[var(--primary)] w-5 h-5 fill-purple-50" />
+                      <CheckCircle2 className="text-primary w-5 h-5 fill-purple-50" />
                     </div>
                   )}
                 </div>
@@ -248,7 +248,7 @@ export function LacoBuilder() {
 
             <div className="space-y-6">
               {/* Preview Image Box */}
-              <div className="w-full aspect-square bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center relative overflow-hidden group transition-all hover:border-[var(--primary)]">
+              <div className="w-full aspect-square bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center relative overflow-hidden group transition-all hover:border-primary">
                 {selectedRibbon && selectedStyle ? (
                   <div className="text-center w-full h-full p-4 flex flex-col items-center justify-center">
                     <div className="relative w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-3 rounded-full overflow-hidden border-4 border-white shadow-md transition-transform group-hover:scale-105">
@@ -262,7 +262,7 @@ export function LacoBuilder() {
                       {/* Overlay simulando o estilo - visualmente interessante */}
                       <div className="absolute inset-0 bg-black/5" />
                     </div>
-                    <p className="text-base font-bold text-[var(--primary)]">
+                    <p className="text-base font-bold text-primary">
                       {selectedStyle.name}
                     </p>
                     <p className="text-xs text-slate-500 max-w-[200px] truncate">
@@ -303,7 +303,7 @@ export function LacoBuilder() {
               <div className="pt-2 hidden lg:block">
                 <div className="flex justify-between items-end mb-4">
                   <span className="text-slate-500 font-medium">Total</span>
-                  <span className="text-3xl font-bold text-[var(--primary)]">
+                  <span className="text-3xl font-bold text-primary">
                     R$ {finalPrice.toFixed(2)}
                   </span>
                 </div>
@@ -331,7 +331,7 @@ export function LacoBuilder() {
           <span className="text-xs text-slate-500 font-medium">
             Valor Total
           </span>
-          <span className="text-xl font-bold text-[var(--primary)]">
+          <span className="text-xl font-bold text-primary">
             R$ {finalPrice.toFixed(2)}
           </span>
         </div>
