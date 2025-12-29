@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { Suspense, useEffect, useState, useRef } from "react";
+import { doc, getDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Order, OrderStatus } from "@/types/order";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { getProductImage } from "@/lib/image-utils";
 
@@ -109,27 +110,41 @@ const StatusTimeline = ({
   );
 };
 
-export default function TrackOrderPage() {
+function TrackOrderContent() {
   const [orderId, setOrderId] = useState("");
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState<Order | null>(null);
   const [error, setError] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const subscriptionRef = useRef<Unsubscribe | null>(null);
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   // Auto-load do ID
   useEffect(() => {
+    // Prioridade: URL > LocalStorage
+    const urlId = searchParams.get("id");
     const savedId = localStorage.getItem("lastOrderId");
-    if (savedId) {
-      setOrderId(savedId);
+
+    const idToLoad = urlId || savedId;
+
+    if (idToLoad) {
+      setOrderId(idToLoad);
       // Busca automática se tiver ID
-      fetchOrder(savedId);
+      fetchOrder(idToLoad);
     }
-  }, []);
+  }, [searchParams]);
 
   const fetchOrder = (id: string) => {
     if (!id.trim()) return;
     setLoading(true);
     setError("");
+
+    // Limpa listener anterior
+    if (subscriptionRef.current) {
+      subscriptionRef.current();
+    }
 
     // Usando onSnapshot para atualizações em tempo real!
     const unsub = onSnapshot(
@@ -140,6 +155,17 @@ export default function TrackOrderPage() {
           const data = docSnap.data() as Order;
           // Adiciona o ID ao objeto, caso não venha no data
           setOrder({ ...data, id: docSnap.id });
+
+          // Confirma que o ID é válido e atualiza a URL sem recarregar a página
+          // Apenas se o ID na URL for diferente do atual para evitar loops ou redundância
+          const currentUrlId = searchParams.get("id");
+          if (currentUrlId !== id) {
+            const newParams = new URLSearchParams(searchParams.toString());
+            newParams.set("id", id);
+            router.replace(`/meu-pedido?${newParams.toString()}`, {
+              scroll: false,
+            });
+          }
         } else {
           setError("Pedido não encontrado.");
           // Se não achou e foi busca automática, limpamos localstorage pra não ficar tentando
@@ -155,11 +181,18 @@ export default function TrackOrderPage() {
       }
     );
 
-    // Como estamos num useEffect "de facto" aqui, o ideal seria retornar o unsub,
-    // mas neste modelo de busca por clique, simplificamos.
-    // Em produção real, gerenciaríamos esse listener num useEffect amarrado ao `orderId`.
+    subscriptionRef.current = unsub;
     return unsub;
   };
+
+  // Cleanup no unmount
+  useEffect(() => {
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current();
+      }
+    };
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,6 +207,9 @@ export default function TrackOrderPage() {
     setOrderId("");
     localStorage.removeItem("lastOrderId");
     setIsSearching(false);
+
+    // Limpa URL
+    router.replace("/meu-pedido");
   };
 
   return (
@@ -353,5 +389,13 @@ export default function TrackOrderPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function TrackOrderPage() {
+  return (
+    <Suspense>
+      <TrackOrderContent />
+    </Suspense>
   );
 }
