@@ -46,7 +46,7 @@ export interface CartItem {
 }
 
 export type DeliveryMethod = "pickup" | "delivery";
-export type PaymentMethod = "pix" | "card" | "cash";
+export type PaymentMethod = "pix" | "credit_card" | "debit_card" | "cash";
 export type PaymentTiming = "prepaid" | "on_delivery";
 export type OrderStatus =
   | "pending"
