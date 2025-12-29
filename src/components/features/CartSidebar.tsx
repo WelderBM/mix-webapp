@@ -326,7 +326,9 @@ export function CartSidebar() {
         message += `\n⚠️ *CLIENTE IRÁ RETIRAR NA LOJA*`;
       }
 
-      const whatsappUrl = `https://wa.me/5595991111111?text=${encodeURIComponent(
+      const phoneNumber =
+        process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5595984244194";
+      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
         message
       )}`;
 
