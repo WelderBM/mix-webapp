@@ -15,6 +15,7 @@ import {
   MapPin,
   Search,
   ArrowLeft,
+  Store,
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import Link from "next/link";
