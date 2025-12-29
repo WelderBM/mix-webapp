@@ -86,7 +86,6 @@ import {
   Settings2,
   ChevronDown,
   Ruler,
-  Ruler,
   Loader2,
   MoreHorizontal,
 } from "lucide-react";
