@@ -9,6 +9,7 @@ export interface BalloonTypeConfig {
   name: string;
   sizes: BalloonSizeConfig[];
   colors: string[];
+  active?: boolean; // New field for toggling visibility
 }
 
 export interface BalloonConfig {

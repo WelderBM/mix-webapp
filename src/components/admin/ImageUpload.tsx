@@ -66,6 +66,14 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
   };
 
   const startCamera = async () => {
+    // Check for Secure Context feature availability
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast.error(
+        "Câmera indisponível. O acesso à câmera requer uma conexão segura (HTTPS) ou Localhost."
+      );
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -81,7 +89,7 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
       }
     } catch (err) {
       console.error(err);
-      toast.error("Erro ao acessar câmera.");
+      toast.error("Erro ao acessar câmera. Verifique as permissões.");
     }
   };
 

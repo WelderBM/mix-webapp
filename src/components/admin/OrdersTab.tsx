@@ -232,7 +232,8 @@ Forma de Pagto: ${
         </div>
 
         {/* Navigation / Filters Scrollable */}
-        <ScrollArea className="w-full whitespace-nowrap pb-2">
+        {/* Navigation / Filters Scrollable - Native Scroll for Mobile Touch Fix */}
+        <div className="w-full overflow-x-auto pb-2 touch-pan-x">
           <div className="flex gap-2 min-w-max px-1">
             <FilterButton label="Todos" value="all" count={orders.length} />
             <FilterButton
@@ -263,7 +264,7 @@ Forma de Pagto: ${
               count={orders.filter((o) => o.status === "delivered").length}
             />
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* DESKTOP VIEW (Table) */}

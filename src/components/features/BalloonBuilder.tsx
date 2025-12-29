@@ -262,78 +262,80 @@ export function BalloonBuilder() {
               </h3>
 
               <div className="space-y-10">
-                {balloonConfig.types.map((type) => (
-                  <div key={type.id} className="space-y-5">
-                    <h4 className="font-black text-slate-400 uppercase tracking-widest text-xs flex items-center gap-2">
-                      <div className="h-px bg-slate-200 flex-1" />
-                      {type.name}
-                      <div className="h-px bg-slate-200 flex-1" />
-                    </h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                      {type.sizes.map((size, sIdx) => {
-                        const isSelected =
-                          selectedTypeId === type.id &&
-                          selectedSize?.size === size.size;
-                        return (
-                          <button
-                            key={`${type.id}-${sIdx}`}
-                            onClick={() => {
-                              setSelectedTypeId(type.id);
-                              setSelectedSize(size);
-                            }}
-                            className={cn(
-                              "flex flex-col items-center justify-center p-5 rounded-3xl border-2 transition-all group relative overflow-hidden",
-                              isSelected
-                                ? "border-purple-600 bg-purple-50 shadow-lg shadow-purple-100 scale-105"
-                                : "border-slate-100 bg-white hover:border-purple-200 hover:scale-[1.02]"
-                            )}
-                          >
-                            {/* Balloon Bubble Effect - Agora com escala visual */}
-                            <div
+                {balloonConfig.types
+                  .filter((type) => type.active !== false)
+                  .map((type) => (
+                    <div key={type.id} className="space-y-5">
+                      <h4 className="font-black text-slate-400 uppercase tracking-widest text-xs flex items-center gap-2">
+                        <div className="h-px bg-slate-200 flex-1" />
+                        {type.name}
+                        <div className="h-px bg-slate-200 flex-1" />
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                        {type.sizes.map((size, sIdx) => {
+                          const isSelected =
+                            selectedTypeId === type.id &&
+                            selectedSize?.size === size.size;
+                          return (
+                            <button
+                              key={`${type.id}-${sIdx}`}
+                              onClick={() => {
+                                setSelectedTypeId(type.id);
+                                setSelectedSize(size);
+                              }}
                               className={cn(
-                                "absolute w-full h-full inset-0 transition-opacity",
-                                isSelected ? "opacity-100" : "opacity-0"
+                                "flex flex-col items-center justify-center p-5 rounded-3xl border-2 transition-all group relative overflow-hidden",
+                                isSelected
+                                  ? "border-purple-600 bg-purple-50 shadow-lg shadow-purple-100 scale-105"
+                                  : "border-slate-100 bg-white hover:border-purple-200 hover:scale-[1.02]"
                               )}
                             >
-                              <div className="absolute top-2 right-2 w-3 h-3 bg-purple-500 rounded-full animate-bounce" />
-                            </div>
-
-                            {/* Preview Visual do Tamanho */}
-                            <div className="relative mb-3 flex items-center justify-center h-28 w-full">
+                              {/* Balloon Bubble Effect - Agora com escala visual */}
                               <div
                                 className={cn(
-                                  "rounded-full shadow-inner transition-all duration-500",
-                                  isSelected
-                                    ? "bg-purple-600 shadow-purple-400"
-                                    : "bg-slate-200"
+                                  "absolute w-full h-full inset-0 transition-opacity",
+                                  isSelected ? "opacity-100" : "opacity-0"
                                 )}
-                                style={{
-                                  width: `${SIZE_SCALE[size.size] || 60}px`,
-                                  height: `${
-                                    (SIZE_SCALE[size.size] || 60) * 1.1
-                                  }px`, // Levemente oval
-                                }}
                               >
-                                {/* Brilho no balão */}
-                                <div className="absolute top-[20%] left-[25%] w-[20%] h-[15%] bg-white/40 rounded-full -rotate-45" />
+                                <div className="absolute top-2 right-2 w-3 h-3 bg-purple-500 rounded-full animate-bounce" />
                               </div>
-                            </div>
 
-                            <span className="text-xl font-black text-slate-800 group-hover:scale-110 transition-transform">
-                              {size.size}"
-                            </span>
-                            <span className="text-sm font-bold text-purple-600 mt-1">
-                              {formatCurrency(size.price)}
-                            </span>
-                            <div className="mt-3 px-3 py-1 bg-white border border-slate-100 rounded-full text-[10px] text-slate-500 font-bold shadow-sm">
-                              {size.unitsPerPackage} unidades
-                            </div>
-                          </button>
-                        );
-                      })}
+                              {/* Preview Visual do Tamanho */}
+                              <div className="relative mb-3 flex items-center justify-center h-28 w-full">
+                                <div
+                                  className={cn(
+                                    "rounded-full shadow-inner transition-all duration-500",
+                                    isSelected
+                                      ? "bg-purple-600 shadow-purple-400"
+                                      : "bg-slate-200"
+                                  )}
+                                  style={{
+                                    width: `${SIZE_SCALE[size.size] || 60}px`,
+                                    height: `${
+                                      (SIZE_SCALE[size.size] || 60) * 1.1
+                                    }px`, // Levemente oval
+                                  }}
+                                >
+                                  {/* Brilho no balão */}
+                                  <div className="absolute top-[20%] left-[25%] w-[20%] h-[15%] bg-white/40 rounded-full -rotate-45" />
+                                </div>
+                              </div>
+
+                              <span className="text-xl font-black text-slate-800 group-hover:scale-110 transition-transform">
+                                {size.size}"
+                              </span>
+                              <span className="text-sm font-bold text-purple-600 mt-1">
+                                {formatCurrency(size.price)}
+                              </span>
+                              <div className="mt-3 px-3 py-1 bg-white border border-slate-100 rounded-full text-[10px] text-slate-500 font-bold shadow-sm">
+                                {size.unitsPerPackage} unidades
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
                 {balloonConfig.types.length === 0 && (
                   <div className="text-center py-12 text-slate-400 flex flex-col items-center gap-4">
