@@ -225,7 +225,7 @@ export function OrdersTab() {
                   </TableCell>
                   <TableCell className="font-medium text-xs">
                     <div className="flex flex-col">
-                      <span className="font-bold">
+                      <span className="font-bold" suppressHydrationWarning>
                         {(() => {
                           const diff =
                             Date.now() -
@@ -240,6 +240,7 @@ export function OrdersTab() {
                         })()}
                       </span>
                       <span
+                        suppressHydrationWarning
                         className={cn(
                           "text-[10px]",
                           order.status === "pending" &&
@@ -429,7 +430,10 @@ export function OrdersTab() {
             <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
               <div className="flex flex-col">
                 <span className="font-bold text-sm">{order.customerName}</span>
-                <span className="text-xs text-slate-500 flex items-center gap-1">
+                <span
+                  className="text-xs text-slate-500 flex items-center gap-1"
+                  suppressHydrationWarning
+                >
                   <Clock size={10} />
                   {(() => {
                     const diff =
