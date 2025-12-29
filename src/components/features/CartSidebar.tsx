@@ -319,9 +319,6 @@ export function CartSidebar() {
         <SheetHeader className="p-6 bg-white border-b shrink-0">
           <SheetTitle className="flex items-center gap-2 text-xl">
             <ShoppingCart className="text-purple-600" /> Seu Carrinho
-            <span className="ml-auto text-sm font-normal text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
-              {items.length}
-            </span>
           </SheetTitle>
         </SheetHeader>
 

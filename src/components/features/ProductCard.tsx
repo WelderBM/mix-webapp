@@ -77,15 +77,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             {product.description}
           </p>
           <div className="mt-4 flex items-center justify-between gap-3">
-            <div className="flex flex-col min-w-0">
+            <div className="flex flex-col">
               {product.originalPrice &&
                 product.originalPrice > product.price && (
-                  <span className="text-xs text-slate-400 line-through truncate">
+                  <span className="text-xs text-slate-400 line-through">
                     R$ {product.originalPrice.toFixed(2)}
                   </span>
                 )}
-              <div className="flex items-baseline gap-1 truncate text-ellipsis">
-                <span className="text-lg font-extrabold text-primary truncate">
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-extrabold text-primary whitespace-nowrap">
                   {new Intl.NumberFormat("pt-BR", {
                     style: "currency",
                     currency: "BRL",
