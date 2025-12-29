@@ -21,7 +21,7 @@ export function StoreHeader() {
           />
         </div>
 
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900/95 via-slate-900/40 to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-linear-to-t from-slate-900/95 via-slate-900/40 to-transparent pointer-events-none" />
 
         <div className="absolute bottom-0 left-0 w-full p-6 md:p-8 z-20 text-white">
           <h1 className="text-3xl md:text-5xl font-extrabold mb-3 tracking-tight drop-shadow-md">

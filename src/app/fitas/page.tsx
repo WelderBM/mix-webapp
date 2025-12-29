@@ -141,7 +141,7 @@ function FitasContent() {
       <div className="max-w-6xl mx-auto px-0 sm:px-4 -mt-4 relative z-10">
         <div className="bg-white sm:rounded-3xl shadow-sm border-t sm:border border-slate-100 overflow-hidden min-h-[600px]">
           {/* Header da Página */}
-          <div className="p-6 sm:p-8 border-b bg-gradient-to-r from-slate-50 to-white">
+          <div className="p-6 sm:p-8 border-b bg-linear-to-r from-slate-50 to-white">
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">
               Central de Fitas
             </h1>
@@ -161,7 +161,7 @@ function FitasContent() {
               <TabsList className="w-full md:w-auto grid grid-cols-3 h-auto p-1 bg-slate-100 rounded-xl">
                 <TabsTrigger
                   value="rolls"
-                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-[var(--primary)] data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
+                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
                   <Lock className="w-4 h-4" />{" "}
                   <span className="md:inline">
@@ -170,14 +170,14 @@ function FitasContent() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="meter"
-                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-[var(--primary)] data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
+                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
                   <Scissors className="w-4 h-4" />{" "}
                   <span className="md:inline">Por Metro</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="service"
-                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-[var(--primary)] data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
+                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
                   <Gift className="w-4 h-4" />{" "}
                   <span className="md:inline">Criar Laço</span>
@@ -192,8 +192,7 @@ function FitasContent() {
             >
               <div className="flex items-center justify-between mb-4 sm:mb-6">
                 <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
-                  <Lock size={20} className="text-[var(--primary)]" /> Estoque
-                  Lacrado
+                  <Lock size={20} className="text-primary" /> Estoque Lacrado
                 </h3>
                 <span className="text-xs sm:text-sm text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
                   {closedRolls.length} opções
@@ -269,8 +268,8 @@ function FitasContent() {
                               onClick={() => setSelectedRibbonId(ribbon.id)}
                               className={`cursor-pointer rounded-lg border p-2 flex flex-col items-center gap-2 transition-all hover:shadow-md relative group ${
                                 selectedRibbonId === ribbon.id
-                                  ? "border-[var(--primary)] ring-2 ring-[var(--primary)] ring-opacity-20 bg-purple-50"
-                                  : "border-slate-200 bg-white hover:border-[var(--primary)]/50"
+                                  ? "border-primary ring-2 ring-primary ring-opacity-20 bg-purple-50"
+                                  : "border-slate-200 bg-white hover:border-(--primary)/50"
                               }`}
                             >
                               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 relative overflow-hidden shrink-0">
@@ -290,7 +289,7 @@ function FitasContent() {
                               </span>
                               {selectedRibbonId === ribbon.id && (
                                 <div className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow-sm">
-                                  <CheckCircle2 className="text-[var(--primary)] w-3 h-3 sm:w-4 sm:h-4" />
+                                  <CheckCircle2 className="text-primary w-3 h-3 sm:w-4 sm:h-4" />
                                 </div>
                               )}
                             </div>
@@ -370,7 +369,7 @@ function FitasContent() {
                                 className="object-cover"
                               />
                             </div>
-                            <p className="text-sm font-bold text-[var(--primary)] line-clamp-2 leading-tight px-2">
+                            <p className="text-sm font-bold text-primary line-clamp-2 leading-tight px-2">
                               {selectedMeterProduct?.name}
                             </p>
                             <p className="text-xs text-slate-400 mt-1">
@@ -406,7 +405,7 @@ function FitasContent() {
                           <span className="text-slate-500 font-medium">
                             Total
                           </span>
-                          <span className="text-3xl font-bold text-[var(--primary)]">
+                          <span className="text-3xl font-bold text-primary">
                             R$ {meterTotalPrice.toFixed(2)}
                           </span>
                         </div>
@@ -434,7 +433,7 @@ function FitasContent() {
                     <span className="text-xs text-slate-500 font-medium">
                       Total ({meterAmount}m)
                     </span>
-                    <span className="text-xl font-bold text-[var(--primary)]">
+                    <span className="text-xl font-bold text-primary">
                       R$ {meterTotalPrice.toFixed(2)}
                     </span>
                   </div>
@@ -479,7 +478,7 @@ export default function FitasPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-[var(--primary)] rounded-full animate-spin"></div>
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-primary rounded-full animate-spin"></div>
         </div>
       }
     >

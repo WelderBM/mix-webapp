@@ -17,7 +17,7 @@ export default function BaloesPage() {
         <div className="max-w-6xl mx-auto px-0 sm:px-4 -mt-4 relative z-10">
           <div className="bg-white sm:rounded-3xl shadow-sm border-t sm:border border-slate-100 overflow-hidden min-h-[600px]">
             {/* Header da Página igual Fitas */}
-            <div className="p-6 sm:p-8 border-b bg-gradient-to-r from-slate-50 to-white">
+            <div className="p-6 sm:p-8 border-b bg-linear-to-r from-slate-50 to-white">
               <div className="flex items-center gap-2 mb-2">
                 <Link href="/" className="inline-flex md:hidden">
                   <Button

@@ -316,7 +316,7 @@ export function CartSidebar() {
   return (
     <Sheet open={isCartOpen} onOpenChange={(open) => !open && closeCart()}>
       <SheetContent className="flex flex-col w-full sm:max-w-md bg-slate-50 p-0 h-full">
-        <SheetHeader className="p-6 bg-white border-b flex-shrink-0">
+        <SheetHeader className="p-6 bg-white border-b shrink-0">
           <SheetTitle className="flex items-center gap-2 text-xl">
             <ShoppingCart className="text-purple-600" /> Seu Carrinho
             <span className="ml-auto text-sm font-normal text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
@@ -357,7 +357,7 @@ export function CartSidebar() {
                       key={item.cartId}
                       className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3 relative"
                     >
-                      <div className="relative w-16 h-16 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0 border">
+                      <div className="relative w-16 h-16 bg-slate-100 rounded-lg overflow-hidden shrink-0 border">
                         <SafeImage
                           src={imageUrl}
                           name={item.product?.name}
