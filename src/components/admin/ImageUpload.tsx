@@ -304,7 +304,7 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
 
         {/* Tab: Camera */}
         <TabsContent value="camera" className="mt-4 focus-visible:outline-none">
-          <div className="relative rounded-2xl bg-slate-900 overflow-hidden h-64 sm:h-80 shadow-2xl flex items-center justify-center">
+          <div className="relative rounded-2xl bg-slate-900 overflow-hidden w-full aspect-[3/4] sm:aspect-video sm:h-80 shadow-2xl flex items-center justify-center">
             {camStream ? (
               <>
                 <video

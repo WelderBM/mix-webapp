@@ -344,7 +344,7 @@ export function CartSidebar() {
           <>
             {/* Substituído ScrollArea por div nativa para melhor UX mobile */}
             <div className="flex-1 overflow-y-auto bg-slate-50">
-              <div className="p-6 space-y-4 pb-48">
+              <div className="p-6 space-y-4 pb-28">
                 {" "}
                 {/* Aumentado padding bottom */}
                 {items.map((item) => {
@@ -439,7 +439,7 @@ export function CartSidebar() {
               <div className="h-px bg-slate-200 mx-6 mb-6" />
 
               {/* Formulário Resumido */}
-              <div className="px-6 pb-48 space-y-4">
+              <div className="px-6 pb-28 space-y-4">
                 {" "}
                 {/* Padding extra aqui também */}
                 <div className="space-y-2">

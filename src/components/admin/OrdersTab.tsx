@@ -233,7 +233,7 @@ Forma de Pagto: ${
 
         {/* Navigation / Filters Scrollable */}
         <ScrollArea className="w-full whitespace-nowrap pb-2">
-          <div className="flex gap-2">
+          <div className="flex gap-2 min-w-max px-1">
             <FilterButton label="Todos" value="all" count={orders.length} />
             <FilterButton
               label="Pendentes"

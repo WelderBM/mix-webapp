@@ -110,7 +110,7 @@ const StatusTimeline = ({
   );
 };
 
-function TrackOrderContent() {
+export function TrackOrderContent() {
   const [orderId, setOrderId] = useState("");
   const [loading, setLoading] = useState(false);
   const [order, setOrder] = useState<Order | null>(null);

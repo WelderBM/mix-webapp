@@ -219,7 +219,10 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !loading && onClose()}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto"
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>
             {productToEdit ? "Editar Produto" : "Novo Produto"}
