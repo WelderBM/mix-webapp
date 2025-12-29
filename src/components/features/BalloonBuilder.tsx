@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +23,101 @@ import {
   BalloonSizeConfig,
 } from "@/types/balloon";
 
+// Mapeamento de cores aproximadas para Balões São Roque
+const BALLOON_COLORS: Record<string, string> = {
+  // Cores Lisas / Standard
+  Amarelo: "#FFD700",
+  "Amarelo Citrino": "#FFEB3B",
+  Azul: "#2196F3",
+  "Azul Cobalto": "#1565C0",
+  "Azul Baby": "#BBDEFB",
+  "Azul Celeste": "#4FC3F7",
+  Branco: "#FFFFFF",
+  "Branco Polar": "#FAFAFA",
+  Laranja: "#FF9800",
+  "Laranja Mandarim": "#FF6F00",
+  Lilás: "#E1BEE7",
+  "Lilás Baby": "#F3E5F5",
+  Rosa: "#E91E63",
+  "Rosa Baby": "#F8BBD0",
+  "Rosa Tutti Frutti": "#FF80AB",
+  "Rosa Shock": "#FF4081",
+  Roxo: "#9C27B0",
+  "Roxo Ametista": "#7B1FA2",
+  Verde: "#4CAF50",
+  "Verde Folha": "#2E7D32",
+  "Verde Limão": "#CDDC39",
+  "Verde Bandeira": "#00C853",
+  Vermelho: "#F44336",
+  "Vermelho Quente": "#D50000",
+  Preto: "#000000",
+  "Preto Ébano": "#212121",
+  Marrom: "#795548",
+  "Marrom Chocolate": "#5D4037",
+  Cinza: "#9E9E9E",
+  "Cinza Chumbo": "#616161",
+  Bege: "#F5F5DC",
+  Pele: "#FFCCBC",
+
+  // Cores Metálicas / Cromadas / Uniq
+  Ouro: "linear-gradient(135deg, #FFD700 0%, #FDB931 100%)",
+  Prata: "linear-gradient(135deg, #E0E0E0 0%, #BDBDBD 100%)",
+  "Rose Gold": "linear-gradient(135deg, #E8B6A8 0%, #D48E7E 100%)",
+  "Azul Metálico": "linear-gradient(135deg, #448AFF 0%, #2962FF 100%)",
+  "Verde Metálico": "linear-gradient(135deg, #69F0AE 0%, #00E676 100%)",
+  "Vermelho Metálico": "linear-gradient(135deg, #FF5252 0%, #D50000 100%)",
+  "Roxo Metálico": "linear-gradient(135deg, #E040FB 0%, #AA00FF 100%)",
+  "Rosa Metálico": "linear-gradient(135deg, #FF4081 0%, #F50057 100%)",
+  Cromado: "linear-gradient(135deg, #CFD8DC 0%, #90A4AE 100%)", // Genérico
+  Cristal:
+    "radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.2) 100%)", // Transparente
+};
+
+// Helper para pegar a cor ou um fallback
+const getBalloonColor = (colorName: string) => {
+  // Tenta encontrar a cor exata
+  if (BALLOON_COLORS[colorName]) return BALLOON_COLORS[colorName];
+
+  // Tenta encontrar por palavras chave se não achar exato
+  const lowerName = colorName.toLowerCase();
+  for (const [key, value] of Object.entries(BALLOON_COLORS)) {
+    if (lowerName.includes(key.toLowerCase())) {
+      return value;
+    }
+  }
+
+  return "#EEEEEE"; // Fallback cinza claro
+};
+
+// Helper para saber se a cor é escura (para mudar a cor do texto)
+const isDarkColor = (color: string) => {
+  if (color.includes("gradient")) return false; // Assume gradient como "brilhante/claro" ou usa sombra
+  if (
+    color === "#000000" ||
+    color === "#212121" ||
+    color === "#5D4037" ||
+    color === "#1565C0" ||
+    color === "#2E7D32" ||
+    color === "#7B1FA2" ||
+    color === "#D50000"
+  )
+    return true;
+  return false;
+};
+
+// Escala visual relativa para os tamanhos (baseado em pixels)
+const SIZE_SCALE: Record<string, number> = {
+  "5": 40,
+  "6.5": 50,
+  "7": 55,
+  "8": 60,
+  "9": 70,
+  "10": 75,
+  "11": 80,
+  "16": 100,
+  "35": 140, // Gigante
+};
+
 export function BalloonBuilder() {
   const { addItem, openCart } = useCartStore();
 
@@ -40,6 +135,20 @@ export function BalloonBuilder() {
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [step, setStep] = useState(1);
+  const step2Ref = useRef<HTMLDivElement>(null);
+
+  // Efeito para scrollar quando mudar para o passo 2
+  useEffect(() => {
+    if (step === 2 && step2Ref.current) {
+      // Pequeno delay para garantir que a animação de entrada começou/renderizou
+      setTimeout(() => {
+        step2Ref.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }, 100);
+    }
+  }, [step]);
 
   useEffect(() => {
     let isMounted = true;
@@ -179,17 +288,38 @@ export function BalloonBuilder() {
                                 : "border-slate-100 bg-white hover:border-purple-200 hover:scale-[1.02]"
                             )}
                           >
-                            {/* Balloon Bubble Effect */}
+                            {/* Balloon Bubble Effect - Agora com escala visual */}
                             <div
                               className={cn(
-                                "absolute -top-4 -right-4 w-12 h-12 rounded-full blur-2xl transition-opacity",
-                                isSelected
-                                  ? "bg-purple-400 opacity-20"
-                                  : "bg-slate-200 opacity-0 group-hover:opacity-10"
+                                "absolute w-full h-full inset-0 transition-opacity",
+                                isSelected ? "opacity-100" : "opacity-0"
                               )}
-                            />
+                            >
+                              <div className="absolute top-2 right-2 w-3 h-3 bg-purple-500 rounded-full animate-bounce" />
+                            </div>
 
-                            <span className="text-3xl font-black text-slate-800 group-hover:scale-110 transition-transform">
+                            {/* Preview Visual do Tamanho */}
+                            <div className="relative mb-3 flex items-center justify-center h-28 w-full">
+                              <div
+                                className={cn(
+                                  "rounded-full shadow-inner transition-all duration-500",
+                                  isSelected
+                                    ? "bg-purple-600 shadow-purple-400"
+                                    : "bg-slate-200"
+                                )}
+                                style={{
+                                  width: `${SIZE_SCALE[size.size] || 60}px`,
+                                  height: `${
+                                    (SIZE_SCALE[size.size] || 60) * 1.1
+                                  }px`, // Levemente oval
+                                }}
+                              >
+                                {/* Brilho no balão */}
+                                <div className="absolute top-[20%] left-[25%] w-[20%] h-[15%] bg-white/40 rounded-full -rotate-45" />
+                              </div>
+                            </div>
+
+                            <span className="text-xl font-black text-slate-800 group-hover:scale-110 transition-transform">
                               {size.size}"
                             </span>
                             <span className="text-sm font-bold text-purple-600 mt-1">
@@ -217,7 +347,10 @@ export function BalloonBuilder() {
             </section>
           </div>
         ) : (
-          <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+          <div
+            ref={step2Ref}
+            className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500"
+          >
             <section>
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-2xl font-black text-slate-800 flex items-center gap-3">
@@ -257,7 +390,30 @@ export function BalloonBuilder() {
                     <span className="opacity-50 mx-1 hidden sm:inline">|</span>{" "}
                     <br className="sm:hidden" /> {selectedSize?.size}"
                   </p>
+                  <p className="text-xs opacity-80 font-medium mt-1">
+                    {selectedSize?.unitsPerPackage} unidades p/ pacote
+                  </p>
                 </div>
+
+                {/* Preview Animado */}
+                <div className="hidden md:flex items-center justify-center">
+                  <div
+                    className="rounded-full shadow-2xl transition-all duration-500 relative"
+                    style={{
+                      width: "60px",
+                      height: "70px",
+                      background: selectedColor
+                        ? getBalloonColor(selectedColor)
+                        : "#FFF",
+                      transform: "rotate(-5deg)",
+                    }}
+                  >
+                    <div className="absolute top-[20%] left-[25%] w-[20%] h-[15%] bg-white/40 rounded-full -rotate-45" />
+                    {/* Cordãozinho simulado */}
+                    <div className="absolute -bottom-4 left-1/2 w-0.5 h-6 bg-white/50 -translate-x-1/2" />
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between md:block w-full md:w-auto bg-white/10 p-3 rounded-2xl backdrop-blur-md border border-white/10">
                   <p className="text-[10px] opacity-70 uppercase font-black tracking-widest text-left md:text-right">
                     Preço
@@ -271,22 +427,63 @@ export function BalloonBuilder() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 {selectedType?.colors.map((color) => {
                   const isSelected = selectedColor === color;
+                  const bgStyle = getBalloonColor(color);
+                  const isDark = isDarkColor(bgStyle);
+
                   return (
                     <button
                       key={color}
                       onClick={() => setSelectedColor(color)}
                       className={cn(
-                        "p-4 rounded-2xl border-2 font-black transition-all text-sm relative group overflow-hidden",
+                        "p-4 rounded-2xl border-4 font-black transition-all text-sm relative group overflow-hidden flex flex-col items-center gap-2 h-32 justify-end shadow-sm hover:shadow-md",
                         isSelected
-                          ? "border-purple-600 bg-purple-600 text-white shadow-lg shadow-purple-200 scale-105"
-                          : "border-slate-100 bg-white text-slate-600 hover:border-purple-300 hover:bg-slate-50"
+                          ? "border-purple-600 ring-2 ring-purple-300 scale-105 z-10"
+                          : "border-transparent ring-1 ring-slate-100 hover:scale-[1.02]"
                       )}
+                      style={{
+                        background: isSelected ? "#FFF" : "#FFF", // Fundo do botão branco
+                      }}
                     >
-                      {/* Subtle color splash */}
-                      {!isSelected && (
-                        <div className="absolute inset-0 bg-purple-600 opacity-0 group-hover:opacity-5 transition-opacity" />
+                      {/* A cor real do balão como "preview" ocupando o fundo ou uma bolha grande */}
+                      <div
+                        className="absolute inset-0 z-0 transition-transform duration-500"
+                        style={{
+                          background: bgStyle,
+                          opacity: isSelected ? 0.1 : 0.15, // Fundo suave com a cor
+                        }}
+                      />
+
+                      {/* O Balão em si */}
+                      <div
+                        className={cn(
+                          "absolute top-4 w-12 h-14 rounded-full shadow-lg transition-all duration-300 group-hover:scale-110",
+                          isSelected ? "scale-125 top-3" : ""
+                        )}
+                        style={{
+                          background: bgStyle,
+                        }}
+                      >
+                        <div className="absolute top-[20%] left-[25%] w-[20%] h-[15%] bg-white/40 rounded-full -rotate-45" />
+                      </div>
+
+                      <span
+                        className={cn(
+                          "relative z-10 text-center leading-tight transition-colors",
+                          "text-slate-700"
+                        )}
+                      >
+                        {color}
+                      </span>
+
+                      {isSelected && (
+                        <div className="absolute top-2 right-2 text-purple-600 bg-white rounded-full p-0.5 shadow-sm z-20">
+                          <CheckCircle
+                            size={14}
+                            fill="currentColor"
+                            className="text-white"
+                          />
+                        </div>
                       )}
-                      {color}
                     </button>
                   );
                 })}
