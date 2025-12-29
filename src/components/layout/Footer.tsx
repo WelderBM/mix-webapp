@@ -9,6 +9,7 @@ import {
   Home,
   PartyPopper,
   Gift,
+  Lock,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -59,15 +60,12 @@ export function Footer() {
             >
               <Gift size={14} /> Criar Laço Personalizado
             </Link>
-            <button
-              onClick={() => {
-                const id = prompt("Digite o ID do pedido:");
-                if (id) window.location.href = `/meu-pedido/${id}`;
-              }}
-              className="hover:text-purple-400 flex items-center gap-2 text-left"
+            <Link
+              href="/meu-pedido"
+              className="hover:text-purple-400 flex items-center gap-2"
             >
               <Package size={14} /> Rastrear Pedido
-            </button>
+            </Link>
           </div>
         </div>
 
@@ -143,10 +141,10 @@ export function Footer() {
           © {new Date().getFullYear()} Mix WebApp. Todos os direitos reservados.
           <Link
             href="/admin"
-            className="text-slate-800 hover:text-slate-600 ml-2"
+            className="ml-2 text-slate-700 hover:text-slate-500 transition-colors"
             aria-label="Acesso Administrativo"
           >
-            .
+            <Lock size={12} />
           </Link>
         </p>
       </div>
