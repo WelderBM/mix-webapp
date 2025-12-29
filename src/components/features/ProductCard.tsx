@@ -76,22 +76,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <p className="line-clamp-3 text-sm text-slate-500">
             {product.description}
           </p>
-          <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
-            <div className="flex flex-col">
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="flex flex-col min-w-0">
               {product.originalPrice &&
                 product.originalPrice > product.price && (
-                  <span className="text-xs text-slate-400 line-through">
+                  <span className="text-xs text-slate-400 line-through truncate">
                     R$ {product.originalPrice.toFixed(2)}
                   </span>
                 )}
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-extrabold text-primary">
+              <div className="flex items-baseline gap-1 truncate text-ellipsis">
+                <span className="text-lg font-extrabold text-primary truncate">
                   {new Intl.NumberFormat("pt-BR", {
                     style: "currency",
                     currency: "BRL",
                   }).format(finalPrice)}
                 </span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter shrink-0">
                   / {product.unit || "un"}
                 </span>
               </div>
@@ -100,10 +100,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               onClick={handleAction}
               size="sm"
               className={cn(
-                "rounded-xl font-bold shadow-sm transition-all duration-300",
+                "rounded-xl font-bold shadow-sm transition-all duration-300 shrink-0",
                 product.type === "ASSEMBLED_KIT"
                   ? "bg-purple-600 hover:bg-purple-700 w-auto px-4"
-                  : "bg-green-600 hover:bg-green-700 aspect-square p-0 w-10 shrink-0"
+                  : "bg-green-600 hover:bg-green-700 aspect-square p-0 w-10"
               )}
             >
               {product.type === "ASSEMBLED_KIT" ? (
