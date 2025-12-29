@@ -747,37 +747,44 @@ export default function AdminPage() {
                       key={section.id}
                       className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-slate-50 border rounded-lg group"
                     >
-                      <div className="flex flex-col gap-1 text-slate-400">
-                        <button
-                          onClick={() => moveSection(index, "up")}
-                          disabled={index === 0}
-                          className="hover:text-blue-600 disabled:opacity-30"
-                        >
-                          <ArrowUp size={16} />
-                        </button>
-                        <button
-                          onClick={() => moveSection(index, "down")}
-                          disabled={
-                            index === (settings.homeSections?.length || 0) - 1
-                          }
-                          className="hover:text-blue-600 disabled:opacity-30"
-                        >
-                          <ArrowDown size={16} />
-                        </button>
+                      <div className="flex items-center gap-4 w-full sm:w-auto">
+                        <div className="flex gap-1 text-slate-400">
+                          <button
+                            onClick={() => moveSection(index, "up")}
+                            disabled={index === 0}
+                            className="hover:text-blue-600 disabled:opacity-30 p-1"
+                          >
+                            <ArrowUp size={16} />
+                          </button>
+                          <button
+                            onClick={() => moveSection(index, "down")}
+                            disabled={
+                              index === (settings.homeSections?.length || 0) - 1
+                            }
+                            className="hover:text-blue-600 disabled:opacity-30 p-1"
+                          >
+                            <ArrowDown size={16} />
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-slate-800">
+
+                      <div className="flex-1 w-full sm:w-auto">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-slate-800 break-words line-clamp-1">
                             {section.title}
                           </h3>
                           {!section.isActive && (
-                            <Badge variant="outline" className="text-xs">
+                            <Badge
+                              variant="outline"
+                              className="text-xs shrink-0"
+                            >
                               Inativo
                             </Badge>
                           )}
                         </div>
                         <p className="text-xs text-slate-500">{section.type}</p>
                       </div>
+
                       <div className="flex items-center justify-end w-full sm:w-auto gap-2 border-t sm:border-t-0 pt-2 sm:pt-0 mt-2 sm:mt-0">
                         <Button
                           variant="ghost"
@@ -788,7 +795,6 @@ export default function AdminPage() {
                               ...section,
                               isActive: !section.isActive,
                             };
-                            // Create new array with updated item
                             const newSections = settings.homeSections!.map(
                               (s) => (s.id === section.id ? updated : s)
                             );
@@ -1819,7 +1825,7 @@ export default function AdminPage() {
                                       : "default"
                                   }
                                   className={cn(
-                                    "text-[10px] font-black uppercase",
+                                    "text-[9px] font-black uppercase whitespace-normal text-center h-auto py-1",
                                     fita.ribbonInventory?.status === "FECHADO"
                                       ? "bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-50"
                                       : "bg-purple-50 text-purple-600 border-purple-100 hover:bg-purple-50"
