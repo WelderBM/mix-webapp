@@ -17,7 +17,7 @@ const BalloonIcon = ({ className }: { className?: string }) => (
     className={className}
   >
     {/* Balloon 1 (Center Top) */}
-    <path d="M12 2C9.5 2 7.5 4.5 7.5 7.5c0 2.5 2 4.5 2 6 .5 1.5 2.5 2 2.5] 2s2-.5 2.5-2c0-1.5 2-3.5 2-6C16.5 4.5 14.5 2 12 2Z" />
+    <path d="M12 2C9.5 2 7.5 4.5 7.5 7.5c0 2.5 2 4.5 2 6 .5 1.5 2.5 2 2.5 2s2-.5 2.5-2c0-1.5 2-3.5 2-6C16.5 4.5 14.5 2 12 2Z" />
     <path d="M12 15.5v8.5" />
 
     {/* Balloon 2 (Left) */}
