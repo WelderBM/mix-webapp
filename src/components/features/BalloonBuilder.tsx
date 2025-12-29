@@ -124,7 +124,7 @@ export function BalloonBuilder() {
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+    <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-32">
       {/* STEPS INDICATOR */}
       <div className="flex items-center justify-center gap-2 mb-4">
         <div
@@ -297,7 +297,7 @@ export function BalloonBuilder() {
       </div>
 
       {/* STICKY FOOTER */}
-      <div className="sticky bottom-2 z-40 mx-2 mb-2 bg-white/95 backdrop-blur-xl rounded-4xl border border-slate-200/50 shadow-[0_8px_30px_rgba(0,0,0,0.12)] p-4 md:p-6 transition-all duration-500 ring-1 ring-slate-100">
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-4xl bg-white/95 backdrop-blur-xl rounded-4xl border border-slate-200/50 shadow-[0_8px_30px_rgba(0,0,0,0.12)] p-4 md:p-6 transition-all duration-500 ring-1 ring-slate-100">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 md:gap-6">
           {/* Escondemos a quantidade no Passo 1 para simplificar, como solicitado */}
           {step === 2 ? (
