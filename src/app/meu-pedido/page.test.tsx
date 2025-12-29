@@ -5,14 +5,28 @@ import * as firestore from "firebase/firestore";
 
 // Mock Next.js Navigation
 const replaceMock = vi.fn();
-const getMock = vi.fn();
 const params = new URLSearchParams();
 
+// Create a stable object for useSearchParams to avoid useEffect infinite loops
+const searchParamsMock = {
+  get: (key: string) => params.get(key),
+  toString: () => params.toString(),
+  [Symbol.iterator]: () => params[Symbol.iterator](),
+  entries: () => params.entries(),
+  keys: () => params.keys(),
+  values: () => params.values(),
+  forEach: (cb: any) => params.forEach(cb),
+  has: (key: string) => params.has(key),
+  size: 0,
+  sort: () => {},
+  append: () => {},
+  delete: () => {},
+  set: () => {},
+  getAll: (key: string) => params.getAll(key),
+};
+
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => ({
-    get: (key: string) => params.get(key),
-    toString: () => params.toString(),
-  }),
+  useSearchParams: () => searchParamsMock,
   useRouter: () => ({
     replace: replaceMock,
   }),
