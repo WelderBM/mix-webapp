@@ -63,6 +63,11 @@ export function OrdersTab() {
     {}
   );
 
+  // Filtros e Paginação
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
   useEffect(() => {
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -92,61 +97,67 @@ export function OrdersTab() {
   };
 
   const copyDeliveryInfo = (order: Order) => {
-    const text = `🛵 *ENTREGA MOTO TÁXI*
+    const text = `🛵 *PEDIDO DE ENTREGA - MIX NOVIDADES*
     
-👤 *Cliente:* ${order.customerName}
-📞 *Contato:* ${order.customerPhone}
-📍 *Endereço:* ${order.address || "N/A"}
-💰 *Valor:* ${formatCurrency(order.total)}
-💳 *Pagamento:* ${
+📍 *RETIRADA (Nossa Loja):*
+Rua Pedro Aldemar Bantim, 945
+Bairro Doutor Sílvio Botelho
+
+⬇️ *LEVAR PARA (Cliente):*
+👤 ${order.customerName}
+📍 ${order.address || "Endereço não informado"}
+📞 ${order.customerPhone}
+
+💰 *VALORES:*
+Valor do Pedido: ${formatCurrency(order.total)}
+Forma de Pagto: ${
       order.paymentMethod === "pix"
-        ? "PIX"
+        ? "PIX (Já pago)"
         : order.paymentMethod === "cash"
-        ? "Dinheiro"
-        : "Cartão"
+        ? "Dinheiro (Cobrar)"
+        : "Cartão (Levar Maquininha)"
     }
 
-*Retirar em:* Loja Natura/Papelaria`;
+⚠️ *Obs:* Cuidado com os produtos frágeis!`;
     navigator.clipboard.writeText(text);
-    toast.success("Texto de entrega copiado!");
+    toast.success("Texto copiado! Pronto para enviar.");
   };
 
-  const getStatusBadge = (status: OrderStatus) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return (
-          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
-            Pendente
-          </Badge>
-        );
+        return "bg-red-100 text-red-700 border-red-200 hover:bg-red-200";
       case "preparing":
-        return (
-          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">
-            Preparando
-          </Badge>
-        );
+        return "bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200";
       case "ready":
-        return (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-200">
-            Pronto
-          </Badge>
-        );
+        return "bg-green-100 text-green-700 border-green-200 hover:bg-green-200";
       case "out_for_delivery":
-        return (
-          <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-200">
-            Saiu p/ Entrega
-          </Badge>
-        );
+        return "bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200";
       case "delivered":
-        return (
-          <Badge className="bg-slate-100 text-slate-800 hover:bg-slate-200">
-            Entregue
-          </Badge>
-        );
+        return "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200";
       case "cancelled":
-        return <Badge variant="destructive">Cancelado</Badge>;
+        return "bg-gray-100 text-gray-500 border-gray-200 decoration-line-through";
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return "bg-white border-slate-200";
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "Pendente";
+      case "preparing":
+        return "Preparando";
+      case "ready":
+        return "Pronto";
+      case "out_for_delivery":
+        return "Em Rota";
+      case "delivered":
+        return "Entregue";
+      case "cancelled":
+        return "Cancelado";
+      default:
+        return status;
     }
   };
 
@@ -162,18 +173,22 @@ export function OrdersTab() {
     return <CreditCard size={14} className="text-blue-600" />;
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("pt-BR");
-  };
+  // --- LÓGICA DE FILTRO E PAGINAÇÃO ---
+  const filteredOrders = orders.filter((order) => {
+    if (statusFilter === "all") return true;
+    return order.status === statusFilter;
+  });
 
-  const formatTime = (dateString?: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleTimeString("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
+  const paginatedOrders = filteredOrders.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  // Resetar página quando mudar filtro
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter]);
 
   if (loading) {
     return (
@@ -183,13 +198,72 @@ export function OrdersTab() {
     );
   }
 
+  const FilterButton = ({
+    label,
+    value,
+    count,
+  }: {
+    label: string;
+    value: string;
+    count?: number;
+  }) => (
+    <button
+      onClick={() => setStatusFilter(value)}
+      className={cn(
+        "px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border",
+        statusFilter === value
+          ? "bg-slate-800 text-white border-slate-800"
+          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+      )}
+    >
+      {label} {count !== undefined && `(${count})`}
+    </button>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold tracking-tight">Pedidos</h2>
-        <Badge variant="secondary" className="text-sm">
-          {orders.length} pedidos encontrados
-        </Badge>
+      {/* HEADER & FILTROS */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold tracking-tight">Pedidos</h2>
+          <Badge variant="secondary" className="text-sm">
+            Total: {orders.length}
+          </Badge>
+        </div>
+
+        {/* Navigation / Filters Scrollable */}
+        <ScrollArea className="w-full whitespace-nowrap pb-2">
+          <div className="flex gap-2">
+            <FilterButton label="Todos" value="all" count={orders.length} />
+            <FilterButton
+              label="Pendentes"
+              value="pending"
+              count={orders.filter((o) => o.status === "pending").length}
+            />
+            <FilterButton
+              label="Preparando"
+              value="preparing"
+              count={orders.filter((o) => o.status === "preparing").length}
+            />
+            <FilterButton
+              label="Pronto p/ Entrega"
+              value="ready"
+              count={orders.filter((o) => o.status === "ready").length}
+            />
+            <FilterButton
+              label="Saiu p/ Entrega"
+              value="out_for_delivery"
+              count={
+                orders.filter((o) => o.status === "out_for_delivery").length
+              }
+            />
+            <FilterButton
+              label="Entregues"
+              value="delivered"
+              count={orders.filter((o) => o.status === "delivered").length}
+            />
+          </div>
+        </ScrollArea>
       </div>
 
       {/* DESKTOP VIEW (Table) */}
@@ -207,7 +281,7 @@ export function OrdersTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {orders.map((order) => (
+            {paginatedOrders.map((order) => (
               <>
                 <TableRow
                   key={order.id}
@@ -226,30 +300,11 @@ export function OrdersTab() {
                   <TableCell className="font-medium text-xs">
                     <div className="flex flex-col">
                       <span className="font-bold" suppressHydrationWarning>
-                        {(() => {
-                          const diff =
-                            Date.now() -
-                            (new Date(order.createdAt).getTime() || 0);
-                          const mins = Math.floor(diff / 60000);
-                          const hours = Math.floor(mins / 60);
-                          if (mins < 60) return `Há ${mins} min`;
-                          if (hours < 24) return `Há ${hours} h`;
-                          return new Date(order.createdAt).toLocaleDateString(
-                            "pt-BR"
-                          );
-                        })()}
+                        {new Date(order.createdAt).toLocaleDateString("pt-BR")}
                       </span>
                       <span
                         suppressHydrationWarning
-                        className={cn(
-                          "text-[10px]",
-                          order.status === "pending" &&
-                            Date.now() -
-                              (new Date(order.createdAt).getTime() || 0) >
-                              15 * 60000
-                            ? "text-red-500 font-bold"
-                            : "text-slate-500"
-                        )}
+                        className="text-[10px] text-slate-500"
                       >
                         {new Date(order.createdAt).toLocaleTimeString("pt-BR", {
                           hour: "2-digit",
@@ -277,15 +332,22 @@ export function OrdersTab() {
                           updateStatus(order.id, v as OrderStatus)
                         }
                       >
-                        <SelectTrigger className="h-7 w-[130px] text-xs border-none shadow-none bg-transparent p-0 focus:ring-0">
-                          {getStatusBadge(order.status)}
+                        <SelectTrigger
+                          className={cn(
+                            "h-7 w-[140px] text-xs font-bold border rounded-md shadow-sm focus:ring-0 transition-colors pl-3 pr-4",
+                            getStatusColor(order.status)
+                          )}
+                        >
+                          <SelectValue>
+                            {getStatusLabel(order.status)}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="pending">Pendente</SelectItem>
                           <SelectItem value="preparing">Preparando</SelectItem>
                           <SelectItem value="ready">Pronto</SelectItem>
                           <SelectItem value="out_for_delivery">
-                            Em Rota
+                            Saiu p/ Entrega
                           </SelectItem>
                           <SelectItem value="delivered">Entregue</SelectItem>
                           <SelectItem value="cancelled">Cancelado</SelectItem>
@@ -338,7 +400,6 @@ export function OrdersTab() {
                     )}
                   </TableCell>
                 </TableRow>
-                {/* Expanded Row Content (Desktop) */}
                 {expandedOrders[order.id] && (
                   <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
                     <TableCell colSpan={7} className="p-0">
@@ -420,8 +481,8 @@ export function OrdersTab() {
       </div>
 
       {/* MOBILE VIEW (Cards) */}
-      <div className="md:hidden space-y-4 pb-20">
-        {orders.map((order) => (
+      <div className="md:hidden space-y-4">
+        {paginatedOrders.map((order) => (
           <div
             key={order.id}
             className="bg-white border rounded-xl shadow-sm overflow-hidden"
@@ -455,13 +516,18 @@ export function OrdersTab() {
                     updateStatus(order.id, v as OrderStatus)
                   }
                 >
-                  <SelectTrigger className="h-8 w-[110px] text-xs bg-white">
-                    {getStatusBadge(order.status)}
+                  <SelectTrigger
+                    className={cn(
+                      "h-8 w-[140px] text-xs font-bold border rounded-md shadow-sm pl-3 pr-4",
+                      getStatusColor(order.status)
+                    )}
+                  >
+                    <SelectValue>{getStatusLabel(order.status)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pending">Pendente</SelectItem>
                     <SelectItem value="preparing">Preparando</SelectItem>
-                    <SelectItem value="ready">Pronto</SelectItem>
+                    <SelectItem value="ready">Pronto p/ Entrega</SelectItem>
                     <SelectItem value="out_for_delivery">Em Rota</SelectItem>
                     <SelectItem value="delivered">Entregue</SelectItem>
                     <SelectItem value="cancelled">Cancelado</SelectItem>
@@ -526,42 +592,56 @@ export function OrdersTab() {
 
                     {order.deliveryMethod === "delivery" && (
                       <div className="bg-slate-50 p-3 rounded border text-xs text-slate-600">
-                        <p className="font-bold mb-1">📍 Endereço:</p>
+                        <p className="font-bold mb-1">📍 Endereço Entrega:</p>
                         {order.address}
+                      </div>
+                    )}
+
+                    {/* BOTÕES LADO A LADO - OCUPANDO 100% */}
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                      {order.deliveryMethod === "delivery" ? (
                         <Button
                           size="sm"
                           variant="outline"
-                          className="w-full mt-2 gap-2 bg-white"
+                          className="w-full gap-2 bg-white border-slate-300 text-slate-700"
                           onClick={(e) => {
                             e.stopPropagation();
                             copyDeliveryInfo(order);
                           }}
                         >
-                          <Copy size={12} /> Copiar p/ Motoboy
+                          <Copy size={14} /> Copiar Info
                         </Button>
-                      </div>
-                    )}
+                      ) : (
+                        // Placeholder vazio caso não seja entrega, ou botão alternativo
+                        <div className="hidden"></div>
+                      )}
 
-                    <Button
-                      className="w-full gap-2"
-                      variant="secondary"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const text = `Olá ${
-                          order.customerName
-                        }, sobre seu pedido #${order.id.slice(0, 5)}...`;
-                        window.open(
-                          `https://wa.me/55${order.customerPhone?.replace(
-                            /\D/g,
-                            ""
-                          )}?text=${encodeURIComponent(text)}`,
-                          "_blank"
-                        );
-                      }}
-                    >
-                      <MessageCircle size={16} className="text-green-600" />{" "}
-                      Falar no WhatsApp
-                    </Button>
+                      <Button
+                        className={cn(
+                          "w-full gap-2",
+                          order.deliveryMethod !== "delivery"
+                            ? "col-span-2"
+                            : ""
+                        )}
+                        variant="secondary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const text = `Olá ${
+                            order.customerName
+                          }, sobre seu pedido #${order.id.slice(0, 5)}...`;
+                          window.open(
+                            `https://wa.me/55${order.customerPhone?.replace(
+                              /\D/g,
+                              ""
+                            )}?text=${encodeURIComponent(text)}`,
+                            "_blank"
+                          );
+                        }}
+                      >
+                        <MessageCircle size={16} className="text-green-600" />{" "}
+                        WhatsApp
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -577,7 +657,36 @@ export function OrdersTab() {
             )}
           </div>
         ))}
+
+        {paginatedOrders.length === 0 && (
+          <div className="text-center py-10 text-slate-500">
+            Nenhum pedido encontrado com este filtro.
+          </div>
+        )}
       </div>
+
+      {/* PAGINATION CONTROLS */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 py-6">
+          <Button
+            variant="outline"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          >
+            Anterior
+          </Button>
+          <span className="text-sm font-medium text-slate-600">
+            Pág {currentPage} de {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Próximo
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

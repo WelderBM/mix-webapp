@@ -1772,6 +1772,230 @@ export default function AdminPage() {
                   }
                 />
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div
+                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
+                    onClick={() => {
+                      setSelectedTemplate("product_shelf");
+                      setEditingSection((prev) =>
+                        prev ? { ...prev, type: "product_shelf" } : null
+                      );
+                    }}
+                  >
+                    <div
+                      className={cn(
+                        "text-sm font-bold mb-1",
+                        selectedTemplate === "product_shelf"
+                          ? "text-purple-600"
+                          : "text-slate-700"
+                      )}
+                    >
+                      Vitrine de Produtos
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Lista de produtos selecionados manualmente.
+                    </p>
+                  </div>
+                  <div
+                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
+                    onClick={() => {
+                      setSelectedTemplate("custom_banner");
+                      setEditingSection((prev) =>
+                        prev ? { ...prev, type: "custom_banner" } : null
+                      );
+                    }}
+                  >
+                    <div
+                      className={cn(
+                        "text-sm font-bold mb-1",
+                        selectedTemplate === "custom_banner"
+                          ? "text-purple-600"
+                          : "text-slate-700"
+                      )}
+                    >
+                      Banner Customizado
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Imagem com link para qualquer lugar.
+                    </p>
+                  </div>
+                  <div
+                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
+                    onClick={() => {
+                      setSelectedTemplate("banner_kit");
+                      setEditingSection((prev) =>
+                        prev ? { ...prev, type: "banner_kit" } : null
+                      );
+                    }}
+                  >
+                    <div
+                      className={cn(
+                        "text-sm font-bold mb-1",
+                        selectedTemplate === "banner_kit"
+                          ? "text-purple-600"
+                          : "text-slate-700"
+                      )}
+                    >
+                      Banner Monte seu Kit
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Atalho para montar kit personalizado.
+                    </p>
+                  </div>
+                  <div
+                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
+                    onClick={() => {
+                      setSelectedTemplate("banner_ribbon");
+                      setEditingSection((prev) =>
+                        prev ? { ...prev, type: "banner_ribbon" } : null
+                      );
+                    }}
+                  >
+                    <div
+                      className={cn(
+                        "text-sm font-bold mb-1",
+                        selectedTemplate === "banner_ribbon"
+                          ? "text-purple-600"
+                          : "text-slate-700"
+                      )}
+                    >
+                      Banner Fitas
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Atalho para fitas personalizadas.
+                    </p>
+                  </div>
+                  <div
+                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
+                    onClick={() => {
+                      setSelectedTemplate("banner_balloon");
+                      setEditingSection((prev) =>
+                        prev ? { ...prev, type: "banner_balloon" } : null
+                      );
+                    }}
+                  >
+                    <div
+                      className={cn(
+                        "text-sm font-bold mb-1",
+                        selectedTemplate === "banner_balloon"
+                          ? "text-purple-600"
+                          : "text-slate-700"
+                      )}
+                    >
+                      Banner Balões
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Atalho para montar balões.
+                    </p>
+                  </div>
+                  <div
+                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
+                    onClick={() => {
+                      setSelectedTemplate("banner_natura");
+                      setEditingSection((prev) =>
+                        prev ? { ...prev, type: "banner_natura" } : null
+                      );
+                    }}
+                  >
+                    <div
+                      className={cn(
+                        "text-sm font-bold mb-1",
+                        selectedTemplate === "banner_natura"
+                          ? "text-purple-600"
+                          : "text-slate-700"
+                      )}
+                    >
+                      Banner Natura
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Banner promocional Natura.
+                    </p>
+                  </div>
+                </div>
+
+                {/* CONFIGURAÇÃO DE BANNER CUSTOMIZADO */}
+                {selectedTemplate === "custom_banner" && (
+                  <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div className="space-y-2">
+                      <Label>URL da Imagem do Banner</Label>
+                      <Input
+                        value={editingSection?.bannerUrl || ""}
+                        onChange={(e) =>
+                          setEditingSection((prev) =>
+                            prev ? { ...prev, bannerUrl: e.target.value } : null
+                          )
+                        }
+                        placeholder="https://exemplo.com/imagem.jpg"
+                      />
+                      <p className="text-[10px] text-slate-500">
+                        Recomendado: 1200x400px
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Link de Destino (Opcional)</Label>
+                      <Input
+                        value={editingSection?.bannerLink || ""}
+                        onChange={(e) =>
+                          setEditingSection((prev) =>
+                            prev
+                              ? { ...prev, bannerLink: e.target.value }
+                              : null
+                          )
+                        }
+                        placeholder="https:// ou use um atalho abaixo"
+                      />
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={() =>
+                            setEditingSection((prev) =>
+                              prev
+                                ? { ...prev, bannerLink: "/montar-kit" }
+                                : null
+                            )
+                          }
+                        >
+                          Montar Kit (/montar-kit)
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={() =>
+                            setEditingSection((prev) =>
+                              prev ? { ...prev, bannerLink: "/fitas" } : null
+                            )
+                          }
+                        >
+                          Fitas (/fitas)
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={() =>
+                            setEditingSection((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    bannerLink: "https://wa.me/5595991136427",
+                                  }
+                                : null
+                            )
+                          }
+                        >
+                          WhatsApp
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Seletor simplificado de produtos para exemplo */}
                 {selectedTemplate === "product_shelf" && (
                   <div className="flex flex-col gap-4">
