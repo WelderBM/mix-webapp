@@ -223,14 +223,37 @@ export function OrdersTab() {
                     </Button>
                   </TableCell>
                   <TableCell className="font-medium text-xs">
-                    <div className="flex flex-col">
-                      <span className="font-bold">
-                        {formatDate(order.createdAt)}
-                      </span>
-                      <span className="text-slate-500">
-                        {formatTime(order.createdAt)}
-                      </span>
-                    </div>
+                    <TableCell className="font-medium text-xs">
+                      <div className="flex flex-col">
+                        <span className="font-bold">
+                          {(() => {
+                            const diff = Date.now() - (order.createdAt || 0);
+                            const mins = Math.floor(diff / 60000);
+                            const hours = Math.floor(mins / 60);
+
+                            if (mins < 60) return `Há ${mins} min`;
+                            if (hours < 24) return `Há ${hours} h`;
+                            return new Date(order.createdAt).toLocaleDateString(
+                              "pt-BR"
+                            );
+                          })()}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-[10px]",
+                            order.status === "pending" &&
+                              Date.now() - (order.createdAt || 0) > 15 * 60000
+                              ? "text-red-500 font-bold"
+                              : "text-slate-500"
+                          )}
+                        >
+                          {new Date(order.createdAt).toLocaleTimeString(
+                            "pt-BR",
+                            { hour: "2-digit", minute: "2-digit" }
+                          )}
+                        </span>
+                      </div>
+                    </TableCell>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">

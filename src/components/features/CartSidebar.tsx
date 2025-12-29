@@ -286,38 +286,19 @@ export function CartSidebar() {
       if (deliveryMethod === "delivery") {
         message += `\n\n✂️ --- *AREA DE COPY PARA O MOTOBOY* --- ✂️\n\n`;
 
-        message += `📦 *SOLICITAÇÃO DE ENTREGA*\n\n`;
-
-        // ENDEREÇO DE RETIRADA (LOJA)
-        message += `📍 *RETIRADA (LOJA):*\n`;
-        message += `*Mix Novidades*\n`;
-        message += `Rua Pedro Aldemar Bantim, 945 - Silvio Botelho\n\n`;
-
-        // ENDEREÇO DE ENTREGA (CLIENTE)
-        message += `🏁 *ENTREGA (CLIENTE):*\n`;
-        message += `*${street.toUpperCase()}, ${number}*\n`;
-        message += `*${neighborhood.toUpperCase()}* - Boa Vista/RR\n`;
-        if (observation.trim()) {
-          message += `(Obs: ${observation})\n`;
-        }
-        message += `\n`;
-
-        // INFORMAÇÕES FINANCEIRAS (FORMAL)
-        message += `💰 *FINANCEIRO:*\n`;
-        if (paymentMethod === "pix") {
-          if (pixPaymentDestination === "store") {
-            message += `✅ *Entrega Paga na Loja via PIX.*\n`;
-            message += `⚠️ Motoboy recebe apenas valor da corrida.\n`;
-          } else {
-            message += `⚠️ *Cobrar Entrega + Itens no Local (Pix Moto)*\n`;
-            message += `Valor dos Produtos: ${totalValue}\n`;
-          }
+        message += `🛵 *Entrega Para Mix Novidades*\n\n`;
+        message += `👤 *Cliente:* ${customerName}\n`;
+        message += `📍 *Endereço de retirada:* Rua Pedro Aldemar Bantim, 945, Doutor Sílvio Botelho\n`;
+        message += `📍 *Entregar em:* ${street}, ${number} - ${neighborhood}\n`;
+        
+        // Lógica de Pagamento Simplificada
+        if (paymentMethod === "pix" && pixPaymentDestination === "store") {
+             message += `💰 *Pagamento na loja (Já pago)*\n`;
+             message += `⚠️ Motoboy recebe apenas a corrida no destino.`;
         } else {
-          // Pagamento na entrega (Dinheiro ou Cartão)
-          message += `⚠️ *Cobrar Entrega + Itens no Local*\n`;
-          message += `Valor a cobrar dos Itens: ${totalValue} (${
-            paymentMethod === "cash" ? "Dinheiro" : "Cartão"
-          })\n`;
+             message += `💰 *Pagamento no destino (Cobrar: ${totalValue})*\n`;
+             message += `⚠️ Item: ${totalValue} + Corrida.`;
+        }
         }
 
         // CONTATO
