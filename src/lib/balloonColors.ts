@@ -102,6 +102,19 @@ export const SAO_ROQUE_COLORS: Record<string, string> = {
   "verde floresta": "#228B22",
   "verde musgo": "#8A9A5B",
   "vermelho cereja": "#DE3163",
+
+  // Variantes de Grafia (Sem acento)
+  "azul ardosia": "#778899",
+  camurca: "#CFB53B",
+
+  // Metálicos Específicos / Extras
+  "azul metalico": "#1034A6",
+  "vermelho metalico": "#A40000",
+  "pink metalico": "#FF007F",
+  "verde metalico": "#005C29",
+
+  // Especiais
+  sortido: "#AAAAAA", // Cinza neutro representando mix
 };
 
 /**

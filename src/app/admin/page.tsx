@@ -95,7 +95,7 @@ import { SuperAdminZone } from "@/components/admin/SuperAdminZone";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { cn, formatCurrency } from "@/lib/utils";
 
-import { suggestHexColor } from "@/lib/balloonColors";
+import { suggestHexColor, SAO_ROQUE_COLORS } from "@/lib/balloonColors";
 import { OrdersTab } from "@/components/admin/OrdersTab";
 import { AdminLogin } from "@/components/admin/AdminLogin";
 
@@ -910,20 +910,48 @@ export default function AdminPage() {
                           <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                             <div className="flex-1 w-full">
                               <Label className="font-bold text-slate-700">
-                                Nome do Tipo (ex: Simples, Metálico)
+                                Nome do Tipo
                               </Label>
-                              <Input
-                                value={type.name}
-                                onChange={(e) => {
-                                  const newTypes = [...balloonConfig.types];
-                                  newTypes[typeIndex].name = e.target.value;
-                                  setBalloonConfig({
-                                    ...balloonConfig,
-                                    types: newTypes,
-                                  });
-                                }}
-                                className="bg-white mt-2 border-slate-200"
-                              />
+                              <div className="flex gap-3 mt-2">
+                                <Input
+                                  value={type.name}
+                                  onChange={(e) => {
+                                    const newTypes = [...balloonConfig.types];
+                                    newTypes[typeIndex].name = e.target.value;
+                                    setBalloonConfig({
+                                      ...balloonConfig,
+                                      types: newTypes,
+                                    });
+                                  }}
+                                  className="bg-white border-slate-200"
+                                />
+                                <div
+                                  className="flex items-center gap-2 bg-white px-3 border border-slate-200 rounded-md shrink-0"
+                                  title="Ativar/Desativar este tipo no catálogo"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    id={`active-${type.id}`}
+                                    className="w-4 h-4 accent-purple-600 cursor-pointer"
+                                    checked={type.active !== false}
+                                    onChange={(e) => {
+                                      const newTypes = [...balloonConfig.types];
+                                      newTypes[typeIndex].active =
+                                        e.target.checked;
+                                      setBalloonConfig({
+                                        ...balloonConfig,
+                                        types: newTypes,
+                                      });
+                                    }}
+                                  />
+                                  <Label
+                                    htmlFor={`active-${type.id}`}
+                                    className="text-sm font-semibold cursor-pointer select-none"
+                                  >
+                                    Ativo
+                                  </Label>
+                                </div>
+                              </div>
                             </div>
                             <div className="flex gap-1 mt-6">
                               <Button
@@ -957,16 +985,16 @@ export default function AdminPage() {
                           </div>
 
                           <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-2">
-                                <Label className="font-bold text-slate-700">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                                <Label className="font-bold text-slate-700 whitespace-nowrap">
                                   Tamanhos e Preços
                                 </Label>
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   title="Aplicar estes tamanhos a todos os outros modelos"
-                                  className="h-7 px-2 text-[10px] text-purple-600 hover:text-purple-700 hover:bg-purple-50 font-bold"
+                                  className="h-7 px-2 text-[10px] text-purple-600 hover:text-purple-700 hover:bg-purple-50 font-bold shrink-0"
                                   onClick={() =>
                                     handleSyncSizesToAll(typeIndex)
                                   }
@@ -978,7 +1006,7 @@ export default function AdminPage() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="border-purple-200 text-purple-600 font-bold"
+                                className="w-full sm:w-auto border-purple-200 text-purple-600 font-bold shrink-0"
                                 onClick={() => {
                                   const newTypes = [...balloonConfig.types];
                                   newTypes[typeIndex].sizes.push({
@@ -1118,6 +1146,7 @@ export default function AdminPage() {
                               <div className="relative flex-1">
                                 <Input
                                   id={`new-color-input-${typeIndex}`}
+                                  list={`color-suggestions-${typeIndex}`}
                                   placeholder="Nome da cor (ex: Azul Baby)"
                                   className="bg-white border-slate-200"
                                   onKeyDown={(e) => {
@@ -1127,22 +1156,6 @@ export default function AdminPage() {
                                       if (val) {
                                         const suggestedHex =
                                           suggestHexColor(val) || "#CCCCCC";
-                                        // Add color logic (complex because current types are string[])
-                                        // We will store as "Name|Hex" string for backward compatibility or easy migration
-                                        // OR we check if we can update the ID structure.
-                                        // Let's stick to STRING for now but formatted as "Name|Hex" ?
-                                        // No, that's messy.
-                                        // Let's just assume the user wants the INTERFACE to look cool or maybe they want to see the color.
-                                        // OK, let's look at the `type.colors` array. It is `string[]`.
-                                        // I will simply add the string. The "AI" part might be just for show if I can't store Hex?
-                                        // Wait, I can migrate the `string[]` to `Assignment[]`?
-                                        // Let's stick to adding just the NAME for now, but if the user wants Hex, I might need to change the type.
-                                        // Let's try to just add the Name, but use the `suggestHexColor` to show a preview toast?
-                                        // "IA: Sugestão para Azul Baby é #89CFF0"
-                                        // No, that's useless if not saved.
-
-                                        // DECISION: I will upgrade the system to support "Name|Hex" strings in the array.
-                                        // The frontend will parse them.
                                         const combo = `${val}|${suggestedHex}`;
                                         const newTypes = [
                                           ...balloonConfig.types,
@@ -1168,6 +1181,16 @@ export default function AdminPage() {
                                     }
                                   }}
                                 />
+                                <datalist id={`color-suggestions-${typeIndex}`}>
+                                  {Object.keys(SAO_ROQUE_COLORS).map(
+                                    (colorName) => (
+                                      <option
+                                        key={colorName}
+                                        value={colorName}
+                                      />
+                                    )
+                                  )}
+                                </datalist>
                                 <Button
                                   size="sm"
                                   className="absolute right-1 top-1 h-7 bg-purple-600 hover:bg-purple-700 text-xs"

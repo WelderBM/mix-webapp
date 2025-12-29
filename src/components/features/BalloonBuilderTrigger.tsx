@@ -1,14 +1,38 @@
 "use client";
 
-import { PartyPopper, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
+
+// Simple Single Balloon Icon
+const BalloonIcon = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    {/* Body */}
+    <path d="M6 9a6 6 0 1 1 12 0c0 2.5-2 5-6 5s-6-2.5-6-5Z" />
+    {/* Knot */}
+    <path d="M12 14l-1 2h2l-1-2" />
+    {/* String */}
+    <path d="M12 16c0 3-2 5-2 6" />
+    {/* Reflection */}
+    <path d="M14 5a4 4 0 0 0-4 4" />
+  </svg>
+);
 
 export function BalloonBuilderTrigger() {
   return (
     <Link href="/baloes" className="block h-full">
       <div className="relative w-full h-full min-h-[180px] rounded-3xl overflow-hidden shadow-sm cursor-pointer group transition-all hover:shadow-xl hover:scale-[1.02] border border-slate-200 bg-slate-50">
-        <div className="absolute top-[-30%] right-[-10%] w-60 h-60 bg-purple-100 rounded-full opacity-50 blur-3xl animate-pulse" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-40 h-40 bg-pink-100 rounded-full opacity-40 blur-2xl" />
+        <div className="absolute top-[-30%] right-[-10%] w-60 h-60 bg-purple-100 rounded-full opacity-50 blur-3xl animate-pulse group-hover:bg-purple-200 transition-colors" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-40 h-40 bg-pink-100 rounded-full opacity-40 blur-2xl group-hover:bg-pink-200 transition-colors" />
 
         <div className="relative z-10 h-full p-8 flex flex-col justify-between">
           <div>
@@ -34,8 +58,8 @@ export function BalloonBuilderTrigger() {
           </div>
         </div>
 
-        <div className="absolute top-1/2 -translate-y-1/2 right-6 text-slate-200 group-hover:text-slate-300 transition-colors rotate-12">
-          <PartyPopper size={90} strokeWidth={1} />
+        <div className="absolute top-1/2 -translate-y-1/2 right-6 text-slate-200 group-hover:text-purple-200/50 transition-colors rotate-12">
+          <BalloonIcon className="w-[100px] h-[100px]" />
         </div>
       </div>
     </Link>

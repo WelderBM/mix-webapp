@@ -32,6 +32,7 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
   const [activeTab, setActiveTab] = useState("upload");
   const [camStream, setCamStream] = useState<MediaStream | null>(null);
   const [urlInput, setUrlInput] = useState("");
+  const [isMirrored, setIsMirrored] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -65,16 +66,30 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
   };
 
   const startCamera = async () => {
+    // Check for Secure Context feature availability
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast.error(
+        "Câmera indisponível. O acesso à câmera requer uma conexão segura (HTTPS) ou Localhost."
+      );
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
       });
       setCamStream(stream);
+      setIsMirrored(false);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
     } catch (err) {
-      toast.error("Não foi possível acessar a câmera.");
+      console.error(err);
+      toast.error("Erro ao acessar câmera. Verifique as permissões.");
     }
   };
 
@@ -93,8 +108,17 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
 
-      // Mirror if it's front camera (simplified check)
+      if (isMirrored) {
+        ctx?.translate(canvas.width, 0);
+        ctx?.scale(-1, 1);
+      }
+
       ctx?.drawImage(video, 0, 0);
+
+      // Reset transform just in case
+      if (isMirrored) {
+        ctx?.setTransform(1, 0, 0, 1, 0, 0);
+      }
 
       canvas.toBlob(async (blob) => {
         if (blob) {
@@ -103,6 +127,7 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
           });
           await onUpload(file);
           stopCamera();
+          setActiveTab("upload"); // Return to main tab after capture
         }
       }, "image/jpeg");
     }
@@ -121,6 +146,8 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
       onChange("");
     }
   };
+
+  const toggleMirror = () => setIsMirrored((prev) => !prev);
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
@@ -185,7 +212,11 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
         value={activeTab}
         onValueChange={(val) => {
           setActiveTab(val);
-          if (val !== "camera") stopCamera();
+          if (val === "camera") {
+            startCamera();
+          } else {
+            stopCamera();
+          }
         }}
         className="w-full"
       >
@@ -302,9 +333,8 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
           </div>
         </TabsContent>
 
-        {/* Tab: Camera */}
         <TabsContent value="camera" className="mt-4 focus-visible:outline-none">
-          <div className="relative rounded-2xl bg-slate-900 overflow-hidden w-full aspect-[3/4] sm:aspect-video sm:h-80 shadow-2xl flex items-center justify-center">
+          <div className="relative rounded-2xl bg-slate-900 overflow-hidden w-full aspect-[3/4] sm:aspect-video sm:h-80 shadow-2xl flex items-center justify-center group">
             {camStream ? (
               <>
                 <video
@@ -312,66 +342,68 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
                   autoPlay
                   playsInline
                   className="w-full h-full object-cover"
-                  style={{ transform: "scaleX(-1)" }}
+                  style={{ transform: isMirrored ? "scaleX(-1)" : "none" }}
                 />
-                <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 px-3 py-1.5 rounded-full shadow-lg border border-red-500 animate-pulse">
+                <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 px-3 py-1.5 rounded-full shadow-lg border border-red-500 animate-pulse z-10">
                   <div className="w-2 h-2 rounded-full bg-white shadow-inner" />
                   <span className="text-[10px] font-black text-white uppercase tracking-widest">
-                    LIVE
+                    REC
                   </span>
                 </div>
-                <div className="absolute bottom-6 inset-x-0 flex justify-center gap-4 px-4 overflow-hidden">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={stopCamera}
-                    className="h-14 w-14 rounded-full bg-black/40 border-white/20 text-white hover:bg-black/60 backdrop-blur-md shadow-xl active:scale-90 transition-all"
-                  >
-                    <X size={24} />
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={capturePhoto}
-                    className="h-16 w-16 rounded-full bg-white shadow-2xl transition-all active:scale-95 flex items-center justify-center group"
-                  >
-                    <div className="h-12 w-12 rounded-full border-[6px] border-slate-900/10 flex items-center justify-center">
-                      <div className="h-8 w-8 rounded-full bg-slate-900 group-hover:scale-90 transition-transform" />
-                    </div>
-                  </Button>
+
+                {/* Controls Overlay */}
+                <div className="absolute bottom-6 inset-x-0 flex justify-center gap-6 px-4 z-20">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => {
                       stopCamera();
-                      startCamera();
+                      setActiveTab("upload");
                     }}
-                    className="h-14 w-14 rounded-full bg-black/40 border-white/20 text-white hover:bg-black/60 backdrop-blur-md shadow-xl active:scale-90 transition-all"
+                    className="h-12 w-12 rounded-full bg-black/40 border-white/20 text-white hover:bg-black/60 backdrop-blur-md shadow-lg"
+                    title="Cancelar"
                   >
-                    <RotateCcw size={24} />
+                    <X size={20} />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    onClick={capturePhoto}
+                    className="h-16 w-16 rounded-full bg-white shadow-2xl transition-all active:scale-95 flex items-center justify-center relative"
+                  >
+                    <div className="h-14 w-14 rounded-full border-[2px] border-slate-900 flex items-center justify-center">
+                      <div className="h-10 w-10 rounded-full bg-red-500 hover:bg-red-600 transition-colors" />
+                    </div>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={toggleMirror}
+                    className="h-12 w-12 rounded-full bg-black/40 border-white/20 text-white hover:bg-black/60 backdrop-blur-md shadow-lg"
+                    title="Inverter/Espelhar"
+                  >
+                    <div className="flex flex-col items-center">
+                      <RotateCcw
+                        size={16}
+                        className={cn(
+                          "transition-transform",
+                          isMirrored ? "scale-x-[-1]" : ""
+                        )}
+                      />
+                      <span className="text-[8px] mt-0.5 font-bold opacity-70">
+                        FLIP
+                      </span>
+                    </div>
                   </Button>
                 </div>
               </>
             ) : (
-              <div className="text-center p-8 space-y-6 max-w-xs transition-all animate-in zoom-in-95">
-                <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mx-auto border border-white/10 shadow-inner">
-                  <Camera size={40} className="text-white/40" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-white text-lg font-black uppercase tracking-tight">
-                    Câmera em Tempo Real
-                  </p>
-                  <p className="text-slate-400 text-[11px] leading-relaxed">
-                    Capture fotos de alta qualidade diretamente do seu
-                    dispositivo para a vitrine.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  onClick={startCamera}
-                  className="bg-white text-black hover:bg-slate-200 font-black h-12 px-8 rounded-full shadow-xl hover:shadow-white/10 active:scale-95 transition-all"
-                >
-                  Ativar Câmera
-                </Button>
+              <div className="text-center p-8 space-y-4 max-w-xs flex flex-col items-center animate-in zoom-in-95">
+                <Loader2 className="animate-spin text-purple-500" size={32} />
+                <p className="text-white font-bold text-sm">
+                  Iniciando câmera...
+                </p>
               </div>
             )}
             <canvas ref={canvasRef} className="hidden" />
