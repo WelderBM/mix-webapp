@@ -4,29 +4,41 @@ import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-// Set of Balloons Icon
+// Stylized Balloons Icon matching user reference
 const BalloonIcon = ({ className }: { className?: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="1"
+    strokeWidth="1.5"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
   >
-    {/* Balloon 1 (Center Top) */}
-    <path d="M12 2C9.5 2 7.5 4.5 7.5 7.5c0 2.5 2 4.5 2 6 .5 1.5 2.5 2 2.5 2s2-.5 2.5-2c0-1.5 2-3.5 2-6C16.5 4.5 14.5 2 12 2Z" />
-    <path d="M12 15.5v8.5" />
-
-    {/* Balloon 2 (Left) */}
-    <path d="M7 4C5 4 3.5 6 3.5 8c0 1.5 1 3 1.5 4 .5.5 1 1.5 2 1.5.5 1 .5 2 .5 2s1.5-1 2-2c0-1.5 1.5-3 1.5-5.5C11 5.5 9 4 7 4Z" />
-    <path d="M7.5 15.5 C7.5 18 9 20 12 24" />
-
-    {/* Balloon 3 (Right) */}
-    <path d="M17 4c2 0 3.5 2 3.5 4 0 1.5-1 3-1.5 4-.5.5-1 1.5-2 1.5-.5 1-.5 2-.5 2s-1.5-1-2-2c0-1.5-1.5-3-1.5-5.5 0-2.5 2-4 4-4Z" />
-    <path d="M16.5 15.5 C16.5 18 15 20 12 24" />
+    {/* Left Balloon */}
+    <path d="M8 13.5a3.5 3.5 0 1 1 1-6.8 3.5 3.5 0 0 1-1 6.8Z" />
+    <path d="M8 13.5l-1 2h2l-1-2" /> {/* Knot */}
+    <path d="M6 9a2 2 0 0 1 1.5-1.5" /> {/* Reflection */}
+    {/* Center Top Balloon */}
+    <path d="M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
+    <path d="M12 12l-1 1.5h2L12 12" /> {/* Knot */}
+    <path d="M10.5 6A2.5 2.5 0 0 1 13 5" /> {/* Reflection */}
+    {/* Right Balloon */}
+    <path d="M16 13.5a3.5 3.5 0 1 0 1-6.8 3.5 3.5 0 0 0-1 6.8Z" />
+    <path d="M17 13.5l-1 2h2l-1-2" /> {/* Knot */}
+    <path d="M18.5 9a2 2 0 0 0-1.5-1.5" /> {/* Reflection */}
+    {/* Strings */}
+    <path d="M8 15.5c0 2-1 4.5-2 6" />
+    <path d="M12 13.5c0 2 0 5 0 8.5" />
+    <path d="M17 15.5c0 2 1 4.5 2 6" />
+    {/* Decorations (Confetti/Sparkles) */}
+    <path d="M4 5l2 2m-2 0l2-2" /> {/* Top Left Cross */}
+    <path d="M20 5l2 2m-2 0l2-2" /> {/* Top Right Cross */}
+    <path d="M4 18l1.5 1.5m-1.5 0l1.5-1.5" /> {/* Bottom Left Cross */}
+    <circle cx="20" cy="18" r="0.5" fill="currentColor" /> {/* Dot */}
+    <circle cx="2" cy="10" r="0.5" fill="currentColor" /> {/* Dot */}
+    <path d="M15 3l1 1" /> {/* Dash */}
   </svg>
 );
 
