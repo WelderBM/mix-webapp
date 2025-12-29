@@ -237,14 +237,18 @@ export function CartSidebar() {
       };
 
       const cleanOrderData = JSON.parse(JSON.stringify(orderData));
-      await addDoc(collection(db, "orders"), cleanOrderData);
+      const docRef = await addDoc(collection(db, "orders"), cleanOrderData);
+
+      // Salva o ID do pedido para rastreamento automático
+      localStorage.setItem("lastOrderId", docRef.id);
 
       // --- WhatsApp Message Construction ---
       const totalValue = formatCurrency(getCartTotal());
       let message = "";
 
       // === PARTE 1: MENSAGEM PARA A ATENDENTE (DETALHADA) ===
-      message += `�️ *NOVO PEDIDO - MIX NOVIDADES*\n`;
+      message += `️ *NOVO PEDIDO - MIX NOVIDADES*\n`;
+      message += `🆔 *ID:* ${docRef.id.slice(0, 8).toUpperCase()}\n`;
       message += `👤 *Cliente:* ${customerName}\n`;
       message += `📞 *Telefone:* ${customerPhone}\n\n`;
 
@@ -288,6 +292,10 @@ export function CartSidebar() {
       } else {
         message += `\n📍 *Retirada na Loja*`;
       }
+
+      // Adiciona link de rastreamento
+      const trackingUrl = `${window.location.origin}/meu-pedido`;
+      message += `\n\n🔍 *Acompanhe seu pedido em:* ${trackingUrl}`;
 
       const phoneNumber =
         process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5595984244194";
