@@ -469,15 +469,15 @@ export default function AdminPage() {
             <h1 className="text-2xl font-bold">Painel Mix Novidades</h1>
             <p className="text-xs text-slate-500">Gestão simplificada</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-center md:justify-end">
             <Button
               onClick={saveAllSettings}
-              className="bg-green-600 hover:bg-green-700 text-white gap-2"
+              className="bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 md:flex-none"
             >
               <Save size={18} /> Salvar Configurações
             </Button>
-            <Link href="/" target="_blank">
-              <Button variant="outline">
+            <Link href="/" target="_blank" className="flex-1 md:flex-none">
+              <Button variant="outline" className="w-full">
                 <Eye size={18} className="mr-2" /> Ver Loja
               </Button>
             </Link>
@@ -537,29 +537,17 @@ export default function AdminPage() {
           <OrdersTab />
         ) : (
           <Tabs defaultValue="products">
-            <TabsList className="bg-white p-1 rounded-lg border w-full md:w-auto flex flex-wrap">
-              <TabsTrigger
-                value="products"
-                className="gap-2 flex-1 md:flex-none"
-              >
+            <TabsList className="bg-white p-1 rounded-lg border w-full md:w-auto grid grid-cols-2 md:inline-flex h-auto">
+              <TabsTrigger value="products" className="gap-2">
                 <Package size={16} /> Produtos
               </TabsTrigger>
-              <TabsTrigger
-                value="sections"
-                className="gap-2 flex-1 md:flex-none"
-              >
+              <TabsTrigger value="sections" className="gap-2">
                 <Layout size={16} /> Vitrine
               </TabsTrigger>
-              <TabsTrigger
-                value="balloons"
-                className="gap-2 flex-1 md:flex-none"
-              >
+              <TabsTrigger value="balloons" className="gap-2">
                 <PartyPopper size={16} /> Balões
               </TabsTrigger>
-              <TabsTrigger
-                value="ribbons"
-                className="gap-2 flex-1 md:flex-none"
-              >
+              <TabsTrigger value="ribbons" className="gap-2">
                 <Scissors size={16} /> Fitas
               </TabsTrigger>
             </TabsList>
