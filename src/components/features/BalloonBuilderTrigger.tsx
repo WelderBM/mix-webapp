@@ -4,7 +4,7 @@ import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-// Custom Balloon Icon since Lucide doesn't have one
+// Set of Balloons Icon
 const BalloonIcon = ({ className }: { className?: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -16,9 +16,17 @@ const BalloonIcon = ({ className }: { className?: string }) => (
     strokeLinejoin="round"
     className={className}
   >
-    <path d="M12 2C7.58 2 4 5.42 4 9.5c0 2.65 1.5 5.06 4 6.44V20a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-4.06c2.5-1.38 4-3.79 4-6.44C20 5.42 16.42 2 12 2Z" />
-    <path d="M10 22h4" />
-    <path d="M10 14a3 3 0 0 1-2.8-2" />
+    {/* Balloon 1 (Center Top) */}
+    <path d="M12 2C9.5 2 7.5 4.5 7.5 7.5c0 2.5 2 4.5 2 6 .5 1.5 2.5 2 2.5] 2s2-.5 2.5-2c0-1.5 2-3.5 2-6C16.5 4.5 14.5 2 12 2Z" />
+    <path d="M12 15.5v8.5" />
+
+    {/* Balloon 2 (Left) */}
+    <path d="M7 4C5 4 3.5 6 3.5 8c0 1.5 1 3 1.5 4 .5.5 1 1.5 2 1.5.5 1 .5 2 .5 2s1.5-1 2-2c0-1.5 1.5-3 1.5-5.5C11 5.5 9 4 7 4Z" />
+    <path d="M7.5 15.5 C7.5 18 9 20 12 24" />
+
+    {/* Balloon 3 (Right) */}
+    <path d="M17 4c2 0 3.5 2 3.5 4 0 1.5-1 3-1.5 4-.5.5-1 1.5-2 1.5-.5 1-.5 2-.5 2s-1.5-1-2-2c0-1.5-1.5-3-1.5-5.5 0-2.5 2-4 4-4Z" />
+    <path d="M16.5 15.5 C16.5 18 15 20 12 24" />
   </svg>
 );
 
