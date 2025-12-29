@@ -95,6 +95,7 @@ import { SuperAdminZone } from "@/components/admin/SuperAdminZone";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { cn, formatCurrency } from "@/lib/utils";
 
+import { suggestHexColor } from "@/lib/balloonColors";
 import { OrdersTab } from "@/components/admin/OrdersTab";
 import { AdminLogin } from "@/components/admin/AdminLogin";
 
@@ -610,7 +611,7 @@ export default function AdminPage() {
                   </Button>
                 </div>
 
-                <div className="border rounded-lg overflow-hidden">
+                <div className="border rounded-lg overflow-hidden overflow-x-auto">
                   <Table>
                     <TableHeader className="bg-slate-50">
                       <TableRow>
@@ -744,7 +745,7 @@ export default function AdminPage() {
                   {settings.homeSections?.map((section, index) => (
                     <div
                       key={section.id}
-                      className="flex items-center gap-4 p-4 bg-slate-50 border rounded-lg group"
+                      className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-slate-50 border rounded-lg group"
                     >
                       <div className="flex flex-col gap-1 text-slate-400">
                         <button
@@ -765,12 +766,60 @@ export default function AdminPage() {
                         </button>
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-bold text-slate-800">
-                          {section.title}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-slate-800">
+                            {section.title}
+                          </h3>
+                          {!section.isActive && (
+                            <Badge variant="outline" className="text-xs">
+                              Inativo
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-slate-500">{section.type}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-end w-full sm:w-auto gap-2 border-t sm:border-t-0 pt-2 sm:pt-0 mt-2 sm:mt-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Alternar Visibilidade"
+                          onClick={() => {
+                            const updated = {
+                              ...section,
+                              isActive: !section.isActive,
+                            };
+                            // Create new array with updated item
+                            const newSections = settings.homeSections!.map(
+                              (s) => (s.id === section.id ? updated : s)
+                            );
+                            setSettings({
+                              ...settings,
+                              homeSections: newSections,
+                            });
+                          }}
+                          className={cn(
+                            "hover:bg-slate-100",
+                            !section.isActive && "text-slate-400"
+                          )}
+                        >
+                          {section.isActive ? (
+                            <Eye size={16} />
+                          ) : (
+                            <Eye className="text-slate-300" size={16} />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setEditingSection(section);
+                            setSelectedTemplate(section.type);
+                            setIsSectionModalOpen(true);
+                          }}
+                          className="text-blue-500 hover:bg-blue-50"
+                        >
+                          <Pencil size={16} />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -1040,7 +1089,7 @@ export default function AdminPage() {
                           <div className="space-y-3">
                             <div className="flex items-center justify-between">
                               <Label className="font-bold text-slate-700">
-                                Cores Disponíveis (separadas por vírgula)
+                                Cores Disponíveis
                               </Label>
                               <Button
                                 variant="ghost"
@@ -1053,22 +1102,142 @@ export default function AdminPage() {
                                 Todos
                               </Button>
                             </div>
-                            <Input
-                              value={type.colors.join(", ")}
-                              placeholder="Vermelho, Azul, Dourado..."
-                              onChange={(e) => {
-                                const newTypes = [...balloonConfig.types];
-                                newTypes[typeIndex].colors = e.target.value
-                                  .split(",")
-                                  .map((s) => s.trim())
-                                  .filter((s) => s !== "");
-                                setBalloonConfig({
-                                  ...balloonConfig,
-                                  types: newTypes,
-                                });
-                              }}
-                              className="bg-white border-slate-200"
-                            />
+
+                            <p className="text-xs text-slate-500 mb-2">
+                              Digite o nome da cor e Add. O sistema sugere o Hex
+                              aproximado da São Roque.
+                            </p>
+
+                            <div className="flex gap-2">
+                              <div className="relative flex-1">
+                                <Input
+                                  id={`new-color-input-${typeIndex}`}
+                                  placeholder="Nome da cor (ex: Azul Baby)"
+                                  className="bg-white border-slate-200"
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      const val = e.currentTarget.value.trim();
+                                      if (val) {
+                                        const suggestedHex =
+                                          suggestHexColor(val) || "#CCCCCC";
+                                        // Add color logic (complex because current types are string[])
+                                        // We will store as "Name|Hex" string for backward compatibility or easy migration
+                                        // OR we check if we can update the ID structure.
+                                        // Let's stick to STRING for now but formatted as "Name|Hex" ?
+                                        // No, that's messy.
+                                        // Let's just assume the user wants the INTERFACE to look cool or maybe they want to see the color.
+                                        // OK, let's look at the `type.colors` array. It is `string[]`.
+                                        // I will simply add the string. The "AI" part might be just for show if I can't store Hex?
+                                        // Wait, I can migrate the `string[]` to `Assignment[]`?
+                                        // Let's stick to adding just the NAME for now, but if the user wants Hex, I might need to change the type.
+                                        // Let's try to just add the Name, but use the `suggestHexColor` to show a preview toast?
+                                        // "IA: Sugestão para Azul Baby é #89CFF0"
+                                        // No, that's useless if not saved.
+
+                                        // DECISION: I will upgrade the system to support "Name|Hex" strings in the array.
+                                        // The frontend will parse them.
+                                        const combo = `${val}|${suggestedHex}`;
+                                        const newTypes = [
+                                          ...balloonConfig.types,
+                                        ];
+                                        // Avoid duplicates
+                                        if (
+                                          !newTypes[typeIndex].colors.some(
+                                            (c) =>
+                                              c.split("|")[0].toLowerCase() ===
+                                              val.toLowerCase()
+                                          )
+                                        ) {
+                                          newTypes[typeIndex].colors.push(
+                                            combo
+                                          );
+                                          setBalloonConfig({
+                                            ...balloonConfig,
+                                            types: newTypes,
+                                          });
+                                          e.currentTarget.value = "";
+                                        }
+                                      }
+                                    }
+                                  }}
+                                />
+                                <Button
+                                  size="sm"
+                                  className="absolute right-1 top-1 h-7 bg-purple-600 hover:bg-purple-700 text-xs"
+                                  onClick={() => {
+                                    const input = document.getElementById(
+                                      `new-color-input-${typeIndex}`
+                                    ) as HTMLInputElement;
+                                    if (input && input.value.trim()) {
+                                      const val = input.value.trim();
+                                      const suggestedHex =
+                                        suggestHexColor(val) || "#CCCCCC";
+                                      const combo = `${val}|${suggestedHex}`;
+                                      const newTypes = [...balloonConfig.types];
+                                      if (
+                                        !newTypes[typeIndex].colors.some(
+                                          (c) =>
+                                            c.split("|")[0].toLowerCase() ===
+                                            val.toLowerCase()
+                                        )
+                                      ) {
+                                        newTypes[typeIndex].colors.push(combo);
+                                        setBalloonConfig({
+                                          ...balloonConfig,
+                                          types: newTypes,
+                                        });
+                                        input.value = "";
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <Plus size={14} />
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              {type.colors.map((c, idx) => {
+                                // Retro-compatibility handling
+                                const [name, hex] = c.includes("|")
+                                  ? c.split("|")
+                                  : [c, suggestHexColor(c) || "#eee"];
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="flex items-center gap-2 bg-white border border-slate-200 rounded-full pl-1 pr-2 py-1 shadow-sm"
+                                  >
+                                    <div
+                                      className="w-4 h-4 rounded-full border border-slate-300 shadow-inner"
+                                      style={{ backgroundColor: hex }}
+                                      title={hex}
+                                    />
+                                    <span className="text-xs font-bold text-slate-700">
+                                      {name}
+                                    </span>
+                                    <button
+                                      onClick={() => {
+                                        const newTypes = [
+                                          ...balloonConfig.types,
+                                        ];
+                                        newTypes[typeIndex].colors = newTypes[
+                                          typeIndex
+                                        ].colors.filter((_, i) => i !== idx);
+                                        setBalloonConfig({
+                                          ...balloonConfig,
+                                          types: newTypes,
+                                        });
+                                      }}
+                                      className="text-slate-400 hover:text-red-500 ml-1"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       ))}
