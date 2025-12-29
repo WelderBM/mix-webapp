@@ -322,9 +322,6 @@ export function BalloonBuilder() {
                             <span className="text-xl font-black text-slate-800 group-hover:scale-110 transition-transform">
                               {size.size}"
                             </span>
-                            <span className="text-xs font-bold text-slate-500">
-                              {size.name || "Padrão"}
-                            </span>
                             <span className="text-sm font-bold text-purple-600 mt-1">
                               {formatCurrency(size.price)}
                             </span>
