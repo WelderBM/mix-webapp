@@ -98,6 +98,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { suggestHexColor, SAO_ROQUE_COLORS } from "@/lib/balloonColors";
 import { OrdersTab } from "@/components/admin/OrdersTab";
 import { AdminLogin } from "@/components/admin/AdminLogin";
+import { NaturaTab } from "@/components/admin/NaturaTab";
 
 export default function AdminPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -551,6 +552,12 @@ export default function AdminPage() {
               <TabsTrigger value="ribbons" className="gap-2">
                 <Scissors size={16} /> Fitas
               </TabsTrigger>
+              <TabsTrigger
+                value="natura"
+                className="gap-2 text-green-700 data-[state=active]:bg-green-50 data-[state=active]:text-green-800"
+              >
+                <Leaf size={16} /> Natura
+              </TabsTrigger>
             </TabsList>
 
             {/* === ABA PRODUTOS === */}
@@ -710,6 +717,11 @@ export default function AdminPage() {
                   </Table>
                 </div>
               </div>
+            </TabsContent>
+
+            {/* === ABA NATURA === */}
+            <TabsContent value="natura">
+              <NaturaTab allProducts={allProducts} />
             </TabsContent>
 
             {/* === ABA VITRINE === */}

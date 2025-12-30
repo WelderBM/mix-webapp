@@ -98,7 +98,14 @@ export default function RootLayout({
 
           <ConditionalFooter />
           <CartSidebar />
-          <Toaster richColors position="top-center" />
+          <Toaster
+            richColors
+            position="top-center"
+            duration={2000}
+            closeButton
+            expand={false}
+            visibleToasts={3}
+          />
           <OrganizationJsonLd />
         </ThemeProvider>
       </body>
