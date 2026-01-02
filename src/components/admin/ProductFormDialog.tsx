@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   Product,
   ProductType,
+  ProductImage,
   RibbonInventory,
   RibbonRollStatus,
 } from "@/types/product";
