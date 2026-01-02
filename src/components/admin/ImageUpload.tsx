@@ -156,7 +156,7 @@ export function ImageUpload({
           const file = new File([blob], `capture-${Date.now()}.jpg`, {
             type: "image/jpeg",
           });
-          await onUpload(file);
+          await onUpload([file]);
           stopCamera();
           setActiveTab("upload"); // Return to main tab after capture
         }
