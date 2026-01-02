@@ -81,15 +81,16 @@ describe("BalloonBuilder", () => {
 
     render(<BalloonBuilder />);
 
-    // Wait for loading to finish
+    // Wait for loading to finish and check for Step 0 title
     await waitFor(() => {
-      expect(screen.getByText("Escolha o Tipo e Tamanho")).toBeTruthy();
+      expect(screen.getByText("Escolha o Tipo de Balão")).toBeTruthy();
     });
 
-    // Check if "Liso" is rendered
+    // Check if "Liso" type is rendered
     expect(screen.getByText("Liso")).toBeTruthy();
-    // Check if size option is there
-    expect(screen.getByText('9"')).toBeTruthy();
+
+    // Size should NOT be visible yet
+    expect(screen.queryByText('9"')).toBeNull();
   });
 
   it("should allow selecting a size and transitioning to step 2", async () => {
@@ -114,18 +115,19 @@ describe("BalloonBuilder", () => {
 
     render(<BalloonBuilder />);
 
+    // Wait for Types to load
+    await waitFor(() => screen.getByText("Liso"));
+
+    // 1. Select Type
+    fireEvent.click(screen.getByText("Liso"));
+
+    // 2. Wait for Size selection
     await waitFor(() => screen.getByText('9"'));
 
-    // Click on size
+    // 3. Click on size (should auto-transition to next step)
     fireEvent.click(screen.getByText('9"'));
 
-    // Click "Escolher Cor"
-    const nextButton = screen.getByText("Escolher Cor") as HTMLButtonElement;
-    expect(nextButton.disabled).toBe(false);
-
-    fireEvent.click(nextButton);
-
-    // Should see Step 2 title
+    // Should see Step 2 title (Color selection)
     await waitFor(() => {
       expect(screen.getByText("Escolha a Cor")).toBeTruthy();
     });

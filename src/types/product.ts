@@ -26,6 +26,13 @@ export interface ProductVariant {
   imageUrl?: string;
 }
 
+export interface ProductImage {
+  id: string;
+  url: string;
+  isCover: boolean;
+  label?: string; // e.g., "Versão Azul", "Vista Lateral"
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -35,7 +42,8 @@ export interface Product {
   originalPrice?: number;
   type: ProductType;
   category: string;
-  imageUrl?: string;
+  images?: ProductImage[]; // New support for multiple images
+  imageUrl?: string; // Legacy support (computed from Cover)
   unit: Unit;
   inStock: boolean;
   disabled: boolean;

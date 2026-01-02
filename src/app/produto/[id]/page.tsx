@@ -23,6 +23,8 @@ export default function ProductPage() {
   const { id } = useParams();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
   const { addItem, openCart } = useCartStore();
 
   useEffect(() => {
@@ -32,7 +34,19 @@ export default function ProductPage() {
         const docRef = doc(db, "products", id as string);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setProduct({ id: docSnap.id, ...docSnap.data() } as Product);
+          const productData = { id: docSnap.id, ...docSnap.data() } as Product;
+          setProduct(productData);
+
+          // Set initial image from images array (Cover) or fallback to imageUrl
+          if (productData.images && productData.images.length > 0) {
+            const cover =
+              productData.images.find((img) => img.isCover) ||
+              productData.images[0];
+            setSelectedImage(cover.url);
+            setSelectedLabel(cover.label || null);
+          } else {
+            setSelectedImage(productData.imageUrl || null);
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar produto", error);
@@ -43,6 +57,11 @@ export default function ProductPage() {
     fetchProduct();
   }, [id]);
 
+  const handleImageSelect = (url: string, label?: string) => {
+    setSelectedImage(url);
+    setSelectedLabel(label || null);
+  };
+
   const handleAddToCart = () => {
     if (!product) return;
     const item: CartItem = {
@@ -50,6 +69,7 @@ export default function ProductPage() {
       type: "SIMPLE",
       quantity: 1,
       product: product,
+      // Note: We might want to pass the selected variation info here in the future
     };
     addItem(item);
     openCart();
@@ -86,19 +106,52 @@ export default function ProductPage() {
         </Link>
 
         <div className="bg-white rounded-3xl shadow-sm border overflow-hidden flex flex-col md:flex-row">
-          {/* IMAGEM */}
-          <div className="md:w-1/2 bg-slate-100 relative min-h-[400px]">
-            {product.imageUrl ? (
-              <SafeImage
-                src={product.imageUrl}
-                alt={product.name}
-                name={product.name}
-                fill
-                className="object-cover"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-slate-300">
-                <Package size={80} />
+          {/* IMAGEM E GALERIA */}
+          <div className="md:w-1/2 bg-slate-100 flex flex-col">
+            <div className="relative min-h-[400px] flex-1">
+              {selectedImage ? (
+                <SafeImage
+                  src={selectedImage}
+                  alt={selectedLabel || product.name}
+                  name={product.name}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-slate-300">
+                  <Package size={80} />
+                </div>
+              )}
+
+              {/* Image Label Overlay if present */}
+              {selectedLabel && (
+                <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm backdrop-blur-sm">
+                  {selectedLabel}
+                </div>
+              )}
+            </div>
+
+            {/* THUMBNAILS GALLERY */}
+            {product.images && product.images.length > 1 && (
+              <div className="flex gap-2 p-4 overflow-x-auto bg-white border-t">
+                {product.images.map((img) => (
+                  <button
+                    key={img.id}
+                    onClick={() => handleImageSelect(img.url, img.label)}
+                    className={`relative w-20 h-20 shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
+                      selectedImage === img.url
+                        ? "border-purple-600 ring-2 ring-purple-100"
+                        : "border-slate-100 opacity-70 hover:opacity-100"
+                    }`}
+                  >
+                    <SafeImage
+                      src={img.url}
+                      alt={img.label || product.name}
+                      fill
+                      className="object-cover"
+                    />
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -112,6 +165,11 @@ export default function ProductPage() {
               <h1 className="text-3xl md:text-4xl font-bold text-slate-900 leading-tight">
                 {product.name}
               </h1>
+              {selectedLabel && (
+                <span className="text-slate-500 text-lg font-medium mt-1 block">
+                  {selectedLabel}
+                </span>
+              )}
             </div>
 
             <div className="text-3xl font-bold text-purple-600 mt-4">
