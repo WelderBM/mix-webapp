@@ -122,10 +122,10 @@ describe("BalloonBuilder", () => {
     fireEvent.click(screen.getByText("Liso"));
 
     // 2. Wait for Size selection
-    await waitFor(() => screen.getByText('9"'));
+    await waitFor(() => screen.getByText(/9"/));
 
     // 3. Click on size (should auto-transition to next step)
-    fireEvent.click(screen.getByText('9"'));
+    fireEvent.click(screen.getByText(/9"/));
 
     // Should see Step 2 title (Color selection)
     await waitFor(() => {
