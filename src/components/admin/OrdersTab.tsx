@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   collection,
   onSnapshot,
@@ -283,9 +283,8 @@ Forma de Pagto: ${
           </TableHeader>
           <TableBody>
             {paginatedOrders.map((order) => (
-              <>
+              <React.Fragment key={order.id}>
                 <TableRow
-                  key={order.id}
                   className="cursor-pointer hover:bg-slate-50 transition-colors"
                   onClick={() => toggleExpand(order.id)}
                 >
@@ -475,7 +474,7 @@ Forma de Pagto: ${
                     </TableCell>
                   </TableRow>
                 )}
-              </>
+              </React.Fragment>
             ))}
           </TableBody>
         </Table>

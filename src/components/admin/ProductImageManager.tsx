@@ -18,14 +18,20 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
   onChange,
   disabled,
 }) => {
-  const handleAddImage = (url: string) => {
-    const newImage: ProductImage = {
+  const handleAddImages = (urls: string[]) => {
+    const newImagesList = urls.map((url) => ({
       id: crypto.randomUUID(),
       url,
-      isCover: images.length === 0, // First image is cover by default
+      isCover: false,
       label: "",
-    };
-    onChange([...images, newImage]);
+    }));
+
+    // If list was empty, set first new image as cover
+    if (images.length === 0 && newImagesList.length > 0) {
+      newImagesList[0].isCover = true;
+    }
+
+    onChange([...images, ...newImagesList]);
   };
 
   const handleDelete = (id: string) => {
@@ -134,8 +140,10 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
         </Label>
         <ImageUpload
           value="" // Always empty to allow new uploads
-          onChange={handleAddImage}
+          onChange={() => {}} // Ignored when multiple=true
+          onUploadComplete={handleAddImages}
           disabled={disabled}
+          multiple={true}
         />
       </div>
     </div>
