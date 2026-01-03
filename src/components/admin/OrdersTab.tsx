@@ -97,28 +97,45 @@ export function OrdersTab() {
   };
 
   const copyDeliveryInfo = (order: Order) => {
-    const text = `🛵 *PEDIDO DE ENTREGA - MIX NOVIDADES*
-    
-📍 *RETIRADA (Nossa Loja):*
+    // Definir a instrução de pagamento com base no método e destino
+    let paymentInstruction = "";
+
+    if (order.paymentMethod === "pix") {
+      // Se tiver a info save no pedido, usa ela, senão infere (assumindo Loja se não especificado ou se tiver pago)
+      // Como o Order type local pode não ter 'pixPaymentDestination', checamos se existe no objeto (any cast se precisar ou apenas lógica)
+      const isCarrier = (order as any).pixPaymentDestination === "carrier";
+
+      if (isCarrier) {
+        paymentInstruction =
+          "Pagamento via PIX para o Motoboy (Cobrar Valor + Entrega)";
+      } else {
+        paymentInstruction =
+          "Pagamento feito para a loja, receber o valor da entrega apenas";
+      }
+    } else if (order.paymentMethod === "cash") {
+      paymentInstruction = "Dinheiro (Cobrar Valor do Pedido + Entrega)";
+    } else {
+      paymentInstruction = "Cartão (Levar Maquininha)";
+    }
+
+    const text = `Local de Retirada (Nossa Loja):
 Rua Pedro Aldemar Bantim, 945
 Bairro Doutor Sílvio Botelho
 
-⬇️ *LEVAR PARA (Cliente):*
-👤 ${order.customerName}
-📍 ${order.address || "Endereço não informado"}
-📞 ${order.customerPhone}
+Destino (Cliente):
+${order.customerName}
+${order.address || "Endereço não informado"}
+Telefone: ${order.customerPhone}
 
-💰 *VALORES:*
-Valor do Pedido: ${formatCurrency(order.total)}
-Forma de Pagto: ${
+Forma de Pagamento: ${
       order.paymentMethod === "pix"
-        ? "PIX (Já pago)"
+        ? "PIX"
         : order.paymentMethod === "cash"
-        ? "Dinheiro (Cobrar)"
-        : "Cartão (Levar Maquininha)"
+        ? "Dinheiro"
+        : "Cartão"
     }
+${paymentInstruction}`;
 
-⚠️ *Obs:* Cuidado com os produtos frágeis!`;
     navigator.clipboard.writeText(text);
     toast.success("Texto copiado! Pronto para enviar.");
   };
@@ -389,13 +406,13 @@ Forma de Pagto: ${
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 px-2 text-xs gap-1"
+                        className="h-7 px-2 text-xs gap-1 bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100"
                         onClick={(e) => {
                           e.stopPropagation();
                           copyDeliveryInfo(order);
                         }}
                       >
-                        <Copy size={12} /> Moto
+                        <Copy size={12} /> Copiar Moto
                       </Button>
                     )}
                   </TableCell>
@@ -455,12 +472,22 @@ Forma de Pagto: ${
                               variant="secondary"
                               className="w-full gap-2 text-xs"
                               onClick={() => {
-                                const text = `Olá ${
-                                  order.customerName
-                                }, sobre seu pedido #${order.id.slice(
-                                  0,
-                                  5
-                                )}...`;
+                                const firstName =
+                                  order.customerName.split(" ")[0];
+                                const firstItem = order.items[0];
+                                const firstItemName =
+                                  firstItem.product?.name ||
+                                  firstItem.kitName ||
+                                  "Produto";
+                                const otherItemsCount = order.items.length - 1;
+
+                                let itemsText = firstItemName;
+                                if (otherItemsCount > 0) {
+                                  itemsText += ` e mais ${otherItemsCount} item(s)`;
+                                }
+
+                                const text = `Olá, ${firstName}, tudo bem? Sobre seu pedido de ${itemsText} na Mix Novidades...`;
+
                                 window.open(
                                   `https://wa.me/55${order.customerPhone?.replace(
                                     /\D/g,
@@ -616,13 +643,13 @@ Forma de Pagto: ${
                         <Button
                           size="sm"
                           variant="outline"
-                          className="w-full gap-2 bg-white border-slate-300 text-slate-700"
+                          className="w-full gap-2 bg-white border-slate-300 text-slate-700 hover:bg-slate-50 font-medium"
                           onClick={(e) => {
                             e.stopPropagation();
                             copyDeliveryInfo(order);
                           }}
                         >
-                          <Copy size={14} /> Copiar Info
+                          <Copy size={14} /> Copiar p/ Motoboy
                         </Button>
                       ) : (
                         // Placeholder vazio caso não seja entrega, ou botão alternativo
@@ -639,9 +666,22 @@ Forma de Pagto: ${
                         variant="secondary"
                         onClick={(e) => {
                           e.stopPropagation();
-                          const text = `Olá ${
-                            order.customerName
-                          }, sobre seu pedido #${order.id.slice(0, 5)}...`;
+
+                          const firstName = order.customerName.split(" ")[0];
+                          const firstItem = order.items[0];
+                          const firstItemName =
+                            firstItem.product?.name ||
+                            firstItem.kitName ||
+                            "Produto";
+                          const otherItemsCount = order.items.length - 1;
+
+                          let itemsText = firstItemName;
+                          if (otherItemsCount > 0) {
+                            itemsText += ` e mais ${otherItemsCount} item(s)`;
+                          }
+
+                          const text = `Olá, ${firstName}, tudo bem? Sobre seu pedido de ${itemsText} na Mix Novidades...`;
+
                           window.open(
                             `https://wa.me/55${order.customerPhone?.replace(
                               /\D/g,
