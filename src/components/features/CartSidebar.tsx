@@ -480,6 +480,54 @@ export function CartSidebar() {
                     maxLength={15}
                   />
                 </div>
+                <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                  <Label className="text-blue-800">
+                    Para quem você vai realizar o pagamento?
+                  </Label>
+                  <RadioGroup
+                    value={pixPaymentDestination}
+                    onValueChange={(v: "store" | "carrier") => {
+                      setPixPaymentDestination(v);
+                      // Se selecionar Moto Taxi e estiver em Cartão, muda para PIX.
+                      // Se estiver em Dinheiro, mantém.
+                      if (
+                        v === "carrier" &&
+                        paymentMethod !== "cash" &&
+                        paymentMethod !== "pix"
+                      ) {
+                        setPaymentMethod("pix");
+                      }
+                    }}
+                    className="flex flex-col gap-2 mt-1"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="store"
+                        id="pay-store"
+                        className="text-blue-600 border-blue-400"
+                      />
+                      <Label
+                        htmlFor="pay-store"
+                        className="font-normal cursor-pointer"
+                      >
+                        Pagar para a <b>Loja</b> (Chave da Loja)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem
+                        value="carrier"
+                        id="pay-carrier"
+                        className="text-blue-600 border-blue-400"
+                      />
+                      <Label
+                        htmlFor="pay-carrier"
+                        className="font-normal cursor-pointer"
+                      >
+                        Pagar para o <b>Moto Táxi</b> (Na entrega)
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
                 <div className="space-y-2">
                   <Label>Forma de Pagamento</Label>
                   <Select
@@ -491,57 +539,27 @@ export function CartSidebar() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="pix">💠 PIX</SelectItem>
-                      <SelectItem value="credit_card">
+                      <SelectItem
+                        value="credit_card"
+                        disabled={pixPaymentDestination === "carrier"}
+                      >
                         💳 Cartão de Crédito
                       </SelectItem>
-                      <SelectItem value="debit_card">
+                      <SelectItem
+                        value="debit_card"
+                        disabled={pixPaymentDestination === "carrier"}
+                      >
                         💳 Cartão de Débito
                       </SelectItem>
                       <SelectItem value="cash">💵 Dinheiro</SelectItem>
                     </SelectContent>
                   </Select>
+                  {pixPaymentDestination === "carrier" && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      * Moto Táxi aceita apenas <b>PIX</b> ou <b>Dinheiro</b>.
+                    </p>
+                  )}
                 </div>
-                {paymentMethod === "pix" && (
-                  <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                    <Label className="text-blue-800">
-                      Para quem você vai fazer o PIX?
-                    </Label>
-                    <RadioGroup
-                      value={pixPaymentDestination}
-                      onValueChange={(v: "store" | "carrier") =>
-                        setPixPaymentDestination(v)
-                      }
-                      className="flex flex-col gap-2 mt-1"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="store"
-                          id="pay-store"
-                          className="text-blue-600 border-blue-400"
-                        />
-                        <Label
-                          htmlFor="pay-store"
-                          className="font-normal cursor-pointer"
-                        >
-                          Pagar para a <b>Loja</b> (Chave da Loja)
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="carrier"
-                          id="pay-carrier"
-                          className="text-blue-600 border-blue-400"
-                        />
-                        <Label
-                          htmlFor="pay-carrier"
-                          className="font-normal cursor-pointer"
-                        >
-                          Pagar para o <b>Moto Táxi</b> (Na entrega)
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                )}
                 <div className="space-y-2">
                   <Label>Entrega</Label>
                   <RadioGroup
