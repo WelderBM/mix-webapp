@@ -36,4 +36,5 @@ export interface StoreSettings {
     categoryOrder: string[];
   };
   homeSections: StoreSection[];
+  whatsappGroupLink?: string;
 }

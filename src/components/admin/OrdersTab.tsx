@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   collection,
   onSnapshot,
@@ -63,20 +63,74 @@ export function OrdersTab() {
     {}
   );
 
+  // Refs para controle de notificação
+  const isFirstLoad = useRef(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   // Filtros e Paginação
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
+    // Inicializar áudio de notificação
+    audioRef.current = new Audio(
+      "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+    );
+
+    // Solicitar permissão de notificação do navegador
+    if (
+      typeof Notification !== "undefined" &&
+      Notification.permission !== "granted"
+    ) {
+      Notification.requestPermission();
+    }
+
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      // Verificar novos pedidos apenas após o primeiro carregamento
+      if (!isFirstLoad.current) {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            const newOrder = change.doc.data() as Order;
+
+            // Tocar som
+            audioRef.current
+              ?.play()
+              .catch((e) => console.log("Audio auto-play blocked", e));
+
+            // Toast notification
+            toast.success(`Novo pedido de ${newOrder.customerName}!`, {
+              duration: 10000,
+              action: {
+                label: "Ver",
+                onClick: () => window.focus(),
+              },
+            });
+
+            // Browser notification (System level)
+            if (
+              typeof Notification !== "undefined" &&
+              Notification.permission === "granted"
+            ) {
+              new Notification("Novo Pedido Natura App", {
+                body: `Cliente: ${
+                  newOrder.customerName
+                } - Total: ${formatCurrency(newOrder.total)}`,
+                icon: "/favicon.ico",
+              });
+            }
+          }
+        });
+      }
+
       const ords: Order[] = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Order[];
       setOrders(ords);
       setLoading(false);
+      isFirstLoad.current = false;
     });
 
     return () => unsubscribe();

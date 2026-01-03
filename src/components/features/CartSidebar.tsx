@@ -40,7 +40,7 @@ import {
   SquareStack,
   Gift,
 } from "lucide-react";
-import { cn, formatCurrency } from "@/lib/utils"; // Importa do utils agora
+import { cn, formatCurrency } from "@/lib/utils";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -51,8 +51,9 @@ import {
 } from "@/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { getProductImage } from "@/lib/image-utils"; // Usa o gerenciador de imagens
+import { getProductImage } from "@/lib/image-utils";
 import { SafeImage } from "../ui/SafeImage";
+import { OrderSuccessModal } from "@/components/features/OrderSuccessModal";
 
 // Componente CartIcon EXPORTADO para uso no Navbar
 export function CartIcon() {
@@ -81,7 +82,6 @@ export function CartIcon() {
 
 export function CartSidebar() {
   const router = useRouter();
-  // CORREÇÃO: Removido 'total' que não existe, usar getCartTotal()
   const {
     items,
     isCartOpen,
@@ -100,6 +100,7 @@ export function CartSidebar() {
   }, []);
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Address State
   const [cep, setCep] = useState("");
@@ -115,12 +116,11 @@ export function CartSidebar() {
     useState<DeliveryMethod>("pickup");
   const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>("prepaid");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
-  // Novo estado para controlar destino do pagamento PIX
+
   const [pixPaymentDestination, setPixPaymentDestination] = useState<
     "store" | "carrier"
   >("store");
 
-  // Previously: const [address, setAddress] = useState(""); - REMOVED
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [observation, setObservation] = useState("");
@@ -139,7 +139,7 @@ export function CartSidebar() {
     if (cleanCep.length !== 8) return;
 
     setIsLoadingCep(true);
-    setIsInvalidLocation(false); // Reset invalid state on new search
+    setIsInvalidLocation(false);
 
     try {
       const response = await fetch(
@@ -152,7 +152,7 @@ export function CartSidebar() {
           setIsInvalidLocation(true);
           setStreet("");
           setNeighborhood("");
-          setCity(data.localidade); // Show the wrong city to confirm we found it
+          setCity(data.localidade);
           setUf(data.uf);
           toast.error("Entregas apenas para Boa Vista - RR");
         } else {
@@ -200,7 +200,6 @@ export function CartSidebar() {
         return;
       }
 
-      // Secondary check just in case
       if (city !== "Boa Vista" || uf !== "RR") {
         setIsInvalidLocation(true);
         toast.error("Desculpe, realizamos entregas apenas em Boa Vista - RR.");
@@ -239,21 +238,19 @@ export function CartSidebar() {
       const cleanOrderData = JSON.parse(JSON.stringify(orderData));
       const docRef = await addDoc(collection(db, "orders"), cleanOrderData);
 
-      // Salva o ID do pedido para rastreamento automático
       localStorage.setItem("lastOrderId", docRef.id);
 
       // --- WhatsApp Message Construction ---
       const totalValue = formatCurrency(getCartTotal());
       let message = "";
 
-      // === PARTE 1: MENSAGEM PARA A ATENDENTE (DETALHADA) ===
-      message += `️ *NOVO PEDIDO - MIX NOVIDADES*\n`;
-      message += `🆔 *ID:* ${docRef.id.slice(0, 8).toUpperCase()}\n`;
-      message += `👤 *Cliente:* ${customerName}\n`;
-      message += `📞 *Telefone:* ${customerPhone}\n\n`;
+      message += `NOVO PEDIDO - MIX NOVIDADES\n\n`;
+      message += `ID: ${docRef.id.slice(0, 8).toUpperCase()}\n`;
+      message += `Cliente: ${customerName}\n`;
+      message += `Tel: ${customerPhone}\n\n`;
 
-      message += `📋 *ITENS DO PEDIDO:*\n`;
-      items.forEach((item, idx) => {
+      message += `ITENS:\n`;
+      items.forEach((item) => {
         let name = "";
         if (item.type === "CUSTOM_BALLOON" && item.balloonDetails) {
           name = `${item.balloonDetails.typeName} ${item.balloonDetails.size}" (${item.balloonDetails.color})`;
@@ -263,14 +260,24 @@ export function CartSidebar() {
               ? `Kit ${item.kitName}`
               : item.product?.name || "Produto";
         }
+
+        let variation = "";
         if (item.selectedImageLabel) {
-          name += ` (${item.selectedImageLabel})`;
+          variation = ` (${item.selectedImageLabel})`;
         }
-        message += `${idx + 1}. ${item.quantity}x ${name}\n`;
+
+        const itemPrice =
+          item.kitTotalAmount && item.kitTotalAmount > 0
+            ? item.kitTotalAmount
+            : (item.product?.price || 0) * item.quantity;
+
+        // Formato: 1x Nome (Variação) - R$ 10,00
+        message += `${item.quantity}x ${name}${variation} - ${formatCurrency(
+          itemPrice
+        )}\n`;
       });
 
-      message += `\n💰 *VALOR TOTAL DOS ITENS:* ${totalValue}\n`;
-      message += `💳 *Pagamento:* ${
+      message += `\nPagamento: ${
         paymentMethod === "pix"
           ? "PIX"
           : paymentMethod === "credit_card"
@@ -278,27 +285,29 @@ export function CartSidebar() {
           : paymentMethod === "debit_card"
           ? "Cartão de Débito"
           : "Dinheiro"
-      }\n`;
+      }`;
+
       if (paymentMethod === "pix") {
-        message += `ℹ️ Destino PIX: ${
+        message += ` (Destino: ${
           pixPaymentDestination === "store" ? "Loja" : "Moto Táxi"
-        }\n`;
+        })`;
+      }
+
+      message += `\nEntrega: ${
+        deliveryMethod === "delivery" ? "Entrega" : "Retirada no Local"
+      }\n`;
+
+      if (deliveryMethod === "delivery") {
+        message += `Endereço: ${street}, ${number} - ${neighborhood}\n`;
       }
 
       if (observation.trim()) {
-        message += `📝 *Obs do Cliente:* ${observation}\n`;
-      }
-
-      // (Motoboy copy section removed as per user request to keep customer message clean)
-      if (deliveryMethod === "delivery") {
-        message += `\n📍 *Endereço de Entrega:* ${street}, ${number} - ${neighborhood}`;
-      } else {
-        message += `\n📍 *Retirada na Loja*`;
+        message += `Obs: ${observation}\n`;
       }
 
       // Adiciona link de rastreamento
       const trackingUrl = `${window.location.origin}/meu-pedido?id=${docRef.id}`;
-      message += `\n\n🔍 *Acompanhe seu pedido em:* ${trackingUrl}`;
+      message += `\nAcompanhamento: ${trackingUrl}`;
 
       const phoneNumber =
         process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5595984244194";
@@ -309,6 +318,7 @@ export function CartSidebar() {
       clearCart();
       closeCart();
       window.open(whatsappUrl, "_blank");
+      setShowSuccessModal(true);
       toast.success("Pedido enviado!");
     } catch (error: any) {
       console.error("Erro:", error);
@@ -325,386 +335,388 @@ export function CartSidebar() {
   if (!isMounted) return null;
 
   return (
-    <Sheet open={isCartOpen} onOpenChange={(open) => !open && closeCart()}>
-      <SheetContent className="flex flex-col w-full sm:max-w-md bg-slate-50 p-0 h-full">
-        <SheetHeader className="p-6 bg-white border-b shrink-0">
-          <SheetTitle className="flex items-center gap-2 text-xl">
-            <ShoppingCart className="text-purple-600" /> Seu Carrinho
-          </SheetTitle>
-        </SheetHeader>
+    <>
+      <Sheet open={isCartOpen} onOpenChange={(open) => !open && closeCart()}>
+        <SheetContent className="flex flex-col w-full sm:max-w-md bg-slate-50 p-0 h-full">
+          <SheetHeader className="p-6 bg-white border-b shrink-0">
+            <SheetTitle className="flex items-center gap-2 text-xl">
+              <ShoppingCart className="text-purple-600" /> Seu Carrinho
+            </SheetTitle>
+          </SheetHeader>
 
-        {items.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
-            <ShoppingCart size={40} className="text-slate-400" />
-            <h3 className="text-lg font-semibold text-slate-700">
-              Carrinho vazio
-            </h3>
-            <Button variant="outline" onClick={closeCart}>
-              Voltar a Comprar
-            </Button>
-          </div>
-        ) : (
-          <>
-            {/* Substituído ScrollArea por div nativa para melhor UX mobile */}
-            <div className="flex-1 overflow-y-auto bg-slate-50">
-              <div className="p-6 space-y-4 pb-28">
-                {" "}
-                {/* Aumentado padding bottom */}
-                {items.map((item) => {
-                  const imageUrl = getProductImage(
-                    item.product?.imageUrl,
-                    item.product?.type || "DEFAULT"
-                  );
-                  const itemPrice =
-                    item.kitTotalAmount && item.kitTotalAmount > 0
-                      ? item.kitTotalAmount
-                      : (item.product?.price || 0) * item.quantity;
+          {items.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
+              <ShoppingCart size={40} className="text-slate-400" />
+              <h3 className="text-lg font-semibold text-slate-700">
+                Carrinho vazio
+              </h3>
+              <Button variant="outline" onClick={closeCart}>
+                Voltar a Comprar
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="flex-1 overflow-y-auto bg-slate-50">
+                <div className="p-6 space-y-4 pb-28">
+                  {items.map((item) => {
+                    const imageUrl = getProductImage(
+                      item.product?.imageUrl,
+                      item.product?.type || "DEFAULT"
+                    );
+                    const itemPrice =
+                      item.kitTotalAmount && item.kitTotalAmount > 0
+                        ? item.kitTotalAmount
+                        : (item.product?.price || 0) * item.quantity;
 
-                  return (
-                    <div
-                      key={item.cartId}
-                      className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3 relative"
-                    >
-                      <div className="relative w-16 h-16 bg-slate-100 rounded-lg overflow-hidden shrink-0 border">
-                        <SafeImage
-                          src={imageUrl}
-                          name={item.product?.name}
-                          alt=""
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0 pr-6">
-                        <h4 className="font-medium text-slate-800 text-sm line-clamp-2">
-                          {item.type === "CUSTOM_BALLOON" && item.balloonDetails
-                            ? `${item.balloonDetails.typeName} - ${item.balloonDetails.size}"`
-                            : item.type === "CUSTOM_KIT"
-                            ? `Kit: ${item.kitName}`
-                            : item.product?.name}
-                        </h4>
-                        {item.selectedImageLabel && (
-                          <p className="text-xs font-medium text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
-                            Opção: {item.selectedImageLabel}
-                          </p>
-                        )}
-                        {item.type === "CUSTOM_BALLOON" &&
-                          item.balloonDetails && (
-                            <p className="text-xs text-slate-500 mt-1">
-                              Cor: {item.balloonDetails.color} |{" "}
-                              {item.balloonDetails.unitsPerPackage} un/pac
+                    return (
+                      <div
+                        key={item.cartId}
+                        className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3 relative"
+                      >
+                        <div className="relative w-16 h-16 bg-slate-100 rounded-lg overflow-hidden shrink-0 border">
+                          <SafeImage
+                            src={imageUrl}
+                            name={item.product?.name}
+                            alt=""
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0 pr-6">
+                          <h4 className="font-medium text-slate-800 text-sm line-clamp-2">
+                            {item.type === "CUSTOM_BALLOON" &&
+                            item.balloonDetails
+                              ? `${item.balloonDetails.typeName} - ${item.balloonDetails.size}"`
+                              : item.type === "CUSTOM_KIT"
+                              ? `Kit: ${item.kitName}`
+                              : item.product?.name}
+                          </h4>
+                          {item.selectedImageLabel && (
+                            <p className="text-xs font-medium text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
+                              Opção: {item.selectedImageLabel}
                             </p>
                           )}
-                        <div className="flex items-center justify-between mt-2">
-                          <p className="font-bold text-sm text-primary">
-                            {formatCurrency(itemPrice)}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            {/* Controles de quantidade para simples e balões */}
-                            {(item.type === "SIMPLE" ||
-                              item.type === "CUSTOM_BALLOON") && (
-                              <div className="flex items-center border rounded-md">
-                                <button
-                                  onClick={() =>
-                                    updateQuantity(
-                                      item.cartId,
-                                      item.quantity - 1
-                                    )
-                                  }
-                                  className="px-2 hover:bg-slate-100"
-                                >
-                                  -
-                                </button>
-                                <span className="text-xs px-1">
-                                  {item.quantity}
-                                </span>
-                                <button
-                                  onClick={() =>
-                                    updateQuantity(
-                                      item.cartId,
-                                      item.quantity + 1
-                                    )
-                                  }
-                                  className="px-2 hover:bg-slate-100"
-                                >
-                                  +
-                                </button>
-                              </div>
+                          {item.type === "CUSTOM_BALLOON" &&
+                            item.balloonDetails && (
+                              <p className="text-xs text-slate-500 mt-1">
+                                Cor: {item.balloonDetails.color} |{" "}
+                                {item.balloonDetails.unitsPerPackage} un/pac
+                              </p>
                             )}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeItem(item.cartId)}
-                        className="absolute top-2 right-2 text-slate-300 hover:text-red-500"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="h-px bg-slate-200 mx-6 mb-6" />
-
-              {/* Formulário Resumido */}
-              <div className="px-6 pb-28 space-y-4">
-                {" "}
-                {/* Padding extra aqui também */}
-                <div className="space-y-2">
-                  <Label>Seu Nome</Label>
-                  <Input
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Digite seu nome"
-                    className="bg-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Seu Telefone / WhatsApp *</Label>
-                  <Input
-                    value={customerPhone}
-                    onChange={(e) => {
-                      let value = e.target.value.replace(/\D/g, "");
-                      if (value.length > 11) value = value.slice(0, 11);
-
-                      if (value.length > 2) {
-                        value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
-                      }
-                      if (value.length > 9) {
-                        value = `${value.slice(0, 10)}-${value.slice(10)}`;
-                      }
-                      setCustomerPhone(value);
-                    }}
-                    placeholder="(99) 99999-9999"
-                    className="bg-white"
-                    maxLength={15}
-                  />
-                </div>
-                <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                  <Label className="text-blue-800">
-                    Para quem você vai realizar o pagamento?
-                  </Label>
-                  <RadioGroup
-                    value={pixPaymentDestination}
-                    onValueChange={(v: "store" | "carrier") => {
-                      setPixPaymentDestination(v);
-                      // Se selecionar Moto Taxi e estiver em Cartão, muda para PIX.
-                      // Se estiver em Dinheiro, mantém.
-                      if (
-                        v === "carrier" &&
-                        paymentMethod !== "cash" &&
-                        paymentMethod !== "pix"
-                      ) {
-                        setPaymentMethod("pix");
-                      }
-                    }}
-                    className="flex flex-col gap-2 mt-1"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem
-                        value="store"
-                        id="pay-store"
-                        className="text-blue-600 border-blue-400"
-                      />
-                      <Label
-                        htmlFor="pay-store"
-                        className="font-normal cursor-pointer"
-                      >
-                        Pagar para a <b>Loja</b> (Chave da Loja)
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem
-                        value="carrier"
-                        id="pay-carrier"
-                        className="text-blue-600 border-blue-400"
-                      />
-                      <Label
-                        htmlFor="pay-carrier"
-                        className="font-normal cursor-pointer"
-                      >
-                        Pagar para o <b>Moto Táxi</b> (Na entrega)
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-                <div className="space-y-2">
-                  <Label>Forma de Pagamento</Label>
-                  <Select
-                    value={paymentMethod}
-                    onValueChange={(v: any) => setPaymentMethod(v)}
-                  >
-                    <SelectTrigger className="bg-white">
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pix">💠 PIX</SelectItem>
-                      <SelectItem
-                        value="credit_card"
-                        disabled={pixPaymentDestination === "carrier"}
-                      >
-                        💳 Cartão de Crédito
-                      </SelectItem>
-                      <SelectItem
-                        value="debit_card"
-                        disabled={pixPaymentDestination === "carrier"}
-                      >
-                        💳 Cartão de Débito
-                      </SelectItem>
-                      <SelectItem value="cash">💵 Dinheiro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {pixPaymentDestination === "carrier" && (
-                    <p className="text-xs text-blue-600 mt-1">
-                      * Moto Táxi aceita apenas <b>PIX</b> ou <b>Dinheiro</b>.
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Entrega</Label>
-                  <RadioGroup
-                    value={deliveryMethod}
-                    onValueChange={(v: DeliveryMethod) => setDeliveryMethod(v)}
-                    className="flex gap-4"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="pickup" id="pickup" />
-                      <Label htmlFor="pickup">Retirar</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="delivery" id="delivery" />
-                      <Label htmlFor="delivery">Entrega</Label>
-                    </div>
-                  </RadioGroup>
-                  {deliveryMethod === "delivery" && (
-                    <div
-                      className={cn(
-                        "space-y-3 mt-3 p-3 rounded-lg border transition-colors",
-                        isInvalidLocation
-                          ? "bg-red-50 border-red-200"
-                          : "bg-slate-50 border-slate-200"
-                      )}
-                    >
-                      {isInvalidLocation && (
-                        <div className="p-2 mb-2 text-xs text-red-600 bg-red-100 rounded border border-red-200 font-medium text-center">
-                          ⚠️ Entregas indisponíveis para esta região. <br />{" "}
-                          Apenas Boa Vista - RR.
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="col-span-1">
-                          <Label className="text-xs">CEP</Label>
-                          <div className="relative">
-                            <Input
-                              value={cep}
-                              onChange={(e) => {
-                                let value = e.target.value.replace(/\D/g, "");
-                                if (value.length > 8) value = value.slice(0, 8);
-                                if (value.length > 5) {
-                                  value = `${value.slice(0, 5)}-${value.slice(
-                                    5
-                                  )}`;
-                                }
-                                setCep(value);
-                              }}
-                              onBlur={handleCepBlur}
-                              placeholder="00000-000"
-                              className={cn(
-                                "bg-white h-9",
-                                isInvalidLocation &&
-                                  "border-red-300 ring-offset-red-100"
+                          <div className="flex items-center justify-between mt-2">
+                            <p className="font-bold text-sm text-primary">
+                              {formatCurrency(itemPrice)}
+                            </p>
+                            <div className="flex items-center gap-2">
+                              {(item.type === "SIMPLE" ||
+                                item.type === "CUSTOM_BALLOON") && (
+                                <div className="flex items-center border rounded-md">
+                                  <button
+                                    onClick={() =>
+                                      updateQuantity(
+                                        item.cartId,
+                                        item.quantity - 1
+                                      )
+                                    }
+                                    className="px-2 hover:bg-slate-100"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="text-xs px-1">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    onClick={() =>
+                                      updateQuantity(
+                                        item.cartId,
+                                        item.quantity + 1
+                                      )
+                                    }
+                                    className="px-2 hover:bg-slate-100"
+                                  >
+                                    +
+                                  </button>
+                                </div>
                               )}
-                              maxLength={9}
-                            />
-                            {isLoadingCep && (
-                              <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-slate-400" />
-                            )}
+                            </div>
                           </div>
                         </div>
-                        <div className="col-span-1">
-                          <Label className="text-xs">Número</Label>
+                        <button
+                          onClick={() => removeItem(item.cartId)}
+                          className="absolute top-2 right-2 text-slate-300 hover:text-red-500"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="h-px bg-slate-200 mx-6 mb-6" />
+
+                <div className="px-6 pb-28 space-y-4">
+                  <div className="space-y-2">
+                    <Label>Seu Nome</Label>
+                    <Input
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Digite seu nome"
+                      className="bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Seu Telefone / WhatsApp *</Label>
+                    <Input
+                      value={customerPhone}
+                      onChange={(e) => {
+                        let value = e.target.value.replace(/\D/g, "");
+                        if (value.length > 11) value = value.slice(0, 11);
+
+                        if (value.length > 2) {
+                          value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
+                        }
+                        if (value.length > 9) {
+                          value = `${value.slice(0, 10)}-${value.slice(10)}`;
+                        }
+                        setCustomerPhone(value);
+                      }}
+                      placeholder="(99) 99999-9999"
+                      className="bg-white"
+                      maxLength={15}
+                    />
+                  </div>
+                  <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <Label className="text-blue-800">
+                      Para quem você vai realizar o pagamento?
+                    </Label>
+                    <RadioGroup
+                      value={pixPaymentDestination}
+                      onValueChange={(v: "store" | "carrier") => {
+                        setPixPaymentDestination(v);
+                        if (
+                          v === "carrier" &&
+                          paymentMethod !== "cash" &&
+                          paymentMethod !== "pix"
+                        ) {
+                          setPaymentMethod("pix");
+                        }
+                      }}
+                      className="flex flex-col gap-2 mt-1"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem
+                          value="store"
+                          id="pay-store"
+                          className="text-blue-600 border-blue-400"
+                        />
+                        <Label
+                          htmlFor="pay-store"
+                          className="font-normal cursor-pointer"
+                        >
+                          Pagar para a <b>Loja</b> (Chave da Loja)
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem
+                          value="carrier"
+                          id="pay-carrier"
+                          className="text-blue-600 border-blue-400"
+                        />
+                        <Label
+                          htmlFor="pay-carrier"
+                          className="font-normal cursor-pointer"
+                        >
+                          Pagar para o <b>Moto Táxi</b> (Na entrega)
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Forma de Pagamento</Label>
+                    <Select
+                      value={paymentMethod}
+                      onValueChange={(v: any) => setPaymentMethod(v)}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pix">💠 PIX</SelectItem>
+                        <SelectItem
+                          value="credit_card"
+                          disabled={pixPaymentDestination === "carrier"}
+                        >
+                          💳 Cartão de Crédito
+                        </SelectItem>
+                        <SelectItem
+                          value="debit_card"
+                          disabled={pixPaymentDestination === "carrier"}
+                        >
+                          💳 Cartão de Débito
+                        </SelectItem>
+                        <SelectItem value="cash">💵 Dinheiro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {pixPaymentDestination === "carrier" && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        * Moto Táxi aceita apenas <b>PIX</b> ou <b>Dinheiro</b>.
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Entrega</Label>
+                    <RadioGroup
+                      value={deliveryMethod}
+                      onValueChange={(v: DeliveryMethod) =>
+                        setDeliveryMethod(v)
+                      }
+                      className="flex gap-4"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="pickup" id="pickup" />
+                        <Label htmlFor="pickup">Retirar</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="delivery" id="delivery" />
+                        <Label htmlFor="delivery">Entrega</Label>
+                      </div>
+                    </RadioGroup>
+                    {deliveryMethod === "delivery" && (
+                      <div
+                        className={cn(
+                          "space-y-3 mt-3 p-3 rounded-lg border transition-colors",
+                          isInvalidLocation
+                            ? "bg-red-50 border-red-200"
+                            : "bg-slate-50 border-slate-200"
+                        )}
+                      >
+                        {isInvalidLocation && (
+                          <div className="p-2 mb-2 text-xs text-red-600 bg-red-100 rounded border border-red-200 font-medium text-center">
+                            ⚠️ Entregas indisponíveis para esta região. <br />{" "}
+                            Apenas Boa Vista - RR.
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="col-span-1">
+                            <Label className="text-xs">CEP</Label>
+                            <div className="relative">
+                              <Input
+                                value={cep}
+                                onChange={(e) => {
+                                  let value = e.target.value.replace(/\D/g, "");
+                                  if (value.length > 8)
+                                    value = value.slice(0, 8);
+                                  if (value.length > 5) {
+                                    value = `${value.slice(0, 5)}-${value.slice(
+                                      5
+                                    )}`;
+                                  }
+                                  setCep(value);
+                                }}
+                                onBlur={handleCepBlur}
+                                placeholder="00000-000"
+                                className={cn(
+                                  "bg-white h-9",
+                                  isInvalidLocation &&
+                                    "border-red-300 ring-offset-red-100"
+                                )}
+                                maxLength={9}
+                              />
+                              {isLoadingCep && (
+                                <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-slate-400" />
+                              )}
+                            </div>
+                          </div>
+                          <div className="col-span-1">
+                            <Label className="text-xs">Número</Label>
+                            <Input
+                              value={number}
+                              onChange={(e) => setNumber(e.target.value)}
+                              placeholder="Nº"
+                              disabled={isInvalidLocation}
+                              className="bg-white h-9"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-xs">Rua</Label>
                           <Input
-                            value={number}
-                            onChange={(e) => setNumber(e.target.value)}
-                            placeholder="Nº"
+                            value={street}
+                            onChange={(e) => setStreet(e.target.value)}
+                            placeholder="Nome da rua"
                             disabled={isInvalidLocation}
                             className="bg-white h-9"
                           />
                         </div>
-                      </div>
 
-                      <div>
-                        <Label className="text-xs">Rua</Label>
-                        <Input
-                          value={street}
-                          onChange={(e) => setStreet(e.target.value)}
-                          placeholder="Nome da rua"
-                          disabled={isInvalidLocation}
-                          className="bg-white h-9"
-                        />
+                        <div>
+                          <Label className="text-xs">Bairro</Label>
+                          <Input
+                            value={neighborhood}
+                            onChange={(e) => setNeighborhood(e.target.value)}
+                            placeholder="Bairro"
+                            disabled={isInvalidLocation}
+                            className="bg-white h-9"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Cidade (Fixo)</Label>
+                          <Input
+                            value={`${city} - ${uf}`}
+                            readOnly
+                            className={cn(
+                              "h-9 bg-slate-100 text-slate-500 cursor-not-allowed",
+                              isInvalidLocation && "text-red-500 font-medium"
+                            )}
+                          />
+                        </div>
                       </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Observação (Opcional)</Label>
+                    <Textarea
+                      placeholder="Ex: Ponto de referência, troco para R$ 50, deixar na portaria..."
+                      value={observation}
+                      onChange={(e) => setObservation(e.target.value)}
+                      className="bg-white min-h-[80px]"
+                    />
+                  </div>
+                </div>
+              </div>
 
-                      <div>
-                        <Label className="text-xs">Bairro</Label>
-                        <Input
-                          value={neighborhood}
-                          onChange={(e) => setNeighborhood(e.target.value)}
-                          placeholder="Bairro"
-                          disabled={isInvalidLocation}
-                          className="bg-white h-9"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Cidade (Fixo)</Label>
-                        <Input
-                          value={`${city} - ${uf}`}
-                          readOnly
-                          className={cn(
-                            "h-9 bg-slate-100 text-slate-500 cursor-not-allowed",
-                            isInvalidLocation && "text-red-500 font-medium"
-                          )}
-                        />
-                      </div>
-                    </div>
+              <SheetFooter className="p-6 bg-white border-t space-y-3 block shrink-0 z-10 shadow-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-slate-500">Total</span>
+                  <span className="text-2xl font-bold text-slate-900">
+                    {formatCurrency(getCartTotal())}
+                  </span>
+                </div>
+                <Button
+                  onClick={handleCheckout}
+                  disabled={isCheckingOut}
+                  className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700"
+                >
+                  {isCheckingOut ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <>
+                      <MessageCircle className="mr-2" /> Finalizar Pedido
+                    </>
                   )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Observação (Opcional)</Label>
-                  <Textarea
-                    placeholder="Ex: Ponto de referência, troco para R$ 50, deixar na portaria..."
-                    value={observation}
-                    onChange={(e) => setObservation(e.target.value)}
-                    className="bg-white min-h-[80px]"
-                  />
-                </div>
-              </div>
-            </div>
+                </Button>
+              </SheetFooter>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
-            <SheetFooter className="p-6 bg-white border-t space-y-3 block shrink-0 z-10 shadow-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-slate-500">Total</span>
-                <span className="text-2xl font-bold text-slate-900">
-                  {formatCurrency(getCartTotal())}
-                </span>
-              </div>
-              <Button
-                onClick={handleCheckout}
-                disabled={isCheckingOut}
-                className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700"
-              >
-                {isCheckingOut ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <>
-                    <MessageCircle className="mr-2" /> Finalizar Pedido
-                  </>
-                )}
-              </Button>
-            </SheetFooter>
-          </>
-        )}
-      </SheetContent>
-    </Sheet>
+      <OrderSuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+      />
+    </>
   );
 }
