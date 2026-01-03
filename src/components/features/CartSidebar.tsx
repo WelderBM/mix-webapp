@@ -263,6 +263,9 @@ export function CartSidebar() {
               ? `Kit ${item.kitName}`
               : item.product?.name || "Produto";
         }
+        if (item.selectedImageLabel) {
+          name += ` (${item.selectedImageLabel})`;
+        }
         message += `${idx + 1}. ${item.quantity}x ${name}\n`;
       });
 
@@ -379,6 +382,11 @@ export function CartSidebar() {
                             ? `Kit: ${item.kitName}`
                             : item.product?.name}
                         </h4>
+                        {item.selectedImageLabel && (
+                          <p className="text-xs font-medium text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
+                            Opção: {item.selectedImageLabel}
+                          </p>
+                        )}
                         {item.type === "CUSTOM_BALLOON" &&
                           item.balloonDetails && (
                             <p className="text-xs text-slate-500 mt-1">

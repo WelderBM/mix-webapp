@@ -29,6 +29,7 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
     // If list was empty, set first new image as cover
     if (images.length === 0 && newImagesList.length > 0) {
       newImagesList[0].isCover = true;
+      newImagesList[0].label = ""; // Ensure cover has no label
     }
 
     onChange([...images, ...newImagesList]);
@@ -39,6 +40,7 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
     // If we deleted the cover, make the first available image the new cover
     if (images.find((img) => img.id === id)?.isCover && newImages.length > 0) {
       newImages[0].isCover = true;
+      newImages[0].label = ""; // Ensure new cover has no label
     }
     onChange(newImages);
   };
@@ -47,6 +49,7 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
     const newImages = images.map((img) => ({
       ...img,
       isCover: img.id === id,
+      label: img.id === id ? "" : img.label, // Clear label if setting as cover
     }));
     onChange(newImages);
   };
@@ -65,6 +68,11 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
         <span className="text-sm text-slate-500">
           Adicione múltiplas imagens. A primeira imagem ou a marcada com estrela
           será a capa.
+          <br />
+          <span className="text-xs text-orange-600 font-bold">
+            Nota: A imagem de capa não pode ter descrição (rótulo). Ela serve
+            apenas como amostra geral.
+          </span>
         </span>
       </div>
 
@@ -93,11 +101,15 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
             <div className="flex flex-col flex-1 gap-2 justify-center">
               <div className="flex items-center gap-2">
                 <Input
-                  placeholder="Descrição (ex: Azul, Lateral)"
+                  placeholder={
+                    img.isCover
+                      ? "Capa (Sem rótulo)"
+                      : "Descrição (ex: Azul, Lateral)"
+                  }
                   value={img.label || ""}
                   onChange={(e) => handleLabelChange(img.id, e.target.value)}
                   className="h-8 text-sm"
-                  disabled={disabled}
+                  disabled={disabled || img.isCover}
                 />
               </div>
 
@@ -110,7 +122,7 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
                     img.isCover ? "bg-green-600 hover:bg-green-700" : ""
                   }`}
                   onClick={() => handleSetCover(img.id)}
-                  disabled={disabled}
+                  disabled={disabled || img.isCover} // Disabled if already cover
                 >
                   <Star size={12} className={img.isCover ? "fill-white" : ""} />
                   {img.isCover ? "Capa Principal" : "Definir Capa"}

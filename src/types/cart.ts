@@ -43,6 +43,8 @@ export interface CartItem {
     color: string;
     unitsPerPackage: number;
   };
+  selectedImageLabel?: string;
+  selectedImageUrl?: string;
 }
 
 export type DeliveryMethod = "pickup" | "delivery";
