@@ -33,7 +33,8 @@ export const useCartStore = create<CartStore>()(
               (i) =>
                 i.type === "SIMPLE" &&
                 i.product?.id === item.product?.id &&
-                i.selectedVariant?.id === item.selectedVariant?.id
+                i.selectedVariant?.id === item.selectedVariant?.id &&
+                i.selectedImageLabel === item.selectedImageLabel
             );
           } else if (item.type === "CUSTOM_BALLOON" && item.balloonDetails) {
             existingItem = state.items.find(

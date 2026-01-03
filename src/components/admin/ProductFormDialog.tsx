@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   Product,
   ProductType,
+  ProductImage,
   RibbonInventory,
   RibbonRollStatus,
 } from "@/types/product";
@@ -39,7 +40,7 @@ import {
   X,
   Image as ImageIcon,
 } from "lucide-react";
-import { ImageUpload } from "./ImageUpload";
+import { ProductImageManager } from "./ProductImageManager";
 
 // Definindo o tipo base de dados do formulário (simplificado)
 interface ProductFormData extends Product {
@@ -389,9 +390,20 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
               </div>
 
               <div className="space-y-4">
-                <ImageUpload
-                  value={formData.imageUrl || ""}
-                  onChange={(url) => handleInputChange("imageUrl", url)}
+                <ProductImageManager
+                  images={formData.images || []}
+                  onChange={(newImages: ProductImage[]) => {
+                    // Sync images list
+                    const cover =
+                      newImages.find((img) => img.isCover) || newImages[0];
+                    handleInputChange("images", newImages);
+                    // Sync legacy imageUrl for backward compat
+                    if (cover) {
+                      handleInputChange("imageUrl", cover.url);
+                    } else {
+                      handleInputChange("imageUrl", "");
+                    }
+                  }}
                   disabled={loading}
                 />
               </div>

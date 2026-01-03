@@ -50,33 +50,42 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   };
 
   return (
-    <Link href={`/produto/${product.id}`} passHref>
-      <div className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-xl bg-white shadow-lg transition-all hover:shadow-xl">
-        <div className="relative aspect-square w-full overflow-hidden bg-slate-50 flex items-center justify-center">
-          {/* SUBSTITUIÇÃO AQUI */}
-          <SafeImage
-            src={product.imageUrl}
-            name={product.name}
-            alt={product.name}
-            fill
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          />
+    <div className="group flex h-full flex-col overflow-hidden rounded-xl bg-white shadow-lg transition-all hover:shadow-xl">
+      {/* IMAGE SECTION - LINKED */}
+      <Link
+        href={`/produto/${product.id}`}
+        className="relative aspect-square w-full overflow-hidden bg-slate-50 flex items-center justify-center cursor-pointer"
+      >
+        <SafeImage
+          src={product.imageUrl}
+          name={product.name}
+          alt={product.name}
+          fill
+          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+        />
 
-          {product.originalPrice && product.originalPrice > product.price && (
-            <div className="absolute left-2 top-2 rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white shadow-md z-10">
-              Oferta
-            </div>
-          )}
-        </div>
-        <div className="flex flex-1 flex-col justify-between p-4">
-          <h3 className="line-clamp-2 text-base font-semibold text-slate-800">
+        {product.originalPrice && product.originalPrice > product.price && (
+          <div className="absolute left-2 top-2 rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white shadow-md z-10">
+            Oferta
+          </div>
+        )}
+      </Link>
+
+      {/* CONTENT SECTION */}
+      <div className="flex flex-1 flex-col justify-between p-4">
+        <Link href={`/produto/${product.id}`} className="block cursor-pointer">
+          <h3 className="line-clamp-2 text-base font-semibold text-slate-800 group-hover:text-primary transition-colors">
             {product.name}
           </h3>
-          <p className="line-clamp-3 text-sm text-slate-500">
+          <p className="line-clamp-3 text-sm text-slate-500 mt-1">
             {product.description}
           </p>
-          <div className="mt-4 flex items-center justify-between gap-3">
+        </Link>
+
+        <div className="mt-4 flex flex-col gap-3">
+          {/* PRICE */}
+          <div className="flex items-center justify-between">
             <div className="flex flex-col">
               {product.originalPrice &&
                 product.originalPrice > product.price && (
@@ -96,26 +105,50 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* ACTION BUTTONS */}
+          {product.type === "ASSEMBLED_KIT" ? (
             <Button
               onClick={handleAction}
               size="sm"
               className={cn(
-                "rounded-xl font-bold shadow-sm transition-all duration-300 shrink-0",
-                product.type === "ASSEMBLED_KIT"
-                  ? "bg-purple-600 hover:bg-purple-700 w-auto px-4"
-                  : "bg-green-600 hover:bg-green-700 aspect-square p-0 w-10"
+                "w-full rounded-xl font-bold shadow-sm transition-all duration-300",
+                "bg-purple-600 hover:bg-purple-700 text-white"
               )}
             >
-              {product.type === "ASSEMBLED_KIT" ? (
-                "Montar"
-              ) : (
-                <ShoppingCart className="h-4 w-4" />
-              )}
+              Montar Kit
             </Button>
-          </div>
+          ) : (
+            <div className="w-full">
+              {/* Lógica de Botão: Se tiver variações (imagens extras com label), obriga a ver detalhes */}
+              {product.images && product.images.length > 1 ? (
+                <Link href={`/produto/${product.id}`} className="w-full block">
+                  <Button
+                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200 gap-2 font-bold h-10 shadow-sm hover:shadow-md transition-all"
+                    variant="ghost"
+                  >
+                    <ShoppingCart size={16} className="text-slate-500" />
+                    Ver Opções
+                  </Button>
+                </Link>
+              ) : (
+                <Button
+                  className="w-full bg-green-600 hover:bg-green-700 text-white gap-2 font-bold shadow-green-200 shadow-md h-10 transition-all hover:scale-[1.02]"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleAddToCart();
+                  }}
+                >
+                  <ShoppingCart size={18} />
+                  Adicionar
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </div>
-    </Link>
+    </div>
   );
 };
 

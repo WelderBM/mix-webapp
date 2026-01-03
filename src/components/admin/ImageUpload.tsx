@@ -24,10 +24,18 @@ import { cn } from "@/lib/utils";
 interface ImageUploadProps {
   value: string;
   onChange: (url: string) => void;
+  onUploadComplete?: (urls: string[]) => void;
   disabled?: boolean;
+  multiple?: boolean;
 }
 
-export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
+export function ImageUpload({
+  value,
+  onChange,
+  onUploadComplete,
+  disabled,
+  multiple,
+}: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("upload");
   const [camStream, setCamStream] = useState<MediaStream | null>(null);
@@ -38,14 +46,28 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const onUpload = async (file: File) => {
+  const onUpload = async (files: File[]) => {
     try {
       setUploading(true);
-      const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(snapshot.ref);
-      onChange(url);
-      toast.success("Imagem enviada com sucesso!");
+      const uploadPromises = files.map(async (file) => {
+        const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
+        const snapshot = await uploadBytes(storageRef, file);
+        return await getDownloadURL(snapshot.ref);
+      });
+
+      const urls = await Promise.all(uploadPromises);
+
+      if (multiple && onUploadComplete) {
+        onUploadComplete(urls);
+      } else {
+        onChange(urls[0]);
+      }
+
+      toast.success(
+        `${
+          urls.length > 1 ? "Imagens enviadas" : "Imagem enviada"
+        } com sucesso!`
+      );
     } catch (error) {
       console.error("Erro no upload:", error);
       toast.error("Falha ao enviar imagem.");
@@ -55,14 +77,23 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) onUpload(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      onUpload(Array.from(files));
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) onUpload(file);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      // If not multiple, just take the first one
+      if (!multiple) {
+        onUpload([files[0]]);
+      } else {
+        onUpload(Array.from(files));
+      }
+    }
   };
 
   const startCamera = async () => {
@@ -125,7 +156,7 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
           const file = new File([blob], `capture-${Date.now()}.jpg`, {
             type: "image/jpeg",
           });
-          await onUpload(file);
+          await onUpload([file]);
           stopCamera();
           setActiveTab("upload"); // Return to main tab after capture
         }
@@ -277,6 +308,7 @@ export function ImageUpload({ value, onChange, disabled }: ImageUploadProps) {
               onChange={handleFileChange}
               className="hidden"
               accept="image/*"
+              multiple={multiple}
             />
             <div className="p-4 rounded-2xl bg-white shadow-md text-purple-600 group-hover:scale-110 transition-transform duration-300">
               <Upload size={24} />

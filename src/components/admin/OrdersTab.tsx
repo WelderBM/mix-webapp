@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   collection,
   onSnapshot,
@@ -63,20 +63,74 @@ export function OrdersTab() {
     {}
   );
 
+  // Refs para controle de notificação
+  const isFirstLoad = useRef(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   // Filtros e Paginação
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
+    // Inicializar áudio de notificação
+    audioRef.current = new Audio(
+      "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+    );
+
+    // Solicitar permissão de notificação do navegador
+    if (
+      typeof Notification !== "undefined" &&
+      Notification.permission !== "granted"
+    ) {
+      Notification.requestPermission();
+    }
+
     const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      // Verificar novos pedidos apenas após o primeiro carregamento
+      if (!isFirstLoad.current) {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            const newOrder = change.doc.data() as Order;
+
+            // Tocar som
+            audioRef.current
+              ?.play()
+              .catch((e) => console.log("Audio auto-play blocked", e));
+
+            // Toast notification
+            toast.success(`Novo pedido de ${newOrder.customerName}!`, {
+              duration: 10000,
+              action: {
+                label: "Ver",
+                onClick: () => window.focus(),
+              },
+            });
+
+            // Browser notification (System level)
+            if (
+              typeof Notification !== "undefined" &&
+              Notification.permission === "granted"
+            ) {
+              new Notification("Novo Pedido Natura App", {
+                body: `Cliente: ${
+                  newOrder.customerName
+                } - Total: ${formatCurrency(newOrder.total)}`,
+                icon: "/favicon.ico",
+              });
+            }
+          }
+        });
+      }
+
       const ords: Order[] = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Order[];
       setOrders(ords);
       setLoading(false);
+      isFirstLoad.current = false;
     });
 
     return () => unsubscribe();
@@ -97,28 +151,45 @@ export function OrdersTab() {
   };
 
   const copyDeliveryInfo = (order: Order) => {
-    const text = `🛵 *PEDIDO DE ENTREGA - MIX NOVIDADES*
-    
-📍 *RETIRADA (Nossa Loja):*
+    // Definir a instrução de pagamento com base no método e destino
+    let paymentInstruction = "";
+
+    if (order.paymentMethod === "pix") {
+      // Se tiver a info save no pedido, usa ela, senão infere (assumindo Loja se não especificado ou se tiver pago)
+      // Como o Order type local pode não ter 'pixPaymentDestination', checamos se existe no objeto (any cast se precisar ou apenas lógica)
+      const isCarrier = (order as any).pixPaymentDestination === "carrier";
+
+      if (isCarrier) {
+        paymentInstruction =
+          "Pagamento via PIX para o Motoboy (Cobrar Valor + Entrega)";
+      } else {
+        paymentInstruction =
+          "Pagamento feito para a loja, receber o valor da entrega apenas";
+      }
+    } else if (order.paymentMethod === "cash") {
+      paymentInstruction = "Dinheiro (Cobrar Valor do Pedido + Entrega)";
+    } else {
+      paymentInstruction = "Cartão (Levar Maquininha)";
+    }
+
+    const text = `Local de Retirada (Nossa Loja):
 Rua Pedro Aldemar Bantim, 945
 Bairro Doutor Sílvio Botelho
 
-⬇️ *LEVAR PARA (Cliente):*
-👤 ${order.customerName}
-📍 ${order.address || "Endereço não informado"}
-📞 ${order.customerPhone}
+Destino (Cliente):
+${order.customerName}
+${order.address || "Endereço não informado"}
+Telefone: ${order.customerPhone}
 
-💰 *VALORES:*
-Valor do Pedido: ${formatCurrency(order.total)}
-Forma de Pagto: ${
+Forma de Pagamento: ${
       order.paymentMethod === "pix"
-        ? "PIX (Já pago)"
+        ? "PIX"
         : order.paymentMethod === "cash"
-        ? "Dinheiro (Cobrar)"
-        : "Cartão (Levar Maquininha)"
+        ? "Dinheiro"
+        : "Cartão"
     }
+${paymentInstruction}`;
 
-⚠️ *Obs:* Cuidado com os produtos frágeis!`;
     navigator.clipboard.writeText(text);
     toast.success("Texto copiado! Pronto para enviar.");
   };
@@ -283,9 +354,8 @@ Forma de Pagto: ${
           </TableHeader>
           <TableBody>
             {paginatedOrders.map((order) => (
-              <>
+              <React.Fragment key={order.id}>
                 <TableRow
-                  key={order.id}
                   className="cursor-pointer hover:bg-slate-50 transition-colors"
                   onClick={() => toggleExpand(order.id)}
                 >
@@ -390,13 +460,13 @@ Forma de Pagto: ${
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-7 px-2 text-xs gap-1"
+                        className="h-7 px-2 text-xs gap-1 bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100"
                         onClick={(e) => {
                           e.stopPropagation();
                           copyDeliveryInfo(order);
                         }}
                       >
-                        <Copy size={12} /> Moto
+                        <Copy size={12} /> Copiar Moto
                       </Button>
                     )}
                   </TableCell>
@@ -423,6 +493,14 @@ Forma de Pagto: ${
                                         item.kitName ||
                                         "Produto"}
                                     </span>
+                                    {item.selectedImageLabel && (
+                                      <Badge
+                                        variant="outline"
+                                        className="ml-2 text-[10px] h-5 px-1.5 py-0"
+                                      >
+                                        {item.selectedImageLabel}
+                                      </Badge>
+                                    )}
                                     {item.type === "CUSTOM_BALLOON" &&
                                       item.balloonDetails && (
                                         <p className="text-xs text-slate-500">
@@ -448,12 +526,22 @@ Forma de Pagto: ${
                               variant="secondary"
                               className="w-full gap-2 text-xs"
                               onClick={() => {
-                                const text = `Olá ${
-                                  order.customerName
-                                }, sobre seu pedido #${order.id.slice(
-                                  0,
-                                  5
-                                )}...`;
+                                const firstName =
+                                  order.customerName.split(" ")[0];
+                                const firstItem = order.items[0];
+                                const firstItemName =
+                                  firstItem.product?.name ||
+                                  firstItem.kitName ||
+                                  "Produto";
+                                const otherItemsCount = order.items.length - 1;
+
+                                let itemsText = firstItemName;
+                                if (otherItemsCount > 0) {
+                                  itemsText += ` e mais ${otherItemsCount} item(s)`;
+                                }
+
+                                const text = `Olá, ${firstName}, tudo bem? Sobre seu pedido de ${itemsText} na Mix Novidades...`;
+
                                 window.open(
                                   `https://wa.me/55${order.customerPhone?.replace(
                                     /\D/g,
@@ -475,7 +563,7 @@ Forma de Pagto: ${
                     </TableCell>
                   </TableRow>
                 )}
-              </>
+              </React.Fragment>
             ))}
           </TableBody>
         </Table>
@@ -586,6 +674,11 @@ Forma de Pagto: ${
                           <span className="text-slate-700">
                             {item.quantity}x{" "}
                             {item.product?.name || item.kitName}
+                            {item.selectedImageLabel && (
+                              <span className="ml-1 font-bold text-slate-900">
+                                ({item.selectedImageLabel})
+                              </span>
+                            )}
                           </span>
                         </div>
                       ))}
@@ -604,13 +697,13 @@ Forma de Pagto: ${
                         <Button
                           size="sm"
                           variant="outline"
-                          className="w-full gap-2 bg-white border-slate-300 text-slate-700"
+                          className="w-full gap-2 bg-white border-slate-300 text-slate-700 hover:bg-slate-50 font-medium"
                           onClick={(e) => {
                             e.stopPropagation();
                             copyDeliveryInfo(order);
                           }}
                         >
-                          <Copy size={14} /> Copiar Info
+                          <Copy size={14} /> Copiar p/ Motoboy
                         </Button>
                       ) : (
                         // Placeholder vazio caso não seja entrega, ou botão alternativo
@@ -627,9 +720,22 @@ Forma de Pagto: ${
                         variant="secondary"
                         onClick={(e) => {
                           e.stopPropagation();
-                          const text = `Olá ${
-                            order.customerName
-                          }, sobre seu pedido #${order.id.slice(0, 5)}...`;
+
+                          const firstName = order.customerName.split(" ")[0];
+                          const firstItem = order.items[0];
+                          const firstItemName =
+                            firstItem.product?.name ||
+                            firstItem.kitName ||
+                            "Produto";
+                          const otherItemsCount = order.items.length - 1;
+
+                          let itemsText = firstItemName;
+                          if (otherItemsCount > 0) {
+                            itemsText += ` e mais ${otherItemsCount} item(s)`;
+                          }
+
+                          const text = `Olá, ${firstName}, tudo bem? Sobre seu pedido de ${itemsText} na Mix Novidades...`;
+
                           window.open(
                             `https://wa.me/55${order.customerPhone?.replace(
                               /\D/g,
