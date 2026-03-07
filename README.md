@@ -187,8 +187,8 @@ Desenvolvido por **Welder Barroso de Melo**
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Welder%20Barroso-0a66c2?style=flat-square&logo=linkedin&logoColor=white)](https://linkedin.com/in/welder-barroso-37b654207)
 [![GitHub](https://img.shields.io/badge/GitHub-WelderBM-f0f4f8?style=flat-square&logo=github&logoColor=03080f)](https://github.com/WelderBM)
-[![WhatsApp](https://img.shields.io/badge/WhatsApp-contato-25d366?style=flat-square&logo=whatsapp&logoColor=white)](https://wa.me/5595991341586)
-[![Email](https://img.shields.io/badge/Email-welderb40@gmail.com-1be4c8?style=flat-square&logo=gmail&logoColor=white)](mailto:welderb40@gmail.com)
+[![WhatsApp](https://img.shields.io/badge/WhatsApp-contato-25d366?style=flat-square&logo=whatsapp&logoColor=white)](https://wa.me/5595984006377)
+[![Email](https://img.shields.io/badge/Email-welderbarroso.dev@gmail.com-1be4c8?style=flat-square&logo=gmail&logoColor=white)](mailto:welderbarroso.dev@gmail.com)
 
 </div>
 
@@ -370,8 +370,8 @@ Built by **Welder Barroso de Melo**
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Welder%20Barroso-0a66c2?style=flat-square&logo=linkedin&logoColor=white)](https://linkedin.com/in/welder-barroso-37b654207)
 [![GitHub](https://img.shields.io/badge/GitHub-WelderBM-f0f4f8?style=flat-square&logo=github&logoColor=03080f)](https://github.com/WelderBM)
-[![WhatsApp](https://img.shields.io/badge/WhatsApp-contact-25d366?style=flat-square&logo=whatsapp&logoColor=white)](https://wa.me/5595991341586)
-[![Email](https://img.shields.io/badge/Email-welderb40@gmail.com-1be4c8?style=flat-square&logo=gmail&logoColor=white)](mailto:welderb40@gmail.com)
+[![WhatsApp](https://img.shields.io/badge/WhatsApp-contact-25d366?style=flat-square&logo=whatsapp&logoColor=white)](https://wa.me/5595984006377)
+[![Email](https://img.shields.io/badge/Email-welderbarroso.dev@gmail.com-1be4c8?style=flat-square&logo=gmail&logoColor=white)](mailto:welderbarroso.dev@gmail.com)
 
 </div>
 
