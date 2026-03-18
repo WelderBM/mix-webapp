@@ -1,0 +1,85 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Função auxiliar: verifica se o usuário autenticado tem role "admin"
+    // O documento do usuário fica em /users/{uid} com campo role: "admin"
+    // ─────────────────────────────────────────────────────────────────────
+    function isAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // /products/{productId}
+    //   - Leitura: pública (catálogo visível sem login)
+    //   - Escrita:  somente admin
+    // ─────────────────────────────────────────────────────────────────────
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // /orders/{orderId}
+    //   - Criar:   público (qualquer pessoa pode fazer pedido)
+    //   - Ler:     admin OU o próprio dono (via customerPhone)
+    //   - Atualizar/Deletar: somente admin
+    // ─────────────────────────────────────────────────────────────────────
+    match /orders/{orderId} {
+      allow create: if true;
+      allow read:   if isAdmin() ||
+                       (request.auth == null &&
+                        resource.data.customerPhone == request.resource.data.customerPhone);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // /settings/{doc}  (configurações gerais da loja, temas, balões, etc.)
+    //   - Leitura: pública (necessária para renderizar a loja)
+    //   - Escrita:  somente admin
+    // ─────────────────────────────────────────────────────────────────────
+    match /settings/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // /kitRecipes/{recipeId}
+    //   - Leitura: pública (usada pelo Kit Builder)
+    //   - Escrita:  somente admin
+    // ─────────────────────────────────────────────────────────────────────
+    match /kitRecipes/{recipeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // /users/{userId}
+    //   - Ler/escrever o próprio perfil: usuário autenticado
+    //   - Ler qualquer perfil: somente admin (para verificação de roles)
+    //   - Escrever role: somente admin (evita auto-promoção)
+    // ─────────────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read:   if request.auth != null &&
+                       (request.auth.uid == userId || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null &&
+                       request.auth.uid == userId &&
+                       !("role" in request.resource.data);   // não pode alterar o próprio role
+      allow update: if isAdmin();                             // admin pode alterar qualquer campo
+      allow delete: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Nega tudo o que não for coberto pelas regras acima
+    // ─────────────────────────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,11 +1,9 @@
 // src/store/authStore.ts
 
 import { create } from "zustand";
-// NOTA: Certifique-se de que instalou 'firebase' e @firebase/auth ou a versão mais recente
-import { User, onAuthStateChanged, signOut, Auth } from "firebase/auth";
-
-// Importa a instância de autenticação do seu arquivo de configuração do Firebase
-import { auth } from "@/lib/firebase";
+import { User, onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 
 // 1. Definição da Interface de Estado
 interface AuthState {
@@ -15,6 +13,8 @@ interface AuthState {
   isAuthenticated: boolean;
   /** Indica se o listener do Firebase ainda está verificando o estado inicial. */
   isLoading: boolean;
+  /** Indica se o usuário autenticado possui role "admin" no Firestore (/users/{uid}). */
+  isAdmin: boolean;
 
   /** Define o usuário após o estado de autenticação ser conhecido. */
   setUser: (user: User | null) => void;
@@ -22,46 +22,75 @@ interface AuthState {
   logout: () => Promise<void>;
   /** Função para iniciar o listener de estado do Firebase Auth (Deve ser chamada uma vez). */
   initializeAuthListener: () => () => void;
+  /**
+   * Verifica se o usuário tem role "admin" no documento /users/{uid}.
+   * Retorna true se admin, false caso contrário.
+   */
+  checkAdminRole: (uid: string) => Promise<boolean>;
 }
 
 // 2. Criação do Store
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   // Estado Inicial
   user: null,
   isAuthenticated: false,
-  isLoading: true, // Começa como true para indicar que a verificação inicial está em curso
+  isLoading: true,
+  isAdmin: false,
 
   // Ações
   setUser: (user) => {
     set({
-      user: user,
+      user,
       isAuthenticated: !!user,
       isLoading: false,
+      isAdmin: user ? undefined! : false,
     });
   },
 
   logout: async () => {
     try {
       await signOut(auth);
-      set({ user: null, isAuthenticated: false });
+      set({ user: null, isAuthenticated: false, isAdmin: false });
     } catch (error) {
       console.error("Erro ao fazer logout:", error);
     }
   },
 
+  checkAdminRole: async (uid: string): Promise<boolean> => {
+    try {
+      const userDoc = await getDoc(doc(db, "users", uid));
+      const admin = userDoc.exists() && userDoc.data()?.role === "admin";
+      set({ isAdmin: admin });
+      return admin;
+    } catch (error) {
+      console.error("Erro ao verificar role de admin:", error);
+      set({ isAdmin: false });
+      return false;
+    }
+  },
+
   initializeAuthListener: () => {
-    // Adiciona um listener que observa o estado de autenticação do Firebase.
-    // É essencial para sincronizar o estado global do Zustand com o Firebase.
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      // Atualiza o estado do Zustand com o usuário do Firebase
-      set({
-        user: firebaseUser,
-        isAuthenticated: !!firebaseUser,
-        isLoading: false,
-      });
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Usuário autenticado — verifica role antes de liberar o estado de carregamento
+        set({ user: firebaseUser, isAuthenticated: true, isLoading: true });
+        try {
+          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          const admin = userDoc.exists() && userDoc.data()?.role === "admin";
+          set({ isAdmin: admin, isLoading: false });
+        } catch {
+          set({ isAdmin: false, isLoading: false });
+        }
+      } else {
+        set({
+          user: null,
+          isAuthenticated: false,
+          isAdmin: false,
+          isLoading: false,
+        });
+      }
     });
 
-    // Retorna a função de 'unsubscribe' para limpar o listener no 'unmount'
     return unsubscribe;
   },
 }));
