@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
+import { useRouter } from "next/navigation";
 import { Product, StoreSettings, StoreSection, SectionType } from "@/types";
 import { Order } from "@/types/order";
 import { BalloonConfig, BalloonTypeConfig } from "@/types/balloon";
@@ -101,8 +102,10 @@ import { AdminLogin } from "@/components/admin/AdminLogin";
 import { NaturaTab } from "@/components/admin/NaturaTab";
 
 export default function AdminPage() {
+  const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [isAdminUser, setIsAdminUser] = useState(false);
   const [viewMode, setViewMode] = useState<"orders" | "inventory">("orders"); // Defaults to orders since user emphasized it
 
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -155,14 +158,46 @@ export default function AdminPage() {
   // System Tools Modal
   const [isSysToolsOpen, setIsSysToolsOpen] = useState(false);
 
-  // Auth & Data
+  // Auth & Data — com verificação de role de admin
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setLoadingAuth(false);
+    const unsubAuth = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setCurrentUser(null);
+        setIsAdminUser(false);
+        setLoadingAuth(false);
+        return;
+      }
+
+      // Verifica se o usuário tem role "admin" em /users/{uid}
+      try {
+        const { doc: firestoreDoc, getDoc: firestoreGetDoc } = await import(
+          "firebase/firestore"
+        );
+        const userDoc = await firestoreGetDoc(
+          firestoreDoc(db, "users", user.uid)
+        );
+        const admin =
+          userDoc.exists() && userDoc.data()?.role === "admin";
+
+        if (!admin) {
+          // Usuário autenticado mas sem permissão de admin — redireciona
+          await signOut(auth);
+          router.replace("/");
+          return;
+        }
+
+        setCurrentUser(user);
+        setIsAdminUser(true);
+      } catch (err) {
+        console.error("Erro ao verificar role de admin:", err);
+        await signOut(auth);
+        router.replace("/");
+      } finally {
+        setLoadingAuth(false);
+      }
     });
     return () => unsubAuth();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -460,6 +495,15 @@ export default function AdminPage() {
 
   if (!currentUser) {
     return <AdminLogin />;
+  }
+
+  // Proteção extra: usuário logado mas sem role de admin (estado transitório)
+  if (!isAdminUser) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-100">
+        <Loader2 className="animate-spin text-purple-600 w-8 h-8" />
+      </div>
+    );
   }
 
   return (

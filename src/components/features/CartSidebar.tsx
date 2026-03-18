@@ -9,10 +9,8 @@ import {
   SheetHeader,
   SheetTitle,
   SheetFooter,
-  SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -24,31 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Trash2,
-  ShoppingCart,
-  MessageCircle,
-  Package,
-  Loader2,
-  MapPin,
-  Store,
-  CreditCard,
-  Banknote,
-  ShoppingBag,
-  Feather,
-  Box,
-  SquareStack,
-  Gift,
-} from "lucide-react";
+import { Trash2, ShoppingCart, MessageCircle, Loader2 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import {
-  DeliveryMethod,
-  PaymentMethod,
-  PaymentTiming,
-  ProductType,
-} from "@/types";
+import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { getProductImage } from "@/lib/image-utils";
@@ -124,15 +102,6 @@ export function CartSidebar() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [observation, setObservation] = useState("");
-
-  const getProductName = (id: string | undefined) =>
-    id ? getProductById(id)?.name || "Produto Desconhecido" : "N/A";
-
-  useEffect(() => {
-    if (deliveryMethod === "delivery") {
-      // If delivery is selected, default logic can go here if needed
-    }
-  }, [deliveryMethod]);
 
   const handleCepBlur = async () => {
     const cleanCep = cep.replace(/\D/g, "");
@@ -328,9 +297,6 @@ export function CartSidebar() {
     }
   };
 
-  const handleContinueShopping = () => {
-    closeCart();
-  };
 
   if (!isMounted) return null;
 

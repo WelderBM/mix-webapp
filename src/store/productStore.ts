@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Product, AssembledKitProduct } from "@/types";
+import { Product, AssembledKitProduct, KitRecipe } from "@/types";
 import { useKitStore } from "./kitStore";
 
 interface ProductState {
@@ -28,7 +28,7 @@ interface ProductState {
 // Lógica de Validação da Regra da Venda Garantida
 const isKitAvailable = (
   kit: AssembledKitProduct,
-  recipe: any,
+  recipe: KitRecipe,
   allProducts: Product[]
 ): boolean => {
   if (kit.disabled || recipe.disabled) return false;
@@ -39,16 +39,14 @@ const isKitAvailable = (
 
   // Verifica se todos os componentes obrigatórios (BASE ou FILLER) estão em estoque
   const allRequiredItemsInStock = recipe.components
-    .filter(
-      (c: any) => c.required && (c.type === "BASE" || c.type === "FILLER")
-    )
-    .every((comp: any) => availableProductIds.has(comp.componentId));
+    .filter((c) => c.required && (c.type === "BASE" || c.type === "FILLER"))
+    .every((comp) => availableProductIds.has(comp.componentId));
 
   if (!allRequiredItemsInStock) return false;
 
   // Simplificação da lógica do laço: Se tiver opção de serviço ou pronto, está ok
   const hasLacoOption = recipe.components.some(
-    (c: any) =>
+    (c) =>
       c.type === "RIBBON_SERVICE" ||
       (c.type === "LAÇO_PRONTO" && availableProductIds.has(c.componentId))
   );
