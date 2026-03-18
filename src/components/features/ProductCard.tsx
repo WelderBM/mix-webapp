@@ -6,7 +6,7 @@ import { Product } from "@/types";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/store/cartStore";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
 // NOVO IMPORT:
 import { SafeImage } from "@/components/ui/SafeImage";
@@ -95,10 +95,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 )}
               <div className="flex items-baseline gap-1">
                 <span className="text-lg font-extrabold text-primary whitespace-nowrap">
-                  {new Intl.NumberFormat("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
-                  }).format(finalPrice)}
+                  {formatCurrency(finalPrice)}
                 </span>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter shrink-0">
                   / {product.unit || "un"}

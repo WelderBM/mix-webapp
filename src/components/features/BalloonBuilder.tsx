@@ -10,7 +10,6 @@ import {
   ShoppingCart,
   Loader2,
   ArrowLeft,
-  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -22,8 +21,6 @@ import {
   BalloonSizeConfig,
 } from "@/types/balloon";
 import { SAO_ROQUE_COLORS } from "@/lib/balloonColors";
-import Image from "next/image";
-
 // Gradients especiais para cores metálicas
 const SPECIAL_GRADIENTS: Record<string, string> = {
   Ouro: "linear-gradient(135deg, #FFD700 0%, #FDB931 100%)",
@@ -51,14 +48,6 @@ const getBalloonColor = (colorName: string) => {
   );
   if (foundKey) return SAO_ROQUE_COLORS[foundKey];
   return "#EEEEEE";
-};
-
-// Mapeamento de imagens por tipo
-const TYPE_IMAGES: Record<string, string> = {
-  "Látex Redondo": "/api/placeholder/200/200", // Será substituído pelas imagens geradas
-  Número: "/api/placeholder/200/200",
-  Letra: "/api/placeholder/200/200",
-  Canudo: "/api/placeholder/200/200",
 };
 
 export function BalloonBuilder() {
