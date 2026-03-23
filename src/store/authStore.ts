@@ -1,7 +1,7 @@
 // src/store/authStore.ts
 
 import { create } from "zustand";
-import { User, onAuthStateChanged, signOut } from "firebase/auth";
+import { User, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
@@ -20,13 +20,15 @@ interface AuthState {
   setUser: (user: User | null) => void;
   /** Função para deslogar o usuário. */
   logout: () => Promise<void>;
+  /** Função para login com Google. */
+  loginWithGoogle: () => Promise<void>;
   /** Função para iniciar o listener de estado do Firebase Auth (Deve ser chamada uma vez). */
   initializeAuthListener: () => () => void;
   /**
    * Verifica se o usuário tem role "admin" no documento /users/{uid}.
    * Retorna true se admin, false caso contrário.
    */
-  checkAdminRole: (uid: string) => Promise<boolean>;
+  checkAdminRole: () => Promise<boolean>;
 }
 
 // 2. Criação do Store
@@ -56,14 +58,44 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  checkAdminRole: async (uid: string): Promise<boolean> => {
+  loginWithGoogle: async () => {
+    const provider = new GoogleAuthProvider();
     try {
-      const userDoc = await getDoc(doc(db, "users", uid));
-      const admin = userDoc.exists() && userDoc.data()?.role === "admin";
-      set({ isAdmin: admin });
-      return admin;
+      await signInWithPopup(auth, provider);
     } catch (error) {
-      console.error("Erro ao verificar role de admin:", error);
+      console.error("Erro no login com Google:", error);
+      throw error;
+    }
+  },
+
+  checkAdminRole: async (): Promise<boolean> => {
+    const user = auth.currentUser;
+    if (!user || !user.email || !user.emailVerified) {
+      set({ isAdmin: false });
+      return false;
+    }
+
+    try {
+      // 1. Verificar Whitelist Explícita (E-mail individual)
+      const staffDoc = await getDoc(doc(db, "whitelisted_staff", user.email.toLowerCase()));
+      if (staffDoc.exists() && staffDoc.data()?.active === true) {
+        set({ isAdmin: true });
+        return true;
+      }
+
+      // 2. Verificar Whitelist por Domínio (Configuração Geral)
+      const settingsDoc = await getDoc(doc(db, "settings", "general"));
+      const allowedDomain = settingsDoc.data()?.allowedStaffDomain;
+      
+      if (allowedDomain && user.email.toLowerCase().endsWith(`@${allowedDomain}`)) {
+        set({ isAdmin: true });
+        return true;
+      }
+
+      set({ isAdmin: false });
+      return false;
+    } catch (error) {
+      console.error("Erro ao verificar permissões de staff:", error);
       set({ isAdmin: false });
       return false;
     }
@@ -72,12 +104,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   initializeAuthListener: () => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Usuário autenticado — verifica role antes de liberar o estado de carregamento
+        // Usuário autenticado
         set({ user: firebaseUser, isAuthenticated: true, isLoading: true });
+
+        if (!firebaseUser.email || !firebaseUser.emailVerified) {
+          set({ isAdmin: false, isLoading: false });
+          return;
+        }
+
         try {
-          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-          const admin = userDoc.exists() && userDoc.data()?.role === "admin";
-          set({ isAdmin: admin, isLoading: false });
+          // Reutiliza a lógica de checagem centralizada
+          const isAdmin = await useAuthStore.getState().checkAdminRole();
+          set({ isAdmin, isLoading: false });
         } catch {
           set({ isAdmin: false, isLoading: false });
         }

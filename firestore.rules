@@ -4,13 +4,27 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ─────────────────────────────────────────────────────────────────────
-    // Função auxiliar: verifica se o usuário autenticado tem role "admin"
-    // O documento do usuário fica em /users/{uid} com campo role: "admin"
+    // Função auxiliar: verifica se o usuário autenticado é um funcionário autorizado
+    // Requisitos:
+    // 1. Estar autenticado
+    // 2. Email verificado
+    // 3. Email presente na coleção /whitelisted_staff/{email}
     // ─────────────────────────────────────────────────────────────────────
     function isAdmin() {
-      return request.auth != null &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+      let email = request.auth.token.email;
+      let isVerified = request.auth != null && request.auth.token.email_verified == true;
+      
+      // 1. Check individual whitelist
+      let whitelisted = exists(/databases/$(database)/documents/whitelisted_staff/$(email)) &&
+                        get(/databases/$(database)/documents/whitelisted_staff/$(email)).data.active == true;
+      
+      // 2. Check corporate domain
+      let hasSettings = exists(/databases/$(database)/documents/settings/general);
+      let domainWhitelist = hasSettings && 
+                             get(/databases/$(database)/documents/settings/general).data.allowedStaffDomain != null &&
+                             email.lower().matches('.*@' + get(/databases/$(database)/documents/settings/general).data.allowedStaffDomain.lower() + '$');
+
+      return isVerified && (whitelisted || domainWhitelist);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -73,6 +87,14 @@ service cloud.firestore {
                        !("role" in request.resource.data);   // não pode alterar o próprio role
       allow update: if isAdmin();                             // admin pode alterar qualquer campo
       allow delete: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // /whitelisted_staff/{email}
+    //   - Somente admin pode ler/escrever
+    // ─────────────────────────────────────────────────────────────────────
+    match /whitelisted_staff/{email} {
+      allow read, write: if isAdmin();
     }
 
     // ─────────────────────────────────────────────────────────────────────
