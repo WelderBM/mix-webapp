@@ -1,11 +1,29 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { AlertTriangle, Database, Lock, CheckCircle, Trash2, Globe, UserPlus, ShieldCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  Database,
+  Lock,
+  CheckCircle,
+  Trash2,
+  Globe,
+  UserPlus,
+  ShieldCheck,
+  PartyPopper,
+} from "lucide-react";
 import { seedDatabase, seedBalloons } from "@/lib/seed";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
-import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc, getDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  setDoc,
+  deleteDoc,
+  updateDoc,
+  getDoc,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 interface StaffMember {
@@ -24,16 +42,22 @@ export function SuperAdminZone() {
 
   // Buscar lista de staff e configurações de domínio
   useEffect(() => {
-    const unsubStaff = onSnapshot(collection(db, "whitelisted_staff"), (snap) => {
-      setStaffList(snap.docs.map(d => ({ id: d.id, ...d.data() } as StaffMember)));
-    });
+    const unsubStaff = onSnapshot(
+      collection(db, "whitelisted_staff"),
+      (snap) => {
+        setStaffList(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() }) as StaffMember),
+        );
+      },
+    );
 
     const unsubSettings = onSnapshot(doc(db, "settings", "general"), (snap) => {
       if (snap.exists()) {
         setAllowedDomain(snap.data().allowedStaffDomain || "");
       }
     });
-
+ 
+ 
     return () => {
       unsubStaff();
       unsubSettings();
@@ -41,32 +65,41 @@ export function SuperAdminZone() {
   }, []);
 
   const handleRunSeed = async () => {
-    if (!confirm("⚠️ PERIGO: Isso vai sobrescrever as configurações e criar produtos teste. Tem certeza?")) return;
+    if (
+      !confirm(
+        "⚠️ PERIGO: Isso vai sobrescrever as configurações e criar produtos teste. Tem certeza?",
+      )
+    )
+      return;
     setIsLoading(true);
     try {
       await seedDatabase();
       toast.success("Banco de dados resetado!");
     } catch (error) {
       toast.error("Erro ao rodar seed.");
-    } finally { setIsLoading(false); }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSaveDomain = async () => {
     setIsLoading(true);
     try {
       await updateDoc(doc(db, "settings", "general"), {
-        allowedStaffDomain: allowedDomain.toLowerCase().trim()
+        allowedStaffDomain: allowedDomain.toLowerCase().trim(),
       });
       toast.success("Domínio de staff atualizado!");
     } catch (error) {
       toast.error("Erro ao salvar domínio.");
-    } finally { setIsLoading(false); }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAddStaff = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const email = (formData.get('email') as string).toLowerCase().trim();
+    const email = (formData.get("email") as string).toLowerCase().trim();
     if (!email) return;
 
     setIsLoading(true);
@@ -75,13 +108,15 @@ export function SuperAdminZone() {
         active: true,
         addedAt: new Date().toISOString(),
         addedBy: user?.email || "unknown",
-        role: "staff"
+        role: "staff",
       });
       toast.success(`${email} autorizado!`);
       (e.target as HTMLFormElement).reset();
     } catch (error) {
       toast.error("Erro ao autorizar e-mail.");
-    } finally { setIsLoading(false); }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDeleteStaff = async (email: string) => {
@@ -102,7 +137,9 @@ export function SuperAdminZone() {
     <div className="bg-slate-900 text-slate-100 p-8 rounded-xl border border-slate-700 space-y-8">
       <div className="flex items-center gap-3 border-b border-slate-700 pb-4">
         <ShieldCheck className="text-blue-400" size={24} />
-        <h2 className="text-xl font-bold tracking-tight">Segurança & Gestão de Acesso</h2>
+        <h2 className="text-xl font-bold tracking-tight">
+          Segurança & Gestão de Acesso
+        </h2>
         <span className="ml-auto bg-green-900/30 text-green-400 text-xs px-2 py-1 rounded border border-green-900 flex items-center gap-1">
           <CheckCircle size={12} /> Super Admin Ativo
         </span>
@@ -116,17 +153,21 @@ export function SuperAdminZone() {
             <h3 className="font-bold text-white">Domínio Corporativo</h3>
           </div>
           <p className="text-xs text-slate-400">
-            Qualquer pessoa com e-mail verificado deste domínio terá acesso administrativo automático.
-            Ex: <strong>mixnovidades.com.br</strong>
+            Qualquer pessoa com e-mail verificado deste domínio terá acesso
+            administrativo automático. Ex: <strong>mixnovidades.com.br</strong>
           </p>
           <div className="flex gap-2">
-            <Input 
+            <Input
               value={allowedDomain}
               onChange={(e) => setAllowedDomain(e.target.value)}
               placeholder="ex: empresa.com.br"
               className="bg-slate-900 border-slate-700 text-white"
             />
-            <Button onClick={handleSaveDomain} disabled={isLoading} variant="secondary">
+            <Button
+              onClick={handleSaveDomain}
+              disabled={isLoading}
+              variant="secondary"
+            >
               Salvar
             </Button>
           </div>
@@ -139,30 +180,37 @@ export function SuperAdminZone() {
             <h3 className="font-bold text-white">Autorizar Novo E-mail</h3>
           </div>
           <p className="text-xs text-slate-400">
-            Adicione e-mails específicos que não pertencem ao domínio corporativo (ex: e-mails @gmail.com).
+            Adicione e-mails específicos que não pertencem ao domínio
+            corporativo (ex: e-mails @gmail.com).
           </p>
           <form onSubmit={handleAddStaff} className="flex gap-2">
-            <Input 
+            <Input
               name="email"
-              type="email" 
-              placeholder="funcionario@gmail.com" 
+              type="email"
+              placeholder="funcionario@gmail.com"
               className="bg-slate-900 border-slate-700 text-white"
               required
             />
-            <Button type="submit" disabled={isLoading} className="bg-purple-600 hover:bg-purple-700">
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
               Autorizar
             </Button>
           </form>
         </div>
 
+
         {/* Staff List & Audit */}
         <div className="md:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-white flex items-center gap-2">
-              <Lock className="text-yellow-400" size={18} /> Staff Autorizado ({staffList.length})
+              <Lock className="text-yellow-400" size={18} /> Staff Autorizado (
+              {staffList.length})
             </h3>
           </div>
-          
+
           <div className="bg-slate-900 rounded-lg border border-slate-700 overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-slate-800 text-slate-400 text-left">
@@ -175,16 +223,23 @@ export function SuperAdminZone() {
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {staffList.map((staff) => (
-                  <tr key={staff.id} className="hover:bg-slate-800/50 transition-colors">
-                    <td className="p-3 font-medium text-slate-200">{staff.id}</td>
-                    <td className="p-3 text-slate-400">{staff.addedBy || "Console"}</td>
+                  <tr
+                    key={staff.id}
+                    className="hover:bg-slate-800/50 transition-colors"
+                  >
+                    <td className="p-3 font-medium text-slate-200">
+                      {staff.id}
+                    </td>
+                    <td className="p-3 text-slate-400">
+                      {staff.addedBy || "Console"}
+                    </td>
                     <td className="p-3 text-slate-500">
                       {new Date(staff.addedAt).toLocaleDateString()}
                     </td>
                     <td className="p-3 text-right">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => handleDeleteStaff(staff.id)}
                         className="text-slate-500 hover:text-red-400 hover:bg-red-400/10 h-8 w-8"
                       >
@@ -195,7 +250,10 @@ export function SuperAdminZone() {
                 ))}
                 {staffList.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-slate-500 italic">
+                    <td
+                      colSpan={4}
+                      className="p-8 text-center text-slate-500 italic"
+                    >
                       Nenhum funcionário cadastrado manualmente.
                     </td>
                   </tr>
@@ -207,16 +265,24 @@ export function SuperAdminZone() {
 
         {/* Danger Zone */}
         <div className="md:col-span-2 pt-6 border-t border-slate-800">
-           <div className="flex items-center gap-4 p-4 bg-red-900/10 border border-red-900/30 rounded-lg">
-              <AlertTriangle className="text-red-500 shrink-0" size={24} />
-              <div className="flex-1">
-                <h4 className="text-red-400 font-bold text-sm">Zona de Perigo</h4>
-                <p className="text-xs text-red-300/70">Ações irreversíveis que impactam toda a base de dados.</p>
-              </div>
-              <Button onClick={handleRunSeed} disabled={isLoading} variant="destructive" size="sm" className="bg-red-900/40 hover:bg-red-900/60 border border-red-800">
-                Resetar Banco
-              </Button>
-           </div>
+          <div className="flex items-center gap-4 p-4 bg-red-900/10 border border-red-900/30 rounded-lg">
+            <AlertTriangle className="text-red-500 shrink-0" size={24} />
+            <div className="flex-1">
+              <h4 className="text-red-400 font-bold text-sm">Zona de Perigo</h4>
+              <p className="text-xs text-red-300/70">
+                Ações irreversíveis que impactam toda a base de dados.
+              </p>
+            </div>
+            <Button
+              onClick={handleRunSeed}
+              disabled={isLoading}
+              variant="destructive"
+              size="sm"
+              className="bg-red-900/40 hover:bg-red-900/60 border border-red-800"
+            >
+              Resetar Banco
+            </Button>
+          </div>
         </div>
       </div>
     </div>

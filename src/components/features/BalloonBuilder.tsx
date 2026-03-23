@@ -246,11 +246,25 @@ export function BalloonBuilder() {
                   onClick={() => handleSelectType(type.id)}
                   className="group relative bg-white border-2 border-slate-200 rounded-2xl p-4 hover:border-purple-500 hover:shadow-lg transition-all"
                 >
-                  <div className="aspect-square bg-slate-50 rounded-xl mb-3 flex items-center justify-center overflow-hidden">
-                    {/* Placeholder para imagem */}
-                    <div className="w-full h-full bg-linear-to-br from-purple-100 to-pink-100 flex items-center justify-center">
-                      <PartyPopper className="text-purple-400" size={48} />
-                    </div>
+                  <div className="aspect-square bg-slate-50 rounded-xl mb-3 flex items-center justify-center overflow-hidden relative">
+                    {/* Prioridade: Imagem específica do tipo > Placeholder global > Ícone padrão */}
+                    {type.imageUrl ? (
+                      <img 
+                        src={type.imageUrl} 
+                        alt={type.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      />
+                    ) : balloonConfig.placeholderUrl ? (
+                      <img 
+                        src={balloonConfig.placeholderUrl} 
+                        alt={type.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 opacity-50"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-linear-to-br from-purple-100 to-pink-100 flex items-center justify-center">
+                        <PartyPopper className="text-purple-400" size={48} />
+                      </div>
+                    )}
                   </div>
                   <h4 className="font-bold text-sm text-center text-slate-800 group-hover:text-purple-600 transition-colors">
                     {type.name}

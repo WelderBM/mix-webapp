@@ -27,6 +27,7 @@ interface ImageUploadProps {
   onUploadComplete?: (urls: string[]) => void;
   disabled?: boolean;
   multiple?: boolean;
+  folder?: string;
 }
 
 export function ImageUpload({
@@ -35,6 +36,7 @@ export function ImageUpload({
   onUploadComplete,
   disabled,
   multiple,
+  folder = "products",
 }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("upload");
@@ -50,7 +52,7 @@ export function ImageUpload({
     try {
       setUploading(true);
       const uploadPromises = files.map(async (file) => {
-        const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
+        const storageRef = ref(storage, `${folder}/${Date.now()}-${file.name}`);
         const snapshot = await uploadBytes(storageRef, file);
         return await getDownloadURL(snapshot.ref);
       });
