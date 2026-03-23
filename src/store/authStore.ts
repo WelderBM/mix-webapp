@@ -1,7 +1,7 @@
 // src/store/authStore.ts
 
 import { create } from "zustand";
-import { User, onAuthStateChanged, signOut } from "firebase/auth";
+import { User, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
@@ -20,6 +20,8 @@ interface AuthState {
   setUser: (user: User | null) => void;
   /** Função para deslogar o usuário. */
   logout: () => Promise<void>;
+  /** Função para login com Google. */
+  loginWithGoogle: () => Promise<void>;
   /** Função para iniciar o listener de estado do Firebase Auth (Deve ser chamada uma vez). */
   initializeAuthListener: () => () => void;
   /**
@@ -56,14 +58,31 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  checkAdminRole: async (uid: string): Promise<boolean> => {
+  loginWithGoogle: async () => {
+    const provider = new GoogleAuthProvider();
     try {
-      const userDoc = await getDoc(doc(db, "users", uid));
-      const admin = userDoc.exists() && userDoc.data()?.role === "admin";
+      await signInWithPopup(auth, provider);
+    } catch (error) {
+      console.error("Erro no login com Google:", error);
+      throw error;
+    }
+  },
+
+  checkAdminRole: async (uid: string): Promise<boolean> => {
+    const user = auth.currentUser;
+    if (!user || !user.email || !user.emailVerified) {
+      set({ isAdmin: false });
+      return false;
+    }
+
+    try {
+      // Usamos o email como ID na coleção whitelisted_staff para maior segurança e facilidade
+      const staffDoc = await getDoc(doc(db, "whitelisted_staff", user.email));
+      const admin = staffDoc.exists() && staffDoc.data()?.active === true;
       set({ isAdmin: admin });
       return admin;
     } catch (error) {
-      console.error("Erro ao verificar role de admin:", error);
+      console.error("Erro ao verificar permissões de staff:", error);
       set({ isAdmin: false });
       return false;
     }
@@ -72,11 +91,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   initializeAuthListener: () => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Usuário autenticado — verifica role antes de liberar o estado de carregamento
+        // Usuário autenticado — verifica permissões se o e-mail estiver verificado
         set({ user: firebaseUser, isAuthenticated: true, isLoading: true });
+
+        if (!firebaseUser.email || !firebaseUser.emailVerified) {
+          set({ isAdmin: false, isLoading: false });
+          return;
+        }
+
         try {
-          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-          const admin = userDoc.exists() && userDoc.data()?.role === "admin";
+          const staffDoc = await getDoc(
+            doc(db, "whitelisted_staff", firebaseUser.email)
+          );
+          const admin = staffDoc.exists() && staffDoc.data()?.active === true;
           set({ isAdmin: admin, isLoading: false });
         } catch {
           set({ isAdmin: false, isLoading: false });

@@ -69,21 +69,54 @@ export function SuperAdminZone() {
           </Button>
         </div>
 
-        {/* Seed de Balões */}
-        <div className="space-y-2">
-          <h3 className="font-bold text-white">Importar Catálogo de Balões</h3>
+        {/* Gerenciamento de Whitelist */}
+        <div className="space-y-4 border-t border-slate-700 pt-6 md:col-span-2">
+          <div className="flex items-center gap-2">
+            <Lock className="text-yellow-400" size={20} />
+            <h3 className="font-bold text-white">Whitelist de Funcionários (Acesso Admin)</h3>
+          </div>
           <p className="text-sm text-slate-400">
-            Atualiza apenas os preços e tipos de balões (Simples, Metálico,
-            Candy, etc) sem apagar seus produtos ou outras configurações.
+            Adicione o e-mail do funcionário para permitir o acesso ao painel. 
+            O funcionário PRECISA ter o e-mail verificado (automaticamente no Google Auth).
           </p>
-          <Button
-            onClick={handleSeedBalloons}
-            disabled={isLoading}
-            variant="secondary"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold"
+          <form 
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const email = formData.get('email') as string;
+              if(!email) return;
+              
+              setIsLoading(true);
+              try {
+                const { doc, setDoc } = await import("firebase/firestore");
+                const { db } = await import("@/lib/firebase");
+                await setDoc(doc(db, "whitelisted_staff", email.toLowerCase()), {
+                  active: true,
+                  addedAt: new Date().toISOString(),
+                  role: "staff"
+                });
+                toast.success(`E-mail ${email} adicionado à whitelist!`);
+                (e.target as HTMLFormElement).reset();
+              } catch (error) {
+                console.error(error);
+                toast.error("Erro ao adicionar e-mail.");
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            className="flex gap-2"
           >
-            {isLoading ? "Processando..." : "🚀 Atualizar Apenas Balões"}
-          </Button>
+            <Input 
+              name="email"
+              type="email" 
+              placeholder="funcionario@gmail.com" 
+              className="bg-slate-800 border-slate-700 text-white flex-1"
+              required
+            />
+            <Button type="submit" disabled={isLoading} className="bg-purple-600 hover:bg-purple-700">
+              {isLoading ? "Salvando..." : "Autorizar E-mail"}
+            </Button>
+          </form>
         </div>
       </div>
     </div>

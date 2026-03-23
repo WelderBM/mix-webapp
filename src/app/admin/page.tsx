@@ -158,7 +158,7 @@ export default function AdminPage() {
   // System Tools Modal
   const [isSysToolsOpen, setIsSysToolsOpen] = useState(false);
 
-  // Auth & Data — com verificação de role de admin
+  // Auth & Data — com verificação de whitelist
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
       if (!user) {
@@ -168,19 +168,26 @@ export default function AdminPage() {
         return;
       }
 
-      // Verifica se o usuário tem role "admin" em /users/{uid}
+      // Verifica se o email está verificado e na whitelist
+      if (!user.email || !user.emailVerified) {
+        toast.error("Acesso restrito. E-mail não verificado ou não autorizado.");
+        await signOut(auth);
+        router.replace("/");
+        setLoadingAuth(false);
+        return;
+      }
+
       try {
         const { doc: firestoreDoc, getDoc: firestoreGetDoc } = await import(
           "firebase/firestore"
         );
-        const userDoc = await firestoreGetDoc(
-          firestoreDoc(db, "users", user.uid)
+        const staffDoc = await firestoreGetDoc(
+          firestoreDoc(db, "whitelisted_staff", user.email)
         );
-        const admin =
-          userDoc.exists() && userDoc.data()?.role === "admin";
+        const isActive = staffDoc.exists() && staffDoc.data()?.active === true;
 
-        if (!admin) {
-          // Usuário autenticado mas sem permissão de admin — redireciona
+        if (!isActive) {
+          toast.error("Seu e-mail não consta na lista de funcionários autorizados.");
           await signOut(auth);
           router.replace("/");
           return;
@@ -189,7 +196,7 @@ export default function AdminPage() {
         setCurrentUser(user);
         setIsAdminUser(true);
       } catch (err) {
-        console.error("Erro ao verificar role de admin:", err);
+        console.error("Erro ao verificar permissões:", err);
         await signOut(auth);
         router.replace("/");
       } finally {
