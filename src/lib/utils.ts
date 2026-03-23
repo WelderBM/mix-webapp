@@ -31,6 +31,17 @@ export function getContrastColor(hexColor: string): string {
   return yiq >= 128 ? "#000000" : "#ffffff";
 }
 
+/**
+ * Clareia (amount > 0) ou escurece (amount < 0) uma cor hexadecimal.
+ * @param color  Cor em formato #RRGGBB
+ * @param amount Valor entre -255 e 255
+ * @returns      Nova cor em formato #RRGGBB
+ */
 export function adjustColor(color: string, amount: number): string {
-  return color; // Placeholder simples se não tiver a lógica complexa
+  const clamp = (v: number) => Math.min(255, Math.max(0, v));
+  const hex = color.replace("#", "");
+  const r = clamp(parseInt(hex.substring(0, 2), 16) + amount);
+  const g = clamp(parseInt(hex.substring(2, 4), 16) + amount);
+  const b = clamp(parseInt(hex.substring(4, 6), 16) + amount);
+  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 }

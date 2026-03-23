@@ -41,6 +41,7 @@ export interface CartItem {
     typeName: string;
     size: string;
     color: string;
+    colorHex: string; // Cor em formato hexadecimal para exibição visual
     unitsPerPackage: number;
   };
   selectedImageLabel?: string;
