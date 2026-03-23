@@ -27,7 +27,19 @@ const BalloonIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+import { useEffect, useState } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
 export function BalloonBuilderTrigger() {
+  const [placeholderUrl, setPlaceholderUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    getDoc(doc(db, "settings", "balloons")).then(snap => {
+      if(snap.exists()) setPlaceholderUrl(snap.data().placeholderUrl || null);
+    });
+  }, []);
+
   return (
     <Link href="/baloes" className="block h-full">
       <div className="relative w-full h-full min-h-[180px] rounded-3xl overflow-hidden shadow-sm cursor-pointer group transition-all hover:shadow-xl hover:scale-[1.02] border border-slate-200 bg-slate-50">
@@ -58,8 +70,16 @@ export function BalloonBuilderTrigger() {
           </div>
         </div>
 
-        <div className="absolute top-1/2 -translate-y-1/2 right-6 text-slate-200 group-hover:text-purple-200/50 transition-colors rotate-12">
-          <BalloonIcon className="w-[100px] h-[100px]" />
+        <div className="absolute top-1/2 -translate-y-1/2 right-6 text-slate-200 group-hover:text-purple-200/50 transition-colors rotate-12 flex items-center justify-center">
+          {placeholderUrl ? (
+            <img 
+              src={placeholderUrl} 
+              alt="Balões" 
+              className="w-[120px] h-[120px] object-contain drop-shadow-xl"
+            />
+          ) : (
+            <BalloonIcon className="w-[100px] h-[100px]" />
+          )}
         </div>
       </div>
     </Link>

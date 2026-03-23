@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ProductImage } from "@/types/product";
-import { ImageUpload } from "./ImageUpload";
-import { X, Star } from "lucide-react";
+import { ImageUploadModal } from "./ImageUploadModal";
+import { X, Star, Plus } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 interface ProductImageManagerProps {
@@ -147,15 +147,11 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
 
       {/* Upload New Area */}
       <div className="mt-4">
-        <Label className="mb-2 block text-xs uppercase tracking-wide text-slate-500 font-semibold">
-          Adicionar Nova Imagem
-        </Label>
-        <ImageUpload
-          value="" // Always empty to allow new uploads
-          onChange={() => {}} // Ignored when multiple=true
+        <ImageUploadModal
+          multiple={true}
           onUploadComplete={handleAddImages}
           disabled={disabled}
-          multiple={true}
+          folder="products"
         />
       </div>
     </div>

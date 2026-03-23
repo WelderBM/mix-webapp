@@ -16,6 +16,9 @@ import { useRouter } from "next/navigation";
 import { Product, StoreSettings, StoreSection, SectionType } from "@/types";
 import { Order } from "@/types/order";
 import { BalloonConfig, BalloonTypeConfig } from "@/types/balloon";
+import { ImageUpload } from "@/components/admin/ImageUpload";
+import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 // Order type imported from @/types/order
 
 import { Button } from "@/components/ui/button";
@@ -89,6 +92,7 @@ import {
   Ruler,
   Loader2,
   MoreHorizontal,
+  Image as ImageIcon,
 } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
 import Link from "next/link";
@@ -1011,7 +1015,34 @@ export default function AdminPage() {
 
                 {balloonTab === "edition" ? (
                   <div className="space-y-6 animate-in fade-in duration-300">
-                    <div className="flex justify-end">
+                    {/* Placeholder Global - Moved from SuperAdmin */}
+                    <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100 flex flex-col md:flex-row items-center gap-6 shadow-sm">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2 text-purple-700">
+                          <ImageIcon size={20} />
+                          <h3 className="font-bold uppercase tracking-tight">Fundo Global da Vitrine</h3>
+                        </div>
+                        <p className="text-sm text-slate-500">
+                          Esta imagem aparecerá em todos os balões que não possuem imagem própria. 
+                          Deixe em branco para usar o confete padrão.
+                        </p>
+                      </div>
+                      
+                      <div className="shrink-0 bg-white p-3 rounded-xl border border-purple-200">
+                        <ImageUploadModal 
+                          value={balloonConfig.placeholderUrl || ""}
+                          onChange={(url) => {
+                            setBalloonConfig({
+                              ...balloonConfig,
+                              placeholderUrl: url
+                            });
+                          }}
+                          folder="balloons/placeholders"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-6 border-t">
                       <Button
                         onClick={() => {
                           const newType: BalloonTypeConfig = {
@@ -1025,94 +1056,157 @@ export default function AdminPage() {
                             types: [...prev.types, newType],
                           }));
                         }}
-                        className="bg-purple-600 hover:bg-purple-700"
+                        className="bg-purple-600 hover:bg-purple-700 shadow-md active:scale-95 transition-all"
                       >
                         <Plus size={16} className="mr-2" /> Novo Tipo de Balão
                       </Button>
                     </div>
 
-                    <div className="space-y-6">
+                    <Accordion type="single" collapsible className="space-y-4">
                       {balloonConfig.types.map((type, typeIndex) => (
-                        <div
-                          key={type.id}
-                          className="border rounded-xl p-5 bg-slate-50 border-slate-200 space-y-6"
+                        <AccordionItem 
+                          value={type.id} 
+                          key={type.id} 
+                          className="border rounded-xl bg-white border-slate-200 overflow-hidden shadow-sm"
                         >
-                          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                            <div className="flex-1 w-full">
-                              <Label className="font-bold text-slate-700">
-                                Nome do Tipo
-                              </Label>
-                              <div className="flex gap-3 mt-2">
-                                <Input
-                                  value={type.name}
-                                  onChange={(e) => {
-                                    const newTypes = [...balloonConfig.types];
-                                    newTypes[typeIndex].name = e.target.value;
-                                    setBalloonConfig({
-                                      ...balloonConfig,
-                                      types: newTypes,
-                                    });
-                                  }}
-                                  className="bg-white border-slate-200"
-                                />
-                                <div
-                                  className="flex items-center gap-2 bg-white px-3 border border-slate-200 rounded-md shrink-0"
-                                  title="Ativar/Desativar este tipo no catálogo"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    id={`active-${type.id}`}
-                                    className="w-4 h-4 accent-purple-600 cursor-pointer"
-                                    checked={type.active !== false}
-                                    onChange={(e) => {
+                          <AccordionTrigger className="px-5 hover:no-underline hover:bg-slate-50 transition-colors">
+                            <div className="flex items-center gap-4 w-full text-left">
+                              {/* Small Preview in Header */}
+                              <div className="w-10 h-10 rounded-lg border-2 border-slate-100 bg-slate-50 overflow-hidden flex items-center justify-center shrink-0">
+                                {type.imageUrl ? (
+                                  <img 
+                                    src={type.imageUrl} 
+                                    alt="Preview" 
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <PartyPopper size={16} className="text-slate-300" />
+                                )}
+                              </div>
+                              
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-bold text-slate-800 truncate uppercase tracking-tight">
+                                  {type.name || "Tipo sem nome"}
+                                </h3>
+                                <div className="flex items-center gap-3 mt-0.5">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded">
+                                    {type.sizes.length} tamanhos
+                                  </span>
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded">
+                                    {type.colors.length} cores
+                                  </span>
+                                  {type.active === false && (
+                                    <Badge variant="outline" className="text-[9px] h-4 bg-red-50 text-red-600 border-red-200 uppercase font-black">
+                                      Inativo
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </AccordionTrigger>
+
+                          <AccordionContent className="px-5 pb-6 pt-2 space-y-8 animate-in slide-in-from-top-2 duration-300">
+                            {/* Basic Info & Actions Area */}
+                            <div className="flex flex-col md:flex-row gap-6 items-start justify-between bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                              <div className="flex-[2] w-full space-y-4">
+                                <div>
+                                  <Label className="font-black text-[10px] text-slate-500 uppercase tracking-widest mb-1.5 block">
+                                    Configurador do Tipo
+                                  </Label>
+                                  <div className="flex gap-3">
+                                    <Input
+                                      value={type.name}
+                                      placeholder="Ex: Látex Prime"
+                                      onChange={(e) => {
+                                        const newTypes = [...balloonConfig.types];
+                                        newTypes[typeIndex].name = e.target.value;
+                                        setBalloonConfig({
+                                          ...balloonConfig,
+                                          types: newTypes,
+                                        });
+                                      }}
+                                      className="bg-white border-slate-200 h-10 font-bold text-slate-800"
+                                    />
+                                    
+                                    <div className="flex items-center gap-2 bg-white px-3 border border-slate-200 rounded-md shrink-0 h-10 shadow-sm">
+                                      <input
+                                        type="checkbox"
+                                        id={`active-${type.id}`}
+                                        className="w-4 h-4 accent-purple-600 cursor-pointer"
+                                        checked={type.active !== false}
+                                        onChange={(e) => {
+                                          const newTypes = [...balloonConfig.types];
+                                          newTypes[typeIndex].active = e.target.checked;
+                                          setBalloonConfig({
+                                            ...balloonConfig,
+                                            types: newTypes,
+                                          });
+                                        }}
+                                      />
+                                      <Label
+                                        htmlFor={`active-${type.id}`}
+                                        className="text-xs font-black uppercase text-slate-600 cursor-pointer select-none"
+                                      >
+                                        Ativo
+                                      </Label>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="pt-2">
+                                  <Label className="font-black text-[10px] text-slate-500 uppercase tracking-widest mb-1.5 block text-left">
+                                    Imagem Ilustrativa
+                                  </Label>
+                                  <ImageUploadModal 
+                                    value={type.imageUrl || ""}
+                                    onChange={(url) => {
                                       const newTypes = [...balloonConfig.types];
-                                      newTypes[typeIndex].active =
-                                        e.target.checked;
+                                      newTypes[typeIndex].imageUrl = url;
                                       setBalloonConfig({
                                         ...balloonConfig,
                                         types: newTypes,
                                       });
                                     }}
+                                    folder="balloons/types"
+                                    className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm max-w-sm"
                                   />
-                                  <Label
-                                    htmlFor={`active-${type.id}`}
-                                    className="text-sm font-semibold cursor-pointer select-none"
-                                  >
-                                    Ativo
-                                  </Label>
                                 </div>
                               </div>
+
+                              <div className="flex gap-2 shrink-0 self-start pt-6">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  title="Duplicar este tipo"
+                                  onClick={() => handleDuplicateType(typeIndex)}
+                                  className="h-9 px-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-100"
+                                >
+                                  <Copy size={16} className="mr-2" />
+                                  Duplicar
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (confirm("Remover este tipo de balão?")) {
+                                      const newTypes = balloonConfig.types.filter(
+                                        (t) => t.id !== type.id
+                                      );
+                                      setBalloonConfig({
+                                        ...balloonConfig,
+                                        types: newTypes,
+                                      });
+                                    }
+                                  }}
+                                  className="h-9 px-3 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100"
+                                >
+                                  <Trash2 size={16} className="mr-2" />
+                                  Remover
+                                </Button>
+                              </div>
                             </div>
-                            <div className="flex gap-1 mt-6">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Duplicar este tipo"
-                                onClick={() => handleDuplicateType(typeIndex)}
-                                className="text-blue-500 hover:bg-blue-50"
-                              >
-                                <Copy size={16} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  if (confirm("Remover este tipo de balão?")) {
-                                    const newTypes = balloonConfig.types.filter(
-                                      (t) => t.id !== type.id
-                                    );
-                                    setBalloonConfig({
-                                      ...balloonConfig,
-                                      types: newTypes,
-                                    });
-                                  }
-                                }}
-                                className="text-red-400 hover:bg-red-50"
-                              >
-                                <Trash2 size={16} />
-                              </Button>
-                            </div>
-                          </div>
+
+                            {/* Rest of the content (Sizes, Colors) - keep existing logic but inside AccordionContent */}
 
                           <div className="space-y-4">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -1397,10 +1491,11 @@ export default function AdminPage() {
                                 );
                               })}
                             </div>
-                          </div>
-                        </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
                       ))}
-                    </div>
+                    </Accordion>
                   </div>
                 ) : (
                   <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -1422,8 +1517,16 @@ export default function AdminPage() {
                               }
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-black">
-                                  {type.name.charAt(0)}
+                                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-black overflow-hidden border border-purple-200">
+                                  {type.imageUrl ? (
+                                    <img 
+                                      src={type.imageUrl} 
+                                      alt={type.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    type.name.charAt(0)
+                                  )}
                                 </div>
                                 <div>
                                   <h3 className="font-bold text-slate-800">
