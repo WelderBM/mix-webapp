@@ -11,10 +11,20 @@ service cloud.firestore {
     // 3. Email presente na coleção /whitelisted_staff/{email}
     // ─────────────────────────────────────────────────────────────────────
     function isAdmin() {
-      return request.auth != null &&
-        request.auth.token.email_verified == true &&
-        exists(/databases/$(database)/documents/whitelisted_staff/$(request.auth.token.email)) &&
-        get(/databases/$(database)/documents/whitelisted_staff/$(request.auth.token.email)).data.active == true;
+      let email = request.auth.token.email;
+      let isVerified = request.auth != null && request.auth.token.email_verified == true;
+      
+      // 1. Check individual whitelist
+      let whitelisted = exists(/databases/$(database)/documents/whitelisted_staff/$(email)) &&
+                        get(/databases/$(database)/documents/whitelisted_staff/$(email)).data.active == true;
+      
+      // 2. Check corporate domain
+      let hasSettings = exists(/databases/$(database)/documents/settings/general);
+      let domainWhitelist = hasSettings && 
+                             get(/databases/$(database)/documents/settings/general).data.allowedStaffDomain != null &&
+                             email.lower().matches('.*@' + get(/databases/$(database)/documents/settings/general).data.allowedStaffDomain.lower() + '$');
+
+      return isVerified && (whitelisted || domainWhitelist);
     }
 
     // ─────────────────────────────────────────────────────────────────────

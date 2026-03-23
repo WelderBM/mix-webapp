@@ -28,7 +28,7 @@ interface AuthState {
    * Verifica se o usuário tem role "admin" no documento /users/{uid}.
    * Retorna true se admin, false caso contrário.
    */
-  checkAdminRole: (uid: string) => Promise<boolean>;
+  checkAdminRole: () => Promise<boolean>;
 }
 
 // 2. Criação do Store
@@ -68,7 +68,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  checkAdminRole: async (uid: string): Promise<boolean> => {
+  checkAdminRole: async (): Promise<boolean> => {
     const user = auth.currentUser;
     if (!user || !user.email || !user.emailVerified) {
       set({ isAdmin: false });
@@ -76,11 +76,24 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
 
     try {
-      // Usamos o email como ID na coleção whitelisted_staff para maior segurança e facilidade
-      const staffDoc = await getDoc(doc(db, "whitelisted_staff", user.email));
-      const admin = staffDoc.exists() && staffDoc.data()?.active === true;
-      set({ isAdmin: admin });
-      return admin;
+      // 1. Verificar Whitelist Explícita (E-mail individual)
+      const staffDoc = await getDoc(doc(db, "whitelisted_staff", user.email.toLowerCase()));
+      if (staffDoc.exists() && staffDoc.data()?.active === true) {
+        set({ isAdmin: true });
+        return true;
+      }
+
+      // 2. Verificar Whitelist por Domínio (Configuração Geral)
+      const settingsDoc = await getDoc(doc(db, "settings", "general"));
+      const allowedDomain = settingsDoc.data()?.allowedStaffDomain;
+      
+      if (allowedDomain && user.email.toLowerCase().endsWith(`@${allowedDomain}`)) {
+        set({ isAdmin: true });
+        return true;
+      }
+
+      set({ isAdmin: false });
+      return false;
     } catch (error) {
       console.error("Erro ao verificar permissões de staff:", error);
       set({ isAdmin: false });
@@ -91,7 +104,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   initializeAuthListener: () => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Usuário autenticado — verifica permissões se o e-mail estiver verificado
+        // Usuário autenticado
         set({ user: firebaseUser, isAuthenticated: true, isLoading: true });
 
         if (!firebaseUser.email || !firebaseUser.emailVerified) {
@@ -100,11 +113,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
 
         try {
-          const staffDoc = await getDoc(
-            doc(db, "whitelisted_staff", firebaseUser.email)
-          );
-          const admin = staffDoc.exists() && staffDoc.data()?.active === true;
-          set({ isAdmin: admin, isLoading: false });
+          // Reutiliza a lógica de checagem centralizada
+          const isAdmin = await useAuthStore.getState().checkAdminRole();
+          set({ isAdmin, isLoading: false });
         } catch {
           set({ isAdmin: false, isLoading: false });
         }
