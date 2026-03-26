@@ -2155,6 +2155,174 @@ export default function AdminPage() {
                     </Table>
                   </div>
                 )}
+
+                {/* ===== CONFIGURAÇÃO DO LAÇO ===== */}
+                <div className="bg-white p-6 rounded-xl shadow-sm space-y-6 mt-6 border border-slate-100">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                      <Gift size={20} className="text-primary" /> Configuração do Laço
+                    </h2>
+                    <p className="text-sm text-slate-500 mt-1">
+                      Gerencie os modelos e tamanhos disponíveis no montador de laços.
+                    </p>
+                  </div>
+
+                  {/* Modelos */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold text-slate-700">Modelos de Laço</h3>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 text-xs"
+                        onClick={() => {
+                          const newModel = {
+                            id: crypto.randomUUID(),
+                            name: "Novo Modelo",
+                            subtitle: "Descrição do modelo",
+                            imageUrl: "",
+                          };
+                          setSettings((prev: StoreSettings) => ({
+                            ...prev,
+                            bowModels: [...(prev.bowModels || []), newModel],
+                          }));
+                        }}
+                      >
+                        <Plus size={14} /> Adicionar Modelo
+                      </Button>
+                    </div>
+                    <div className="space-y-3">
+                      {(settings.bowModels || []).map((model, idx) => (
+                        <div key={model.id} className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                          <ImageUploadModal
+                            value={model.imageUrl}
+                            folder="laco/models"
+                            onChange={(url) => {
+                              const updated = [...(settings.bowModels || [])];
+                              updated[idx] = { ...updated[idx], imageUrl: url };
+                              setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
+                            }}
+                          />
+                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <Input
+                              placeholder="Nome"
+                              value={model.name}
+                              onChange={(e) => {
+                                const updated = [...(settings.bowModels || [])];
+                                updated[idx] = { ...updated[idx], name: e.target.value };
+                                setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
+                              }}
+                              className="text-sm"
+                            />
+                            <Input
+                              placeholder="Subtítulo"
+                              value={model.subtitle}
+                              onChange={(e) => {
+                                const updated = [...(settings.bowModels || [])];
+                                updated[idx] = { ...updated[idx], subtitle: e.target.value };
+                                setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
+                              }}
+                              className="text-sm"
+                            />
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:bg-red-50 shrink-0"
+                            onClick={() => {
+                              setSettings((prev: StoreSettings) => ({
+                                ...prev,
+                                bowModels: (prev.bowModels || []).filter((_, i) => i !== idx),
+                              }));
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      ))}
+                      {(settings.bowModels || []).length === 0 && (
+                        <p className="text-sm text-slate-400 text-center py-4">Nenhum modelo cadastrado.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tamanhos */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold text-slate-700">Tamanhos</h3>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 text-xs"
+                        onClick={() => {
+                          const newSize = {
+                            id: crypto.randomUUID(),
+                            name: "Novo Tamanho",
+                            price: 0,
+                          };
+                          setSettings((prev: StoreSettings) => ({
+                            ...prev,
+                            bowSizes: [...(prev.bowSizes || []), newSize],
+                          }));
+                        }}
+                      >
+                        <Plus size={14} /> Adicionar Tamanho
+                      </Button>
+                    </div>
+                    <div className="space-y-3">
+                      {(settings.bowSizes || []).map((size, idx) => (
+                        <div key={size.id} className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                          <div className="flex-1 grid grid-cols-2 gap-2">
+                            <Input
+                              placeholder="Nome (ex: Pequeno)"
+                              value={size.name}
+                              onChange={(e) => {
+                                const updated = [...(settings.bowSizes || [])];
+                                updated[idx] = { ...updated[idx], name: e.target.value };
+                                setSettings((prev: StoreSettings) => ({ ...prev, bowSizes: updated }));
+                              }}
+                              className="text-sm"
+                            />
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">R$</span>
+                              <Input
+                                type="number"
+                                placeholder="0,00"
+                                value={size.price}
+                                onChange={(e) => {
+                                  const updated = [...(settings.bowSizes || [])];
+                                  updated[idx] = { ...updated[idx], price: parseFloat(e.target.value) || 0 };
+                                  setSettings((prev: StoreSettings) => ({ ...prev, bowSizes: updated }));
+                                }}
+                                className="pl-9 text-sm"
+                              />
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:bg-red-50 shrink-0"
+                            onClick={() => {
+                              setSettings((prev: StoreSettings) => ({
+                                ...prev,
+                                bowSizes: (prev.bowSizes || []).filter((_, i) => i !== idx),
+                              }));
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      ))}
+                      {(settings.bowSizes || []).length === 0 && (
+                        <p className="text-sm text-slate-400 text-center py-4">Nenhum tamanho cadastrado.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-slate-400">
+                    Clique em <strong>Salvar Configurações</strong> no topo para aplicar as alterações.
+                  </p>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
@@ -2336,15 +2504,15 @@ export default function AdminPage() {
                 {selectedTemplate === "custom_banner" && (
                   <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <div className="space-y-2">
-                      <Label>URL da Imagem do Banner</Label>
-                      <Input
+                      <Label>Imagem do Banner</Label>
+                      <ImageUploadModal
                         value={editingSection?.bannerUrl || ""}
-                        onChange={(e) =>
+                        folder="banners"
+                        onChange={(url) =>
                           setEditingSection((prev) =>
-                            prev ? { ...prev, bannerUrl: e.target.value } : null
+                            prev ? { ...prev, bannerUrl: url } : null
                           )
                         }
-                        placeholder="https://exemplo.com/imagem.jpg"
                       />
                       <p className="text-[10px] text-slate-500">
                         Recomendado: 1200x400px

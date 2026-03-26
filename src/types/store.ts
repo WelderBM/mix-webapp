@@ -1,3 +1,16 @@
+export interface BowModel {
+  id: string;
+  name: string;
+  subtitle: string;
+  imageUrl: string;
+}
+
+export interface BowSize {
+  id: string;
+  name: string;
+  price: number;
+}
+
 export type SectionType =
   | "product_shelf"
   | "banner_kit"
@@ -37,4 +50,6 @@ export interface StoreSettings {
   };
   homeSections: StoreSection[];
   whatsappGroupLink?: string;
+  bowModels?: BowModel[];
+  bowSizes?: BowSize[];
 }

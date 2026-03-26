@@ -25,6 +25,25 @@ const DEFAULT_SETTINGS: StoreSettings = {
     categoryOrder: [], // Aqui salvaremos a ordem dos Grupos
   },
   homeSections: [],
+  bowModels: [
+    {
+      id: "bola",
+      name: "Bola",
+      subtitle: "Clássico e elegante, plano.",
+      imageUrl: "https://placehold.co/400x400/png?text=Laco+Bola",
+    },
+    {
+      id: "borboleta",
+      name: "Borboleta",
+      subtitle: "Simples e versátil.",
+      imageUrl: "https://placehold.co/400x400/png?text=Laco+Borboleta",
+    },
+  ],
+  bowSizes: [
+    { id: "P", name: "Pequeno", price: 3 },
+    { id: "M", name: "Médio", price: 4 },
+    { id: "G", name: "Grande", price: 5 },
+  ],
 };
 
 export const useSettingsStore = create<SettingsStore>((set) => ({
