@@ -3,29 +3,29 @@
 import { useState, useMemo } from "react";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, ShoppingCart, AlertCircle, Package } from "lucide-react";
 import { toast } from "sonner";
 import { getProductImage } from "@/lib/image-utils";
 import { SafeImage } from "../ui/SafeImage";
 
-// NOTA: No futuro, esses modelos podem vir do banco de dados (Firebase)
-const BOW_STYLES = [
+const DEFAULT_BOW_STYLES = [
   {
     id: "bola",
     name: "Bola",
-    image: "https://placehold.co/400x400/png?text=Laco+Bola",
-    desc: "Clássico e elegante, plano.",
+    imageUrl: "https://placehold.co/400x400/png?text=Laco+Bola",
+    subtitle: "Clássico e elegante, plano.",
   },
   {
     id: "borboleta",
     name: "Borboleta",
-    image: "https://placehold.co/400x400/png?text=Laco+Borboleta",
-    desc: "Simples e versátil.",
+    imageUrl: "https://placehold.co/400x400/png?text=Laco+Borboleta",
+    subtitle: "Simples e versátil.",
   },
 ];
 
-const SIZES = [
+const DEFAULT_SIZES = [
   { id: "P", name: "Pequeno", price: 3 },
   { id: "M", name: "Médio", price: 4 },
   { id: "G", name: "Grande", price: 5 },
@@ -34,6 +34,15 @@ const SIZES = [
 export function LacoBuilder() {
   const { allProducts } = useProductStore();
   const { addItem, openCart } = useCartStore();
+  const { settings } = useSettingsStore();
+
+  const BOW_STYLES = (settings.bowModels && settings.bowModels.length > 0)
+    ? settings.bowModels
+    : DEFAULT_BOW_STYLES;
+
+  const SIZES = (settings.bowSizes && settings.bowSizes.length > 0)
+    ? settings.bowSizes
+    : DEFAULT_SIZES;
 
   const [selectedRibbonId, setSelectedRibbonId] = useState<string>("");
   const [selectedStyleId, setSelectedStyleId] = useState<string>("");
@@ -180,7 +189,7 @@ export function LacoBuilder() {
                 >
                   <div className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 relative overflow-hidden">
                     <SafeImage
-                      src={style.image}
+                      src={style.imageUrl}
                       alt={style.name}
                       name={style.name}
                       fill
@@ -192,7 +201,7 @@ export function LacoBuilder() {
                       {style.name}
                     </p>
                     <p className="text-[10px] sm:text-xs text-slate-500 line-clamp-2 leading-tight mt-1">
-                      {style.desc}
+                      {style.subtitle}
                     </p>
                   </div>
                   {selectedStyleId === style.id && (
