@@ -2194,16 +2194,16 @@ export default function AdminPage() {
                     <div className="space-y-3">
                       {(settings.bowModels || []).map((model, idx) => (
                         <div key={model.id} className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                          <div className="w-14 h-14 bg-slate-100 rounded-lg overflow-hidden shrink-0 border border-slate-200 relative">
-                            {model.imageUrl ? (
-                              <img src={model.imageUrl} alt={model.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                <Package size={20} />
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <ImageUploadModal
+                            value={model.imageUrl}
+                            folder="laco/models"
+                            onChange={(url) => {
+                              const updated = [...(settings.bowModels || [])];
+                              updated[idx] = { ...updated[idx], imageUrl: url };
+                              setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
+                            }}
+                          />
+                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <Input
                               placeholder="Nome"
                               value={model.name}
@@ -2220,16 +2220,6 @@ export default function AdminPage() {
                               onChange={(e) => {
                                 const updated = [...(settings.bowModels || [])];
                                 updated[idx] = { ...updated[idx], subtitle: e.target.value };
-                                setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
-                              }}
-                              className="text-sm"
-                            />
-                            <Input
-                              placeholder="URL da imagem"
-                              value={model.imageUrl}
-                              onChange={(e) => {
-                                const updated = [...(settings.bowModels || [])];
-                                updated[idx] = { ...updated[idx], imageUrl: e.target.value };
                                 setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
                               }}
                               className="text-sm"
@@ -2514,15 +2504,15 @@ export default function AdminPage() {
                 {selectedTemplate === "custom_banner" && (
                   <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
                     <div className="space-y-2">
-                      <Label>URL da Imagem do Banner</Label>
-                      <Input
+                      <Label>Imagem do Banner</Label>
+                      <ImageUploadModal
                         value={editingSection?.bannerUrl || ""}
-                        onChange={(e) =>
+                        folder="banners"
+                        onChange={(url) =>
                           setEditingSection((prev) =>
-                            prev ? { ...prev, bannerUrl: e.target.value } : null
+                            prev ? { ...prev, bannerUrl: url } : null
                           )
                         }
-                        placeholder="https://exemplo.com/imagem.jpg"
                       />
                       <p className="text-[10px] text-slate-500">
                         Recomendado: 1200x400px
