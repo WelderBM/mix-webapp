@@ -68,7 +68,7 @@ function FitasContent() {
   const closedRolls = useMemo(
     () =>
       ribbonProducts.filter(
-        (p) => p.canBeSoldAsRoll && p.ribbonInventory?.status === "FECHADO"
+        (p) => p.ribbonInventory?.status === "FECHADO"
       ),
     [ribbonProducts]
   );
