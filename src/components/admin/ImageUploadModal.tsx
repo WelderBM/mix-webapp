@@ -10,7 +10,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ImageUpload } from "./ImageUpload";
-import { Image as ImageIcon, Pencil, Trash2, Camera, Plus } from "lucide-react";
+import { Image as ImageIcon, Pencil, Trash2, Plus } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 interface ImageUploadModalProps {
@@ -102,7 +102,7 @@ export function ImageUploadModal({
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600">
-              <Camera size={18} />
+              <ImageIcon size={18} />
             </div>
             <DialogTitle className="text-xl font-bold text-slate-800">
               {multiple ? "Subir Galeria" : "Escolher Imagem"}

@@ -2,17 +2,13 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  AlertTriangle,
-  Database,
   Lock,
   CheckCircle,
   Trash2,
   Globe,
   UserPlus,
   ShieldCheck,
-  PartyPopper,
 } from "lucide-react";
-import { seedDatabase, seedBalloons } from "@/lib/seed";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import {
@@ -63,24 +59,6 @@ export function SuperAdminZone() {
       unsubSettings();
     };
   }, []);
-
-  const handleRunSeed = async () => {
-    if (
-      !confirm(
-        "⚠️ PERIGO: Isso vai sobrescrever as configurações e criar produtos teste. Tem certeza?",
-      )
-    )
-      return;
-    setIsLoading(true);
-    try {
-      await seedDatabase();
-      toast.success("Banco de dados resetado!");
-    } catch (error) {
-      toast.error("Erro ao rodar seed.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSaveDomain = async () => {
     setIsLoading(true);
@@ -263,27 +241,6 @@ export function SuperAdminZone() {
           </div>
         </div>
 
-        {/* Danger Zone */}
-        <div className="md:col-span-2 pt-6 border-t border-slate-800">
-          <div className="flex items-center gap-4 p-4 bg-red-900/10 border border-red-900/30 rounded-lg">
-            <AlertTriangle className="text-red-500 shrink-0" size={24} />
-            <div className="flex-1">
-              <h4 className="text-red-400 font-bold text-sm">Zona de Perigo</h4>
-              <p className="text-xs text-red-300/70">
-                Ações irreversíveis que impactam toda a base de dados.
-              </p>
-            </div>
-            <Button
-              onClick={handleRunSeed}
-              disabled={isLoading}
-              variant="destructive"
-              size="sm"
-              className="bg-red-900/40 hover:bg-red-900/60 border border-red-800"
-            >
-              Resetar Banco
-            </Button>
-          </div>
-        </div>
       </div>
     </div>
   );

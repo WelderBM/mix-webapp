@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { uploadBytes, ref, getDownloadURL } from "firebase/storage";
 import { storage } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Upload,
-  Camera,
   Globe,
-  X,
   Loader2,
   Check,
-  RotateCcw,
   Image as ImageIcon,
   Trash2,
 } from "lucide-react";
@@ -40,13 +37,9 @@ export function ImageUpload({
 }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("upload");
-  const [camStream, setCamStream] = useState<MediaStream | null>(null);
   const [urlInput, setUrlInput] = useState("");
-  const [isMirrored, setIsMirrored] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const onUpload = async (files: File[]) => {
     try {
@@ -98,74 +91,6 @@ export function ImageUpload({
     }
   };
 
-  const startCamera = async () => {
-    // Check for Secure Context feature availability
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      toast.error(
-        "Câmera indisponível. O acesso à câmera requer uma conexão segura (HTTPS) ou Localhost."
-      );
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      });
-      setCamStream(stream);
-      setIsMirrored(false);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Erro ao acessar câmera. Verifique as permissões.");
-    }
-  };
-
-  const stopCamera = useCallback(() => {
-    if (camStream) {
-      camStream.getTracks().forEach((track) => track.stop());
-      setCamStream(null);
-    }
-  }, [camStream]);
-
-  const capturePhoto = async () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-
-      if (isMirrored) {
-        ctx?.translate(canvas.width, 0);
-        ctx?.scale(-1, 1);
-      }
-
-      ctx?.drawImage(video, 0, 0);
-
-      // Reset transform just in case
-      if (isMirrored) {
-        ctx?.setTransform(1, 0, 0, 1, 0, 0);
-      }
-
-      canvas.toBlob(async (blob) => {
-        if (blob) {
-          const file = new File([blob], `capture-${Date.now()}.jpg`, {
-            type: "image/jpeg",
-          });
-          await onUpload([file]);
-          stopCamera();
-          setActiveTab("upload"); // Return to main tab after capture
-        }
-      }, "image/jpeg");
-    }
-  };
-
   const handleUrlSubmit = () => {
     if (urlInput.trim()) {
       onChange(urlInput.trim());
@@ -179,8 +104,6 @@ export function ImageUpload({
       onChange("");
     }
   };
-
-  const toggleMirror = () => setIsMirrored((prev) => !prev);
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
@@ -230,7 +153,7 @@ export function ImageUpload({
           </h4>
           <p className="text-[11px] text-slate-500 leading-tight mt-1">
             Recomendado: 1:1 (Quadrado) <br />
-            Envie arquivos, capture fotos ou use links externos.
+            Envie arquivos ou use links externos.
           </p>
           {value && (
             <div className="mt-2 flex items-center gap-1.5 text-green-600 bg-green-50 px-2 py-0.5 rounded-full w-fit border border-green-100">
@@ -243,17 +166,10 @@ export function ImageUpload({
 
       <Tabs
         value={activeTab}
-        onValueChange={(val) => {
-          setActiveTab(val);
-          if (val === "camera") {
-            startCamera();
-          } else {
-            stopCamera();
-          }
-        }}
+        onValueChange={setActiveTab}
         className="w-full"
       >
-        <TabsList className="grid w-full grid-cols-3 bg-slate-200/50 p-1 h-11 rounded-xl">
+        <TabsList className="grid w-full grid-cols-2 bg-slate-200/50 p-1 h-11 rounded-xl">
           <TabsTrigger
             value="upload"
             className="gap-2 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
@@ -265,12 +181,6 @@ export function ImageUpload({
             className="gap-2 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
           >
             <Globe size={14} /> Link
-          </TabsTrigger>
-          <TabsTrigger
-            value="camera"
-            className="gap-2 text-xs font-bold rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"
-          >
-            <Camera size={14} /> Câmera
           </TabsTrigger>
         </TabsList>
 
@@ -367,82 +277,6 @@ export function ImageUpload({
           </div>
         </TabsContent>
 
-        <TabsContent value="camera" className="mt-4 focus-visible:outline-none">
-          <div className="relative rounded-2xl bg-slate-900 overflow-hidden w-full aspect-[3/4] sm:aspect-video sm:h-80 shadow-2xl flex items-center justify-center group">
-            {camStream ? (
-              <>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  className="w-full h-full object-cover"
-                  style={{ transform: isMirrored ? "scaleX(-1)" : "none" }}
-                />
-                <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 px-3 py-1.5 rounded-full shadow-lg border border-red-500 animate-pulse z-10">
-                  <div className="w-2 h-2 rounded-full bg-white shadow-inner" />
-                  <span className="text-[10px] font-black text-white uppercase tracking-widest">
-                    REC
-                  </span>
-                </div>
-
-                {/* Controls Overlay */}
-                <div className="absolute bottom-6 inset-x-0 flex justify-center gap-6 px-4 z-20">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      stopCamera();
-                      setActiveTab("upload");
-                    }}
-                    className="h-12 w-12 rounded-full bg-black/40 border-white/20 text-white hover:bg-black/60 backdrop-blur-md shadow-lg"
-                    title="Cancelar"
-                  >
-                    <X size={20} />
-                  </Button>
-
-                  <Button
-                    type="button"
-                    onClick={capturePhoto}
-                    className="h-16 w-16 rounded-full bg-white shadow-2xl transition-all active:scale-95 flex items-center justify-center relative"
-                  >
-                    <div className="h-14 w-14 rounded-full border-[2px] border-slate-900 flex items-center justify-center">
-                      <div className="h-10 w-10 rounded-full bg-red-500 hover:bg-red-600 transition-colors" />
-                    </div>
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={toggleMirror}
-                    className="h-12 w-12 rounded-full bg-black/40 border-white/20 text-white hover:bg-black/60 backdrop-blur-md shadow-lg"
-                    title="Inverter/Espelhar"
-                  >
-                    <div className="flex flex-col items-center">
-                      <RotateCcw
-                        size={16}
-                        className={cn(
-                          "transition-transform",
-                          isMirrored ? "scale-x-[-1]" : ""
-                        )}
-                      />
-                      <span className="text-[8px] mt-0.5 font-bold opacity-70">
-                        FLIP
-                      </span>
-                    </div>
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <div className="text-center p-8 space-y-4 max-w-xs flex flex-col items-center animate-in zoom-in-95">
-                <Loader2 className="animate-spin text-purple-500" size={32} />
-                <p className="text-white font-bold text-sm">
-                  Iniciando câmera...
-                </p>
-              </div>
-            )}
-            <canvas ref={canvasRef} className="hidden" />
-          </div>
-        </TabsContent>
       </Tabs>
     </div>
   );
