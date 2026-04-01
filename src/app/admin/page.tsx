@@ -554,6 +554,11 @@ export default function AdminPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/batch-import" className="gap-2 cursor-pointer">
+                    <Package size={14} /> Importação em Lote (Fitas)
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setIsSysToolsOpen(true)}
                   className="text-red-600 gap-2"
