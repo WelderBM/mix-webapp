@@ -1,22 +1,29 @@
 import { Badge, type BadgeTone } from "@/components/ui/badge"
-import type { OrderStatus } from "@/types/cart"
+import type { OrderStatus } from "@/types/order"
 import type { ProductType } from "@/types/product"
 
-// Fonte única para status de pedido → antes reimplementado de forma
-// independente em admin/page.tsx (getOrderStatusBadge) e OrdersTab.tsx.
+// Fonte única para status de pedido. Segue @/types/order.ts — é o enum que
+// OrdersTab.tsx realmente grava no Firestore (updateStatus) e que
+// meu-pedido/page.tsx (rastreamento do cliente, rota realmente linkada)
+// já consome corretamente.
 //
-// Nota: @/types/order.ts declara um segundo `OrderStatus` com valores
-// diferentes (preparing/ready/out_for_delivery/delivered) que não
-// correspondem aos status realmente gravados no Firestore pelo checkout
-// (CartSidebar grava "pending", que pertence a este enum, o de @/types/cart).
-// Este mapa segue os valores reais em uso; o tipo em @/types/order.ts
-// está desalinhado e é candidato a limpeza futura.
+// @/types/cart.ts declara um segundo `OrderStatus` (pending/processing/
+// delivering/completed/cancelled) que NÃO corresponde ao que é gravado.
+// Ele só é referenciado por código morto: a função getOrderStatusBadge em
+// admin/page.tsx (nunca chamada) e a rota meu-pedido/[id]/page.tsx (nenhum
+// link no app aponta pra ela). Corrigido aqui após uma versão anterior
+// deste arquivo seguir por engano o enum de @/types/cart.
+//
+// `cancelled` usa o tom `accent` em vez do cinza+tachado que OrdersTab.tsx
+// usa no controle interativo — Badge não tem modificador de tachado, e
+// reaproveitar `neutral` colidiria visualmente com `delivered`.
 export const ORDER_STATUS_META: Record<OrderStatus, { label: string; tone: BadgeTone }> = {
-  pending: { label: "Pendente", tone: "warning" },
-  processing: { label: "Preparando", tone: "info" },
-  delivering: { label: "Enviado", tone: "brand" },
-  completed: { label: "Entregue", tone: "success" },
-  cancelled: { label: "Cancelado", tone: "danger" },
+  pending: { label: "Recebido", tone: "danger" },
+  preparing: { label: "Preparando", tone: "info" },
+  ready: { label: "Pronto", tone: "success" },
+  out_for_delivery: { label: "Saiu p/ Entrega", tone: "brand" },
+  delivered: { label: "Entregue", tone: "neutral" },
+  cancelled: { label: "Cancelado", tone: "accent" },
 }
 
 export function OrderStatusBadge({ status }: { status: OrderStatus }) {
