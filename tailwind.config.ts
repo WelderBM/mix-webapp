@@ -53,14 +53,16 @@ const config: Config = {
         brand: {
           DEFAULT: "var(--brand-primary)",
           secondary: "var(--brand-secondary)",
+          accent: "var(--brand-accent)",
         },
+        // Paleta de celebração inspirada no logo real da loja (confete/fogos).
+        // Uso: badges de "novidade", tags de promoção, acentos sazonais —
+        // nunca substitui `brand`, que é a identidade primária fixa.
         festive: {
-          gold: {
-            DEFAULT: "#D4AF37",
-            light: "#F9E58B",
-            dark: "#AA8C2C",
-          },
-          berry: "#A01331",
+          magenta: "#E91E63",
+          flame: "#F4511E",
+          gold: "#F5A623",
+          sky: "#2563EB",
         },
       },
       borderRadius: {
