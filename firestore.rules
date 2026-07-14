@@ -40,14 +40,18 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────────────────
     // /orders/{orderId}
     //   - Criar:   público (qualquer pessoa pode fazer pedido)
-    //   - Ler:     admin OU o próprio dono (via customerPhone)
+    //   - Ler:     público — o ID do documento (gerado pelo Firestore,
+    //     não-adivinhável) funciona como token de acesso, o mesmo modelo
+    //     de confiança do link de rastreamento enviado por WhatsApp.
+    //     (A regra anterior comparava resource.data.customerPhone ==
+    //     request.resource.data.customerPhone, mas request.resource só
+    //     existe em escritas — em leitura, a condição sempre falhava e
+    //     bloqueava o rastreamento anônimo do próprio cliente.)
     //   - Atualizar/Deletar: somente admin
     // ─────────────────────────────────────────────────────────────────────
     match /orders/{orderId} {
       allow create: if true;
-      allow read:   if isAdmin() ||
-                       (request.auth == null &&
-                        resource.data.customerPhone == request.resource.data.customerPhone);
+      allow read:   if true;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
