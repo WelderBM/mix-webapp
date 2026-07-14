@@ -113,7 +113,7 @@ export function OrdersTab() {
               typeof Notification !== "undefined" &&
               Notification.permission === "granted"
             ) {
-              new Notification("Novo Pedido Natura App", {
+              new Notification("Novo Pedido - Mix Novidades", {
                 body: `Cliente: ${
                   newOrder.customerName
                 } - Total: ${formatCurrency(newOrder.total)}`,
