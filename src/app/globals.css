@@ -45,6 +45,16 @@
 
 :root {
   --radius: 0.625rem;
+
+  /* Tokens de marca (roxo/verde/laranja). Valores abaixo são o fallback de
+     primeira pintura — o ThemeProvider os sobrescreve em runtime a partir de
+     settings/general no Firestore. --brand-accent ainda não é escrito pelo
+     ThemeProvider (só primary/secondary), então hoje ele permanece fixo
+     neste valor até essa gravação ser adicionada. */
+  --brand-primary: #7c3aed;
+  --brand-secondary: #16a34a;
+  --brand-accent: #f97316;
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.147 0.004 49.25);
   --card: oklch(1 0 0);

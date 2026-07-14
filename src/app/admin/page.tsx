@@ -98,6 +98,7 @@ import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
 import Link from "next/link";
 import { SuperAdminZone } from "@/components/admin/SuperAdminZone";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { ProductTypeBadge } from "@/components/ui/status-badge";
 import { cn, formatCurrency } from "@/lib/utils";
 
 import { suggestHexColor, SAO_ROQUE_COLORS } from "@/lib/balloonColors";
@@ -289,99 +290,6 @@ export default function AdminPage() {
     }
   };
 
-  // Helpers de UI
-  const getProductTypeLabel = (type: string) => {
-    switch (type) {
-      case "BASE_CONTAINER":
-        return (
-          <Badge variant="outline" className="bg-purple-50 text-purple-700">
-            Base
-          </Badge>
-        );
-      case "STANDARD_ITEM":
-        return (
-          <Badge variant="outline" className="bg-slate-50 text-slate-700">
-            Item
-          </Badge>
-        );
-      case "FILLER":
-        return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700">
-            Preench.
-          </Badge>
-        );
-      case "WRAPPER":
-        return (
-          <Badge variant="outline" className="bg-orange-50 text-orange-700">
-            Saco
-          </Badge>
-        );
-      case "ACCESSORY":
-        return (
-          <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
-            Acess.
-          </Badge>
-        );
-      case "RIBBON":
-        return (
-          <Badge variant="outline" className="bg-pink-50 text-pink-700">
-            Laço
-          </Badge>
-        );
-      case "KIT_TEMPLATE":
-        return (
-          <Badge variant="outline" className="bg-green-50 text-green-700">
-            Kit
-          </Badge>
-        );
-      case "ASSEMBLED_KIT":
-        return (
-          <Badge variant="outline" className="bg-teal-50 text-teal-700">
-            Kit Montado
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">Outro</Badge>;
-    }
-  };
-
-  const getOrderStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return (
-          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
-            Pendente
-          </Badge>
-        );
-      case "processing":
-        return (
-          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-            Preparando
-          </Badge>
-        );
-      case "delivering":
-        return (
-          <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">
-            Enviado
-          </Badge>
-        );
-      case "completed":
-        return (
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-            Entregue
-          </Badge>
-        );
-      case "cancelled":
-        return (
-          <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
-            Cancelado
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
   // Helpers de Seção
   const handleSaveSection = () => {
     if (!editingSection) return;
@@ -554,6 +462,11 @@ export default function AdminPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/batch-import" className="gap-2 cursor-pointer">
+                    <Package size={14} /> Importação em Lote (Fitas)
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setIsSysToolsOpen(true)}
                   className="text-red-600 gap-2"
@@ -782,7 +695,7 @@ export default function AdminPage() {
                             {product.name}
                           </TableCell>
                           <TableCell>
-                            {getProductTypeLabel(product.type)}
+                            <ProductTypeBadge type={product.type} />
                           </TableCell>
                           <TableCell className="hidden md:table-cell">
                             <Badge variant="secondary" className="text-[10px]">
