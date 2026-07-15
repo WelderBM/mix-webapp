@@ -42,6 +42,7 @@ export interface Product {
   originalPrice?: number;
   type: ProductType;
   category: string;
+  subcategory?: string;
   images?: ProductImage[]; // New support for multiple images
   imageUrl?: string; // Legacy support (computed from Cover)
   unit: Unit;
