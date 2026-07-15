@@ -89,6 +89,7 @@ import {
   Layers,
   Settings2,
   ChevronDown,
+  ChevronRight,
   Ruler,
   Loader2,
   MoreHorizontal,
@@ -97,6 +98,11 @@ import {
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
 import Link from "next/link";
 import { SuperAdminZone } from "@/components/admin/SuperAdminZone";
+import {
+  useSystemToolsUnlocked,
+  SystemPasswordPrompt,
+} from "@/components/admin/SystemPasswordGate";
+import { ProductInfoModal } from "@/components/admin/ProductInfoModal";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { ProductTypeBadge } from "@/components/ui/status-badge";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -162,6 +168,10 @@ export default function AdminPage() {
 
   // System Tools Modal
   const [isSysToolsOpen, setIsSysToolsOpen] = useState(false);
+  const { unlocked: systemUnlocked, unlock: unlockSystem } =
+    useSystemToolsUnlocked();
+  const [showSystemPasswordPrompt, setShowSystemPasswordPrompt] =
+    useState(false);
 
   // Auth & Data — com verificação de whitelist
   useEffect(() => {
@@ -274,21 +284,6 @@ export default function AdminPage() {
       return matchesSearch && matchesType && matchesCategory;
     });
   }, [allProducts, sectionSearchTerm, secTypeFilter, secCatFilter]);
-
-  // Ações
-  const handleDeleteProduct = async (id: string) => {
-    if (confirm("Tem certeza que deseja excluir?")) {
-      await deleteDoc(doc(db, "products", id));
-      toast.success("Produto excluído.");
-    }
-  };
-
-  const handleViewProduct = () => {
-    if (productToView) {
-      window.open(`/produto/${productToView.id}`, "_blank");
-      setProductToView(null);
-    }
-  };
 
   // Helpers de Seção
   const handleSaveSection = () => {
@@ -468,7 +463,11 @@ export default function AdminPage() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => setIsSysToolsOpen(true)}
+                  onClick={() =>
+                    systemUnlocked
+                      ? setIsSysToolsOpen(true)
+                      : setShowSystemPasswordPrompt(true)
+                  }
                   className="text-red-600 gap-2"
                 >
                   <Database size={14} /> Ferramentas de Sistema
@@ -669,7 +668,11 @@ export default function AdminPage() {
                     </TableHeader>
                     <TableBody>
                       {filteredProducts.map((product) => (
-                        <TableRow key={product.id}>
+                        <TableRow
+                          key={product.id}
+                          onClick={() => setProductToView(product)}
+                          className="cursor-pointer hover:bg-slate-50"
+                        >
                           <TableCell>
                             <div className="w-8 h-8 bg-slate-100 rounded overflow-hidden relative border">
                               {product.imageUrl ? (
@@ -706,35 +709,10 @@ export default function AdminPage() {
                             R$ {product.price.toFixed(2)}
                           </TableCell>
                           <TableCell className="text-right whitespace-nowrap">
-                            <div className="flex justify-end gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setProductToView(product)}
-                                className="text-blue-500 hover:bg-blue-50 h-8 w-8"
-                              >
-                                <Eye size={16} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  setEditingProduct(product);
-                                  setIsModalOpen(true);
-                                }}
-                                className="h-8 w-8"
-                              >
-                                <Pencil size={16} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDeleteProduct(product.id)}
-                                className="text-red-400 hover:text-red-600 h-8 w-8"
-                              >
-                                <Trash2 size={16} />
-                              </Button>
-                            </div>
+                            <ChevronRight
+                              size={16}
+                              className="text-slate-300 ml-auto"
+                            />
                           </TableCell>
                         </TableRow>
                       ))}
@@ -2254,6 +2232,15 @@ export default function AdminPage() {
           </DialogContent>
         </Dialog>
 
+        <SystemPasswordPrompt
+          open={showSystemPasswordPrompt}
+          onOpenChange={setShowSystemPasswordPrompt}
+          onUnlocked={() => {
+            unlockSystem();
+            setIsSysToolsOpen(true);
+          }}
+        />
+
         {/* MODAL CONFIGURAR SEÇÃO (Mantido do original para não quebrar) */}
         <Dialog open={isSectionModalOpen} onOpenChange={setIsSectionModalOpen}>
           <DialogContent className="sm:h-[85vh] flex flex-col bg-slate-50">
@@ -2676,31 +2663,18 @@ export default function AdminPage() {
           </DialogContent>
         </Dialog>
 
-        {/* MODAL VIEW PRODUTO */}
-        <Dialog
+        {/* MODAL ÚNICO DE PRODUTO (ver/editar/excluir/ver na loja) */}
+        <ProductInfoModal
+          product={productToView}
           open={!!productToView}
           onOpenChange={(o) => !o && setProductToView(null)}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Visualizar Produto</DialogTitle>
-              <DialogDescription>
-                Página pública: <b>{productToView?.name}</b>
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setProductToView(null)}>
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleViewProduct}
-                className="bg-blue-600 text-white gap-2"
-              >
-                <ExternalLink size={16} /> Abrir Página
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          onEdit={(p) => {
+            setProductToView(null);
+            setEditingProduct(p);
+            setIsModalOpen(true);
+          }}
+          onDeleted={() => setProductToView(null)}
+        />
 
         {/* MODAL EDITAR PRODUTO */}
         <ProductFormDialog
