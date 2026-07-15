@@ -430,7 +430,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
 
       {/* MODAL DE EDIÇÃO DE SEÇÃO */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl sm:max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Seção Natura</DialogTitle>
           </DialogHeader>
@@ -594,7 +594,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
 
       {/* MODAL DE EDIÇÃO DE BLOCO SEO */}
       <Dialog open={isSeoModalOpen} onOpenChange={setIsSeoModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Bloco de Texto SEO</DialogTitle>
           </DialogHeader>
