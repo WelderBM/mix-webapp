@@ -221,7 +221,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !loading && onClose()}>
       <DialogContent
-        className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto"
+        className="sm:max-w-[700px] sm:max-h-[90vh] overflow-y-auto"
         onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
@@ -334,7 +334,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="price">Preço</Label>
                   <Input
@@ -414,7 +414,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     <Ruler size={20} /> Controle de Estoque da Fita
                   </h4>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="totalMeters">
                         Metragem Total do Rolo (m)

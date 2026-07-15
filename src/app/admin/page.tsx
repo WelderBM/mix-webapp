@@ -2243,7 +2243,7 @@ export default function AdminPage() {
 
         {/* --- DISCREET SUPER ADMIN DIALOG --- */}
         <Dialog open={isSysToolsOpen} onOpenChange={setIsSysToolsOpen}>
-          <DialogContent className="max-w-3xl bg-slate-900 border-slate-800 text-slate-100">
+          <DialogContent className="sm:max-w-3xl bg-slate-900 border-slate-800 text-slate-100 overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Settings2 className="text-red-500" /> Ferramentas de Sistema
@@ -2256,7 +2256,7 @@ export default function AdminPage() {
 
         {/* MODAL CONFIGURAR SEÇÃO (Mantido do original para não quebrar) */}
         <Dialog open={isSectionModalOpen} onOpenChange={setIsSectionModalOpen}>
-          <DialogContent className="h-[85vh] flex flex-col bg-slate-50">
+          <DialogContent className="sm:h-[85vh] flex flex-col bg-slate-50">
             <DialogHeader>
               <DialogTitle>Configurar Seção</DialogTitle>
             </DialogHeader>
@@ -2575,8 +2575,8 @@ export default function AdminPage() {
                                     : "hover:bg-white"
                                 )}
                               >
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded border bg-white overflow-hidden relative">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div className="w-10 h-10 rounded border bg-white overflow-hidden relative shrink-0">
                                     {p.imageUrl ? (
                                       <SafeImage
                                         src={p.imageUrl}
@@ -2592,8 +2592,8 @@ export default function AdminPage() {
                                       />
                                     )}
                                   </div>
-                                  <div className="flex flex-col">
-                                    <span className="text-sm font-bold truncate max-w-[180px]">
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-sm font-bold truncate">
                                       {p.name}
                                     </span>
                                     <span className="text-[10px] uppercase font-black opacity-50">
@@ -2613,7 +2613,7 @@ export default function AdminPage() {
                                       : addProductToSection(p.id)
                                   }
                                   className={cn(
-                                    "h-8 px-3 rounded-full text-xs font-bold transition-all",
+                                    "h-8 px-3 rounded-full text-xs font-bold transition-all shrink-0 ml-2",
                                     isSelected
                                       ? "bg-red-500 hover:bg-red-600 border-none shadow-sm shadow-red-200"
                                       : "hover:border-purple-600 hover:text-purple-600"

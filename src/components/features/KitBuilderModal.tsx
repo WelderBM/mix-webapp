@@ -164,7 +164,7 @@ export function KitBuilderModal() {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeKitBuilder()}>
       <DialogContent
-        className="max-w-4xl p-0 h-[90vh] flex flex-col overflow-hidden bg-white"
+        className="sm:max-w-4xl p-0 sm:h-[90vh] flex flex-col overflow-hidden bg-white"
         onInteractOutside={(e) => e.preventDefault()}
       >
         {/* HEADER */}
