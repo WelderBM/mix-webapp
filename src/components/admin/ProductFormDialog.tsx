@@ -1,7 +1,7 @@
-// src/components/admin/ProductFormDialog.tsx (VERSÃO CONSOLIDADA COM CONTROLE DE FITA)
+// src/components/admin/ProductFormDialog.tsx (WIZARD POR PASSOS)
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
@@ -20,7 +20,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -33,12 +33,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
-  Check,
   Ruler,
   Save,
   Loader2,
   X,
-  Image as ImageIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { ProductImageManager } from "./ProductImageManager";
 
@@ -47,12 +47,36 @@ interface ProductFormData extends Product {
   ribbonInventory?: RibbonInventory;
 }
 
+// Passos do wizard. "especifico" só existe pra tipos que precisam de campos
+// extras (hoje só RIBBON) — computado dinamicamente em `steps`, não fixo.
+type StepId = "categoria" | "tipo" | "detalhes" | "especifico" | "revisao";
+
+const STEP_LABELS: Record<StepId, string> = {
+  categoria: "Categoria",
+  tipo: "Tipo",
+  detalhes: "Detalhes",
+  especifico: "Config. da Fita",
+  revisao: "Revisão",
+};
+
+function stepsForType(type: ProductType): StepId[] {
+  const base: StepId[] = ["categoria", "tipo", "detalhes"];
+  if (type === "RIBBON") base.push("especifico");
+  base.push("revisao");
+  return base;
+}
+
 interface ProductFormDialogProps {
   productToEdit: Product | null;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   existingCategories: string[];
+  // Permite pular direto pra um passo (ex: atalho "Nova Fita" já vem com
+  // categoria/tipo definidos). Sem isso, o padrão é: edição de produto
+  // existente pula pra "Detalhes" (não faz sentido escolher categoria/tipo
+  // de novo só pra mudar um preço); produto novo começa em "Categoria".
+  initialStep?: StepId;
 }
 
 const initialFormState: ProductFormData = {
@@ -79,34 +103,55 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   onClose,
   onSuccess,
   existingCategories,
+  initialStep,
 }) => {
   const [formData, setFormData] = useState<ProductFormData>(initialFormState);
   const [loading, setLoading] = useState(false);
   const [customCategory, setCustomCategory] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
 
   useEffect(() => {
+    let nextFormData: ProductFormData;
     if (productToEdit) {
-      setFormData({
+      nextFormData = {
         ...initialFormState,
         ...productToEdit,
         ribbonInventory:
           productToEdit.ribbonInventory || initialFormState.ribbonInventory,
-      });
+      };
       // Verifica se a categoria é personalizada
-      if (
-        productToEdit.category &&
-        !existingCategories.includes(productToEdit.category) &&
-        productToEdit.category !== "Geral"
-      ) {
-        setCustomCategory(true);
-      } else {
-        setCustomCategory(false);
-      }
+      setCustomCategory(
+        !!productToEdit.category &&
+          !existingCategories.includes(productToEdit.category) &&
+          productToEdit.category !== "Geral"
+      );
     } else {
-      setFormData(initialFormState);
+      nextFormData = initialFormState;
       setCustomCategory(false);
     }
-  }, [productToEdit, isOpen, existingCategories]);
+    setFormData(nextFormData);
+
+    // Passo inicial: calculado a partir do tipo que está prestes a ser
+    // carregado (não do estado antigo, que ainda não foi atualizado).
+    const startStepId: StepId =
+      initialStep ?? (productToEdit?.id ? "detalhes" : "categoria");
+    const startSteps = stepsForType(nextFormData.type);
+    const startIndex = startSteps.indexOf(startStepId);
+    setStepIndex(startIndex >= 0 ? startIndex : 0);
+  }, [productToEdit, isOpen, existingCategories, initialStep]);
+
+  const steps = useMemo(() => stepsForType(formData.type), [formData.type]);
+  const currentStepIndex = Math.min(stepIndex, steps.length - 1);
+  const currentStepId = steps[currentStepIndex];
+  const isFirstStep = currentStepIndex === 0;
+  const isLastStep = currentStepIndex === steps.length - 1;
+
+  const goNext = () =>
+    setStepIndex((i) => Math.min(i + 1, steps.length - 1));
+  const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
+
+  const isNextDisabled =
+    currentStepId === "categoria" && !formData.category?.trim();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,298 +273,324 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
           <DialogTitle>
             {productToEdit ? "Editar Produto" : "Novo Produto"}
           </DialogTitle>
+          <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase tracking-wide">
+            <span>
+              Passo {currentStepIndex + 1} de {steps.length} —{" "}
+              {STEP_LABELS[currentStepId]}
+            </span>
+          </div>
+          <Progress
+            value={((currentStepIndex + 1) / steps.length) * 100}
+            className="h-1.5"
+          />
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <Tabs defaultValue="Detalhes" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="Detalhes">Detalhes Básicos</TabsTrigger>
-              <TabsTrigger value="Inventario">Inventário e Estoque</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="Detalhes" className="py-4 space-y-4">
+          <div className="py-4 space-y-4 min-h-[260px]">
+            {currentStepId === "categoria" && (
               <div className="space-y-2">
-                <Label htmlFor="name">Nome do Produto</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Categoria</Label>
-                  {!customCategory ? (
-                    <div className="flex gap-2">
-                      <Select
-                        value={
-                          existingCategories.includes(formData.category)
-                            ? formData.category
-                            : "Geral"
+                <Label>Categoria</Label>
+                {!customCategory ? (
+                  <div className="flex gap-2">
+                    <Select
+                      value={
+                        existingCategories.includes(formData.category)
+                          ? formData.category
+                          : "Geral"
+                      }
+                      onValueChange={(v) => {
+                        if (v === "custom_new") {
+                          setCustomCategory(true);
+                          handleInputChange("category", "");
+                        } else {
+                          handleInputChange("category", v);
                         }
-                        onValueChange={(v) => {
-                          if (v === "custom_new") {
-                            setCustomCategory(true);
-                            handleInputChange("category", "");
-                          } else {
-                            handleInputChange("category", v);
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {existingCategories.map((c) => (
-                            <SelectItem key={c} value={c}>
-                              {c}
-                            </SelectItem>
-                          ))}
-                          <SelectItem
-                            value="custom_new"
-                            className="text-purple-600 font-bold"
-                          >
-                            + Nova Categoria
+                      }}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {existingCategories.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
                           </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Nome da nova categoria"
-                        value={formData.category}
-                        onChange={(e) =>
-                          handleInputChange("category", e.target.value)
-                        }
-                        className="flex-1"
-                        autoFocus
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setCustomCategory(false)}
-                        title="Voltar para lista"
-                      >
-                        <X size={16} />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Tipo</Label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(v) =>
-                      handleInputChange("type", v as ProductType)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o Tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="RIBBON">FITA (ROLO)</SelectItem>
-                      <SelectItem value="BASE_CONTAINER">
-                        CESTA/CAIXA
-                      </SelectItem>
-                      <SelectItem value="STANDARD_ITEM">ITEM PADRÃO</SelectItem>
-                      <SelectItem value="ACCESSORY">ACESSÓRIO</SelectItem>
-                      <SelectItem value="WRAPPER">EMBALAGEM</SelectItem>
-                      <SelectItem value="FILLER">PREENCHIMENTO</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                        ))}
+                        <SelectItem
+                          value="custom_new"
+                          className="text-purple-600 font-bold"
+                        >
+                          + Nova Categoria
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nome da nova categoria"
+                      value={formData.category}
+                      onChange={(e) =>
+                        handleInputChange("category", e.target.value)
+                      }
+                      className="flex-1"
+                      autoFocus
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setCustomCategory(false)}
+                      title="Voltar para lista"
+                    >
+                      <X size={16} />
+                    </Button>
+                  </div>
+                )}
               </div>
+            )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {currentStepId === "tipo" && (
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select
+                  value={formData.type}
+                  onValueChange={(v) =>
+                    handleInputChange("type", v as ProductType)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="RIBBON">FITA (ROLO)</SelectItem>
+                    <SelectItem value="BASE_CONTAINER">
+                      CESTA/CAIXA
+                    </SelectItem>
+                    <SelectItem value="STANDARD_ITEM">ITEM PADRÃO</SelectItem>
+                    <SelectItem value="ACCESSORY">ACESSÓRIO</SelectItem>
+                    <SelectItem value="WRAPPER">EMBALAGEM</SelectItem>
+                    <SelectItem value="FILLER">PREENCHIMENTO</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {currentStepId === "detalhes" && (
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="price">Preço</Label>
+                  <Label htmlFor="name">Nome do Produto</Label>
                   <Input
-                    id="price"
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => handleInputChange("price", e.target.value)}
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
                     required
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Unidade de Venda</Label>
-                  <Select
-                    value={formData.unit}
-                    onValueChange={(v) => handleInputChange("unit", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione Unidade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="un">UNIDADE (un)</SelectItem>
-                      <SelectItem value="m">METRO (m)</SelectItem>
-                      <SelectItem value="pct">PACOTE (pct)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Descrição</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description || ""}
-                  onChange={(e) =>
-                    handleInputChange("description", e.target.value)
-                  }
-                />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="Inventario" className="py-4 space-y-4">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="inStock"
-                  checked={formData.inStock}
-                  onCheckedChange={(checked) =>
-                    handleInputChange("inStock", checked)
-                  }
-                />
-                <Label htmlFor="inStock">Em Estoque</Label>
-              </div>
-
-              <div className="space-y-4">
-                <ProductImageManager
-                  images={formData.images || []}
-                  onChange={(newImages: ProductImage[]) => {
-                    // Sync images list
-                    const cover =
-                      newImages.find((img) => img.isCover) || newImages[0];
-                    handleInputChange("images", newImages);
-                    // Sync legacy imageUrl for backward compat
-                    if (cover) {
-                      handleInputChange("imageUrl", cover.url);
-                    } else {
-                      handleInputChange("imageUrl", "");
-                    }
-                  }}
-                  disabled={loading}
-                />
-              </div>
-
-              {formData.type === "RIBBON" && (
-                <div className="space-y-4 rounded-lg border p-4 bg-yellow-50/50">
-                  <h4 className="font-bold text-lg text-yellow-800 flex items-center gap-2">
-                    <Ruler size={20} /> Controle de Estoque da Fita
-                  </h4>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="totalMeters">
-                        Metragem Total do Rolo (m)
-                      </Label>
-                      <Input
-                        id="totalMeters"
-                        type="number"
-                        value={formData.ribbonInventory?.totalRollMeters || 0}
-                        onChange={(e) =>
-                          handleRibbonInventoryChange(
-                            "totalRollMeters",
-                            e.target.value
-                          )
-                        }
-                        placeholder="Ex: 500"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Status do Rolo</Label>
-                      <Select
-                        value={formData.ribbonInventory?.status || "FECHADO"}
-                        onValueChange={(status: RibbonRollStatus) => {
-                          handleRibbonInventoryChange("status", status);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione o Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="FECHADO">
-                            🔴 Fechado (Venda Rolo Inteiro)
-                          </SelectItem>
-                          <SelectItem value="ABERTO">
-                            🟢 Aberto (Venda por Metro/Laço)
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {formData.ribbonInventory?.status === "ABERTO" && (
-                    <div className="space-y-2 animate-in fade-in">
-                      <Label
-                        htmlFor="remainingMeters"
-                        className="flex justify-between"
-                      >
-                        Metragem Restante (m)
-                        <span className="text-sm text-slate-500">
-                          Total: {formData.ribbonInventory.totalRollMeters}m
-                        </span>
-                      </Label>
-                      <Input
-                        id="remainingMeters"
-                        type="number"
-                        value={formData.ribbonInventory.remainingMeters}
-                        onChange={(e) =>
-                          handleRibbonInventoryChange(
-                            "remainingMeters",
-                            e.target.value
-                          )
-                        }
-                        placeholder="Ex: 25.5"
-                      />
-                    </div>
-                  )}
-
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="customBow">
-                      Disponível para Laço Customizado/Venda ao Metro?
-                    </Label>
-                    <Switch
-                      id="customBow"
-                      checked={formData.isAvailableForCustomBow}
-                      onCheckedChange={(checked) =>
-                        handleInputChange("isAvailableForCustomBow", checked)
+                    <Label htmlFor="price">Preço</Label>
+                    <Input
+                      id="price"
+                      type="number"
+                      step="0.01"
+                      value={formData.price}
+                      onChange={(e) =>
+                        handleInputChange("price", e.target.value)
                       }
+                      required
                     />
                   </div>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
 
-          <DialogFooter className="mt-4">
+                  <div className="space-y-2">
+                    <Label>Unidade de Venda</Label>
+                    <Select
+                      value={formData.unit}
+                      onValueChange={(v) => handleInputChange("unit", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione Unidade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="un">UNIDADE (un)</SelectItem>
+                        <SelectItem value="m">METRO (m)</SelectItem>
+                        <SelectItem value="pct">PACOTE (pct)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Descrição</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description || ""}
+                    onChange={(e) =>
+                      handleInputChange("description", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
+            {currentStepId === "especifico" && (
+              <div className="space-y-4 rounded-lg border p-4 bg-yellow-50/50">
+                <h4 className="font-bold text-lg text-yellow-800 flex items-center gap-2">
+                  <Ruler size={20} /> Controle de Estoque da Fita
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="totalMeters">
+                      Metragem Total do Rolo (m)
+                    </Label>
+                    <Input
+                      id="totalMeters"
+                      type="number"
+                      value={formData.ribbonInventory?.totalRollMeters || 0}
+                      onChange={(e) =>
+                        handleRibbonInventoryChange(
+                          "totalRollMeters",
+                          e.target.value
+                        )
+                      }
+                      placeholder="Ex: 500"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Status do Rolo</Label>
+                    <Select
+                      value={formData.ribbonInventory?.status || "FECHADO"}
+                      onValueChange={(status: RibbonRollStatus) => {
+                        handleRibbonInventoryChange("status", status);
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="FECHADO">
+                          🔴 Fechado (Venda Rolo Inteiro)
+                        </SelectItem>
+                        <SelectItem value="ABERTO">
+                          🟢 Aberto (Venda por Metro/Laço)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {formData.ribbonInventory?.status === "ABERTO" && (
+                  <div className="space-y-2 animate-in fade-in">
+                    <Label
+                      htmlFor="remainingMeters"
+                      className="flex justify-between"
+                    >
+                      Metragem Restante (m)
+                      <span className="text-sm text-slate-500">
+                        Total: {formData.ribbonInventory.totalRollMeters}m
+                      </span>
+                    </Label>
+                    <Input
+                      id="remainingMeters"
+                      type="number"
+                      value={formData.ribbonInventory.remainingMeters}
+                      onChange={(e) =>
+                        handleRibbonInventoryChange(
+                          "remainingMeters",
+                          e.target.value
+                        )
+                      }
+                      placeholder="Ex: 25.5"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="customBow">
+                    Disponível para Laço Customizado/Venda ao Metro?
+                  </Label>
+                  <Switch
+                    id="customBow"
+                    checked={formData.isAvailableForCustomBow}
+                    onCheckedChange={(checked) =>
+                      handleInputChange("isAvailableForCustomBow", checked)
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
+            {currentStepId === "revisao" && (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="inStock"
+                    checked={formData.inStock}
+                    onCheckedChange={(checked) =>
+                      handleInputChange("inStock", checked)
+                    }
+                  />
+                  <Label htmlFor="inStock">Em Estoque</Label>
+                </div>
+
+                <div className="space-y-4">
+                  <ProductImageManager
+                    images={formData.images || []}
+                    onChange={(newImages: ProductImage[]) => {
+                      // Sync images list
+                      const cover =
+                        newImages.find((img) => img.isCover) || newImages[0];
+                      handleInputChange("images", newImages);
+                      // Sync legacy imageUrl for backward compat
+                      if (cover) {
+                        handleInputChange("imageUrl", cover.url);
+                      } else {
+                        handleInputChange("imageUrl", "");
+                      }
+                    }}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4 sm:justify-between">
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={isFirstStep ? onClose : goBack}
               disabled={loading}
+              className="gap-2"
             >
-              Cancelar
+              {!isFirstStep && <ChevronLeft size={16} />}
+              {isFirstStep ? "Cancelar" : "Voltar"}
             </Button>
-            <Button
-              type="submit"
-              className="bg-green-600 hover:bg-green-700"
-              disabled={loading}
-            >
-              {loading ? (
-                <Loader2 className="animate-spin mr-2" size={16} />
-              ) : (
-                <Save size={16} className="mr-2" />
-              )}
-              {productToEdit ? "Atualizar" : "Criar Produto"}
-            </Button>
+            {!isLastStep ? (
+              <Button
+                type="button"
+                onClick={goNext}
+                disabled={isNextDisabled}
+                className="gap-2"
+              >
+                Avançar <ChevronRight size={16} />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                className="bg-green-600 hover:bg-green-700"
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="animate-spin mr-2" size={16} />
+                ) : (
+                  <Save size={16} className="mr-2" />
+                )}
+                {productToEdit ? "Atualizar" : "Criar Produto"}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
