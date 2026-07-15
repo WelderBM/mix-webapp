@@ -370,13 +370,13 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                   !block.isActive && "opacity-50"
                 )}
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-semibold text-sm text-slate-800">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h4 className="font-semibold text-sm text-slate-800 truncate">
                       {block.title}
                     </h4>
                     {!block.isActive && (
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="text-[10px] shrink-0">
                         Inativo
                       </Badge>
                     )}
@@ -389,7 +389,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -478,11 +478,11 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
               {/* CONFIGURAÇÃO DE PRODUTOS (APENAS PARA SHELF) */}
               {selectedTemplate === "product_shelf" && (
                 <div className="space-y-4 border rounded-lg p-4 bg-slate-50">
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                     <Label>
                       Selecionar Produtos ({editingSection.productIds.length})
                     </Label>
-                    <div className="relative w-48">
+                    <div className="relative w-full sm:w-48">
                       <Search
                         size={14}
                         className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400"

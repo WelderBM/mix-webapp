@@ -507,7 +507,7 @@ export default function AdminPage() {
           <OrdersTab />
         ) : (
           <Tabs defaultValue="products">
-            <TabsList className="bg-white p-1 rounded-lg border w-full md:w-auto grid grid-cols-2 md:inline-flex h-auto">
+            <TabsList className="bg-white p-1 rounded-lg border w-full md:w-auto flex flex-wrap gap-1 md:inline-flex md:flex-nowrap h-auto">
               <TabsTrigger value="products" className="gap-2">
                 <Package size={16} /> Produtos
               </TabsTrigger>
@@ -1429,11 +1429,11 @@ export default function AdminPage() {
                                 }))
                               }
                             >
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-black overflow-hidden border border-purple-200">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-black overflow-hidden border border-purple-200 shrink-0">
                                   {type.imageUrl ? (
-                                    <img 
-                                      src={type.imageUrl} 
+                                    <img
+                                      src={type.imageUrl}
                                       alt={type.name}
                                       className="w-full h-full object-cover"
                                     />
@@ -1441,8 +1441,8 @@ export default function AdminPage() {
                                     type.name.charAt(0)
                                   )}
                                 </div>
-                                <div>
-                                  <h3 className="font-bold text-slate-800">
+                                <div className="min-w-0">
+                                  <h3 className="font-bold text-slate-800 truncate">
                                     {type.name}
                                   </h3>
                                   <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">
@@ -1451,7 +1451,7 @@ export default function AdminPage() {
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 shrink-0">
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -1657,9 +1657,9 @@ export default function AdminPage() {
                               key={fita.id}
                               className="bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-sm"
                             >
-                              <div className="flex items-center justify-between group hover:border-primary/30 transition-all">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-12 h-12 rounded-lg bg-white border overflow-hidden relative shadow-sm">
+                              <div className="flex items-center justify-between flex-wrap gap-y-2 group hover:border-primary/30 transition-all">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-12 h-12 rounded-lg bg-white border overflow-hidden relative shadow-sm shrink-0">
                                     <SafeImage
                                       src={fita.imageUrl}
                                       alt={fita.name}
@@ -1668,8 +1668,8 @@ export default function AdminPage() {
                                       className="object-cover"
                                     />
                                   </div>
-                                  <div>
-                                    <h4 className="font-bold text-slate-800 text-sm leading-tight">
+                                  <div className="min-w-0">
+                                    <h4 className="font-bold text-slate-800 text-sm leading-tight truncate">
                                       {fita.name}
                                     </h4>
                                     <div className="flex items-center gap-2 mt-1">
@@ -1682,7 +1682,7 @@ export default function AdminPage() {
                                     </div>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 shrink-0">
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -1810,9 +1810,9 @@ export default function AdminPage() {
                               key={fita.id}
                               className="bg-white p-3 rounded-xl border border-purple-100 shadow-sm transition-all hover:border-purple-300"
                             >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-12 h-12 rounded-lg bg-slate-50 border overflow-hidden relative">
+                              <div className="flex items-center justify-between flex-wrap gap-y-2">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-12 h-12 rounded-lg bg-slate-50 border overflow-hidden relative shrink-0">
                                     <SafeImage
                                       src={fita.imageUrl}
                                       alt={fita.name}
@@ -1821,8 +1821,8 @@ export default function AdminPage() {
                                       className="object-cover"
                                     />
                                   </div>
-                                  <div>
-                                    <h4 className="font-bold text-slate-800 text-sm leading-tight">
+                                  <div className="min-w-0">
+                                    <h4 className="font-bold text-slate-800 text-sm leading-tight truncate">
                                       {fita.name}
                                     </h4>
                                     <div className="flex items-center gap-2 mt-1">
@@ -1850,7 +1850,7 @@ export default function AdminPage() {
                                     </div>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 shrink-0">
                                   <Button
                                     variant="outline"
                                     size="sm"

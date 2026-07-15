@@ -437,7 +437,7 @@ export default function BatchImportPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <Stat label="Novos produtos" value={counts.new} color="green" />
                 <Stat label="Atualizações" value={counts.update} color="blue" />
                 <Stat label="Erros" value={counts.error} color="red" />
