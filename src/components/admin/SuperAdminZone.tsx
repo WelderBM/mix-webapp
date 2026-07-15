@@ -189,8 +189,8 @@ export function SuperAdminZone() {
             </h3>
           </div>
 
-          <div className="bg-slate-900 rounded-lg border border-slate-700 overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-slate-900 rounded-lg border border-slate-700 overflow-x-auto">
+            <table className="w-full text-sm min-w-[480px]">
               <thead className="bg-slate-800 text-slate-400 text-left">
                 <tr>
                   <th className="p-3 font-medium">Funcionário</th>
