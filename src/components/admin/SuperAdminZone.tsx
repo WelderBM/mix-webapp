@@ -8,6 +8,7 @@ import {
   Globe,
   UserPlus,
   ShieldCheck,
+  FolderTree,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
@@ -21,6 +22,7 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { migrateCategories } from "@/lib/migrateCategories";
 
 interface StaffMember {
   id: string; // email
@@ -92,6 +94,27 @@ export function SuperAdminZone() {
       (e.target as HTMLFormElement).reset();
     } catch (error) {
       toast.error("Erro ao autorizar e-mail.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMigrateCategories = async () => {
+    setIsLoading(true);
+    try {
+      const { created, skipped } = await migrateCategories();
+      if (created.length === 0) {
+        toast.info("Nenhuma categoria nova — todas já existem em /categories.");
+      } else {
+        toast.success(
+          `${created.length} categoria(s) criada(s): ${created.join(", ")}`
+        );
+      }
+      if (skipped.length > 0) {
+        toast.info(`${skipped.length} já existiam, ignoradas.`);
+      }
+    } catch (error) {
+      toast.error("Erro ao migrar categorias.");
     } finally {
       setIsLoading(false);
     }
@@ -179,6 +202,25 @@ export function SuperAdminZone() {
           </form>
         </div>
 
+        {/* Migração de Categorias (Fatia A do wizard de categoria/subcategoria) */}
+        <div className="space-y-4 p-6 bg-slate-800/50 rounded-lg border border-slate-700">
+          <div className="flex items-center gap-2">
+            <FolderTree className="text-green-400" size={20} />
+            <h3 className="font-bold text-white">Migrar Categorias</h3>
+          </div>
+          <p className="text-xs text-slate-400">
+            Cria um documento em /categories pra cada valor de categoria já
+            usado em produtos existentes, que ainda não tenha um. Seguro
+            rodar mais de uma vez — categorias já existentes são ignoradas.
+          </p>
+          <Button
+            onClick={handleMigrateCategories}
+            disabled={isLoading}
+            variant="secondary"
+          >
+            Rodar Migração
+          </Button>
+        </div>
 
         {/* Staff List & Audit */}
         <div className="md:col-span-2 space-y-4">

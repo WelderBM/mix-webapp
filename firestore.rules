@@ -79,6 +79,17 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // /categories/{categoryId}
+    //   - Leitura: pública (usada pelo wizard de produto e, futuramente,
+    //     pela navegação da loja)
+    //   - Escrita:  somente admin
+    // ─────────────────────────────────────────────────────────────────────
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // /users/{userId}
     //   - Ler/escrever o próprio perfil: usuário autenticado
     //   - Ler qualquer perfil: somente admin (para verificação de roles)
