@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
@@ -12,9 +12,21 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app =
-  getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const isNewApp = getApps().length === 0;
+const app = isNewApp ? initializeApp(firebaseConfig) : getApps()[0];
 
-export const db = getFirestore(app);
+// getFirestore() usa o transporte de streaming (WebChannel/HTTP2) por
+// padrão, que alguns firewalls/antivírus/VPNs locais bloqueiam ou
+// interferem, causando "Could not reach Cloud Firestore backend" mesmo com
+// internet normal. experimentalAutoDetectLongPolling tenta o caminho
+// rápido primeiro e cai pra long-polling automaticamente só se precisar —
+// sem isso, código rodando no servidor (Next.js Server Components, ex.
+// getInitialData em app/page.tsx) é o mais exposto a esse tipo de bloqueio.
+// initializeFirestore só pode ser chamado uma vez por app, por isso o
+// guard isNewApp: em hot-reload local, getApps() já reaproveita a
+// instância existente (que já foi inicializada com essa opção).
+export const db = isNewApp
+  ? initializeFirestore(app, { experimentalAutoDetectLongPolling: true })
+  : getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
