@@ -26,7 +26,12 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  Lock,
 } from "lucide-react";
+import {
+  useSystemToolsUnlocked,
+  SystemPasswordPrompt,
+} from "@/components/admin/SystemPasswordGate";
 
 // ──────────────────────────────────────
 // TIPOS
@@ -66,6 +71,8 @@ export default function BatchImportPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
+  const { unlocked, unlock } = useSystemToolsUnlocked();
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
 
   // Estado do arquivo
   const [batchFile, setBatchFile] = useState<BatchFile | null>(null);
@@ -262,6 +269,39 @@ export default function BatchImportPage() {
   }
 
   if (!user) return null;
+
+  // ── Gate de senha de sistema (extra além do login de admin)
+  if (!unlocked) {
+    return (
+      <>
+        <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-4 text-center">
+          <Lock className="text-slate-300" size={40} />
+          <div>
+            <h1 className="font-bold text-slate-700">Área restrita</h1>
+            <p className="text-sm text-slate-500 max-w-xs">
+              A importação em lote exige a senha de sistema, separada do seu
+              login de admin.
+            </p>
+          </div>
+          <Button onClick={() => setShowPasswordPrompt(true)}>
+            Desbloquear
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/admin")}
+          >
+            Voltar pro admin
+          </Button>
+        </div>
+        <SystemPasswordPrompt
+          open={showPasswordPrompt}
+          onOpenChange={setShowPasswordPrompt}
+          onUnlocked={unlock}
+        />
+      </>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-50 pb-20">
