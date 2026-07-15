@@ -67,11 +67,13 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // /kitRecipes/{recipeId}
+    // /kit_recipes/{recipeId}
     //   - Leitura: pública (usada pelo Kit Builder)
     //   - Escrita:  somente admin
+    //   (nome da coleção corrigido: código sempre leu/escreveu "kit_recipes",
+    //   a regra protegia "kitRecipes" - nunca bateu, caía no deny-all)
     // ─────────────────────────────────────────────────────────────────────
-    match /kitRecipes/{recipeId} {
+    match /kit_recipes/{recipeId} {
       allow read: if true;
       allow write: if isAdmin();
     }
