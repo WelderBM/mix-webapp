@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Product, CartItem } from "@/types";
+import { Product, ProductVariant, CartItem } from "@/types";
 import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,9 @@ export default function ProductPage() {
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
+    null
+  );
   const [showError, setShowError] = useState(false);
   const [animateButton, setAnimateButton] = useState(false);
   const { addItem, openCart } = useCartStore();
@@ -73,18 +76,50 @@ export default function ProductPage() {
     }
   };
 
+  // Produto com variações estruturadas (Fatia C do addendum de variações) —
+  // sistema novo, independente de imagem. Produto sem `variants` cai no
+  // sistema antigo (label na imagem) sem nenhuma mudança de comportamento.
+  const hasStructuredVariants = !!product?.variants?.length;
+
+  const variantGroups = product?.variants?.reduce<
+    Record<string, ProductVariant[]>
+  >((acc, v) => {
+    (acc[v.type] ||= []).push(v);
+    return acc;
+  }, {});
+
+  const selectedVariant = hasStructuredVariants
+    ? product?.variants?.find((v) => v.id === selectedVariantId)
+    : undefined;
+
+  const handleVariantSelect = (variant: ProductVariant) => {
+    setSelectedVariantId(variant.id);
+    setShowError(false);
+    if (variant.imageUrl) {
+      setSelectedImage(variant.imageUrl);
+    }
+  };
+
   // Determine the cover image consistently (match useEffect logic)
   const coverImage =
     product?.images?.find((img) => img.isCover) || product?.images?.[0];
 
   // Helper to determine if product has variations (images with labels that are NOT cover)
-  // strict check: ignore the determined cover image by ID
-  const hasVariations = product?.images?.some(
-    (img) => img.id !== coverImage?.id && !!img.label
-  );
+  // strict check: ignore the determined cover image by ID — só relevante pro
+  // sistema antigo, produto com `variants` nunca usa isso.
+  const hasVariations =
+    !hasStructuredVariants &&
+    product?.images?.some((img) => img.id !== coverImage?.id && !!img.label);
 
-  // Selection is missing if variations exist but no label is selected
-  const isSelectionMissing = hasVariations && !selectedLabel;
+  // Falta escolher: sistema novo exige uma variação; sistema antigo exige um label.
+  const missingSelection = hasStructuredVariants
+    ? !selectedVariantId
+    : hasVariations && !selectedLabel;
+
+  // Variação escolhida mas esgotada especificamente nessa opção.
+  const variantOutOfStock = selectedVariant?.inStock === false;
+
+  const isSelectionMissing = missingSelection || variantOutOfStock;
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -102,7 +137,10 @@ export default function ProductPage() {
       type: "SIMPLE",
       quantity: 1,
       product: product,
-      selectedImageLabel: selectedLabel || undefined,
+      selectedVariant: selectedVariant,
+      selectedImageLabel: !hasStructuredVariants
+        ? selectedLabel || undefined
+        : undefined,
       selectedImageUrl: selectedImage || undefined,
     };
     addItem(item);
@@ -241,13 +279,48 @@ export default function ProductPage() {
             </div>
 
             <div className="text-3xl font-bold text-purple-600 mt-4">
-              R$ {product.price.toFixed(2)}
+              R$ {(selectedVariant?.price ?? product.price).toFixed(2)}
               {product.unit !== "un" && (
                 <span className="text-sm text-slate-400 font-normal ml-1">
                   /{product.unit}
                 </span>
               )}
             </div>
+
+            {hasStructuredVariants && variantGroups && (
+              <div className="mt-4 space-y-4">
+                {Object.entries(variantGroups).map(([type, options]) => (
+                  <div key={type}>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">
+                      {type}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {options.map((variant) => {
+                        const isSelected = selectedVariantId === variant.id;
+                        const outOfStock = variant.inStock === false;
+                        return (
+                          <button
+                            key={variant.id}
+                            type="button"
+                            onClick={() => handleVariantSelect(variant)}
+                            className={cn(
+                              "px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all",
+                              isSelected
+                                ? "border-purple-600 bg-purple-50 text-purple-700"
+                                : "border-slate-200 hover:border-slate-300 text-slate-600",
+                              outOfStock &&
+                                "opacity-40 line-through decoration-slate-400"
+                            )}
+                          >
+                            {variant.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {product.description && (
               <p className="text-slate-600 mt-6 leading-relaxed border-t pt-4">
@@ -263,7 +336,9 @@ export default function ProductPage() {
                 <div className="absolute -top-12 left-0 w-full z-50 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-medium border border-red-100 flex items-center gap-2 shadow-sm">
                     <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    Por favor, escolha uma das variações para continuar.
+                    {variantOutOfStock
+                      ? "Essa opção está esgotada. Escolha outra."
+                      : "Por favor, escolha uma das variações para continuar."}
                   </div>
                   {/* Little arrow down */}
                   <div className="w-3 h-3 bg-red-50 border-r border-b border-red-100 rotate-45 absolute -bottom-1.5 left-8"></div>
@@ -285,7 +360,9 @@ export default function ProductPage() {
                 <ShoppingCart
                   className={cn(isSelectionMissing ? "opacity-50" : "")}
                 />
-                {isSelectionMissing
+                {variantOutOfStock
+                  ? "Esgotado Nessa Opção"
+                  : missingSelection
                   ? "Selecione uma Variação"
                   : "Adicionar ao Carrinho"}
               </Button>
