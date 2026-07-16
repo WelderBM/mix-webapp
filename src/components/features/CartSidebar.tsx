@@ -231,14 +231,17 @@ export function CartSidebar() {
         }
 
         let variation = "";
-        if (item.selectedImageLabel) {
+        if (item.selectedVariant) {
+          variation = ` (${item.selectedVariant.type}: ${item.selectedVariant.name})`;
+        } else if (item.selectedImageLabel) {
           variation = ` (${item.selectedImageLabel})`;
         }
 
         const itemPrice =
           item.kitTotalAmount && item.kitTotalAmount > 0
             ? item.kitTotalAmount
-            : (item.product?.price || 0) * item.quantity;
+            : (item.selectedVariant?.price ?? item.product?.price ?? 0) *
+              item.quantity;
 
         // Formato: 1x Nome (Variação) - R$ 10,00
         message += `${item.quantity}x ${name}${variation} - ${formatCurrency(
@@ -332,7 +335,9 @@ export function CartSidebar() {
                     const itemPrice =
                       item.kitTotalAmount && item.kitTotalAmount > 0
                         ? item.kitTotalAmount
-                        : (item.product?.price || 0) * item.quantity;
+                        : (item.selectedVariant?.price ??
+                            item.product?.price ??
+                            0) * item.quantity;
 
                     return (
                       <div
@@ -357,10 +362,17 @@ export function CartSidebar() {
                               ? `Kit: ${item.kitName}`
                               : item.product?.name}
                           </h4>
-                          {item.selectedImageLabel && (
+                          {item.selectedVariant ? (
                             <p className="text-xs font-medium text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
-                              Opção: {item.selectedImageLabel}
+                              {item.selectedVariant.type}:{" "}
+                              {item.selectedVariant.name}
                             </p>
+                          ) : (
+                            item.selectedImageLabel && (
+                              <p className="text-xs font-medium text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
+                                Opção: {item.selectedImageLabel}
+                              </p>
+                            )
                           )}
                           {item.type === "CUSTOM_BALLOON" &&
                             item.balloonDetails && (

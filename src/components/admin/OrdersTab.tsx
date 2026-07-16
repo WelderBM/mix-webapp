@@ -493,13 +493,23 @@ ${paymentInstruction}`;
                                         item.kitName ||
                                         "Produto"}
                                     </span>
-                                    {item.selectedImageLabel && (
+                                    {item.selectedVariant ? (
                                       <Badge
                                         variant="outline"
                                         className="ml-2 text-[10px] h-5 px-1.5 py-0"
                                       >
-                                        {item.selectedImageLabel}
+                                        {item.selectedVariant.type}:{" "}
+                                        {item.selectedVariant.name}
                                       </Badge>
+                                    ) : (
+                                      item.selectedImageLabel && (
+                                        <Badge
+                                          variant="outline"
+                                          className="ml-2 text-[10px] h-5 px-1.5 py-0"
+                                        >
+                                          {item.selectedImageLabel}
+                                        </Badge>
+                                      )
                                     )}
                                     {item.type === "CUSTOM_BALLOON" &&
                                       item.balloonDetails && (
@@ -674,10 +684,17 @@ ${paymentInstruction}`;
                           <span className="text-slate-700">
                             {item.quantity}x{" "}
                             {item.product?.name || item.kitName}
-                            {item.selectedImageLabel && (
+                            {item.selectedVariant ? (
                               <span className="ml-1 font-bold text-slate-900">
-                                ({item.selectedImageLabel})
+                                ({item.selectedVariant.type}:{" "}
+                                {item.selectedVariant.name})
                               </span>
+                            ) : (
+                              item.selectedImageLabel && (
+                                <span className="ml-1 font-bold text-slate-900">
+                                  ({item.selectedImageLabel})
+                                </span>
+                              )
                             )}
                           </span>
                         </div>
