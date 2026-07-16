@@ -329,7 +329,9 @@ export function CartSidebar() {
                 <div className="p-6 space-y-4 pb-28">
                   {items.map((item) => {
                     const imageUrl = getProductImage(
-                      item.product?.imageUrl,
+                      item.selectedVariant?.imageUrl ||
+                        item.selectedImageUrl ||
+                        item.product?.imageUrl,
                       item.product?.type || "DEFAULT"
                     );
                     const itemPrice =

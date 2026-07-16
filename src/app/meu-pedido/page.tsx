@@ -317,7 +317,9 @@ export function TrackOrderContent() {
               <div className="space-y-4">
                 {order.items.map((item, idx) => {
                   const imageUrl = getProductImage(
-                    item.product?.imageUrl,
+                    item.selectedVariant?.imageUrl ||
+                      item.selectedImageUrl ||
+                      item.product?.imageUrl,
                     item.product?.type || "DEFAULT"
                   );
                   return (

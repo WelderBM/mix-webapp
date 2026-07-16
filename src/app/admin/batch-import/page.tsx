@@ -69,6 +69,18 @@ interface ItemPreview {
 // ──────────────────────────────────────
 export default function BatchImportPage() {
   const router = useRouter();
+  const handleBack = () => {
+    if (typeof window === "undefined") return;
+    if (window.opener) {
+      window.close();
+      return;
+    }
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/admin");
+    }
+  };
   const [user, setUser] = useState<User | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
   const { unlocked, unlock } = useSystemToolsUnlocked();
@@ -286,12 +298,8 @@ export default function BatchImportPage() {
           <Button onClick={() => setShowPasswordPrompt(true)}>
             Desbloquear
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/admin")}
-          >
-            Voltar pro admin
+          <Button variant="ghost" size="sm" onClick={handleBack}>
+            Voltar
           </Button>
         </div>
         <SystemPasswordPrompt
@@ -309,7 +317,7 @@ export default function BatchImportPage() {
       <div className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-30">
         <div className="max-w-5xl mx-auto flex items-center gap-4">
           <button
-            onClick={() => router.push("/admin")}
+            onClick={handleBack}
             className="text-slate-500 hover:text-slate-800 transition-colors p-1"
           >
             <ArrowLeft size={20} />
@@ -352,8 +360,8 @@ export default function BatchImportPage() {
               >
                 Nova importação
               </Button>
-              <Button size="sm" onClick={() => router.push("/admin")}>
-                Voltar ao Admin
+              <Button size="sm" onClick={handleBack}>
+                Voltar
               </Button>
             </div>
           </div>

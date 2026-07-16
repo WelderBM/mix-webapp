@@ -7,15 +7,9 @@ import { db } from "@/lib/firebase";
 import { Order } from "@/types/order";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Check,
-  Clock,
-  Package,
-  Truck,
-  MessageCircle,
-  ArrowLeft,
-} from "lucide-react";
+import { Check, Clock, Package, Truck, MessageCircle } from "lucide-react";
 import Link from "next/link";
+import { BackButton } from "@/components/ui/BackButton";
 import { cn } from "@/lib/utils";
 
 export default function OrderTrackingPage() {
@@ -66,12 +60,10 @@ export default function OrderTrackingPage() {
       <div className="max-w-2xl mx-auto space-y-6">
         {/* HEADER */}
         <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-2"
-          >
-            <ArrowLeft size={16} /> Voltar
-          </Link>
+          <BackButton
+            size="sm"
+            className="text-sm text-slate-500 hover:text-slate-800 px-0"
+          />
           <span className="text-xs font-mono text-slate-400">
             Pedido #{order.id.slice(0, 6)}
           </span>
