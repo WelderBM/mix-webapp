@@ -18,6 +18,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
@@ -153,8 +154,11 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   const isNextDisabled =
     currentStepId === "categoria" && !formData.category?.trim();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Sem `e` quando chamado direto pelo onClick do botão final do wizard
+  // (não é mais um handler de onSubmit nativo — ver comentário na tag
+  // <form> abaixo sobre por que isso importa num wizard de vários passos).
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
 
     // VALIDATIONS
     if (!formData.name.trim()) {
@@ -273,6 +277,10 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
           <DialogTitle>
             {productToEdit ? "Editar Produto" : "Novo Produto"}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulário em etapas para {productToEdit ? "editar" : "criar"} um
+            produto: categoria, tipo, detalhes e imagens.
+          </DialogDescription>
           <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase tracking-wide">
             <span>
               Passo {currentStepIndex + 1} de {steps.length} —{" "}
@@ -285,7 +293,20 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
           />
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
+        {/*
+          Sem onSubmit real de propósito. Um wizard de vários passos dentro
+          de um único <form> é frágil com submit nativo do HTML: (1) Enter
+          num <Input> de texto em QUALQUER passo aciona o botão de submit
+          do form inteiro, não importa qual passo está visível; (2) o botão
+          final troca de type="button" (Avançar) pra type="submit" (Criar
+          Produto) só na renderização do último passo, e no exato clique
+          que causa essa troca o navegador às vezes ainda processa o clique
+          como submit. O preventDefault abaixo neutraliza qualquer submit
+          nativo que escape por essas frestas; a criação/edição de verdade
+          só acontece pelo onClick explícito do botão "Criar Produto" no
+          rodapé, nunca pelo evento submit do form.
+        */}
+        <form onSubmit={(e) => e.preventDefault()}>
           <div className="py-4 space-y-4 min-h-[260px]">
             {currentStepId === "categoria" && (
               <div className="space-y-2">
@@ -579,7 +600,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
               </Button>
             ) : (
               <Button
-                type="submit"
+                type="button"
+                onClick={() => handleSubmit()}
                 className="bg-green-600 hover:bg-green-700"
                 disabled={loading}
               >
