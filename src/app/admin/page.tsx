@@ -16,6 +16,8 @@ import { useRouter } from "next/navigation";
 import { Product, StoreSettings, StoreSection, SectionType } from "@/types";
 import { Order } from "@/types/order";
 import { BalloonConfig, BalloonTypeConfig } from "@/types/balloon";
+import { Category } from "@/types/category";
+import { CategoryManager } from "@/components/admin/CategoryManager";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
@@ -144,6 +146,7 @@ export default function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productToView, setProductToView] = useState<Product | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   // Seções
   const [editingSection, setEditingSection] = useState<StoreSection | null>(
@@ -243,11 +246,19 @@ export default function AdminPage() {
       if (s.exists()) setBalloonConfig(s.data() as BalloonConfig);
     });
 
+    // Buscar Categorias/Subcategorias
+    const unsubCat = onSnapshot(
+      query(collection(db, "categories"), orderBy("order")),
+      (s) =>
+        setCategories(s.docs.map((d) => ({ id: d.id, ...d.data() } as Category)))
+    );
+
     return () => {
       unsubProd();
       unsubSett();
 
       unsubBall();
+      unsubCat();
     };
   }, [currentUser]);
 
@@ -591,6 +602,19 @@ export default function AdminPage() {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800">
+                    Categorias e Subcategorias
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Gerencie a taxonomia usada no wizard de produtos, sem
+                    precisar abrir a criação de um produto pra chegar lá.
+                  </p>
+                </div>
+                <CategoryManager categories={categories} />
               </div>
             </TabsContent>
 
@@ -2682,7 +2706,7 @@ export default function AdminPage() {
           onClose={() => setIsModalOpen(false)}
           productToEdit={editingProduct}
           onSuccess={() => setIsModalOpen(false)}
-          existingCategories={uniqueCategories}
+          categories={categories}
         />
       </div>
     </div>

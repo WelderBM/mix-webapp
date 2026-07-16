@@ -13,6 +13,8 @@ import {
   RibbonInventory,
   RibbonRollStatus,
 } from "@/types/product";
+import { Category } from "@/types/category";
+import { uniqueSlug } from "@/lib/migrateCategories";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,6 +41,7 @@ import {
   Save,
   Loader2,
   X,
+  Plus,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -50,20 +53,22 @@ interface ProductFormData extends Product {
   ribbonInventory?: RibbonInventory;
 }
 
-// Passos do wizard. "especifico" só existe pra tipos que precisam de campos
-// extras (hoje só RIBBON) — computado dinamicamente em `steps`, não fixo.
-type StepId = "categoria" | "tipo" | "detalhes" | "especifico" | "revisao";
+// Passos do wizard. "classificacao" junta categoria + subcategoria (só
+// aparece como campo se a categoria escolhida tiver alguma) + tipo numa
+// tela só — eram 3 passos de um campo cada, virou 1 (feedback: passos com
+// "input solitário" deixavam o fluxo burocrático demais). "especifico" só
+// existe pra tipos que precisam de campos extras (hoje só RIBBON).
+type StepId = "classificacao" | "detalhes" | "especifico" | "revisao";
 
 const STEP_LABELS: Record<StepId, string> = {
-  categoria: "Categoria",
-  tipo: "Tipo",
+  classificacao: "Classificação",
   detalhes: "Detalhes",
   especifico: "Config. da Fita",
   revisao: "Revisão",
 };
 
-function stepsForType(type: ProductType): StepId[] {
-  const base: StepId[] = ["categoria", "tipo", "detalhes"];
+function stepsFor(type: ProductType): StepId[] {
+  const base: StepId[] = ["classificacao", "detalhes"];
   if (type === "RIBBON") base.push("especifico");
   base.push("revisao");
   return base;
@@ -74,11 +79,11 @@ interface ProductFormDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  existingCategories: string[];
+  categories: Category[];
   // Permite pular direto pra um passo (ex: atalho "Nova Fita" já vem com
   // categoria/tipo definidos). Sem isso, o padrão é: edição de produto
   // existente pula pra "Detalhes" (não faz sentido escolher categoria/tipo
-  // de novo só pra mudar um preço); produto novo começa em "Categoria".
+  // de novo só pra mudar um preço); produto novo começa em "Classificação".
   initialStep?: StepId;
 }
 
@@ -105,13 +110,23 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   isOpen,
   onClose,
   onSuccess,
-  existingCategories,
+  categories,
   initialStep,
 }) => {
   const [formData, setFormData] = useState<ProductFormData>(initialFormState);
   const [loading, setLoading] = useState(false);
   const [customCategory, setCustomCategory] = useState(false);
+  const [customSubcategory, setCustomSubcategory] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
+
+  const categoryNames = useMemo(
+    () => categories.map((c) => c.name),
+    [categories]
+  );
+  const selectedCategory = useMemo(
+    () => categories.find((c) => c.name === formData.category),
+    [categories, formData.category]
+  );
 
   useEffect(() => {
     let nextFormData: ProductFormData;
@@ -122,28 +137,36 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         ribbonInventory:
           productToEdit.ribbonInventory || initialFormState.ribbonInventory,
       };
-      // Verifica se a categoria é personalizada
-      setCustomCategory(
-        !!productToEdit.category &&
-          !existingCategories.includes(productToEdit.category) &&
-          productToEdit.category !== "Geral"
+      // Verifica se a categoria/subcategoria são personalizadas (digitadas
+      // na hora, ainda sem doc correspondente em `categories`)
+      const matchedCategory = categories.find(
+        (c) => c.name === productToEdit.category
+      );
+      setCustomCategory(!!productToEdit.category && !matchedCategory);
+      setCustomSubcategory(
+        !!productToEdit.subcategory &&
+          !!matchedCategory &&
+          !matchedCategory.subcategories.some(
+            (s) => s.name === productToEdit.subcategory
+          )
       );
     } else {
       nextFormData = initialFormState;
       setCustomCategory(false);
+      setCustomSubcategory(false);
     }
     setFormData(nextFormData);
 
     // Passo inicial: calculado a partir do tipo que está prestes a ser
     // carregado (não do estado antigo, que ainda não foi atualizado).
     const startStepId: StepId =
-      initialStep ?? (productToEdit?.id ? "detalhes" : "categoria");
-    const startSteps = stepsForType(nextFormData.type);
+      initialStep ?? (productToEdit?.id ? "detalhes" : "classificacao");
+    const startSteps = stepsFor(nextFormData.type);
     const startIndex = startSteps.indexOf(startStepId);
     setStepIndex(startIndex >= 0 ? startIndex : 0);
-  }, [productToEdit, isOpen, existingCategories, initialStep]);
+  }, [productToEdit, isOpen, categories, initialStep]);
 
-  const steps = useMemo(() => stepsForType(formData.type), [formData.type]);
+  const steps = useMemo(() => stepsFor(formData.type), [formData.type]);
   const currentStepIndex = Math.min(stepIndex, steps.length - 1);
   const currentStepId = steps[currentStepIndex];
   const isFirstStep = currentStepIndex === 0;
@@ -154,7 +177,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
 
   const isNextDisabled =
-    currentStepId === "categoria" && !formData.category?.trim();
+    currentStepId === "classificacao" && !formData.category?.trim();
 
   // Sem `e` quando chamado direto pelo onClick do botão final do wizard
   // (não é mais um handler de onSubmit nativo — ver comentário na tag
@@ -191,6 +214,51 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     setLoading(true);
 
     try {
+      // Categoria/subcategoria digitadas na hora (fluxo "+ Nova Categoria" /
+      // "+ Nova Subcategoria") ainda não têm doc em `categories` — cria
+      // agora, pra não deixar o produto referenciando algo que não existe
+      // na taxonomia.
+      const categoryName = formData.category.trim();
+      let category = categories.find((c) => c.name === categoryName);
+      if (!category) {
+        const id = uniqueSlug(
+          categoryName,
+          categories.map((c) => c.id)
+        );
+        category = {
+          id,
+          name: categoryName,
+          order: categories.length,
+          active: true,
+          subcategories: [],
+        };
+        await setDoc(doc(db, "categories", id), category);
+      }
+      const subcategoryName = formData.subcategory?.trim();
+      if (
+        subcategoryName &&
+        !category.subcategories.some((s) => s.name === subcategoryName)
+      ) {
+        const subId = uniqueSlug(
+          subcategoryName,
+          category.subcategories.map((s) => s.id)
+        );
+        await setDoc(
+          doc(db, "categories", category.id),
+          {
+            subcategories: [
+              ...category.subcategories,
+              {
+                id: subId,
+                name: subcategoryName,
+                order: category.subcategories.length,
+              },
+            ],
+          },
+          { merge: true }
+        );
+      }
+
       // Gera ID se for novo
       const productId = formData.id || doc(collection(db, "products")).id;
 
@@ -281,7 +349,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
           </DialogTitle>
           <DialogDescription className="sr-only">
             Formulário em etapas para {productToEdit ? "editar" : "criar"} um
-            produto: categoria, tipo, detalhes e imagens.
+            produto: classificação, detalhes e imagens.
           </DialogDescription>
           <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase tracking-wide">
             <span>
@@ -310,16 +378,16 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         */}
         <form onSubmit={(e) => e.preventDefault()}>
           <div className="py-4 space-y-4 min-h-[260px]">
-            {currentStepId === "categoria" && (
-              <div className="space-y-2">
-                <Label>Categoria</Label>
-                {!customCategory ? (
-                  <div className="flex gap-2">
+            {currentStepId === "classificacao" && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Categoria</Label>
+                  {!customCategory ? (
                     <Select
                       value={
-                        existingCategories.includes(formData.category)
+                        categoryNames.includes(formData.category)
                           ? formData.category
-                          : "Geral"
+                          : undefined
                       }
                       onValueChange={(v) => {
                         if (v === "custom_new") {
@@ -328,13 +396,15 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         } else {
                           handleInputChange("category", v);
                         }
+                        handleInputChange("subcategory", "");
+                        setCustomSubcategory(false);
                       }}
                     >
-                      <SelectTrigger className="flex-1">
+                      <SelectTrigger>
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
-                        {existingCategories.map((c) => (
+                        {categoryNames.map((c) => (
                           <SelectItem key={c} value={c}>
                             {c}
                           </SelectItem>
@@ -347,54 +417,129 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         </SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Nome da nova categoria"
-                      value={formData.category}
-                      onChange={(e) =>
-                        handleInputChange("category", e.target.value)
-                      }
-                      className="flex-1"
-                      autoFocus
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setCustomCategory(false)}
-                      title="Voltar para lista"
-                    >
-                      <X size={16} />
-                    </Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Nome da nova categoria"
+                        value={formData.category}
+                        onChange={(e) =>
+                          handleInputChange("category", e.target.value)
+                        }
+                        className="flex-1"
+                        autoFocus
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setCustomCategory(false)}
+                        title="Voltar para lista"
+                      >
+                        <X size={16} />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {selectedCategory && (
+                  <div className="space-y-2">
+                    <Label>
+                      Subcategoria{" "}
+                      <span className="text-slate-400 font-normal">
+                        (opcional)
+                      </span>
+                    </Label>
+                    {customSubcategory ? (
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Nome da nova subcategoria"
+                          value={formData.subcategory || ""}
+                          onChange={(e) =>
+                            handleInputChange("subcategory", e.target.value)
+                          }
+                          className="flex-1"
+                          autoFocus
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setCustomSubcategory(false)}
+                          title="Cancelar"
+                        >
+                          <X size={16} />
+                        </Button>
+                      </div>
+                    ) : selectedCategory.subcategories.length > 0 ? (
+                      <Select
+                        value={
+                          selectedCategory.subcategories.some(
+                            (s) => s.name === formData.subcategory
+                          )
+                            ? formData.subcategory
+                            : undefined
+                        }
+                        onValueChange={(v) => {
+                          if (v === "custom_new_sub") {
+                            setCustomSubcategory(true);
+                            handleInputChange("subcategory", "");
+                          } else {
+                            handleInputChange("subcategory", v);
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedCategory.subcategories.map((s) => (
+                            <SelectItem key={s.id} value={s.name}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                          <SelectItem
+                            value="custom_new_sub"
+                            className="text-purple-600 font-bold"
+                          >
+                            + Nova Subcategoria
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setCustomSubcategory(true)}
+                        className="text-xs text-purple-600 font-bold flex items-center gap-1"
+                      >
+                        <Plus size={12} /> Adicionar subcategoria
+                      </button>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
 
-            {currentStepId === "tipo" && (
-              <div className="space-y-2">
-                <Label>Tipo</Label>
-                <Select
-                  value={formData.type}
-                  onValueChange={(v) =>
-                    handleInputChange("type", v as ProductType)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="RIBBON">FITA (ROLO)</SelectItem>
-                    <SelectItem value="BASE_CONTAINER">
-                      CESTA/CAIXA
-                    </SelectItem>
-                    <SelectItem value="STANDARD_ITEM">ITEM PADRÃO</SelectItem>
-                    <SelectItem value="ACCESSORY">ACESSÓRIO</SelectItem>
-                    <SelectItem value="WRAPPER">EMBALAGEM</SelectItem>
-                    <SelectItem value="FILLER">PREENCHIMENTO</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={(v) =>
+                      handleInputChange("type", v as ProductType)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="RIBBON">FITA (ROLO)</SelectItem>
+                      <SelectItem value="BASE_CONTAINER">
+                        CESTA/CAIXA
+                      </SelectItem>
+                      <SelectItem value="STANDARD_ITEM">
+                        ITEM PADRÃO
+                      </SelectItem>
+                      <SelectItem value="ACCESSORY">ACESSÓRIO</SelectItem>
+                      <SelectItem value="WRAPPER">EMBALAGEM</SelectItem>
+                      <SelectItem value="FILLER">PREENCHIMENTO</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
 
