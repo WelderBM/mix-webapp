@@ -8,10 +8,10 @@ import { Product, ProductVariant, CartItem } from "@/types";
 import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingCart, ArrowLeft, Check, ShieldCheck } from "lucide-react";
-import Link from "next/link";
+import { ShoppingCart, Check, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ProductImageGallery } from "@/components/features/ProductImageGallery";
+import { BackButton } from "@/components/ui/BackButton";
 import { cn } from "@/lib/utils";
 
 export default function ProductPage() {
@@ -174,21 +174,14 @@ export default function ProductPage() {
         <h1 className="text-2xl font-bold text-slate-800">
           Produto não encontrado 😕
         </h1>
-        <Link href="/">
-          <Button variant="outline">Voltar para a Loja</Button>
-        </Link>
+        <BackButton variant="outline" />
       </div>
     );
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4">
       <div className="max-w-5xl mx-auto">
-        <Link
-          href="/"
-          className="inline-flex items-center text-slate-500 hover:text-slate-800 mb-6 transition-colors"
-        >
-          <ArrowLeft size={18} className="mr-2" /> Voltar para a Loja
-        </Link>
+        <BackButton className="text-slate-500 hover:text-slate-800 mb-6 px-0" />
 
         <div className="bg-white rounded-3xl shadow-sm border overflow-hidden flex flex-col md:flex-row">
           {/* IMAGEM E GALERIA */}
