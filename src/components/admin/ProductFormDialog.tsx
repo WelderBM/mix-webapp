@@ -12,6 +12,9 @@ import {
   RibbonInventory,
   RibbonRollStatus,
 } from "@/types/product";
+import { Category } from "@/types/category";
+import { uniqueSlug } from "@/lib/migrateCategories";
+import { CategoryManager } from "./CategoryManager";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -48,20 +51,30 @@ interface ProductFormData extends Product {
   ribbonInventory?: RibbonInventory;
 }
 
-// Passos do wizard. "especifico" só existe pra tipos que precisam de campos
-// extras (hoje só RIBBON) — computado dinamicamente em `steps`, não fixo.
-type StepId = "categoria" | "tipo" | "detalhes" | "especifico" | "revisao";
+// Passos do wizard. "subcategoria" só existe se a categoria escolhida tiver
+// subcategorias cadastradas; "especifico" só existe pra tipos que precisam
+// de campos extras (hoje só RIBBON) — ambos computados em `steps`, não fixo.
+type StepId =
+  | "categoria"
+  | "subcategoria"
+  | "tipo"
+  | "detalhes"
+  | "especifico"
+  | "revisao";
 
 const STEP_LABELS: Record<StepId, string> = {
   categoria: "Categoria",
+  subcategoria: "Subcategoria",
   tipo: "Tipo",
   detalhes: "Detalhes",
   especifico: "Config. da Fita",
   revisao: "Revisão",
 };
 
-function stepsForType(type: ProductType): StepId[] {
-  const base: StepId[] = ["categoria", "tipo", "detalhes"];
+function stepsFor(type: ProductType, hasSubcategories: boolean): StepId[] {
+  const base: StepId[] = ["categoria"];
+  if (hasSubcategories) base.push("subcategoria");
+  base.push("tipo", "detalhes");
   if (type === "RIBBON") base.push("especifico");
   base.push("revisao");
   return base;
@@ -72,7 +85,7 @@ interface ProductFormDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  existingCategories: string[];
+  categories: Category[];
   // Permite pular direto pra um passo (ex: atalho "Nova Fita" já vem com
   // categoria/tipo definidos). Sem isso, o padrão é: edição de produto
   // existente pula pra "Detalhes" (não faz sentido escolher categoria/tipo
@@ -103,13 +116,24 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   isOpen,
   onClose,
   onSuccess,
-  existingCategories,
+  categories,
   initialStep,
 }) => {
   const [formData, setFormData] = useState<ProductFormData>(initialFormState);
   const [loading, setLoading] = useState(false);
   const [customCategory, setCustomCategory] = useState(false);
+  const [customSubcategory, setCustomSubcategory] = useState(false);
+  const [managingCategories, setManagingCategories] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
+
+  const categoryNames = useMemo(
+    () => categories.map((c) => c.name),
+    [categories]
+  );
+  const selectedCategory = useMemo(
+    () => categories.find((c) => c.name === formData.category),
+    [categories, formData.category]
+  );
 
   useEffect(() => {
     let nextFormData: ProductFormData;
@@ -120,28 +144,50 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         ribbonInventory:
           productToEdit.ribbonInventory || initialFormState.ribbonInventory,
       };
-      // Verifica se a categoria é personalizada
-      setCustomCategory(
-        !!productToEdit.category &&
-          !existingCategories.includes(productToEdit.category) &&
-          productToEdit.category !== "Geral"
+      // Verifica se a categoria/subcategoria são personalizadas (digitadas
+      // na hora, ainda sem doc correspondente em `categories`)
+      const matchedCategory = categories.find(
+        (c) => c.name === productToEdit.category
+      );
+      setCustomCategory(!!productToEdit.category && !matchedCategory);
+      setCustomSubcategory(
+        !!productToEdit.subcategory &&
+          !!matchedCategory &&
+          !matchedCategory.subcategories.some(
+            (s) => s.name === productToEdit.subcategory
+          )
       );
     } else {
       nextFormData = initialFormState;
       setCustomCategory(false);
+      setCustomSubcategory(false);
     }
     setFormData(nextFormData);
+    setManagingCategories(false);
 
-    // Passo inicial: calculado a partir do tipo que está prestes a ser
-    // carregado (não do estado antigo, que ainda não foi atualizado).
+    // Passo inicial: calculado a partir do tipo/categoria que estão prestes
+    // a ser carregados (não do estado antigo, que ainda não foi atualizado).
     const startStepId: StepId =
       initialStep ?? (productToEdit?.id ? "detalhes" : "categoria");
-    const startSteps = stepsForType(nextFormData.type);
+    const startCategory = categories.find(
+      (c) => c.name === nextFormData.category
+    );
+    const startSteps = stepsFor(
+      nextFormData.type,
+      !!startCategory && startCategory.subcategories.length > 0
+    );
     const startIndex = startSteps.indexOf(startStepId);
     setStepIndex(startIndex >= 0 ? startIndex : 0);
-  }, [productToEdit, isOpen, existingCategories, initialStep]);
+  }, [productToEdit, isOpen, categories, initialStep]);
 
-  const steps = useMemo(() => stepsForType(formData.type), [formData.type]);
+  const steps = useMemo(
+    () =>
+      stepsFor(
+        formData.type,
+        !!selectedCategory && selectedCategory.subcategories.length > 0
+      ),
+    [formData.type, selectedCategory]
+  );
   const currentStepIndex = Math.min(stepIndex, steps.length - 1);
   const currentStepId = steps[currentStepIndex];
   const isFirstStep = currentStepIndex === 0;
@@ -189,6 +235,51 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     setLoading(true);
 
     try {
+      // Categoria/subcategoria digitadas na hora (fluxo "+ Nova Categoria" /
+      // "+ Nova Subcategoria") ainda não têm doc em `categories` — cria
+      // agora, pra não deixar o produto referenciando algo que não existe
+      // na taxonomia.
+      const categoryName = formData.category.trim();
+      let category = categories.find((c) => c.name === categoryName);
+      if (!category) {
+        const id = uniqueSlug(
+          categoryName,
+          categories.map((c) => c.id)
+        );
+        category = {
+          id,
+          name: categoryName,
+          order: categories.length,
+          active: true,
+          subcategories: [],
+        };
+        await setDoc(doc(db, "categories", id), category);
+      }
+      const subcategoryName = formData.subcategory?.trim();
+      if (
+        subcategoryName &&
+        !category.subcategories.some((s) => s.name === subcategoryName)
+      ) {
+        const subId = uniqueSlug(
+          subcategoryName,
+          category.subcategories.map((s) => s.id)
+        );
+        await setDoc(
+          doc(db, "categories", category.id),
+          {
+            subcategories: [
+              ...category.subcategories,
+              {
+                id: subId,
+                name: subcategoryName,
+                order: category.subcategories.length,
+              },
+            ],
+          },
+          { merge: true }
+        );
+      }
+
       // Gera ID se for novo
       const productId = formData.id || doc(collection(db, "products")).id;
 
@@ -310,14 +401,26 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
           <div className="py-4 space-y-4 min-h-[260px]">
             {currentStepId === "categoria" && (
               <div className="space-y-2">
-                <Label>Categoria</Label>
-                {!customCategory ? (
+                <div className="flex items-center justify-between">
+                  <Label>Categoria</Label>
+                  <button
+                    type="button"
+                    onClick={() => setManagingCategories((v) => !v)}
+                    className="text-xs text-purple-600 font-bold uppercase tracking-wide"
+                  >
+                    {managingCategories ? "Fechar" : "Gerenciar"}
+                  </button>
+                </div>
+
+                {managingCategories ? (
+                  <CategoryManager categories={categories} />
+                ) : !customCategory ? (
                   <div className="flex gap-2">
                     <Select
                       value={
-                        existingCategories.includes(formData.category)
+                        categoryNames.includes(formData.category)
                           ? formData.category
-                          : "Geral"
+                          : undefined
                       }
                       onValueChange={(v) => {
                         if (v === "custom_new") {
@@ -326,13 +429,14 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         } else {
                           handleInputChange("category", v);
                         }
+                        handleInputChange("subcategory", "");
                       }}
                     >
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
-                        {existingCategories.map((c) => (
+                        {categoryNames.map((c) => (
                           <SelectItem key={c} value={c}>
                             {c}
                           </SelectItem>
@@ -361,6 +465,70 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                       type="button"
                       variant="ghost"
                       onClick={() => setCustomCategory(false)}
+                      title="Voltar para lista"
+                    >
+                      <X size={16} />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {currentStepId === "subcategoria" && selectedCategory && (
+              <div className="space-y-2">
+                <Label>Subcategoria</Label>
+                {!customSubcategory ? (
+                  <div className="flex gap-2">
+                    <Select
+                      value={
+                        selectedCategory.subcategories.some(
+                          (s) => s.name === formData.subcategory
+                        )
+                          ? formData.subcategory
+                          : undefined
+                      }
+                      onValueChange={(v) => {
+                        if (v === "custom_new_sub") {
+                          setCustomSubcategory(true);
+                          handleInputChange("subcategory", "");
+                        } else {
+                          handleInputChange("subcategory", v);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Selecione (opcional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedCategory.subcategories.map((s) => (
+                          <SelectItem key={s.id} value={s.name}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem
+                          value="custom_new_sub"
+                          className="text-purple-600 font-bold"
+                        >
+                          + Nova Subcategoria
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nome da nova subcategoria"
+                      value={formData.subcategory || ""}
+                      onChange={(e) =>
+                        handleInputChange("subcategory", e.target.value)
+                      }
+                      className="flex-1"
+                      autoFocus
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setCustomSubcategory(false)}
                       title="Voltar para lista"
                     >
                       <X size={16} />

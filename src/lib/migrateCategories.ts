@@ -19,12 +19,22 @@ const stripDiacritics = (name: string) =>
     })
     .join("");
 
-const slugify = (name: string) =>
+export const slugify = (name: string) =>
   stripDiacritics(name)
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "") || "categoria";
+
+// Slug único comparando contra os ids já existentes (evita colisão se duas
+// categorias/subcategorias tiverem nomes parecidos, ex: "Fita" e "Fitas").
+export const uniqueSlug = (name: string, existingIds: string[]): string => {
+  const base = slugify(name);
+  if (!existingIds.includes(base)) return base;
+  let i = 2;
+  while (existingIds.includes(`${base}-${i}`)) i++;
+  return `${base}-${i}`;
+};
 
 // Lê os produtos existentes, deduplica os valores de `category` (mesma
 // lógica usada em admin/page.tsx pra montar o filtro) e cria um doc
