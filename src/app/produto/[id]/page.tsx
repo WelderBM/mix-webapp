@@ -8,16 +8,10 @@ import { Product, ProductVariant, CartItem } from "@/types";
 import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  ShoppingCart,
-  ArrowLeft,
-  Package,
-  Check,
-  ShieldCheck,
-} from "lucide-react";
+import { ShoppingCart, ArrowLeft, Check, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { SafeImage } from "@/components/ui/SafeImage";
+import { ProductImageGallery } from "@/components/features/ProductImageGallery";
 import { cn } from "@/lib/utils";
 
 export default function ProductPage() {
@@ -64,18 +58,6 @@ export default function ProductPage() {
     fetchProduct();
   }, [id]);
 
-  const handleImageSelect = (url: string, label?: string) => {
-    setSelectedImage(url);
-    setShowError(false);
-    if (label) {
-      setSelectedLabel(label);
-    } else {
-      // If clicking cover (no label), we go back to 'overview' mode
-      // This invalidates the selection for purchase
-      setSelectedLabel(null);
-    }
-  };
-
   // Produto com variações estruturadas (Fatia C do addendum de variações) —
   // sistema novo, independente de imagem. Produto sem `variants` cai no
   // sistema antigo (label na imagem) sem nenhuma mudança de comportamento.
@@ -92,6 +74,41 @@ export default function ProductPage() {
     ? product?.variants?.find((v) => v.id === selectedVariantId)
     : undefined;
 
+  // Determine the cover image consistently (match useEffect logic)
+  const coverImage =
+    product?.images?.find((img) => img.isCover) || product?.images?.[0];
+
+  // Clique em QUALQUER imagem (thumbnail, seta do carrossel ou tela cheia)
+  // passa por aqui — a ligação com variação/rótulo é centralizada nesta
+  // função, então navegar pelo carrossel ou clicar numa thumbnail vinculada
+  // a uma variação seleciona essa variação, do mesmo jeito que clicar no
+  // próprio chip da variação já troca a imagem.
+  const handleImageSelect = (url: string) => {
+    setSelectedImage(url);
+    setShowError(false);
+
+    if (hasStructuredVariants) {
+      const linkedVariant = product?.variants?.find(
+        (v) => v.imageUrl === url
+      );
+      if (linkedVariant) {
+        setSelectedVariantId(linkedVariant.id);
+      }
+      // Imagem sem variação vinculada (ex: capa): só troca a foto em
+      // exibição, não mexe na variação já escolhida.
+      return;
+    }
+
+    // Sistema antigo (produtos sem `variants`) — comportamento inalterado.
+    const img = product?.images?.find((i) => i.url === url);
+    const isCover = coverImage && img?.id === coverImage.id;
+    if (img && !isCover && img.label) {
+      setSelectedLabel(img.label);
+    } else {
+      setSelectedLabel(null);
+    }
+  };
+
   const handleVariantSelect = (variant: ProductVariant) => {
     setSelectedVariantId(variant.id);
     setShowError(false);
@@ -99,10 +116,6 @@ export default function ProductPage() {
       setSelectedImage(variant.imageUrl);
     }
   };
-
-  // Determine the cover image consistently (match useEffect logic)
-  const coverImage =
-    product?.images?.find((img) => img.isCover) || product?.images?.[0];
 
   // Helper to determine if product has variations (images with labels that are NOT cover)
   // strict check: ignore the determined cover image by ID — só relevante pro
@@ -180,86 +193,15 @@ export default function ProductPage() {
         <div className="bg-white rounded-3xl shadow-sm border overflow-hidden flex flex-col md:flex-row">
           {/* IMAGEM E GALERIA */}
           <div className="md:w-1/2 bg-slate-100 flex flex-col">
-            <div className="relative min-h-[400px] flex-1">
-              {selectedImage ? (
-                <SafeImage
-                  src={selectedImage}
-                  alt={selectedLabel || product.name}
-                  name={product.name}
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full text-slate-300">
-                  <Package size={80} />
-                </div>
-              )}
-
-              {/* Image Label Overlay if present */}
-              {selectedLabel && (
-                <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm backdrop-blur-sm">
-                  {selectedLabel}
-                </div>
-              )}
-            </div>
-
-            {/* THUMBNAILS GALLERY */}
-            {product.images && product.images.length > 1 && (
-              <div
-                className={cn(
-                  "flex gap-2 p-4 overflow-x-auto border-t items-center transition-all duration-300",
-                  showError && isSelectionMissing
-                    ? "bg-red-50 border-red-200 animate-pulse ring-2 ring-red-100 ring-inset"
-                    : "bg-white"
-                )}
-              >
-                {product.images.map((img, index) => {
-                  // Identify cover by ID match if possible
-                  const isCover = coverImage && img.id === coverImage.id;
-                  // Logic to render divider if this is the first item after cover(s) or just separate cover
-
-                  return (
-                    <div key={img.id} className="flex items-center">
-                      <button
-                        onClick={() =>
-                          handleImageSelect(
-                            img.url,
-                            isCover ? undefined : img.label
-                          )
-                        }
-                        className={cn(
-                          "relative w-20 h-20 shrink-0 rounded-lg overflow-hidden border-2 transition-all",
-                          selectedImage === img.url
-                            ? "border-purple-600 ring-2 ring-purple-100 scale-105 z-10"
-                            : "border-slate-100 opacity-70 hover:opacity-100",
-                          isCover && "grayscale-[0.3]" // Slight visual distinction for cover
-                        )}
-                      >
-                        {/* ... image ... */}
-                        <SafeImage
-                          src={img.url}
-                          alt={img.label || product.name}
-                          fill
-                          className="object-cover"
-                        />
-                        {/* Icon indicating it's just a view/cover */}
-                        {isCover && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                            <span className="text-[10px] bg-black/60 text-white px-1 rounded-sm backdrop-blur-sm">
-                              Capa
-                            </span>
-                          </div>
-                        )}
-                      </button>
-                      {/* Visual Separator after Cover */}
-                      {isCover && index === 0 && (
-                        <div className="w-px h-12 bg-slate-200 mx-2 shrink-0" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <ProductImageGallery
+              images={product.images || []}
+              productName={product.name}
+              selectedImageUrl={selectedImage}
+              onSelectImage={handleImageSelect}
+              coverImageId={coverImage?.id}
+              showError={showError && isSelectionMissing}
+              imageLabel={selectedLabel}
+            />
           </div>
 
           {/* DETALHES */}
