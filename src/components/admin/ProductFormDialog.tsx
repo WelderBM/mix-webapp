@@ -14,7 +14,6 @@ import {
 } from "@/types/product";
 import { Category } from "@/types/category";
 import { uniqueSlug } from "@/lib/migrateCategories";
-import { CategoryManager } from "./CategoryManager";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -51,30 +50,22 @@ interface ProductFormData extends Product {
   ribbonInventory?: RibbonInventory;
 }
 
-// Passos do wizard. "subcategoria" só existe se a categoria escolhida tiver
-// subcategorias cadastradas; "especifico" só existe pra tipos que precisam
-// de campos extras (hoje só RIBBON) — ambos computados em `steps`, não fixo.
-type StepId =
-  | "categoria"
-  | "subcategoria"
-  | "tipo"
-  | "detalhes"
-  | "especifico"
-  | "revisao";
+// Passos do wizard. "classificacao" junta categoria + subcategoria (só
+// aparece como campo se a categoria escolhida tiver alguma) + tipo numa
+// tela só — eram 3 passos de um campo cada, virou 1 (feedback: passos com
+// "input solitário" deixavam o fluxo burocrático demais). "especifico" só
+// existe pra tipos que precisam de campos extras (hoje só RIBBON).
+type StepId = "classificacao" | "detalhes" | "especifico" | "revisao";
 
 const STEP_LABELS: Record<StepId, string> = {
-  categoria: "Categoria",
-  subcategoria: "Subcategoria",
-  tipo: "Tipo",
+  classificacao: "Classificação",
   detalhes: "Detalhes",
   especifico: "Config. da Fita",
   revisao: "Revisão",
 };
 
-function stepsFor(type: ProductType, hasSubcategories: boolean): StepId[] {
-  const base: StepId[] = ["categoria"];
-  if (hasSubcategories) base.push("subcategoria");
-  base.push("tipo", "detalhes");
+function stepsFor(type: ProductType): StepId[] {
+  const base: StepId[] = ["classificacao", "detalhes"];
   if (type === "RIBBON") base.push("especifico");
   base.push("revisao");
   return base;
@@ -89,7 +80,7 @@ interface ProductFormDialogProps {
   // Permite pular direto pra um passo (ex: atalho "Nova Fita" já vem com
   // categoria/tipo definidos). Sem isso, o padrão é: edição de produto
   // existente pula pra "Detalhes" (não faz sentido escolher categoria/tipo
-  // de novo só pra mudar um preço); produto novo começa em "Categoria".
+  // de novo só pra mudar um preço); produto novo começa em "Classificação".
   initialStep?: StepId;
 }
 
@@ -123,7 +114,6 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   const [loading, setLoading] = useState(false);
   const [customCategory, setCustomCategory] = useState(false);
   const [customSubcategory, setCustomSubcategory] = useState(false);
-  const [managingCategories, setManagingCategories] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
 
   const categoryNames = useMemo(
@@ -163,31 +153,17 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       setCustomSubcategory(false);
     }
     setFormData(nextFormData);
-    setManagingCategories(false);
 
-    // Passo inicial: calculado a partir do tipo/categoria que estão prestes
-    // a ser carregados (não do estado antigo, que ainda não foi atualizado).
+    // Passo inicial: calculado a partir do tipo que está prestes a ser
+    // carregado (não do estado antigo, que ainda não foi atualizado).
     const startStepId: StepId =
-      initialStep ?? (productToEdit?.id ? "detalhes" : "categoria");
-    const startCategory = categories.find(
-      (c) => c.name === nextFormData.category
-    );
-    const startSteps = stepsFor(
-      nextFormData.type,
-      !!startCategory && startCategory.subcategories.length > 0
-    );
+      initialStep ?? (productToEdit?.id ? "detalhes" : "classificacao");
+    const startSteps = stepsFor(nextFormData.type);
     const startIndex = startSteps.indexOf(startStepId);
     setStepIndex(startIndex >= 0 ? startIndex : 0);
   }, [productToEdit, isOpen, categories, initialStep]);
 
-  const steps = useMemo(
-    () =>
-      stepsFor(
-        formData.type,
-        !!selectedCategory && selectedCategory.subcategories.length > 0
-      ),
-    [formData.type, selectedCategory]
-  );
+  const steps = useMemo(() => stepsFor(formData.type), [formData.type]);
   const currentStepIndex = Math.min(stepIndex, steps.length - 1);
   const currentStepId = steps[currentStepIndex];
   const isFirstStep = currentStepIndex === 0;
@@ -198,7 +174,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
 
   const isNextDisabled =
-    currentStepId === "categoria" && !formData.category?.trim();
+    currentStepId === "classificacao" && !formData.category?.trim();
 
   // Sem `e` quando chamado direto pelo onClick do botão final do wizard
   // (não é mais um handler de onSubmit nativo — ver comentário na tag
@@ -370,7 +346,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
           </DialogTitle>
           <DialogDescription className="sr-only">
             Formulário em etapas para {productToEdit ? "editar" : "criar"} um
-            produto: categoria, tipo, detalhes e imagens.
+            produto: classificação, detalhes e imagens.
           </DialogDescription>
           <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase tracking-wide">
             <span>
@@ -399,23 +375,11 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         */}
         <form onSubmit={(e) => e.preventDefault()}>
           <div className="py-4 space-y-4 min-h-[260px]">
-            {currentStepId === "categoria" && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
+            {currentStepId === "classificacao" && (
+              <div className="space-y-4">
+                <div className="space-y-2">
                   <Label>Categoria</Label>
-                  <button
-                    type="button"
-                    onClick={() => setManagingCategories((v) => !v)}
-                    className="text-xs text-purple-600 font-bold uppercase tracking-wide"
-                  >
-                    {managingCategories ? "Fechar" : "Gerenciar"}
-                  </button>
-                </div>
-
-                {managingCategories ? (
-                  <CategoryManager categories={categories} />
-                ) : !customCategory ? (
-                  <div className="flex gap-2">
+                  {!customCategory ? (
                     <Select
                       value={
                         categoryNames.includes(formData.category)
@@ -430,9 +394,10 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                           handleInputChange("category", v);
                         }
                         handleInputChange("subcategory", "");
+                        setCustomSubcategory(false);
                       }}
                     >
-                      <SelectTrigger className="flex-1">
+                      <SelectTrigger>
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
@@ -449,118 +414,118 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         </SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Nome da nova categoria"
-                      value={formData.category}
-                      onChange={(e) =>
-                        handleInputChange("category", e.target.value)
-                      }
-                      className="flex-1"
-                      autoFocus
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setCustomCategory(false)}
-                      title="Voltar para lista"
-                    >
-                      <X size={16} />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {currentStepId === "subcategoria" && selectedCategory && (
-              <div className="space-y-2">
-                <Label>Subcategoria</Label>
-                {!customSubcategory ? (
-                  <div className="flex gap-2">
-                    <Select
-                      value={
-                        selectedCategory.subcategories.some(
-                          (s) => s.name === formData.subcategory
-                        )
-                          ? formData.subcategory
-                          : undefined
-                      }
-                      onValueChange={(v) => {
-                        if (v === "custom_new_sub") {
-                          setCustomSubcategory(true);
-                          handleInputChange("subcategory", "");
-                        } else {
-                          handleInputChange("subcategory", v);
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Nome da nova categoria"
+                        value={formData.category}
+                        onChange={(e) =>
+                          handleInputChange("category", e.target.value)
                         }
-                      }}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Selecione (opcional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {selectedCategory.subcategories.map((s) => (
-                          <SelectItem key={s.id} value={s.name}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                        <SelectItem
-                          value="custom_new_sub"
-                          className="text-purple-600 font-bold"
-                        >
-                          + Nova Subcategoria
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Nome da nova subcategoria"
-                      value={formData.subcategory || ""}
-                      onChange={(e) =>
-                        handleInputChange("subcategory", e.target.value)
-                      }
-                      className="flex-1"
-                      autoFocus
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setCustomSubcategory(false)}
-                      title="Voltar para lista"
-                    >
-                      <X size={16} />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
+                        className="flex-1"
+                        autoFocus
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setCustomCategory(false)}
+                        title="Voltar para lista"
+                      >
+                        <X size={16} />
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
-            {currentStepId === "tipo" && (
-              <div className="space-y-2">
-                <Label>Tipo</Label>
-                <Select
-                  value={formData.type}
-                  onValueChange={(v) =>
-                    handleInputChange("type", v as ProductType)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="RIBBON">FITA (ROLO)</SelectItem>
-                    <SelectItem value="BASE_CONTAINER">
-                      CESTA/CAIXA
-                    </SelectItem>
-                    <SelectItem value="STANDARD_ITEM">ITEM PADRÃO</SelectItem>
-                    <SelectItem value="ACCESSORY">ACESSÓRIO</SelectItem>
-                    <SelectItem value="WRAPPER">EMBALAGEM</SelectItem>
-                    <SelectItem value="FILLER">PREENCHIMENTO</SelectItem>
-                  </SelectContent>
-                </Select>
+                {selectedCategory &&
+                  (selectedCategory.subcategories.length > 0 ||
+                    customSubcategory) && (
+                    <div className="space-y-2">
+                      <Label>Subcategoria</Label>
+                      {!customSubcategory ? (
+                        <Select
+                          value={
+                            selectedCategory.subcategories.some(
+                              (s) => s.name === formData.subcategory
+                            )
+                              ? formData.subcategory
+                              : undefined
+                          }
+                          onValueChange={(v) => {
+                            if (v === "custom_new_sub") {
+                              setCustomSubcategory(true);
+                              handleInputChange("subcategory", "");
+                            } else {
+                              handleInputChange("subcategory", v);
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione (opcional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {selectedCategory.subcategories.map((s) => (
+                              <SelectItem key={s.id} value={s.name}>
+                                {s.name}
+                              </SelectItem>
+                            ))}
+                            <SelectItem
+                              value="custom_new_sub"
+                              className="text-purple-600 font-bold"
+                            >
+                              + Nova Subcategoria
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Nome da nova subcategoria"
+                            value={formData.subcategory || ""}
+                            onChange={(e) =>
+                              handleInputChange("subcategory", e.target.value)
+                            }
+                            className="flex-1"
+                            autoFocus
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setCustomSubcategory(false)}
+                            title="Voltar para lista"
+                          >
+                            <X size={16} />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select
+                    value={formData.type}
+                    onValueChange={(v) =>
+                      handleInputChange("type", v as ProductType)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o Tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="RIBBON">FITA (ROLO)</SelectItem>
+                      <SelectItem value="BASE_CONTAINER">
+                        CESTA/CAIXA
+                      </SelectItem>
+                      <SelectItem value="STANDARD_ITEM">
+                        ITEM PADRÃO
+                      </SelectItem>
+                      <SelectItem value="ACCESSORY">ACESSÓRIO</SelectItem>
+                      <SelectItem value="WRAPPER">EMBALAGEM</SelectItem>
+                      <SelectItem value="FILLER">PREENCHIMENTO</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
 
