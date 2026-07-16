@@ -41,8 +41,9 @@ export function ImageUploadModal({
       <div className={className}>
         {multiple ? (
           <DialogTrigger asChild>
-            <Button 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               className="w-full h-16 border-dashed border-2 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 transition-all text-slate-500 font-bold gap-3"
               disabled={disabled}
             >
@@ -73,9 +74,10 @@ export function ImageUploadModal({
             
             <div className="flex flex-col gap-1 flex-1">
               <DialogTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   disabled={disabled}
                   className="h-8 text-[11px] font-black uppercase gap-2 text-slate-700 hover:bg-slate-100 border-slate-300 shadow-sm"
                 >
@@ -83,9 +85,10 @@ export function ImageUploadModal({
                   {value ? "Trocar" : "Escolher"}
                 </Button>
               </DialogTrigger>
-              
+
               {value && onChange && (
                 <button
+                  type="button"
                   onClick={() => onChange("")}
                   disabled={disabled}
                   className="text-[9px] text-red-500 hover:text-red-600 flex items-center gap-1 font-black uppercase transition-all ml-1"

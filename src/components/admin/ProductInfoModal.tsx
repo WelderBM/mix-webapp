@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -36,11 +37,6 @@ interface ProductInfoModalProps {
   onDeleted: () => void;
 }
 
-// Tempo mínimo antes do botão de exclusão liberar — confirmação por delay
-// em vez de digitar o nome do produto de novo (mais rápido de usar,
-// continua evitando exclusão por toque acidental).
-const DELETE_CONFIRM_DELAY_MS = 3000;
-
 export function ProductInfoModal({
   product,
   open,
@@ -49,20 +45,7 @@ export function ProductInfoModal({
   onDeleted,
 }: ProductInfoModalProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmReady, setConfirmReady] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    if (!confirmOpen) {
-      setConfirmReady(false);
-      return;
-    }
-    const timer = setTimeout(
-      () => setConfirmReady(true),
-      DELETE_CONFIRM_DELAY_MS
-    );
-    return () => clearTimeout(timer);
-  }, [confirmOpen]);
 
   if (!product) return null;
 
@@ -87,6 +70,10 @@ export function ProductInfoModal({
         <DialogContent className="sm:max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="truncate pr-6">{product.name}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Detalhes do produto, com opções de editar, excluir ou ver na
+              loja.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -209,7 +196,7 @@ export function ProductInfoModal({
             <Button
               type="button"
               variant="destructive"
-              disabled={!confirmReady || deleting}
+              disabled={deleting}
               onClick={handleDelete}
               className="gap-2"
             >
@@ -218,7 +205,7 @@ export function ProductInfoModal({
               ) : (
                 <Trash2 size={16} />
               )}
-              {confirmReady ? "Sim, excluir" : "Aguarde..."}
+              Sim, excluir
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
