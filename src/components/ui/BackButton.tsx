@@ -23,7 +23,20 @@ export function BackButton({
   const router = useRouter();
 
   const handleBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
+    if (typeof window === "undefined") return;
+
+    // Aberta via window.open (ex: "Ver na Loja" no admin) — não há
+    // histórico nesta aba pra voltar, e router.back() nunca alcança outra
+    // aba. A "tela anterior" de verdade aqui é a aba que abriu esta, então
+    // fechar a aba É o back — history.length por si só não detecta esse
+    // caso (uma aba nova sempre começa com length 1, mas também fica em 1
+    // em navegações comuns dependendo do navegador).
+    if (window.opener) {
+      window.close();
+      return;
+    }
+
+    if (window.history.length > 1) {
       router.back();
     } else {
       router.push(fallbackHref);

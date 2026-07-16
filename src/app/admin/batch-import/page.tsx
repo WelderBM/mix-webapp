@@ -70,7 +70,12 @@ interface ItemPreview {
 export default function BatchImportPage() {
   const router = useRouter();
   const handleBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
+    if (typeof window === "undefined") return;
+    if (window.opener) {
+      window.close();
+      return;
+    }
+    if (window.history.length > 1) {
       router.back();
     } else {
       router.push("/admin");
