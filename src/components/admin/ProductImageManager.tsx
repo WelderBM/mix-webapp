@@ -1,10 +1,9 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ProductImage } from "@/types/product";
 import { ImageUploadModal } from "./ImageUploadModal";
-import { X, Star, Plus } from "lucide-react";
+import { X, Star } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 interface ProductImageManagerProps {
@@ -23,13 +22,11 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
       id: crypto.randomUUID(),
       url,
       isCover: false,
-      label: "",
     }));
 
     // If list was empty, set first new image as cover
     if (images.length === 0 && newImagesList.length > 0) {
       newImagesList[0].isCover = true;
-      newImagesList[0].label = ""; // Ensure cover has no label
     }
 
     onChange([...images, ...newImagesList]);
@@ -40,7 +37,6 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
     // If we deleted the cover, make the first available image the new cover
     if (images.find((img) => img.id === id)?.isCover && newImages.length > 0) {
       newImages[0].isCover = true;
-      newImages[0].label = ""; // Ensure new cover has no label
     }
     onChange(newImages);
   };
@@ -49,15 +45,7 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
     const newImages = images.map((img) => ({
       ...img,
       isCover: img.id === id,
-      label: img.id === id ? "" : img.label, // Clear label if setting as cover
     }));
-    onChange(newImages);
-  };
-
-  const handleLabelChange = (id: string, label: string) => {
-    const newImages = images.map((img) =>
-      img.id === id ? { ...img, label } : img
-    );
     onChange(newImages);
   };
 
@@ -67,18 +55,14 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
         <Label>Galeria de Imagens</Label>
         <span className="text-sm text-slate-500">
           Adicione múltiplas imagens. A primeira imagem ou a marcada com estrela
-          será a capa.
-          <br />
-          <span className="text-xs text-orange-600 font-bold">
-            Nota: A imagem de capa não pode ter descrição (rótulo). Ela serve
-            apenas como amostra geral.
-          </span>
+          será a capa. Pra nomear uma imagem como variação (ex: "Azul"), vincule
+          ela numa variação logo abaixo.
         </span>
       </div>
 
       {/* Grid of existing images */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {images.map((img, index) => (
+        {images.map((img) => (
           <div
             key={img.id}
             className={`relative flex gap-4 p-3 rounded-lg border transition-all ${
@@ -100,20 +84,6 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
             {/* Controls */}
             <div className="flex flex-col flex-1 gap-2 justify-center">
               <div className="flex items-center gap-2">
-                <Input
-                  placeholder={
-                    img.isCover
-                      ? "Capa (Sem rótulo)"
-                      : "Descrição (ex: Azul, Lateral)"
-                  }
-                  value={img.label || ""}
-                  onChange={(e) => handleLabelChange(img.id, e.target.value)}
-                  className="h-8 text-sm"
-                  disabled={disabled || img.isCover}
-                />
-              </div>
-
-              <div className="flex items-center gap-2 mt-1">
                 <Button
                   type="button"
                   size="sm"

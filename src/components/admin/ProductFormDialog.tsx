@@ -9,6 +9,7 @@ import {
   Product,
   ProductType,
   ProductImage,
+  ProductVariant,
   RibbonInventory,
   RibbonRollStatus,
 } from "@/types/product";
@@ -42,6 +43,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { ProductImageManager } from "./ProductImageManager";
+import { ProductVariationManager } from "./ProductVariationManager";
 
 // Definindo o tipo base de dados do formulário (simplificado)
 interface ProductFormData extends Product {
@@ -571,6 +573,17 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         handleInputChange("imageUrl", "");
                       }
                     }}
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="space-y-4 pt-2 border-t">
+                  <ProductVariationManager
+                    images={formData.images || []}
+                    variants={formData.variants || []}
+                    onChange={(newVariants: ProductVariant[]) =>
+                      handleInputChange("variants", newVariants)
+                    }
                     disabled={loading}
                   />
                 </div>
