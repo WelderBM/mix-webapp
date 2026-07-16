@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -69,6 +70,10 @@ export function ProductInfoModal({
         <DialogContent className="sm:max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="truncate pr-6">{product.name}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Detalhes do produto, com opções de editar, excluir ou ver na
+              loja.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
