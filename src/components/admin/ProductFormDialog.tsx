@@ -40,6 +40,7 @@ import {
   Save,
   Loader2,
   X,
+  Plus,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -437,69 +438,80 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                   )}
                 </div>
 
-                {selectedCategory &&
-                  (selectedCategory.subcategories.length > 0 ||
-                    customSubcategory) && (
-                    <div className="space-y-2">
-                      <Label>Subcategoria</Label>
-                      {!customSubcategory ? (
-                        <Select
-                          value={
-                            selectedCategory.subcategories.some(
-                              (s) => s.name === formData.subcategory
-                            )
-                              ? formData.subcategory
-                              : undefined
+                {selectedCategory && (
+                  <div className="space-y-2">
+                    <Label>
+                      Subcategoria{" "}
+                      <span className="text-slate-400 font-normal">
+                        (opcional)
+                      </span>
+                    </Label>
+                    {customSubcategory ? (
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Nome da nova subcategoria"
+                          value={formData.subcategory || ""}
+                          onChange={(e) =>
+                            handleInputChange("subcategory", e.target.value)
                           }
-                          onValueChange={(v) => {
-                            if (v === "custom_new_sub") {
-                              setCustomSubcategory(true);
-                              handleInputChange("subcategory", "");
-                            } else {
-                              handleInputChange("subcategory", v);
-                            }
-                          }}
+                          className="flex-1"
+                          autoFocus
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => setCustomSubcategory(false)}
+                          title="Cancelar"
                         >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione (opcional)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {selectedCategory.subcategories.map((s) => (
-                              <SelectItem key={s.id} value={s.name}>
-                                {s.name}
-                              </SelectItem>
-                            ))}
-                            <SelectItem
-                              value="custom_new_sub"
-                              className="text-purple-600 font-bold"
-                            >
-                              + Nova Subcategoria
+                          <X size={16} />
+                        </Button>
+                      </div>
+                    ) : selectedCategory.subcategories.length > 0 ? (
+                      <Select
+                        value={
+                          selectedCategory.subcategories.some(
+                            (s) => s.name === formData.subcategory
+                          )
+                            ? formData.subcategory
+                            : undefined
+                        }
+                        onValueChange={(v) => {
+                          if (v === "custom_new_sub") {
+                            setCustomSubcategory(true);
+                            handleInputChange("subcategory", "");
+                          } else {
+                            handleInputChange("subcategory", v);
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedCategory.subcategories.map((s) => (
+                            <SelectItem key={s.id} value={s.name}>
+                              {s.name}
                             </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Nome da nova subcategoria"
-                            value={formData.subcategory || ""}
-                            onChange={(e) =>
-                              handleInputChange("subcategory", e.target.value)
-                            }
-                            className="flex-1"
-                            autoFocus
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => setCustomSubcategory(false)}
-                            title="Voltar para lista"
+                          ))}
+                          <SelectItem
+                            value="custom_new_sub"
+                            className="text-purple-600 font-bold"
                           >
-                            <X size={16} />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                            + Nova Subcategoria
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setCustomSubcategory(true)}
+                        className="text-xs text-purple-600 font-bold flex items-center gap-1"
+                      >
+                        <Plus size={12} /> Adicionar subcategoria
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Tipo</Label>
