@@ -20,10 +20,12 @@ export interface RibbonInventory {
 
 export interface ProductVariant {
   id: string;
-  name: string;
-  price: number;
+  type: string; // ex: "Tamanho", "Cor" — texto livre, catálogo sugerido na UI
+  name: string; // ex: "G", "Azul"
+  price?: number; // sem valor, cai pro Product.price
   inStock: boolean;
-  imageUrl?: string;
+  imageId?: string; // referencia ProductImage.id de uma imagem já enviada do produto
+  imageUrl?: string; // preenchido a partir da imagem escolhida (imageId)
 }
 
 export interface ProductImage {
