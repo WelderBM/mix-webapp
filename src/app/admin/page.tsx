@@ -107,7 +107,10 @@ import {
 } from "@/components/admin/SystemPasswordGate";
 import { ProductInfoModal } from "@/components/admin/ProductInfoModal";
 import { SafeImage } from "@/components/ui/SafeImage";
-import { ProductTypeBadge } from "@/components/ui/status-badge";
+import {
+  ProductTypeBadge,
+  PRODUCT_TYPE_META,
+} from "@/components/ui/status-badge";
 import { cn, formatCurrency } from "@/lib/utils";
 
 import { suggestHexColor, SAO_ROQUE_COLORS } from "@/lib/balloonColors";
@@ -707,21 +710,13 @@ export default function AdminPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="ALL">Todos os Tipos</SelectItem>
-                          <SelectItem value="BASE_CONTAINER">
-                            Base/Cesta
-                          </SelectItem>
-                          <SelectItem value="STANDARD_ITEM">
-                            Recheio/Item
-                          </SelectItem>
-                          <SelectItem value="WRAPPER">
-                            Saco/Embalagem
-                          </SelectItem>
-                          <SelectItem value="FILLER">Preenchimento</SelectItem>
-                          <SelectItem value="ACCESSORY">Acessório</SelectItem>
-                          <SelectItem value="RIBBON">Laço</SelectItem>
-                          <SelectItem value="ASSEMBLED_KIT">
-                            Kit Montado
-                          </SelectItem>
+                          {Object.entries(PRODUCT_TYPE_META).map(
+                            ([value, meta]) => (
+                              <SelectItem key={value} value={value}>
+                                {meta.filterLabel}
+                              </SelectItem>
+                            )
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1814,7 +1809,8 @@ export default function AdminPage() {
                                         variant="outline"
                                         className="text-[10px] bg-blue-50 text-blue-700 border-blue-100 italic"
                                       >
-                                        RIBBON
+                                        {PRODUCT_TYPE_META[fita.type]?.label ??
+                                          fita.type}
                                       </Badge>
                                       <p className="text-[9px] text-slate-500 mt-1 leading-tight font-medium">
                                         Controle de metragem habilitado.
@@ -1982,7 +1978,8 @@ export default function AdminPage() {
                                         variant="outline"
                                         className="text-[10px] bg-blue-50 text-blue-700 border-blue-100 italic"
                                       >
-                                        RIBBON
+                                        {PRODUCT_TYPE_META[fita.type]?.label ??
+                                          fita.type}
                                       </Badge>
                                       <p className="text-[9px] text-slate-500 mt-1 leading-tight font-medium">
                                         Controle de metragem habilitado.
@@ -2621,15 +2618,17 @@ export default function AdminPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="ALL">Todos Tipos</SelectItem>
-                            <SelectItem value="BASE_CONTAINER">
-                              Base/Cesta
-                            </SelectItem>
-                            <SelectItem value="STANDARD_ITEM">
-                              Recheio/Item
-                            </SelectItem>
-                            <SelectItem value="ASSEMBLED_KIT">
-                              Kit Montado
-                            </SelectItem>
+                            {/* Só tipos "vitrináveis" como produto
+                                independente — WRAPPER/FILLER/ACCESSORY/RIBBON
+                                são componentes de kit, não aparecem como
+                                seção própria da home. */}
+                            {(
+                              ["BASE_CONTAINER", "STANDARD_ITEM", "ASSEMBLED_KIT"] as const
+                            ).map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {PRODUCT_TYPE_META[value].filterLabel}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>

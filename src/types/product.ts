@@ -59,11 +59,6 @@ export interface Product {
   isKitBase?: boolean;
   laçoType?: LacoModelType;
   variants?: ProductVariant[];
-  defaultComponents?: string[];
-  wrapperConstraints?: {
-    minSlots: number;
-    maxSlots: number;
-  };
   width?: number;
   height?: number;
   depth?: number;

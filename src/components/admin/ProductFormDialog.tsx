@@ -14,6 +14,7 @@ import {
   RibbonRollStatus,
 } from "@/types/product";
 import { Category } from "@/types/category";
+import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
 import { uniqueSlug } from "@/lib/migrateCategories";
 import { useDraftPersistence } from "@/hooks/useDraftPersistence";
 import { Button } from "@/components/ui/button";
@@ -615,16 +616,20 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                       <SelectValue placeholder="Selecione o Tipo" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="RIBBON">FITA (ROLO)</SelectItem>
-                      <SelectItem value="BASE_CONTAINER">
-                        CESTA/CAIXA
-                      </SelectItem>
-                      <SelectItem value="STANDARD_ITEM">
-                        ITEM PADRÃO
-                      </SelectItem>
-                      <SelectItem value="ACCESSORY">ACESSÓRIO</SelectItem>
-                      <SelectItem value="WRAPPER">EMBALAGEM</SelectItem>
-                      <SelectItem value="FILLER">PREENCHIMENTO</SelectItem>
+                      {/* ASSEMBLED_KIT fica de fora: kits nunca são criados
+                          por este formulário, só via kit_recipes/KitBuilderModal. */}
+                      {(
+                        Object.entries(PRODUCT_TYPE_META) as [
+                          ProductType,
+                          (typeof PRODUCT_TYPE_META)[ProductType]
+                        ][]
+                      )
+                        .filter(([value]) => value !== "ASSEMBLED_KIT")
+                        .map(([value, meta]) => (
+                          <SelectItem key={value} value={value}>
+                            {meta.filterLabel}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>

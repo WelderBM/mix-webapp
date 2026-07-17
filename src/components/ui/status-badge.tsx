@@ -36,14 +36,31 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) {
 // admin/page.tsx (getProductTypeLabel). O switch original também tratava um
 // caso "KIT_TEMPLATE" que não existe em ProductType (@/types/product.ts);
 // omitido aqui por não corresponder a nenhum valor real do tipo.
-export const PRODUCT_TYPE_META: Record<ProductType, { label: string; tone: BadgeTone }> = {
-  BASE_CONTAINER: { label: "Base", tone: "brand" },
-  STANDARD_ITEM: { label: "Item", tone: "neutral" },
-  FILLER: { label: "Preench.", tone: "info" },
-  ACCESSORY: { label: "Acess.", tone: "warning" },
-  WRAPPER: { label: "Saco", tone: "accent" },
-  RIBBON: { label: "Laço", tone: "pink" },
-  ASSEMBLED_KIT: { label: "Kit Montado", tone: "teal" },
+//
+// `label` é o texto curto usado em badges (espaço restrito em linha de
+// tabela); `filterLabel` é a versão mais descritiva usada em <Select> de
+// filtro/criação, onde há espaço de sobra. Antes do agora, o wizard de
+// criação e o filtro de estoque cada um reimplementava sua própria lista
+// de rótulos pro mesmo enum, com textos divergentes entre si.
+export const PRODUCT_TYPE_META: Record<
+  ProductType,
+  { label: string; filterLabel: string; tone: BadgeTone }
+> = {
+  BASE_CONTAINER: { label: "Base", filterLabel: "Base/Cesta", tone: "brand" },
+  STANDARD_ITEM: {
+    label: "Item",
+    filterLabel: "Recheio/Item",
+    tone: "neutral",
+  },
+  FILLER: { label: "Preench.", filterLabel: "Preenchimento", tone: "info" },
+  ACCESSORY: { label: "Acess.", filterLabel: "Acessório", tone: "warning" },
+  WRAPPER: { label: "Saco", filterLabel: "Saco/Embalagem", tone: "accent" },
+  RIBBON: { label: "Laço", filterLabel: "Laço", tone: "pink" },
+  ASSEMBLED_KIT: {
+    label: "Kit Montado",
+    filterLabel: "Kit Montado",
+    tone: "teal",
+  },
 }
 
 export function ProductTypeBadge({ type }: { type: ProductType }) {
