@@ -333,6 +333,7 @@ export function TrackOrderContent() {
                           name={item.product?.name || "Item"}
                           alt=""
                           fill
+                          sizes="48px"
                           className="object-cover"
                         />
                       </div>

@@ -78,6 +78,7 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
                 alt={img.label || "Imagem do produto"}
                 className="object-cover"
                 fill
+                sizes="96px"
               />
             </div>
 

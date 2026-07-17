@@ -116,6 +116,7 @@ export function ImageUpload({
                 src={value}
                 alt="Preview"
                 fill
+                sizes="(min-width: 640px) 96px, 80px"
                 className="object-cover"
               />
               <button

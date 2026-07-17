@@ -247,6 +247,7 @@ export function KitBuilderModal() {
                                             name={p.type}
                                             alt={p.name}
                                             fill
+                                            sizes="(min-width: 640px) 33vw, 50vw"
                                             className="object-cover group-hover:scale-105 transition-transform"
                                           />
                                           {qty > 0 && (
@@ -413,6 +414,7 @@ export function KitBuilderModal() {
                                 name={base.type}
                                 alt={base.name}
                                 fill
+                                sizes="50vw"
                                 className="object-contain"
                               />
                             </div>
@@ -445,6 +447,7 @@ export function KitBuilderModal() {
                               name={w.type}
                               alt={w.name}
                               fill
+                              sizes="40px"
                               className="object-cover"
                             />
                           </div>
@@ -510,6 +513,7 @@ export function KitBuilderModal() {
                               name={item.product.type}
                               alt={item.product.name}
                               fill
+                              sizes="48px"
                               className="object-cover"
                             />
                           </div>
@@ -553,6 +557,7 @@ export function KitBuilderModal() {
                         name={item.product.type}
                         alt={item.product.name}
                         fill
+                        sizes="40px"
                         className="object-cover"
                       />
                     </div>

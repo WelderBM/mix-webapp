@@ -75,6 +75,7 @@ export function ProductImageGallery({
             alt={imageLabel || productName}
             name={productName}
             fill
+            sizes="(min-width: 1024px) 50vw, 100vw"
             className="object-cover transition-transform duration-150 ease-out pointer-events-none"
             style={{
               transform: isZooming ? "scale(2)" : "scale(1)",
@@ -164,6 +165,7 @@ export function ProductImageGallery({
                     src={img.url}
                     alt={img.label || productName}
                     fill
+                    sizes="80px"
                     className="object-cover"
                   />
                   {isCover && (
@@ -203,6 +205,7 @@ export function ProductImageGallery({
                 alt={imageLabel || productName}
                 name={productName}
                 fill
+                sizes="(min-width: 640px) 1024px, 95vw"
                 className="object-contain"
               />
             )}
