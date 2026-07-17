@@ -15,6 +15,7 @@ import {
 } from "@/types/product";
 import { Category } from "@/types/category";
 import { uniqueSlug } from "@/lib/migrateCategories";
+import { useDraftPersistence } from "@/hooks/useDraftPersistence";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -52,6 +53,11 @@ import { ProductVariationImageManager } from "./ProductVariationImageManager";
 // Definindo o tipo base de dados do formulário (simplificado)
 interface ProductFormData extends Product {
   ribbonInventory?: RibbonInventory;
+}
+
+interface ProductDraft {
+  formData: ProductFormData;
+  stepIndex: number;
 }
 
 // Passos do wizard. "classificacao" junta categoria + subcategoria (só
@@ -135,6 +141,26 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   const [customSubcategory, setCustomSubcategory] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
 
+  // Rascunho local (Addendum 4, Parte B): sobrevive a reload/fechamento
+  // acidental da aba. `enabled` começa falso e só liga depois de checar um
+  // rascunho existente — senão o auto-save grava o formulário em branco por
+  // cima do rascunho antes do usuário conseguir responder ao prompt.
+  const draftKey = productToEdit?.id
+    ? `product-${productToEdit.id}`
+    : "product-new";
+  const [draftPersistenceEnabled, setDraftPersistenceEnabled] =
+    useState(false);
+  const { restoreDraft, clearDraft } = useDraftPersistence<ProductDraft>(
+    draftKey,
+    { formData, stepIndex },
+    { enabled: draftPersistenceEnabled }
+  );
+
+  const handleClose = () => {
+    clearDraft();
+    onClose();
+  };
+
   const categoryNames = useMemo(
     () => categories.map((c) => c.name),
     [categories]
@@ -184,6 +210,30 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     const startIndex = startSteps.indexOf(startStepId);
     setStepIndex(startIndex >= 0 ? startIndex : 0);
   }, [productToEdit, isOpen, categories, initialStep]);
+
+  // Checa rascunho salvo toda vez que o wizard abre (depois do reset acima,
+  // pra um "sim" de restaurar sobrescrever os dados recém-carregados do
+  // productToEdit, e um "não"/sem rascunho deixar esses dados como estão).
+  useEffect(() => {
+    if (!isOpen) {
+      setDraftPersistenceEnabled(false);
+      return;
+    }
+    const draft = restoreDraft();
+    if (draft) {
+      const wantsRestore = window.confirm(
+        "Você tem um rascunho não salvo desse produto. Deseja continuar de onde parou?"
+      );
+      if (wantsRestore) {
+        setFormData(draft.formData);
+        setStepIndex(draft.stepIndex);
+      } else {
+        clearDraft();
+      }
+    }
+    setDraftPersistenceEnabled(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, draftKey]);
 
   const steps = useMemo(
     () => stepsFor(formData.type, !!formData.variants?.length),
@@ -302,6 +352,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       await setDoc(doc(db, "products", productId), productData);
 
       toast.success(productToEdit ? "Produto atualizado!" : "Produto criado!");
+      clearDraft();
       onSuccess();
       onClose();
     } catch (error) {
@@ -367,7 +418,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !loading && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !loading && handleClose()}>
       <DialogContent
         className="sm:max-w-[700px] sm:max-h-[90vh] overflow-y-auto"
         onInteractOutside={(e) => e.preventDefault()}
@@ -779,7 +830,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
             <Button
               type="button"
               variant="outline"
-              onClick={isFirstStep ? onClose : goBack}
+              onClick={isFirstStep ? handleClose : goBack}
               disabled={loading}
               className="gap-2"
             >
