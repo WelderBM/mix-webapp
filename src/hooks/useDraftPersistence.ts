@@ -19,6 +19,14 @@ interface UseDraftPersistenceResult<T> {
 
 const DEFAULT_DEBOUNCE_MS = 800;
 
+function safeStringify(value: unknown): string | null {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
+}
+
 export function useDraftPersistence<T>(
   key: string,
   value: T,
@@ -27,31 +35,37 @@ export function useDraftPersistence<T>(
   const storageKey = `draft:${key}`;
   const [hasDraft, setHasDraft] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // A primeira vez que `value` "muda" depois de habilitar é só o estado
-  // recém-carregado assentando (ex: onSnapshot do Firestore chegando) —
-  // não é uma edição de verdade, e não deve virar rascunho. Só a partir
-  // da mudança SEGUINTE (uma edição real) é que passamos a gravar.
-  const skipNextWriteRef = useRef(true);
+  // Último conteúdo conhecido como "limpo" (igual ao que está salvo/veio do
+  // servidor), comparado por JSON — não por referência. onSnapshot recria
+  // os objetos a cada disparo, inclusive ecos do próprio save local (um com
+  // a escrita otimista, outro com a confirmação do servidor), então
+  // comparar só a referência faz esses ecos parecerem edição nova e
+  // regrava um rascunho logo depois de "Salvar Configurações" ter acabado
+  // de limpar o anterior. Comparando o conteúdo, qualquer eco com o mesmo
+  // JSON é ignorado; só uma mudança de conteúdo de verdade vira rascunho.
+  const cleanSnapshotRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     setHasDraft(window.localStorage.getItem(storageKey) !== null);
   }, [storageKey]);
 
+  // Assim que liga (primeiro load real ou reabilitação após salvar/
+  // descartar), o valor atual vira a nova baseline "limpa" — evita tratar
+  // o próprio assentamento de estado como uma edição.
   useEffect(() => {
-    skipNextWriteRef.current = true;
+    cleanSnapshotRef.current = safeStringify(value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, storageKey]);
 
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
-    if (skipNextWriteRef.current) {
-      skipNextWriteRef.current = false;
-      return;
-    }
+    const serialized = safeStringify(value);
+    if (serialized === null || serialized === cleanSnapshotRef.current) return;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       try {
-        window.localStorage.setItem(storageKey, JSON.stringify(value));
+        window.localStorage.setItem(storageKey, serialized);
       } catch {
         // Quota do localStorage cheia ou valor não serializável — rascunho
         // é conveniência, não pode derrubar o formulário por causa disso.
@@ -78,7 +92,10 @@ export function useDraftPersistence<T>(
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     window.localStorage.removeItem(storageKey);
     setHasDraft(false);
-  }, [storageKey]);
+    // O valor atual (ex: recém salvo no Firestore) vira a nova baseline —
+    // ecos do onSnapshot pós-save não podem reviver um rascunho já limpo.
+    cleanSnapshotRef.current = safeStringify(value);
+  }, [storageKey, value]);
 
   return { hasDraft, restoreDraft, clearDraft };
 }
