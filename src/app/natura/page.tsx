@@ -148,6 +148,7 @@ export default async function NaturaPage() {
                 alt="Mix Novidades - Consultoria Natura em Boa Vista"
                 name="Fachada Mix Novidades"
                 fill
+                sizes="(min-width: 768px) 50vw, 100vw"
                 className="object-cover transition-transform duration-700 hover:scale-105"
               />
               <div className="absolute inset-0 bg-linear-to-t from-slate-900/80 via-transparent to-transparent pointer-events-none" />

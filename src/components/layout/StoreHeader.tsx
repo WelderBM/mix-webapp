@@ -16,6 +16,7 @@ export function StoreHeader() {
             alt="Fachada da loja de presentes Mix Novidades"
             name="Fachada da loja de presentes Mix Novidades"
             fill
+            sizes="(min-width: 1024px) 1024px, 100vw"
             className="object-contain opacity-90 hover:scale-105 transition-transform duration-700"
             priority
           />
