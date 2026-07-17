@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ProductImage, ProductVariant } from "@/types/product";
+import { ProductVariant } from "@/types/product";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,10 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { X, Plus } from "lucide-react";
-import { SafeImage } from "@/components/ui/SafeImage";
 
 interface ProductVariationManagerProps {
-  images: ProductImage[];
   variants: ProductVariant[];
   onChange: (variants: ProductVariant[]) => void;
   disabled?: boolean;
@@ -27,7 +25,7 @@ const SUGGESTED_TYPES = ["Tamanho", "Cor"];
 
 export const ProductVariationManager: React.FC<
   ProductVariationManagerProps
-> = ({ images, variants, onChange, disabled }) => {
+> = ({ variants, onChange, disabled }) => {
   // Linha que está digitando um tipo novo (fora do catálogo sugerido).
   const [customTypeRowId, setCustomTypeRowId] = useState<string | null>(null);
 
@@ -56,23 +54,15 @@ export const ProductVariationManager: React.FC<
     onChange(variants.map((v) => (v.id === id ? { ...v, ...patch } : v)));
   };
 
-  const handleImageChange = (id: string, imageId: string) => {
-    if (imageId === "none") {
-      handleFieldChange(id, { imageId: undefined, imageUrl: undefined });
-      return;
-    }
-    const img = images.find((i) => i.id === imageId);
-    handleFieldChange(id, { imageId, imageUrl: img?.url });
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2">
         <Label>Variações (opcional)</Label>
         <span className="text-sm text-slate-500">
           Use quando o produto vem em mais de uma opção (ex: tamanhos,
-          cores). Preço, estoque e imagem são opcionais em cada variação —
-          sem preço próprio, ela usa o preço do produto.
+          cores). Preço e estoque são opcionais — sem preço próprio, a
+          variação usa o preço do produto. A imagem de cada variação é
+          atribuída no próximo passo.
         </span>
       </div>
 
@@ -154,54 +144,22 @@ export const ProductVariationManager: React.FC<
                 />
               </div>
 
-              <div className="flex items-center gap-2 flex-1">
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="Preço do produto"
-                  value={variant.price ?? ""}
-                  onChange={(e) =>
-                    handleFieldChange(variant.id, {
-                      price:
-                        e.target.value === ""
-                          ? undefined
-                          : Number(e.target.value),
-                    })
-                  }
-                  className="h-9 text-sm w-32 shrink-0"
-                  disabled={disabled}
-                />
-
-                <Select
-                  value={variant.imageId || "none"}
-                  onValueChange={(v) => handleImageChange(variant.id, v)}
-                  disabled={disabled}
-                >
-                  <SelectTrigger className="h-9 text-sm flex-1">
-                    <SelectValue placeholder="Imagem" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sem imagem própria</SelectItem>
-                    {images.map((img, imgIndex) => (
-                      <SelectItem key={img.id} value={img.id}>
-                        <span className="flex items-center gap-2">
-                          <span className="relative w-5 h-5 rounded overflow-hidden border shrink-0">
-                            <SafeImage
-                              src={img.url}
-                              alt=""
-                              fill
-                              className="object-cover"
-                            />
-                          </span>
-                          {img.isCover
-                            ? "Capa"
-                            : img.label || `Imagem ${imgIndex + 1}`}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="Preço do produto"
+                value={variant.price ?? ""}
+                onChange={(e) =>
+                  handleFieldChange(variant.id, {
+                    price:
+                      e.target.value === ""
+                        ? undefined
+                        : Number(e.target.value),
+                  })
+                }
+                className="h-9 text-sm w-32 shrink-0"
+                disabled={disabled}
+              />
 
               <div className="flex items-center gap-3 justify-between sm:justify-start shrink-0">
                 <div className="flex items-center gap-1.5">

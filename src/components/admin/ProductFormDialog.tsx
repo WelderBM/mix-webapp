@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { ProductImageManager } from "./ProductImageManager";
 import { ProductVariationManager } from "./ProductVariationManager";
+import { ProductVariationImageManager } from "./ProductVariationImageManager";
 
 // Definindo o tipo base de dados do formulário (simplificado)
 interface ProductFormData extends Product {
@@ -58,18 +59,33 @@ interface ProductFormData extends Product {
 // tela só — eram 3 passos de um campo cada, virou 1 (feedback: passos com
 // "input solitário" deixavam o fluxo burocrático demais). "especifico" só
 // existe pra tipos que precisam de campos extras (hoje só RIBBON).
-type StepId = "classificacao" | "detalhes" | "especifico" | "revisao";
+// "imagens-variacoes" só existe se alguma variação foi criada no passo
+// "variacoes" — declarar variação (tipo/nome/preço/estoque) e atribuir
+// imagem são passos separados de propósito (feedback: misturar os dois
+// numa lista só ficava poluído; e imagem de variação agora é obrigatória,
+// então vale a pena um passo dedicado só pra isso).
+type StepId =
+  | "classificacao"
+  | "detalhes"
+  | "especifico"
+  | "variacoes"
+  | "imagens-variacoes"
+  | "revisao";
 
 const STEP_LABELS: Record<StepId, string> = {
   classificacao: "Classificação",
   detalhes: "Detalhes",
   especifico: "Config. da Fita",
+  variacoes: "Variações",
+  "imagens-variacoes": "Imagens das Variações",
   revisao: "Revisão",
 };
 
-function stepsFor(type: ProductType): StepId[] {
+function stepsFor(type: ProductType, hasVariants: boolean): StepId[] {
   const base: StepId[] = ["classificacao", "detalhes"];
   if (type === "RIBBON") base.push("especifico");
+  base.push("variacoes");
+  if (hasVariants) base.push("imagens-variacoes");
   base.push("revisao");
   return base;
 }
@@ -161,12 +177,18 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     // carregado (não do estado antigo, que ainda não foi atualizado).
     const startStepId: StepId =
       initialStep ?? (productToEdit?.id ? "detalhes" : "classificacao");
-    const startSteps = stepsFor(nextFormData.type);
+    const startSteps = stepsFor(
+      nextFormData.type,
+      !!nextFormData.variants?.length
+    );
     const startIndex = startSteps.indexOf(startStepId);
     setStepIndex(startIndex >= 0 ? startIndex : 0);
   }, [productToEdit, isOpen, categories, initialStep]);
 
-  const steps = useMemo(() => stepsFor(formData.type), [formData.type]);
+  const steps = useMemo(
+    () => stepsFor(formData.type, !!formData.variants?.length),
+    [formData.type, formData.variants?.length]
+  );
   const currentStepIndex = Math.min(stepIndex, steps.length - 1);
   const currentStepId = steps[currentStepIndex];
   const isFirstStep = currentStepIndex === 0;
@@ -177,7 +199,9 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
 
   const isNextDisabled =
-    currentStepId === "classificacao" && !formData.category?.trim();
+    (currentStepId === "classificacao" && !formData.category?.trim()) ||
+    (currentStepId === "imagens-variacoes" &&
+      !!formData.variants?.some((v) => !v.imageUrl));
 
   // Sem `e` quando chamado direto pelo onClick do botão final do wizard
   // (não é mais um handler de onSubmit nativo — ver comentário na tag
@@ -208,6 +232,11 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
     if (!formData.unit || formData.unit.trim() === "") {
       toast.error("A unidade de venda (un, m, kg) é obrigatória.");
+      return;
+    }
+
+    if (formData.variants?.some((v) => !v.imageUrl)) {
+      toast.error("Toda variação precisa de uma imagem.");
       return;
     }
 
@@ -690,6 +719,27 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
               </div>
             )}
 
+            {currentStepId === "variacoes" && (
+              <ProductVariationManager
+                variants={formData.variants || []}
+                onChange={(newVariants: ProductVariant[]) =>
+                  handleInputChange("variants", newVariants)
+                }
+                disabled={loading}
+              />
+            )}
+
+            {currentStepId === "imagens-variacoes" && (
+              <ProductVariationImageManager
+                images={formData.images || []}
+                variants={formData.variants || []}
+                onChange={(newVariants: ProductVariant[]) =>
+                  handleInputChange("variants", newVariants)
+                }
+                disabled={loading}
+              />
+            )}
+
             {currentStepId === "revisao" && (
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
@@ -718,17 +768,6 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         handleInputChange("imageUrl", "");
                       }
                     }}
-                    disabled={loading}
-                  />
-                </div>
-
-                <div className="space-y-4 pt-2 border-t">
-                  <ProductVariationManager
-                    images={formData.images || []}
-                    variants={formData.variants || []}
-                    onChange={(newVariants: ProductVariant[]) =>
-                      handleInputChange("variants", newVariants)
-                    }
                     disabled={loading}
                   />
                 </div>
