@@ -525,6 +525,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                             <SafeImage
                               src={product.imageUrl}
                               fill
+                              sizes="48px"
                               className="object-cover"
                               alt={product.name}
                             />

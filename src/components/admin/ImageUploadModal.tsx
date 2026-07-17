@@ -65,6 +65,7 @@ export function ImageUploadModal({
                   src={value}
                   alt="Preview"
                   fill
+                  sizes="48px"
                   className="object-cover"
                 />
               ) : (

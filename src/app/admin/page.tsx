@@ -18,6 +18,7 @@ import { Order } from "@/types/order";
 import { BalloonConfig, BalloonTypeConfig } from "@/types/balloon";
 import { Category } from "@/types/category";
 import { CategoryManager } from "@/components/admin/CategoryManager";
+import { useGlobalSettings } from "@/providers/ThemeProvider";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
@@ -236,10 +237,9 @@ export default function AdminPage() {
         )
     );
 
-    // Buscar Configurações
-    const unsubSett = onSnapshot(doc(db, "settings", "general"), (s) => {
-      if (s.exists()) setSettings(s.data() as StoreSettings);
-    });
+    // settings/general é lido pelo ThemeProvider (aplica o tema em toda a
+    // loja) — reaproveitado via useGlobalSettings logo abaixo em vez de
+    // abrir um segundo onSnapshot redundante no mesmo documento aqui.
 
     // Buscar Configurações de Balões
     const unsubBall = onSnapshot(doc(db, "settings", "balloons"), (s) => {
@@ -255,12 +255,19 @@ export default function AdminPage() {
 
     return () => {
       unsubProd();
-      unsubSett();
 
       unsubBall();
       unsubCat();
     };
   }, [currentUser]);
+
+  // Sincroniza o `settings` local a partir do contexto global (ver acima)
+  // em vez de um listener próprio — mesmo comportamento de antes (atualiza
+  // ao vivo quando o doc muda), só sem listener duplicado.
+  const globalSettings = useGlobalSettings();
+  useEffect(() => {
+    if (globalSettings) setSettings(globalSettings);
+  }, [globalSettings]);
 
   // Lógica de Filtros de Produtos
   const filteredProducts = useMemo(() => {
@@ -339,8 +346,10 @@ export default function AdminPage() {
 
   const saveAllSettings = async () => {
     try {
-      await setDoc(doc(db, "settings", "general"), settings);
-      await setDoc(doc(db, "settings", "balloons"), balloonConfig);
+      await Promise.all([
+        setDoc(doc(db, "settings", "general"), settings),
+        setDoc(doc(db, "settings", "balloons"), balloonConfig),
+      ]);
       toast.success("Salvo com sucesso!");
     } catch (e) {
       toast.error("Erro ao salvar.");
@@ -705,6 +714,7 @@ export default function AdminPage() {
                                   alt={product.name}
                                   name={product.name}
                                   fill
+                                  sizes="32px"
                                   className="object-cover"
                                 />
                               ) : (
@@ -1667,6 +1677,7 @@ export default function AdminPage() {
                                       alt={fita.name}
                                       name={fita.name}
                                       fill
+                                      sizes="48px"
                                       className="object-cover"
                                     />
                                   </div>
@@ -1820,6 +1831,7 @@ export default function AdminPage() {
                                       alt={fita.name}
                                       name={fita.name}
                                       fill
+                                      sizes="48px"
                                       className="object-cover"
                                     />
                                   </div>
@@ -1981,6 +1993,7 @@ export default function AdminPage() {
                                     alt={fita.name}
                                     name={fita.name}
                                     fill
+                                    sizes="40px"
                                     className="object-cover"
                                   />
                                 </div>
@@ -2594,6 +2607,7 @@ export default function AdminPage() {
                                         alt={p.name}
                                         name={p.name}
                                         fill
+                                        sizes="40px"
                                         className="object-cover"
                                       />
                                     ) : (

@@ -84,6 +84,7 @@ export function ProductInfoModal({
                   alt={product.name}
                   name={product.name}
                   fill
+                  sizes="(min-width: 640px) 512px, 100vw"
                   className="object-cover"
                 />
               ) : (

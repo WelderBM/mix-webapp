@@ -91,6 +91,7 @@ export function ProductVariationImageManager({
                               src={img.url}
                               alt=""
                               fill
+                              sizes="20px"
                               className="object-cover"
                             />
                           </span>
