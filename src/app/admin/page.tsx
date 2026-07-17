@@ -447,7 +447,7 @@ export default function AdminPage() {
             >
               <Save size={18} /> Salvar Configurações
             </Button>
-            <Link href="/" target="_blank" className="flex-1 md:flex-none">
+            <Link href="/" className="flex-1 md:flex-none">
               <Button variant="outline" className="w-full">
                 <Eye size={18} className="mr-2" /> Ver Loja
               </Button>
