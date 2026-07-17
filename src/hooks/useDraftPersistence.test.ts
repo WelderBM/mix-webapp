@@ -128,4 +128,31 @@ describe("useDraftPersistence", () => {
       JSON.stringify(editedValue)
     );
   });
+
+  it("does not resurrect a draft from a post-save onSnapshot echo with the same content", () => {
+    // Reproduz o bug relatado nos Balões: salvar via `setDoc` faz o
+    // onSnapshot da própria escrita ecoar de volta (eco otimista local +
+    // confirmação do servidor), cada um com uma referência de objeto NOVA
+    // mas o MESMO conteúdo. `clearDraft()` já limpou o rascunho no momento
+    // do save — esse eco não pode fazer o hook regravar um rascunho
+    // idêntico ao que acabou de ser salvo.
+    const saved = { name: "editado-pelo-usuario" };
+
+    const { result, rerender } = renderHook(
+      ({ value }) => useDraftPersistence("test-key", value, { debounceMs: 100 }),
+      { initialProps: { value: saved } }
+    );
+
+    act(() => {
+      result.current.clearDraft();
+    });
+
+    // Eco do onSnapshot: mesmo conteúdo, nova referência de objeto.
+    rerender({ value: { ...saved } });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(localStorage.getItem("draft:test-key")).toBeNull();
+  });
 });
