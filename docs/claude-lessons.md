@@ -22,6 +22,26 @@ Isso causou um bug de verdade: `useDraftPersistence` gravava um "rascunho" no lo
 
 **Padrão**: memoize o objeto que vira dependência (`useMemo(() => ({ settings, balloonConfig }), [settings, balloonConfig])`) quando ele for passado pra um hook que reage a mudança de valor. E mesmo memoizado, a PRIMEIRA vez que um efeito liga (ex: `enabled` vira `true` depois do primeiro carregamento) não deve ser tratada como "o valor mudou" — é só o estado inicial assentando, não uma edição do usuário. `useDraftPersistence.ts` guarda uma baseline "limpa" (comparada por conteúdo serializado, não por referência) pra distinguir isso; ver o hook e seus testes pro caso completo, incluindo o eco de `onSnapshot` pós-save (salvar dispara um novo snapshot do Firestore com o MESMO conteúdo mas referência nova — sem comparação por conteúdo, isso reviveria um rascunho que acabou de ser limpo).
 
+### `valor || fallback` trata `0` explícito como ausente
+`item.selectedVariant?.price || item.product.price` parece um fallback razoável ("se não tem preço próprio, usa o do produto"), mas `0` é falsy em JS — um preço propositalmente zerado (variação grátis/promocional) cai no fallback e mostra o preço do produto base em vez de R$0. Achado no `cartStore.ts`, mas o padrão se repete em qualquer lugar que resolve um valor opcional numérico com `||`.
+
+**Padrão**: quando `0` (ou `""`) é um valor válido e distinto de "ausente", use `??` (nullish coalescing) em vez de `||`, ou cheque `!== undefined` explicitamente.
+
+### `.every()` sobre chaves opcionais pode confundir "ausente" com "igual"
+Comparar duas estruturas campo a campo com `keys.every((k) => a[k] === b[k])` passa silenciosamente quando a chave falta dos dois lados (`undefined === undefined` é `true`) — o código não distingue "os dois têm o mesmo valor" de "nenhum dos dois tem valor nenhum". Achado no seletor de variação combinada (`produto/[id]/page.tsx`): um produto com variações de dimensões inconsistentes entre si (ex: geradas em lotes diferentes, uma leva só com Tamanho, outra com Tamanho+Cor) deixa o comparador achar que uma variação sem Cor definido "combina" com a ausência de escolha de Cor do cliente, permitindo adicionar ao carrinho sem selecionar todas as dimensões visíveis.
+
+**Padrão**: ao comparar por um conjunto de chaves que pode não existir uniformemente em todos os registros, valide primeiro que cada registro TEM todas as chaves esperadas (ou bloqueie/avise na origem — na criação dos dados — em vez de só na leitura).
+
+### UI nova que grava um dado precisa ser rastreada até toda leitura que já existe do mesmo conceito
+Adicionar um caminho novo pra gravar algo (ex: "enviar imagem direto pra uma variação") sem conferir se ele alimenta a MESMA fonte que a tela de exibição já lê é um jeito fácil de criar um dado "invisível" — grava em algum lugar, mas nada que já existe mostra aquilo. Achado no gerenciador de imagem por variação: `ProductVariationImageManager` permite subir uma imagem nova e grava só em `variant.imageUrl`, mas a galeria de miniaturas da loja (`ProductImageGallery`) sempre leu de `product.images` — a imagem nova nunca aparece como miniatura clicável, só quando aquela variação específica já está selecionada.
+
+**Padrão**: ao adicionar uma nova forma de gravar um dado que já tem consumidores de leitura estabelecidos, grep pelos consumidores existentes ANTES de decidir onde gravar — ou grava na mesma fonte que eles já leem, ou atualiza os consumidores pra também lerem a fonte nova.
+
+### Trocar `window.confirm()` (síncrono) por um modal React (assíncrono) muda a semântica de concorrência, não só a aparência
+`window.confirm()` bloqueia a thread JS inteira até o usuário responder — nenhum listener (`onSnapshot`, `setInterval`, etc) roda enquanto o diálogo está aberto, então qualquer dado capturado antes do confirm (ex: um índice de array) ainda é válido depois. Um modal React (`ConfirmDialog`/`AlertDialog`) NÃO bloqueia nada — a UI continua reativa, incluindo listeners do Firestore, enquanto o usuário decide. Achado numa ação de "replicar tamanho/cor pra todos" no admin de balões: o índice do item de origem era capturado no clique e só usado depois do confirm resolver; com confirm síncrono isso era seguro, com o modal assíncrono um `onSnapshot` concorrente pode reordenar a lista enquanto o diálogo está aberto, fazendo a ação replicar a partir do item errado.
+
+**Padrão**: ao migrar de `window.confirm()`/`alert()` pra um modal assíncrono, releia toda lógica que capturava estado "antes do confirm, usado depois" — índices de array e outras referências posicionais são o caso mais comum de quebrar.
+
 ### Aba aberta via `window.open`/`target="_blank"` não tem histórico de navegador de verdade
 O gesto/botão nativo de voltar do celular aciona o histórico do **navegador**, não nenhum handler customizado da página. Uma aba aberta via `window.open(url, "_blank")` começa sem histórico nenhum — o voltar nativo não sabe que essa aba "veio de" outra aba, então não faz nada (ou sai do app).
 
@@ -42,6 +62,11 @@ Firewall/antivírus/VPN local pode bloquear o transporte padrão do Firestore, g
 
 ### Qualquer rota que importa `db` no escopo do módulo precisa de env vars válidas em **build time**, não só runtime
 `sitemap.ts` (e qualquer `route.ts`/página que faz `import { db } from "@/lib/firebase"`) dispara a inicialização do Firebase como efeito colateral do `import`, ANTES de qualquer `try/catch` dentro da função em si rodar. Se `NEXT_PUBLIC_FIREBASE_API_KEY` estiver ausente/inválida durante o build (não durante uma requisição real), o Firebase lança `auth/invalid-api-key` na inicialização do módulo — isso derruba o **build inteiro**, não só aquela rota, e nenhum `try/catch` local protege contra isso porque o erro acontece antes do corpo da função.
+
+### Ordem de chaves de um objeto/mapa não é garantida num round-trip escrita→leitura do Firestore
+Comparar conteúdo via `JSON.stringify(a) === JSON.stringify(b)` funciona só se as chaves vierem sempre na mesma ordem — mas o SDK do Firestore não documenta/garante que um campo de mapa volte na mesma ordem em que foi escrito. Um mecanismo de "detectar eco pós-save" (salvar, esperar o `onSnapshot` confirmar, e ignorar esse eco por ter o MESMO conteúdo) que compara por string serializada pode falhar silenciosamente se a ordem das chaves mudar entre o que foi salvo e o que voltou — reintroduzindo exatamente o bug que esse mecanismo existe pra evitar (rascunho fantasma reaparecendo). Ver `useDraftPersistence.ts`.
+
+**Padrão**: comparação de conteúdo "profunda" que precisa ser 100% confiável não deve depender de serialização com ordem de chave sensível — ou normalize a ordem antes de comparar (`JSON.stringify` com chaves ordenadas), ou compare por igualdade estrutural de verdade em vez de string.
 
 ### Firebase Auth (Google Sign-In) exige domínio autorizado com match exato
 "Authorized domains" no Console Firebase não aceita wildcard nem CIDR pra IP — é string exata. Testar login com Google a partir de um IP de rede local (ex: celular acessando `192.168.x.x:3000`) precisa desse IP adicionado manualmente em Authentication → Settings → Authorized domains, no projeto de **staging**, não produção. Se o IP mudar (DHCP), isso quebra nível de novo — resolver de raiz é dar um IP fixo (reserva DHCP no roteador) pro computador de desenvolvimento, não ficar re-adicionando.
@@ -68,3 +93,8 @@ Sempre rode `git branch -a` e `git log --all --oneline` antes de assumir que sab
 
 ### Fatiar entregas grandes em PRs sequenciais pequenos
 Cada PR cobre uma responsabilidade (modelo de dados → UI → integração → exibição), com `tsc`/`vitest`/build limpos antes de cada commit, e fica aberto sem merge até validação local de quem pediu a mudança. Isso apareceu repetidamente como o ritmo que funcionou bem nesse projeto — evita PR gigante difícil de revisar, e cada fatia é testável isoladamente.
+
+Sessões paralelas em máquinas diferentes tendem a violar essa regra por conta própria: cada sessão fatia bem localmente, mas ninguém fatia entre sessões — o resultado, quando tudo se junta, é um PR gigante de fato (achado real: 26 arquivos, 5 responsabilidades sem relação direta, numa auditoria única). Se o trabalho paralelo já aconteceu e não dá mais pra desfazer a fusão, pelo menos documente isso explicitamente no PR/relatório de auditoria, pra quem revisar saber que está avaliando várias fatias de uma vez, não uma só.
+
+### Auditar código que outra sessão escreveu antes de confiar nele
+Quando trabalho chega pronto de outra sessão/máquina sem ter passado por revisão nesta, vale a pena rodar uma auditoria de código de verdade (múltiplos ângulos: bugs de linha, comportamento removido, rastreamento entre arquivos, duplicação, simplificação, eficiência, profundidade da solução, convenções) antes de assumir que está correto só porque compilou e os testes passaram — `tsc`/`vitest`/`build` verificam que o código roda, não que a lógica está certa. Essa auditoria já achou bugs reais (comparação `undefined === undefined` tratando ausência como igualdade, fallback `||` engolindo um `0` válido, uma condição de corrida introduzida por trocar `confirm()` síncrono por modal assíncrono) que nenhum desses três comandos detectaria.
