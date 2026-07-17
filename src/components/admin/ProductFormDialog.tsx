@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Ruler,
   Save,
@@ -151,6 +152,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     : "product-new";
   const [draftPersistenceEnabled, setDraftPersistenceEnabled] =
     useState(false);
+  const [pendingDraft, setPendingDraft] = useState<ProductDraft | null>(null);
   // Memoizado pra só trocar de referência quando `formData`/`stepIndex` de
   // fato mudam — sem isso, qualquer re-render do wizard recriava o objeto
   // e o hook achava que era uma edição nova (mesmo bug corrigido em
@@ -230,19 +232,27 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     }
     const draft = restoreDraft();
     if (draft) {
-      const wantsRestore = window.confirm(
-        "Você tem um rascunho não salvo desse produto. Deseja continuar de onde parou?"
-      );
-      if (wantsRestore) {
-        setFormData(draft.formData);
-        setStepIndex(draft.stepIndex);
-      } else {
-        clearDraft();
-      }
+      setPendingDraft(draft);
+    } else {
+      setDraftPersistenceEnabled(true);
     }
-    setDraftPersistenceEnabled(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, draftKey]);
+
+  const handleRestoreDraft = () => {
+    if (pendingDraft) {
+      setFormData(pendingDraft.formData);
+      setStepIndex(pendingDraft.stepIndex);
+    }
+    setPendingDraft(null);
+    setDraftPersistenceEnabled(true);
+  };
+
+  const handleDiscardDraft = () => {
+    clearDraft();
+    setPendingDraft(null);
+    setDraftPersistenceEnabled(true);
+  };
 
   const steps = useMemo(
     () => stepsFor(formData.type, !!formData.variants?.length),
@@ -877,6 +887,17 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <ConfirmDialog
+        open={!!pendingDraft}
+        onOpenChange={(open) => !open && handleDiscardDraft()}
+        title="Rascunho não salvo encontrado"
+        description="Você tem um rascunho não salvo desse produto. Deseja continuar de onde parou?"
+        confirmLabel="Continuar rascunho"
+        cancelLabel="Descartar"
+        destructive={false}
+        onConfirm={handleRestoreDraft}
+      />
     </Dialog>
   );
 };

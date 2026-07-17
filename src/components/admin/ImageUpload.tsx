@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 
 interface ImageUploadProps {
@@ -38,6 +39,7 @@ export function ImageUpload({
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("upload");
   const [urlInput, setUrlInput] = useState("");
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,9 +102,8 @@ export function ImageUpload({
   };
 
   const removeImage = () => {
-    if (confirm("Remover esta imagem?")) {
-      onChange("");
-    }
+    onChange("");
+    setConfirmRemoveOpen(false);
   };
 
   return (
@@ -121,7 +122,7 @@ export function ImageUpload({
               />
               <button
                 type="button"
-                onClick={removeImage}
+                onClick={() => setConfirmRemoveOpen(true)}
                 className="absolute inset-0 bg-red-600/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"
               >
                 <Trash2 size={24} />
@@ -279,6 +280,14 @@ export function ImageUpload({
         </TabsContent>
 
       </Tabs>
+
+      <ConfirmDialog
+        open={confirmRemoveOpen}
+        onOpenChange={setConfirmRemoveOpen}
+        title="Remover esta imagem?"
+        confirmLabel="Remover"
+        onConfirm={removeImage}
+      />
     </div>
   );
 }
