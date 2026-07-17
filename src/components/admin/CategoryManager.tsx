@@ -27,6 +27,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { uniqueSlug } from "@/lib/migrateCategories";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface CategoryManagerProps {
   categories: Category[];
@@ -52,6 +53,13 @@ export function CategoryManager({ categories }: CategoryManagerProps) {
   } | null>(null);
   const [renameSubValue, setRenameSubValue] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
+    null
+  );
+  const [subToDelete, setSubToDelete] = useState<{
+    category: Category;
+    sub: CategorySubcategory;
+  } | null>(null);
 
   const sorted = [...categories].sort((a, b) => a.order - b.order);
 
@@ -103,7 +111,7 @@ export function CategoryManager({ categories }: CategoryManagerProps) {
   };
 
   const handleDeleteCategory = async (category: Category) => {
-    if (!confirm(`Apagar a categoria "${category.name}"?`)) return;
+    setCategoryToDelete(null);
     setBusyId(category.id);
     try {
       const inUse = await getDocs(
@@ -189,7 +197,7 @@ export function CategoryManager({ categories }: CategoryManagerProps) {
     category: Category,
     sub: CategorySubcategory
   ) => {
-    if (!confirm(`Apagar a subcategoria "${sub.name}"?`)) return;
+    setSubToDelete(null);
     setBusyId(category.id);
     try {
       const inUse = await getDocs(
@@ -294,7 +302,7 @@ export function CategoryManager({ categories }: CategoryManagerProps) {
                   variant="ghost"
                   className="text-slate-400 hover:text-red-600"
                   disabled={busyId === category.id}
-                  onClick={() => handleDeleteCategory(category)}
+                  onClick={() => setCategoryToDelete(category)}
                 >
                   {busyId === category.id ? (
                     <Loader2 size={14} className="animate-spin" />
@@ -366,7 +374,7 @@ export function CategoryManager({ categories }: CategoryManagerProps) {
                           size="icon-sm"
                           variant="ghost"
                           className="text-slate-400 hover:text-red-600"
-                          onClick={() => handleDeleteSubcategory(category, sub)}
+                          onClick={() => setSubToDelete({ category, sub })}
                         >
                           <Trash2 size={12} />
                         </Button>
@@ -459,6 +467,29 @@ export function CategoryManager({ categories }: CategoryManagerProps) {
           <Plus size={14} /> Nova categoria
         </button>
       )}
+
+      <ConfirmDialog
+        open={!!categoryToDelete}
+        onOpenChange={(open) => !open && setCategoryToDelete(null)}
+        title={`Apagar a categoria "${categoryToDelete?.name}"?`}
+        confirmLabel="Apagar"
+        loading={busyId === categoryToDelete?.id}
+        onConfirm={() =>
+          categoryToDelete && handleDeleteCategory(categoryToDelete)
+        }
+      />
+
+      <ConfirmDialog
+        open={!!subToDelete}
+        onOpenChange={(open) => !open && setSubToDelete(null)}
+        title={`Apagar a subcategoria "${subToDelete?.sub.name}"?`}
+        confirmLabel="Apagar"
+        loading={busyId === subToDelete?.category.id}
+        onConfirm={() =>
+          subToDelete &&
+          handleDeleteSubcategory(subToDelete.category, subToDelete.sub)
+        }
+      />
     </div>
   );
 }

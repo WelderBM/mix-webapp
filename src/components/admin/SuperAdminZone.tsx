@@ -23,6 +23,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { migrateCategories } from "@/lib/migrateCategories";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface StaffMember {
   id: string; // email
@@ -36,6 +37,7 @@ export function SuperAdminZone() {
   const [isLoading, setIsLoading] = useState(false);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [allowedDomain, setAllowedDomain] = useState("");
+  const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
   const { user } = useAuthStore();
 
   // Buscar lista de staff e configurações de domínio
@@ -120,17 +122,22 @@ export function SuperAdminZone() {
     }
   };
 
-  const handleDeleteStaff = async (email: string) => {
+  const requestDeleteStaff = (email: string) => {
     if (email === user?.email) {
       toast.error("Você não pode remover seu próprio acesso por aqui.");
       return;
     }
-    if (!confirm(`Remover acesso de ${email}?`)) return;
+    setStaffToDelete(email);
+  };
+
+  const handleDeleteStaff = async (email: string) => {
     try {
       await deleteDoc(doc(db, "whitelisted_staff", email));
       toast.success("Acesso removido.");
     } catch (error) {
       toast.error("Erro ao remover.");
+    } finally {
+      setStaffToDelete(null);
     }
   };
 
@@ -260,7 +267,7 @@ export function SuperAdminZone() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDeleteStaff(staff.id)}
+                        onClick={() => requestDeleteStaff(staff.id)}
                         className="text-slate-500 hover:text-red-400 hover:bg-red-400/10 h-8 w-8"
                       >
                         <Trash2 size={14} />
@@ -284,6 +291,14 @@ export function SuperAdminZone() {
         </div>
 
       </div>
+
+      <ConfirmDialog
+        open={!!staffToDelete}
+        onOpenChange={(open) => !open && setStaffToDelete(null)}
+        title={`Remover acesso de ${staffToDelete}?`}
+        confirmLabel="Remover"
+        onConfirm={() => staffToDelete && handleDeleteStaff(staffToDelete)}
+      />
     </div>
   );
 }

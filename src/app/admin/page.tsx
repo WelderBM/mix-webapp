@@ -118,6 +118,7 @@ import { OrdersTab } from "@/components/admin/OrdersTab";
 import { AdminLogin } from "@/components/admin/AdminLogin";
 import { NaturaTab } from "@/components/admin/NaturaTab";
 import { useDraftPersistence } from "@/hooks/useDraftPersistence";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -162,6 +163,20 @@ export default function AdminPage() {
     useDraftPersistence("admin-config", configDraftValue, {
       enabled: configDraftEnabled,
     });
+  const [pendingConfigDraft, setPendingConfigDraft] = useState<{
+    settings: StoreSettings;
+    balloonConfig: BalloonConfig;
+  } | null>(null);
+
+  // Confirmações (substituem window.confirm/confirm cru por AlertDialog)
+  const [sizesSyncSource, setSizesSyncSource] = useState<number | null>(null);
+  const [colorsSyncSource, setColorsSyncSource] = useState<number | null>(
+    null
+  );
+  const [balloonTypeToDelete, setBalloonTypeToDelete] =
+    useState<BalloonTypeConfig | null>(null);
+  const [fitaToDelete, setFitaToDelete] = useState<Product | null>(null);
+  const [deletingFita, setDeletingFita] = useState(false);
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -309,19 +324,27 @@ export default function AdminPage() {
     if (!settingsLoaded || !balloonsLoaded || configDraftEnabled) return;
     const draft = restoreConfigDraft();
     if (draft) {
-      const wantsRestore = window.confirm(
-        "Você tem alterações não salvas nas Configurações/Balões. Deseja continuar de onde parou?"
-      );
-      if (wantsRestore) {
-        setSettings(draft.settings);
-        setBalloonConfig(draft.balloonConfig);
-      } else {
-        clearConfigDraft();
-      }
+      setPendingConfigDraft(draft);
+    } else {
+      setConfigDraftEnabled(true);
     }
-    setConfigDraftEnabled(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsLoaded, balloonsLoaded]);
+
+  const handleRestoreConfigDraft = () => {
+    if (pendingConfigDraft) {
+      setSettings(pendingConfigDraft.settings);
+      setBalloonConfig(pendingConfigDraft.balloonConfig);
+    }
+    setPendingConfigDraft(null);
+    setConfigDraftEnabled(true);
+  };
+
+  const handleDiscardConfigDraft = () => {
+    clearConfigDraft();
+    setPendingConfigDraft(null);
+    setConfigDraftEnabled(true);
+  };
 
   // Lógica de Filtros de Produtos
   const filteredProducts = useMemo(() => {
@@ -426,35 +449,47 @@ export default function AdminPage() {
     toast.success("Tipo duplicado!");
   };
 
+  const handleDeleteFita = async () => {
+    if (!fitaToDelete) return;
+    setDeletingFita(true);
+    try {
+      await deleteDoc(doc(db, "products", fitaToDelete.id));
+      toast.success("Fita excluída");
+      setFitaToDelete(null);
+    } catch {
+      toast.error("Erro ao excluir fita.");
+    } finally {
+      setDeletingFita(false);
+    }
+  };
+
+  const handleDeleteBalloonType = (typeId: string) => {
+    setBalloonConfig((prev) => ({
+      ...prev,
+      types: prev.types.filter((t) => t.id !== typeId),
+    }));
+    setBalloonTypeToDelete(null);
+  };
+
   const handleSyncSizesToAll = (fromIndex: number) => {
-    if (
-      !confirm(
-        "Isso irá substituir os tamanhos de TODOS os outros tipos. Continuar?"
-      )
-    )
-      return;
     const sourceSizes = balloonConfig.types[fromIndex].sizes;
     const newTypes = balloonConfig.types.map((t) => ({
       ...t,
       sizes: JSON.parse(JSON.stringify(sourceSizes)),
     }));
     setBalloonConfig((prev) => ({ ...prev, types: newTypes }));
+    setSizesSyncSource(null);
     toast.success("Tamanhos sincronizados!");
   };
 
   const handleSyncColorsToAll = (fromIndex: number) => {
-    if (
-      !confirm(
-        "Isso irá substituir as cores de TODOS os outros tipos. Continuar?"
-      )
-    )
-      return;
     const sourceColors = balloonConfig.types[fromIndex].colors;
     const newTypes = balloonConfig.types.map((t) => ({
       ...t,
       colors: [...sourceColors],
     }));
     setBalloonConfig((prev) => ({ ...prev, types: newTypes }));
+    setColorsSyncSource(null);
     toast.success("Cores sincronizadas!");
   };
 
@@ -1159,17 +1194,7 @@ export default function AdminPage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => {
-                                    if (confirm("Remover este tipo de balão?")) {
-                                      const newTypes = balloonConfig.types.filter(
-                                        (t) => t.id !== type.id
-                                      );
-                                      setBalloonConfig({
-                                        ...balloonConfig,
-                                        types: newTypes,
-                                      });
-                                    }
-                                  }}
+                                  onClick={() => setBalloonTypeToDelete(type)}
                                   className="h-9 px-3 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100"
                                 >
                                   <Trash2 size={16} className="mr-2" />
@@ -1192,7 +1217,7 @@ export default function AdminPage() {
                                   title="Aplicar estes tamanhos a todos os outros modelos"
                                   className="h-7 px-2 text-[10px] text-purple-600 hover:text-purple-700 hover:bg-purple-50 font-bold shrink-0"
                                   onClick={() =>
-                                    handleSyncSizesToAll(typeIndex)
+                                    setSizesSyncSource(typeIndex)
                                   }
                                 >
                                   <Layers size={12} className="mr-1" /> Replicar
@@ -1261,7 +1286,8 @@ export default function AdminPage() {
                                           ];
                                           newTypes[typeIndex].sizes[
                                             sizeIndex
-                                          ].price = parseFloat(e.target.value);
+                                          ].price =
+                                            parseFloat(e.target.value) || 0;
                                           setBalloonConfig({
                                             ...balloonConfig,
                                             types: newTypes,
@@ -1284,9 +1310,8 @@ export default function AdminPage() {
                                         ];
                                         newTypes[typeIndex].sizes[
                                           sizeIndex
-                                        ].unitsPerPackage = parseInt(
-                                          e.target.value
-                                        );
+                                        ].unitsPerPackage =
+                                          parseInt(e.target.value) || 0;
                                         setBalloonConfig({
                                           ...balloonConfig,
                                           types: newTypes,
@@ -1326,7 +1351,7 @@ export default function AdminPage() {
                                 size="sm"
                                 title="Aplicar esta lista de cores a todos os outros modelos"
                                 className="h-7 px-2 text-[10px] text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold"
-                                onClick={() => handleSyncColorsToAll(typeIndex)}
+                                onClick={() => setColorsSyncSource(typeIndex)}
                               >
                                 <Wand2 size={12} className="mr-1" /> Replicar p/
                                 Todos
@@ -1516,14 +1541,7 @@ export default function AdminPage() {
                                   size="icon"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (confirm("Excluir modelo?")) {
-                                      setBalloonConfig((prev) => ({
-                                        ...prev,
-                                        types: prev.types.filter(
-                                          (t) => t.id !== type.id
-                                        ),
-                                      }));
-                                    }
+                                    setBalloonTypeToDelete(type);
                                   }}
                                   className="text-slate-400 hover:text-red-500"
                                 >
@@ -2112,14 +2130,7 @@ export default function AdminPage() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={async () => {
-                                      if (confirm("Excluir fita?")) {
-                                        await deleteDoc(
-                                          doc(db, "products", fita.id)
-                                        );
-                                        toast.success("Fita excluída");
-                                      }
-                                    }}
+                                    onClick={() => setFitaToDelete(fita)}
                                     className="h-8 w-8 text-red-500 hover:bg-red-50"
                                   >
                                     <Trash2 size={14} />
@@ -2772,6 +2783,59 @@ export default function AdminPage() {
           productToEdit={editingProduct}
           onSuccess={() => setIsModalOpen(false)}
           categories={categories}
+        />
+
+        <ConfirmDialog
+          open={!!pendingConfigDraft}
+          onOpenChange={(open) => !open && handleDiscardConfigDraft()}
+          title="Alterações não salvas encontradas"
+          description="Você tem alterações não salvas nas Configurações/Balões. Deseja continuar de onde parou?"
+          confirmLabel="Continuar rascunho"
+          cancelLabel="Descartar"
+          destructive={false}
+          onConfirm={handleRestoreConfigDraft}
+        />
+
+        <ConfirmDialog
+          open={sizesSyncSource !== null}
+          onOpenChange={(open) => !open && setSizesSyncSource(null)}
+          title="Substituir tamanhos de todos os modelos?"
+          description="Isso irá substituir os tamanhos de TODOS os outros tipos. Continuar?"
+          confirmLabel="Substituir"
+          onConfirm={() =>
+            sizesSyncSource !== null && handleSyncSizesToAll(sizesSyncSource)
+          }
+        />
+
+        <ConfirmDialog
+          open={colorsSyncSource !== null}
+          onOpenChange={(open) => !open && setColorsSyncSource(null)}
+          title="Substituir cores de todos os modelos?"
+          description="Isso irá substituir as cores de TODOS os outros tipos. Continuar?"
+          confirmLabel="Substituir"
+          onConfirm={() =>
+            colorsSyncSource !== null && handleSyncColorsToAll(colorsSyncSource)
+          }
+        />
+
+        <ConfirmDialog
+          open={!!balloonTypeToDelete}
+          onOpenChange={(open) => !open && setBalloonTypeToDelete(null)}
+          title={`Excluir o modelo "${balloonTypeToDelete?.name}"?`}
+          confirmLabel="Excluir"
+          onConfirm={() =>
+            balloonTypeToDelete &&
+            handleDeleteBalloonType(balloonTypeToDelete.id)
+          }
+        />
+
+        <ConfirmDialog
+          open={!!fitaToDelete}
+          onOpenChange={(open) => !open && setFitaToDelete(null)}
+          title={`Excluir a fita "${fitaToDelete?.name}"?`}
+          confirmLabel="Excluir"
+          loading={deletingFita}
+          onConfirm={handleDeleteFita}
         />
       </div>
     </div>
