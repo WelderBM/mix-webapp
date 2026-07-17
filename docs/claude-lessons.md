@@ -1,0 +1,70 @@
+# Lições técnicas — mix-webapp
+
+Catálogo de bugs reais (não hipotéticos), a causa-raiz de cada um, e o padrão pra reconhecer a categoria de novo. Objetivo: qualquer sessão Claude Code, em qualquer máquina, não perder tempo redescobrindo isso.
+
+Adicione uma entrada nova quando encontrar algo que vai morder de novo — um gotcha de biblioteca, uma decisão não óbvia, um bug sutil que exigiu investigação de verdade pra achar. Não registre bug trivial ou específico demais pra reaparecer.
+
+---
+
+## React / Frontend
+
+### Wizard multi-passo dentro de um `<form>` nativo é frágil
+Um único `<form onSubmit>` com vários "passos" visuais quebra de duas formas: (1) Enter num `<input>` de texto, em QUALQUER passo, aciona o botão `type="submit"` do form inteiro, não importa qual passo está visível pro usuário; (2) se o botão final troca de `type="button"` pra `type="submit"` só na renderização do último passo, o navegador às vezes ainda processa o clique que causa essa troca como submit.
+
+**Padrão**: `<form onSubmit={(e) => e.preventDefault()}>` (no-op de segurança), todo botão do wizard com `type="button"` explícito, e o botão final chama o handler de salvar direto via `onClick`, nunca via evento `submit`. Ver `ProductFormDialog.tsx`.
+
+Sub-armadilha relacionada: um `<button>` sem `type` explícito assume `type="submit"` por padrão do HTML — isso já causou um bug real onde clicar em "Trocar imagem" dentro do wizard submetia o formulário inteiro antes da imagem ser escolhida (`ImageUploadModal.tsx`). Único caso seguro sem `type="button"` explícito: botões que renderizam dentro do **Portal** de um Dialog Radix, porque saem da árvore DOM real do `<form>` que os envolve visualmente.
+
+### Objeto recriado a cada render engana `useEffect` por referência
+`useEffect` compara dependências por referência (`Object.is`), não por conteúdo. Passar um objeto literal construído inline — `{ settings, balloonConfig }`, `{ formData, stepIndex }` — como dependência faz o efeito disparar em QUALQUER re-render do componente pai, mesmo sem nenhuma mudança real nos dados, porque o literal ganha uma referência nova toda vez.
+
+Isso causou um bug de verdade: `useDraftPersistence` gravava um "rascunho" no localStorage segundos depois de qualquer tela abrir, mesmo sem o usuário editar nada — porque cada re-render do `admin/page.tsx` (que tem dezenas de outros pedaços de estado, mudando o tempo todo) recriava `{ settings, balloonConfig }` e o hook achava que era uma edição nova.
+
+**Padrão**: memoize o objeto que vira dependência (`useMemo(() => ({ settings, balloonConfig }), [settings, balloonConfig])`) quando ele for passado pra um hook que reage a mudança de valor. E mesmo memoizado, a PRIMEIRA vez que um efeito liga (ex: `enabled` vira `true` depois do primeiro carregamento) não deve ser tratada como "o valor mudou" — é só o estado inicial assentando, não uma edição do usuário. `useDraftPersistence.ts` guarda uma baseline "limpa" (comparada por conteúdo serializado, não por referência) pra distinguir isso; ver o hook e seus testes pro caso completo, incluindo o eco de `onSnapshot` pós-save (salvar dispara um novo snapshot do Firestore com o MESMO conteúdo mas referência nova — sem comparação por conteúdo, isso reviveria um rascunho que acabou de ser limpo).
+
+### Aba aberta via `window.open`/`target="_blank"` não tem histórico de navegador de verdade
+O gesto/botão nativo de voltar do celular aciona o histórico do **navegador**, não nenhum handler customizado da página. Uma aba aberta via `window.open(url, "_blank")` começa sem histórico nenhum — o voltar nativo não sabe que essa aba "veio de" outra aba, então não faz nada (ou sai do app).
+
+**Padrão**: pra navegação realmente interna (ex: "Ver na Loja" saindo do admin), troque `window.open`/`target="_blank"` por navegação na mesma aba (`router.push`/`<Link>` normal) — aí o histórico é real e o voltar nativo funciona sozinho. Quando a nova aba é necessária de verdade (preview lado a lado, por exemplo — ver decisão em `docs/` sobre isso), o botão "Voltar" customizado da página de destino deve checar `window.opener` e chamar `window.close()` nesse caso, já que não existe histórico pra voltar. Ver `src/components/ui/BackButton.tsx`.
+
+---
+
+## Firebase / Firestore
+
+### `request.resource` só existe em operações de escrita nas regras
+Uma regra de leitura anônima usando `request.resource.data.algumCampo` sempre falha — `request.resource` não existe em `get`/`onSnapshot`, só em `create`/`update`. Isso deixou a página de rastreamento de pedido (`/meu-pedido`) quebrada pra qualquer cliente deslogado por um bom tempo sem ninguém perceber, porque o erro só aparece em uso real, não em teste feito logado como admin.
+
+### Nome de coleção nas regras precisa bater exatamente com o código
+`kitRecipes` (regra) vs `kit_recipes` (código) — mismatch silencioso que derrubou o recurso de kits montados inteiro, sem erro óbvio (só "permission denied" genérico). Sempre confirme o nome literal da coleção usado em `collection(db, "...")` no código antes de escrever/revisar uma regra.
+
+### `initializeFirestore` com streaming (WebChannel/HTTP2) falha em rede restrita
+Firewall/antivírus/VPN local pode bloquear o transporte padrão do Firestore, gerando "Could not reach Cloud Firestore backend" mesmo com internet normal. `experimentalAutoDetectLongPolling: true` em `initializeFirestore` resolve tentando o caminho rápido primeiro e caindo pra long-polling se precisar. Ver `src/lib/firebase.ts`.
+
+### Qualquer rota que importa `db` no escopo do módulo precisa de env vars válidas em **build time**, não só runtime
+`sitemap.ts` (e qualquer `route.ts`/página que faz `import { db } from "@/lib/firebase"`) dispara a inicialização do Firebase como efeito colateral do `import`, ANTES de qualquer `try/catch` dentro da função em si rodar. Se `NEXT_PUBLIC_FIREBASE_API_KEY` estiver ausente/inválida durante o build (não durante uma requisição real), o Firebase lança `auth/invalid-api-key` na inicialização do módulo — isso derruba o **build inteiro**, não só aquela rota, e nenhum `try/catch` local protege contra isso porque o erro acontece antes do corpo da função.
+
+### Firebase Auth (Google Sign-In) exige domínio autorizado com match exato
+"Authorized domains" no Console Firebase não aceita wildcard nem CIDR pra IP — é string exata. Testar login com Google a partir de um IP de rede local (ex: celular acessando `192.168.x.x:3000`) precisa desse IP adicionado manualmente em Authentication → Settings → Authorized domains, no projeto de **staging**, não produção. Se o IP mudar (DHCP), isso quebra nível de novo — resolver de raiz é dar um IP fixo (reserva DHCP no roteador) pro computador de desenvolvimento, não ficar re-adicionando.
+
+---
+
+## Vercel / Deploy
+
+### Variáveis de ambiente são escopadas por branch — uma branch nova não herda automaticamente
+Preview deploys usam as env vars configuradas pra aquele branch específico. Se `NEXT_PUBLIC_FIREBASE_*` só foi configurado pra `Preview (dev)`, toda branch de feature nova builda sem config nenhuma do Firebase — e quebra exatamente pelo motivo do gotcha do `sitemap.ts` acima. **Isso já quebrou builds de verdade, mais de uma vez, e foi erroneamente descartado como "Vercel fail genérico, não relacionado" antes de alguém realmente investigar** — não repita esse erro: um check vermelho no Vercel merece abrir o log, não presumir que é ruído só porque o check de testes/build passou.
+
+### `vercel env add <nome> preview` sem branch trava em loop, em modo não-interativo
+A CLI devolve um JSON `"status": "action_required", "reason": "git_branch_required"` pedindo pra rodar o MESMO comando de novo — mas em modo agente/não-interativo isso nunca resolve, mesmo com `--yes --force`. **Workaround que funciona**: escopar pra uma branch específica (`vercel env add <nome> preview <branch> --value <valor> --yes`) — funciona direto, sem loop. Não existe hoje um jeito confiável de aplicar "todas as branches de preview" via CLI em modo agente; isso precisa ser feito pelo dashboard do Vercel (Settings → Environment Variables → editar cada var → marcar "Preview" sem restringir a uma branch).
+
+### Cuidado ao editar env var que já tem escopo combinado (`Production, Preview, Development` numa linha só)
+Um valor pode estar aplicado a vários ambientes de uma vez. Rodar `vercel env rm <nome>` sem escopo remove de TODOS os ambientes que aquela entrada cobre — inclusive produção. Antes de remover, rode `vercel env ls` e confirme exatamente quais ambientes aquela linha específica cobre. Pra sobrescrever só o comportamento de Preview sem tocar produção, adicione uma entrada NOVA escopada só pra Preview (mais específica vence, não precisa remover a antiga) em vez de remover e recriar.
+
+---
+
+## Processo / coordenação entre sessões
+
+### Múltiplas sessões podem estar trabalhando no mesmo repo ao mesmo tempo, inclusive em máquinas diferentes
+Sempre rode `git branch -a` e `git log --all --oneline` antes de assumir que sabe o estado atual do repositório. Um merge que parece simples pode ter dois lados que evoluíram de forma incompatível (ex: uma função que perdeu um parâmetro numa branch, enquanto a outra branch ainda chama com a assinatura antiga) — ao resolver conflito, confirme contra o resto do arquivo (já mesclado, sem marcador de conflito) qual assinatura/formato é o que sobreviveu, não assuma que "o lado que parece mais completo" está certo.
+
+### Fatiar entregas grandes em PRs sequenciais pequenos
+Cada PR cobre uma responsabilidade (modelo de dados → UI → integração → exibição), com `tsc`/`vitest`/build limpos antes de cada commit, e fica aberto sem merge até validação local de quem pediu a mudança. Isso apareceu repetidamente como o ritmo que funcionou bem nesse projeto — evita PR gigante difícil de revisar, e cada fatia é testável isoladamente.
