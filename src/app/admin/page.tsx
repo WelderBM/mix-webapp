@@ -113,6 +113,7 @@ import { suggestHexColor, SAO_ROQUE_COLORS } from "@/lib/balloonColors";
 import { OrdersTab } from "@/components/admin/OrdersTab";
 import { AdminLogin } from "@/components/admin/AdminLogin";
 import { NaturaTab } from "@/components/admin/NaturaTab";
+import { useDraftPersistence } from "@/hooks/useDraftPersistence";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -136,6 +137,21 @@ export default function AdminPage() {
     types: [],
     allColors: [],
   });
+
+  // Rascunho local das abas Configurações/Balões (Addendum 4, Parte B,
+  // Fatia 2). `settings`/`balloonConfig` são sincronizados ao vivo via
+  // onSnapshot — só liga o auto-save (e só checa rascunho existente)
+  // depois que a primeira leitura real do Firestore chegar pros dois, pra
+  // não gravar/restaurar em cima dos valores padrão hardcoded acima.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [balloonsLoaded, setBalloonsLoaded] = useState(false);
+  const [configDraftEnabled, setConfigDraftEnabled] = useState(false);
+  const { restoreDraft: restoreConfigDraft, clearDraft: clearConfigDraft } =
+    useDraftPersistence(
+      "admin-config",
+      { settings, balloonConfig },
+      { enabled: configDraftEnabled }
+    );
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -239,11 +255,13 @@ export default function AdminPage() {
     // Buscar Configurações
     const unsubSett = onSnapshot(doc(db, "settings", "general"), (s) => {
       if (s.exists()) setSettings(s.data() as StoreSettings);
+      setSettingsLoaded(true);
     });
 
     // Buscar Configurações de Balões
     const unsubBall = onSnapshot(doc(db, "settings", "balloons"), (s) => {
       if (s.exists()) setBalloonConfig(s.data() as BalloonConfig);
+      setBalloonsLoaded(true);
     });
 
     // Buscar Categorias/Subcategorias
@@ -261,6 +279,28 @@ export default function AdminPage() {
       unsubCat();
     };
   }, [currentUser]);
+
+  // Checa rascunho de Configurações/Balões uma única vez, assim que a
+  // primeira leitura real do Firestore chegar pros dois (settingsLoaded +
+  // balloonsLoaded) — antes disso `settings`/`balloonConfig` ainda são só
+  // os valores padrão hardcoded, não faz sentido oferecer restaurar nada.
+  useEffect(() => {
+    if (!settingsLoaded || !balloonsLoaded || configDraftEnabled) return;
+    const draft = restoreConfigDraft();
+    if (draft) {
+      const wantsRestore = window.confirm(
+        "Você tem alterações não salvas nas Configurações/Balões. Deseja continuar de onde parou?"
+      );
+      if (wantsRestore) {
+        setSettings(draft.settings);
+        setBalloonConfig(draft.balloonConfig);
+      } else {
+        clearConfigDraft();
+      }
+    }
+    setConfigDraftEnabled(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded, balloonsLoaded]);
 
   // Lógica de Filtros de Produtos
   const filteredProducts = useMemo(() => {
@@ -341,6 +381,7 @@ export default function AdminPage() {
     try {
       await setDoc(doc(db, "settings", "general"), settings);
       await setDoc(doc(db, "settings", "balloons"), balloonConfig);
+      clearConfigDraft();
       toast.success("Salvo com sucesso!");
     } catch (e) {
       toast.error("Erro ao salvar.");
