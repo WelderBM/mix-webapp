@@ -65,18 +65,17 @@ interface ProductDraft {
 // aparece como campo se a categoria escolhida tiver alguma) + tipo numa
 // tela só — eram 3 passos de um campo cada, virou 1 (feedback: passos com
 // "input solitário" deixavam o fluxo burocrático demais). "especifico" só
-// existe pra tipos que precisam de campos extras (hoje só RIBBON).
-// "imagens-variacoes" só existe se alguma variação foi criada no passo
-// "variacoes" — declarar variação (tipo/nome/preço/estoque) e atribuir
-// imagem são passos separados de propósito (feedback: misturar os dois
-// numa lista só ficava poluído; e imagem de variação agora é obrigatória,
-// então vale a pena um passo dedicado só pra isso).
+// existe pra tipos que precisam de campos extras (hoje só RIBBON). A
+// imagem de cada variação é escolhida dentro do próprio passo "revisao",
+// junto da galeria geral do produto — não é um passo à parte (feedback:
+// ter a imagem da variação num passo e a capa/galeria do produto em outro
+// deixava a escolha de imagem espalhada em dois lugares diferentes pro
+// mesmo produto).
 type StepId =
   | "classificacao"
   | "detalhes"
   | "especifico"
   | "variacoes"
-  | "imagens-variacoes"
   | "revisao";
 
 const STEP_LABELS: Record<StepId, string> = {
@@ -84,15 +83,13 @@ const STEP_LABELS: Record<StepId, string> = {
   detalhes: "Detalhes",
   especifico: "Config. da Fita",
   variacoes: "Variações",
-  "imagens-variacoes": "Imagens das Variações",
   revisao: "Revisão",
 };
 
-function stepsFor(type: ProductType, hasVariants: boolean): StepId[] {
+function stepsFor(type: ProductType): StepId[] {
   const base: StepId[] = ["classificacao", "detalhes"];
   if (type === "RIBBON") base.push("especifico");
   base.push("variacoes");
-  if (hasVariants) base.push("imagens-variacoes");
   base.push("revisao");
   return base;
 }
@@ -212,10 +209,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     // carregado (não do estado antigo, que ainda não foi atualizado).
     const startStepId: StepId =
       initialStep ?? (productToEdit?.id ? "detalhes" : "classificacao");
-    const startSteps = stepsFor(
-      nextFormData.type,
-      !!nextFormData.variants?.length
-    );
+    const startSteps = stepsFor(nextFormData.type);
     const startIndex = startSteps.indexOf(startStepId);
     setStepIndex(startIndex >= 0 ? startIndex : 0);
   }, [productToEdit, isOpen, categories, initialStep]);
@@ -244,10 +238,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, draftKey]);
 
-  const steps = useMemo(
-    () => stepsFor(formData.type, !!formData.variants?.length),
-    [formData.type, formData.variants?.length]
-  );
+  const steps = useMemo(() => stepsFor(formData.type), [formData.type]);
   const currentStepIndex = Math.min(stepIndex, steps.length - 1);
   const currentStepId = steps[currentStepIndex];
   const isFirstStep = currentStepIndex === 0;
@@ -258,9 +249,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
 
   const isNextDisabled =
-    (currentStepId === "classificacao" && !formData.category?.trim()) ||
-    (currentStepId === "imagens-variacoes" &&
-      !!formData.variants?.some((v) => !v.imageUrl));
+    currentStepId === "classificacao" && !formData.category?.trim();
 
   // Sem `e` quando chamado direto pelo onClick do botão final do wizard
   // (não é mais um handler de onSubmit nativo — ver comentário na tag
@@ -296,6 +285,16 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
     if (formData.variants?.some((v) => !v.imageUrl)) {
       toast.error("Toda variação precisa de uma imagem.");
+      return;
+    }
+
+    // Sem variações, a galeria é a única fonte de imagem do produto — sem
+    // pelo menos uma capa definida, o card na vitrine e outras telas que
+    // não sabem de variações ficam sem nenhuma imagem pra mostrar (feedback:
+    // a imagem padrão precisa ser garantida já na criação, não só corrigida
+    // depois na página do produto).
+    if (!formData.variants?.length && !formData.images?.length) {
+      toast.error("Adicione ao menos uma imagem para o produto.");
       return;
     }
 
@@ -350,12 +349,24 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       // Gera ID se for novo
       const productId = formData.id || doc(collection(db, "products")).id;
 
+      // Com variações e sem galeria própria, a imagem da primeira variação
+      // (a padrão) também vira a capa do produto — telas que não sabem de
+      // variações (card na vitrine, tabela do admin, carrinho) leem
+      // `images`/`imageUrl`, não `variants`.
+      const defaultVariantImage = formData.variants?.[0]?.imageUrl;
+      const images =
+        !formData.images?.length && defaultVariantImage
+          ? [{ id: crypto.randomUUID(), url: defaultVariantImage, isCover: true }]
+          : formData.images;
+
       const productData: Product = {
         ...formData,
         id: productId,
         price: Number(formData.price),
         category: formData.category.trim(),
         unit: formData.unit.trim() as any,
+        images,
+        imageUrl: formData.imageUrl || defaultVariantImage || "",
       };
 
       await setDoc(doc(db, "products", productId), productData);
@@ -793,17 +804,6 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
               />
             )}
 
-            {currentStepId === "imagens-variacoes" && (
-              <ProductVariationImageManager
-                images={formData.images || []}
-                variants={formData.variants || []}
-                onChange={(newVariants: ProductVariant[]) =>
-                  handleInputChange("variants", newVariants)
-                }
-                disabled={loading}
-              />
-            )}
-
             {currentStepId === "revisao" && (
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
@@ -817,7 +817,20 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                   <Label htmlFor="inStock">Em Estoque</Label>
                 </div>
 
-                <div className="space-y-4">
+                {!!formData.variants?.length && (
+                  <div className="space-y-2 border-t pt-4">
+                    <ProductVariationImageManager
+                      images={formData.images || []}
+                      variants={formData.variants || []}
+                      onChange={(newVariants: ProductVariant[]) =>
+                        handleInputChange("variants", newVariants)
+                      }
+                      disabled={loading}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2 border-t pt-4">
                   <ProductImageManager
                     images={formData.images || []}
                     onChange={(newImages: ProductImage[]) => {

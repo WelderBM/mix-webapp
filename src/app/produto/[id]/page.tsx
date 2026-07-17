@@ -23,6 +23,12 @@ export default function ProductPage() {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     null
   );
+  // Modo "matriz" (dimensões combinadas, ex: Tamanho + Cor) — um valor
+  // escolhido por dimensão, em vez de um único id de variação. Ver
+  // `isMatrixMode` abaixo.
+  const [selectedAttributes, setSelectedAttributes] = useState<
+    Record<string, string>
+  >({});
   const [showError, setShowError] = useState(false);
   const [animateButton, setAnimateButton] = useState(false);
   const { addItem, openCart } = useCartStore();
@@ -48,6 +54,26 @@ export default function ProductPage() {
           } else {
             setSelectedImage(productData.imageUrl || null);
           }
+
+          // A primeira variação da lista é a padrão — exibida antes de
+          // qualquer escolha do cliente, em vez de deixar preço/imagem em
+          // branco até ele clicar numa opção (feedback: "Selecione uma
+          // Variação" ficava travando a compra mesmo com opções óbvias
+          // disponíveis; a ordem das variações é controlada pelo admin).
+          if (productData.variants?.length) {
+            const defaultVariant = productData.variants[0];
+            const matrixMode = productData.variants.every(
+              (v) => v.attributes && Object.keys(v.attributes).length > 0
+            );
+            if (matrixMode) {
+              setSelectedAttributes(defaultVariant.attributes!);
+            } else {
+              setSelectedVariantId(defaultVariant.id);
+            }
+            if (defaultVariant.imageUrl) {
+              setSelectedImage(defaultVariant.imageUrl);
+            }
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar produto", error);
@@ -63,6 +89,19 @@ export default function ProductPage() {
   // sistema antigo (label na imagem) sem nenhuma mudança de comportamento.
   const hasStructuredVariants = !!product?.variants?.length;
 
+  // Modo "matriz": todas as variações têm `attributes` (dimensões
+  // combinadas, ex: Tamanho + Cor). Checado pelo array inteiro, não só
+  // `variants[0]` — um array misto (algumas com `attributes`, outras sem)
+  // cai pro caminho legado inteiro em vez de esconder silenciosamente as
+  // variações sem `attributes`.
+  const isMatrixMode =
+    !!product?.variants?.length &&
+    product.variants.every(
+      (v) => v.attributes && Object.keys(v.attributes).length > 0
+    );
+
+  // Caminho legado (sem `attributes`): agrupa por `.type`, um único
+  // `selectedVariantId` — comportamento inalterado.
   const variantGroups = product?.variants?.reduce<
     Record<string, ProductVariant[]>
   >((acc, v) => {
@@ -70,8 +109,32 @@ export default function ProductPage() {
     return acc;
   }, {});
 
+  // Caminho matriz: união ordenada (primeira aparição) das dimensões e, por
+  // dimensão, os valores distintos disponíveis. A ordem das variações (que o
+  // admin já controla via as setas de reordenar) controla a ordem de
+  // exibição das dimensões.
+  const dimensionKeys: string[] = [];
+  const dimensionOptions: Record<string, string[]> = {};
+  if (isMatrixMode) {
+    product?.variants?.forEach((v) => {
+      Object.entries(v.attributes || {}).forEach(([key, value]) => {
+        if (!dimensionKeys.includes(key)) {
+          dimensionKeys.push(key);
+          dimensionOptions[key] = [];
+        }
+        if (!dimensionOptions[key].includes(value)) {
+          dimensionOptions[key].push(value);
+        }
+      });
+    });
+  }
+
   const selectedVariant = hasStructuredVariants
-    ? product?.variants?.find((v) => v.id === selectedVariantId)
+    ? isMatrixMode
+      ? product?.variants?.find((v) =>
+          dimensionKeys.every((k) => v.attributes?.[k] === selectedAttributes[k])
+        )
+      : product?.variants?.find((v) => v.id === selectedVariantId)
     : undefined;
 
   // Determine the cover image consistently (match useEffect logic)
@@ -86,6 +149,33 @@ export default function ProductPage() {
   const handleImageSelect = (url: string) => {
     setSelectedImage(url);
     setShowError(false);
+
+    if (isMatrixMode) {
+      // Mais de uma combinação pode compartilhar a mesma foto (ex: uma foto
+      // genérica de "GG" usada em GG-Vermelho e GG-Azul). Em vez do primeiro
+      // match — que poderia sobrescrever uma dimensão já escolhida pelo
+      // cliente — usa a combinação que mais concorda com a seleção atual.
+      const candidates =
+        product?.variants?.filter((v) => v.imageUrl === url) || [];
+      const linkedVariant = candidates.reduce<ProductVariant | undefined>(
+        (best, v) => {
+          const score = dimensionKeys.filter(
+            (k) => v.attributes?.[k] === selectedAttributes[k]
+          ).length;
+          const bestScore = best
+            ? dimensionKeys.filter(
+                (k) => best.attributes?.[k] === selectedAttributes[k]
+              ).length
+            : -1;
+          return score > bestScore ? v : best;
+        },
+        undefined
+      );
+      if (linkedVariant) {
+        setSelectedAttributes(linkedVariant.attributes!);
+      }
+      return;
+    }
 
     if (hasStructuredVariants) {
       const linkedVariant = product?.variants?.find(
@@ -117,6 +207,22 @@ export default function ProductPage() {
     }
   };
 
+  // Escolher um valor de dimensão nunca mexe nas outras dimensões já
+  // escolhidas — esse é o fix do bug de "trocar a cor desmarca o tamanho".
+  // Resolve o variant sincronamente (não dentro do updater funcional do
+  // setState) só pra poder também atualizar a imagem exibida.
+  const handleDimensionSelect = (key: string, value: string) => {
+    const next = { ...selectedAttributes, [key]: value };
+    setSelectedAttributes(next);
+    setShowError(false);
+    const resolved = product?.variants?.find((v) =>
+      dimensionKeys.every((k) => v.attributes?.[k] === next[k])
+    );
+    if (resolved?.imageUrl) {
+      setSelectedImage(resolved.imageUrl);
+    }
+  };
+
   // Helper to determine if product has variations (images with labels that are NOT cover)
   // strict check: ignore the determined cover image by ID — só relevante pro
   // sistema antigo, produto com `variants` nunca usa isso.
@@ -124,9 +230,12 @@ export default function ProductPage() {
     !hasStructuredVariants &&
     product?.images?.some((img) => img.id !== coverImage?.id && !!img.label);
 
-  // Falta escolher: sistema novo exige uma variação; sistema antigo exige um label.
+  // Falta escolher: modo matriz exige que a combinação escolhida resolva
+  // pra uma variação; modo legado exige um id; sistema antigo exige um label.
   const missingSelection = hasStructuredVariants
-    ? !selectedVariantId
+    ? isMatrixMode
+      ? !selectedVariant
+      : !selectedVariantId
     : hasVariations && !selectedLabel;
 
   // Variação escolhida mas esgotada especificamente nessa opção.
@@ -222,7 +331,39 @@ export default function ProductPage() {
               )}
             </div>
 
-            {hasStructuredVariants && variantGroups && (
+            {hasStructuredVariants && isMatrixMode && (
+              <div className="mt-4 space-y-4">
+                {dimensionKeys.map((key) => (
+                  <div key={key}>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">
+                      {key}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {dimensionOptions[key].map((value) => {
+                        const isSelected = selectedAttributes[key] === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => handleDimensionSelect(key, value)}
+                            className={cn(
+                              "px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all",
+                              isSelected
+                                ? "border-purple-600 bg-purple-50 text-purple-700"
+                                : "border-slate-200 hover:border-slate-300 text-slate-600"
+                            )}
+                          >
+                            {value}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {hasStructuredVariants && !isMatrixMode && variantGroups && (
               <div className="mt-4 space-y-4">
                 {Object.entries(variantGroups).map(([type, options]) => (
                   <div key={type}>

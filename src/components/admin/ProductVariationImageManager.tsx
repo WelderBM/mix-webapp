@@ -28,7 +28,18 @@ export function ProductVariationImageManager({
   disabled,
 }: ProductVariationImageManagerProps) {
   const handleFieldChange = (id: string, patch: Partial<ProductVariant>) => {
-    onChange(variants.map((v) => (v.id === id ? { ...v, ...patch } : v)));
+    onChange(
+      variants.map((v) => {
+        if (v.id !== id) return v;
+        const merged = { ...v, ...patch };
+        // Firestore rejects fields with value `undefined` — patches that
+        // clear an optional field (ex: imageId) must drop the key entirely.
+        (Object.keys(merged) as (keyof ProductVariant)[]).forEach((key) => {
+          if (merged[key] === undefined) delete merged[key];
+        });
+        return merged;
+      })
+    );
   };
 
   const handlePickExisting = (id: string, imageId: string) => {
@@ -63,7 +74,11 @@ export function ProductVariationImageManager({
           >
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-700">
-                {variant.type}: {variant.name || "(sem nome)"}
+                {variant.attributes
+                  ? Object.entries(variant.attributes)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(" · ")
+                  : `${variant.type}: ${variant.name || "(sem nome)"}`}
               </p>
               {!variant.imageUrl && (
                 <p className="text-xs text-red-600 font-bold flex items-center gap-1 mt-0.5">
