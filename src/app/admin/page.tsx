@@ -147,12 +147,18 @@ export default function AdminPage() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [balloonsLoaded, setBalloonsLoaded] = useState(false);
   const [configDraftEnabled, setConfigDraftEnabled] = useState(false);
+  // Memoizado pra só trocar de referência quando `settings`/`balloonConfig`
+  // de fato mudam — sem isso, qualquer re-render do admin (há muitos,
+  // vindos de estado sem relação nenhuma com essas duas abas) recriava o
+  // objeto e o hook achava que era uma edição nova.
+  const configDraftValue = useMemo(
+    () => ({ settings, balloonConfig }),
+    [settings, balloonConfig]
+  );
   const { restoreDraft: restoreConfigDraft, clearDraft: clearConfigDraft } =
-    useDraftPersistence(
-      "admin-config",
-      { settings, balloonConfig },
-      { enabled: configDraftEnabled }
-    );
+    useDraftPersistence("admin-config", configDraftValue, {
+      enabled: configDraftEnabled,
+    });
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");

@@ -27,6 +27,11 @@ export function useDraftPersistence<T>(
   const storageKey = `draft:${key}`;
   const [hasDraft, setHasDraft] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A primeira vez que `value` "muda" depois de habilitar é só o estado
+  // recém-carregado assentando (ex: onSnapshot do Firestore chegando) —
+  // não é uma edição de verdade, e não deve virar rascunho. Só a partir
+  // da mudança SEGUINTE (uma edição real) é que passamos a gravar.
+  const skipNextWriteRef = useRef(true);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -34,7 +39,15 @@ export function useDraftPersistence<T>(
   }, [storageKey]);
 
   useEffect(() => {
+    skipNextWriteRef.current = true;
+  }, [enabled, storageKey]);
+
+  useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
+    if (skipNextWriteRef.current) {
+      skipNextWriteRef.current = false;
+      return;
+    }
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       try {

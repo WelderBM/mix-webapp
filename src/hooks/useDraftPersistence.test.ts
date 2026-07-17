@@ -88,4 +88,44 @@ describe("useDraftPersistence", () => {
     );
     expect(result.current.hasDraft).toBe(false);
   });
+
+  it("does not treat freshly-loaded data as a draft the moment persistence turns on", () => {
+    // Reproduz o bug relatado: `enabled` vira true assim que o primeiro
+    // onSnapshot chega, sem nenhuma edição real do usuário ainda. Usa a
+    // MESMA referência de objeto entre renders pra simular um chamador
+    // memoizado (como admin/page.tsx e ProductFormDialog.tsx agora fazem)
+    // — só a mudança de `enabled` deve poder disparar uma escrita indevida
+    // aqui, e é exatamente isso que o skip-da-primeira-escrita evita.
+    const loadedValue = { name: "carregado-do-servidor" };
+    const editedValue = { name: "editado-pelo-usuario" };
+
+    const { rerender } = renderHook(
+      ({ enabled, value }) =>
+        useDraftPersistence("test-key", value, { debounceMs: 100, enabled }),
+      { initialProps: { enabled: false, value: loadedValue } }
+    );
+
+    // enabled vira true, mas com a MESMA referência — nenhuma edição.
+    rerender({ enabled: true, value: loadedValue });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(localStorage.getItem("draft:test-key")).toBeNull();
+
+    // Re-render repassando a mesma referência de novo — ainda nada.
+    rerender({ enabled: true, value: loadedValue });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(localStorage.getItem("draft:test-key")).toBeNull();
+
+    // Só uma edição de verdade (referência/dado diferente) grava.
+    rerender({ enabled: true, value: editedValue });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(localStorage.getItem("draft:test-key")).toBe(
+      JSON.stringify(editedValue)
+    );
+  });
 });

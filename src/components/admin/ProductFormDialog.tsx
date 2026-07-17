@@ -150,9 +150,17 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     : "product-new";
   const [draftPersistenceEnabled, setDraftPersistenceEnabled] =
     useState(false);
+  // Memoizado pra só trocar de referência quando `formData`/`stepIndex` de
+  // fato mudam — sem isso, qualquer re-render do wizard recriava o objeto
+  // e o hook achava que era uma edição nova (mesmo bug corrigido em
+  // admin/page.tsx pro rascunho de Configurações/Balões).
+  const draftValue = useMemo(
+    () => ({ formData, stepIndex }),
+    [formData, stepIndex]
+  );
   const { restoreDraft, clearDraft } = useDraftPersistence<ProductDraft>(
     draftKey,
-    { formData, stepIndex },
+    draftValue,
     { enabled: draftPersistenceEnabled }
   );
 
