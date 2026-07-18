@@ -74,24 +74,30 @@ export const ProductVariationManager: React.FC<
     }
   );
 
-  // Variações geradas por combinação já têm `type`/`name` derivados (ex:
-  // "Tamanho / Cor") — isso não é um "tipo" de verdade, então fica de fora da
-  // sugestão pra variações soltas.
+  // Uma variação de UMA dimensão só (ex: só "Tamanho: G") é estruturalmente
+  // igual a uma combinação de 1 dimensão — não existe mais um "tipo solto"
+  // separado de `attributes`, os dois são a mesma coisa. Só variações com 2+
+  // dimensões (geradas via combinação) ficam fora da sugestão de tipo aqui,
+  // já que o nome combinado ("Tamanho / Cor") não é um tipo de verdade.
   const knownTypes = Array.from(
     new Set(
       [
         ...SUGGESTED_TYPES,
-        ...variants.filter((v) => !v.attributes).map((v) => v.type),
+        ...variants
+          .filter((v) => Object.keys(v.attributes || {}).length <= 1)
+          .map((v) => v.type),
       ].filter(Boolean)
     )
   );
 
   const handleAdd = () => {
+    const type = knownTypes[0] || "Tamanho";
     const newVariant: ProductVariant = {
       id: crypto.randomUUID(),
-      type: knownTypes[0] || "Tamanho",
+      type,
       name: "",
       inStock: true,
+      attributes: { [type]: "" },
     };
     onChange([...variants, newVariant]);
   };
@@ -125,6 +131,25 @@ export const ProductVariationManager: React.FC<
         return merged;
       })
     );
+  };
+
+  // Editar tipo/nome de uma variação de 1 dimensão só precisa manter
+  // `attributes` em sincronia — é a mesma informação, só que estruturada
+  // (uma combinação de 1 dimensão é ela mesma). Trocar o tipo também renomeia
+  // a chave de `attributes`, não só o rótulo de exibição.
+  const handleSingleDimensionChange = (
+    id: string,
+    patch: { type?: string; name?: string }
+  ) => {
+    const variant = variants.find((v) => v.id === id);
+    if (!variant) return;
+    const nextType = patch.type ?? variant.type;
+    const nextName = patch.name ?? variant.name;
+    handleFieldChange(id, {
+      type: nextType,
+      name: nextName,
+      attributes: { [nextType]: nextName },
+    });
   };
 
   const handleDimensionDraftChange = (
@@ -369,9 +394,9 @@ export const ProductVariationManager: React.FC<
               </div>
 
               <div className="flex-1">
-                {variant.attributes ? (
+                {Object.keys(variant.attributes || {}).length > 1 ? (
                   <div className="h-9 flex flex-wrap items-center gap-x-1 px-1 text-sm text-slate-700 font-medium">
-                    {Object.entries(variant.attributes).map(([k, v], i) => (
+                    {Object.entries(variant.attributes!).map(([k, v], i) => (
                       <span key={k} className="whitespace-nowrap">
                         {i > 0 && (
                           <span className="text-slate-300 mx-1">·</span>
@@ -388,7 +413,7 @@ export const ProductVariationManager: React.FC<
                           placeholder="Novo tipo (ex: Aroma)"
                           value={variant.type}
                           onChange={(e) =>
-                            handleFieldChange(variant.id, {
+                            handleSingleDimensionChange(variant.id, {
                               type: e.target.value,
                             })
                           }
@@ -415,9 +440,13 @@ export const ProductVariationManager: React.FC<
                         onValueChange={(v) => {
                           if (v === "custom_new_type") {
                             setCustomTypeRowId(variant.id);
-                            handleFieldChange(variant.id, { type: "" });
+                            handleSingleDimensionChange(variant.id, {
+                              type: "",
+                            });
                           } else {
-                            handleFieldChange(variant.id, { type: v });
+                            handleSingleDimensionChange(variant.id, {
+                              type: v,
+                            });
                           }
                         }}
                         disabled={disabled}
@@ -445,7 +474,7 @@ export const ProductVariationManager: React.FC<
                       placeholder="Nome (ex: G, Azul)"
                       value={variant.name}
                       onChange={(e) =>
-                        handleFieldChange(variant.id, {
+                        handleSingleDimensionChange(variant.id, {
                           name: e.target.value,
                         })
                       }

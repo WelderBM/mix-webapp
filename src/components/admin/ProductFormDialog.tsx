@@ -1,7 +1,7 @@
 // src/components/admin/ProductFormDialog.tsx (WIZARD POR PASSOS)
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
@@ -178,6 +178,23 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     [categories, formData.category]
   );
 
+  // `categories` vem de um onSnapshot ao vivo (admin/page.tsx) — ganha uma
+  // referência nova a cada disparo do listener, mesmo sem nenhuma mudança
+  // real (reconexão de rede, sync entre abas, etc). Se o efeito abaixo
+  // dependesse de `categories` diretamente, qualquer disparo desses no meio
+  // da edição resetava `formData` de volta pro que já estava salvo,
+  // silenciosamente apagando edição não salva (ex: imagem de variação recém
+  // vinculada) — mesma categoria de bug já documentada em
+  // docs/claude-lessons.md ("objeto recriado a cada render engana useEffect
+  // por referência"). Guardado num ref pra o efeito só reagir a
+  // `productToEdit`/`isOpen`/`initialStep` (quando o wizard de fato deveria
+  // recarregar), lendo a versão mais recente de `categories` sem precisar
+  // dela como dependência.
+  const categoriesRef = useRef(categories);
+  useEffect(() => {
+    categoriesRef.current = categories;
+  }, [categories]);
+
   useEffect(() => {
     let nextFormData: ProductFormData;
     if (productToEdit) {
@@ -189,7 +206,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       };
       // Verifica se a categoria/subcategoria são personalizadas (digitadas
       // na hora, ainda sem doc correspondente em `categories`)
-      const matchedCategory = categories.find(
+      const matchedCategory = categoriesRef.current.find(
         (c) => c.name === productToEdit.category
       );
       setCustomCategory(!!productToEdit.category && !matchedCategory);
@@ -214,7 +231,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     const startSteps = stepsFor(nextFormData.type);
     const startIndex = startSteps.indexOf(startStepId);
     setStepIndex(startIndex >= 0 ? startIndex : 0);
-  }, [productToEdit, isOpen, categories, initialStep]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productToEdit, isOpen, initialStep]);
 
   // Checa rascunho salvo toda vez que o wizard abre (depois do reset acima,
   // pra um "sim" de restaurar sobrescrever os dados recém-carregados do
@@ -827,37 +845,86 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                   <Label htmlFor="inStock">Em Estoque</Label>
                 </div>
 
+                <div className="space-y-2 border-t pt-4">
+                  <ProductImageManager
+                    images={formData.images || []}
+                    onChange={(newImages: ProductImage[]) => {
+                      const cover =
+                        newImages.find((img) => img.isCover) || newImages[0];
+                      const validImageIds = new Set(
+                        newImages.map((img) => img.id)
+                      );
+                      setFormData((prev) => ({
+                        ...prev,
+                        images: newImages,
+                        // Sync legacy imageUrl for backward compat
+                        imageUrl: cover ? cover.url : "",
+                        // Variação vinculada a uma imagem removida da
+                        // galeria (ex: apagada aqui) fica com referência
+                        // morta — limpa o vínculo pra voltar a pedir
+                        // "Imagem obrigatória" em vez de continuar
+                        // mostrando/selecionando uma foto que não existe
+                        // mais na lista.
+                        variants: (prev.variants || []).map((v) => {
+                          if (!v.imageId || validImageIds.has(v.imageId))
+                            return v;
+                          const { imageId, imageUrl, ...rest } = v;
+                          return rest as ProductVariant;
+                        }),
+                      }));
+                    }}
+                    disabled={loading}
+                  />
+                </div>
+
                 {!!formData.variants?.length && (
                   <div className="space-y-2 border-t pt-4">
                     <ProductVariationImageManager
                       images={formData.images || []}
                       variants={formData.variants || []}
-                      onChange={(newVariants: ProductVariant[]) =>
-                        handleInputChange("variants", newVariants)
-                      }
+                      onChange={(patch) => {
+                        // eslint-disable-next-line no-console
+                        console.log(
+                          "[DEBUG variation-image] ProductFormDialog patch=" +
+                            JSON.stringify(patch)
+                        );
+                        // Merge feito aqui, contra `prev` — não contra o que
+                        // o ProductVariationImageManager tinha em mãos quando
+                        // o clique aconteceu. O updater funcional garante que
+                        // a intenção ("variação X, campo Y") é aplicada sobre
+                        // o estado mais recente de verdade.
+                        setFormData((prev) => {
+                          const nextVariants = (prev.variants || []).map(
+                            (v) => {
+                              if (v.id !== patch.variantId) return v;
+                              const merged = { ...v, ...patch.variantPatch };
+                              (
+                                Object.keys(merged) as (keyof ProductVariant)[]
+                              ).forEach((key) => {
+                                if (merged[key] === undefined)
+                                  delete merged[key];
+                              });
+                              return merged;
+                            }
+                          );
+                          // eslint-disable-next-line no-console
+                          console.log(
+                            "[DEBUG variation-image] nextVariants=" +
+                              JSON.stringify(
+                                nextVariants.map((v) => ({
+                                  id: v.id,
+                                  imageId: v.imageId,
+                                  imageUrl: v.imageUrl,
+                                }))
+                              )
+                          );
+                          return { ...prev, variants: nextVariants };
+                        });
+                      }}
                       disabled={loading}
                     />
                   </div>
                 )}
-
-                <div className="space-y-2 border-t pt-4">
-                  <ProductImageManager
-                    images={formData.images || []}
-                    onChange={(newImages: ProductImage[]) => {
-                      // Sync images list
-                      const cover =
-                        newImages.find((img) => img.isCover) || newImages[0];
-                      handleInputChange("images", newImages);
-                      // Sync legacy imageUrl for backward compat
-                      if (cover) {
-                        handleInputChange("imageUrl", cover.url);
-                      } else {
-                        handleInputChange("imageUrl", "");
-                      }
-                    }}
-                    disabled={loading}
-                  />
-                </div>
               </div>
             )}
           </div>
