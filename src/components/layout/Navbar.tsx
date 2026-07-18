@@ -27,6 +27,7 @@ import {
   SheetClose,
 } from "@/components/ui/sheet";
 import { usePathname } from "next/navigation";
+import { useSettingsStore } from "@/store/settingsStore";
 
 // Links da navegação principal (Estrutura de dados unificada)
 // Links da navegação principal (Estrutura de dados unificada)
@@ -83,6 +84,7 @@ const Navbar = () => {
   const openKitBuilder = useKitBuilderStore((state) => state.openKitBuilder);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const storeName = useSettingsStore((state) => state.settings.storeName);
 
   // Se a rota começar com "/admin", não renderiza nada
   if (pathname && pathname.startsWith("/admin")) {
@@ -143,7 +145,7 @@ const Navbar = () => {
           href="/"
           className="text-xl font-bold bg-linear-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
         >
-          Mix WebApp
+          {storeName}
         </Link>
 
         {/* Desktop Navigation */}

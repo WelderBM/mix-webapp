@@ -12,8 +12,10 @@ import {
   Lock,
 } from "lucide-react";
 import Link from "next/link";
+import { useSettingsStore } from "@/store/settingsStore";
 
 export function Footer() {
+  const storeName = useSettingsStore((state) => state.settings.storeName);
   const publicMapUrl =
     "https://maps.google.com/maps?q=Mix%20Novidades%20Boa%20Vista&t=&z=15&ie=UTF8&iwloc=&output=embed";
 
@@ -24,7 +26,7 @@ export function Footer() {
         <div className="space-y-6">
           <div>
             <h3 className="text-2xl font-bold text-white mb-2">
-              Mix Novidades
+              {storeName}
             </h3>
             <p className="text-slate-400 text-sm">
               Sua loja de presentes, Natura e utilidades em Boa Vista.
