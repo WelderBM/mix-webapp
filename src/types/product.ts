@@ -26,6 +26,11 @@ export interface ProductVariant {
   inStock: boolean;
   imageId?: string; // referencia ProductImage.id de uma imagem já enviada do produto
   imageUrl?: string; // preenchido a partir da imagem escolhida (imageId)
+  // Presente só em variações geradas por combinação de dimensões (ex: Tamanho ×
+  // Cor) — { Tamanho: "GG", Cor: "Vermelho" }. `type`/`name` continuam sendo
+  // preenchidos automaticamente a partir daqui, então qualquer consumidor que já
+  // lê `type`/`name` (carrinho, pedidos, WhatsApp) não precisa saber que isso existe.
+  attributes?: Record<string, string>;
 }
 
 export interface ProductImage {
@@ -59,11 +64,6 @@ export interface Product {
   isKitBase?: boolean;
   laçoType?: LacoModelType;
   variants?: ProductVariant[];
-  defaultComponents?: string[];
-  wrapperConstraints?: {
-    minSlots: number;
-    maxSlots: number;
-  };
   width?: number;
   height?: number;
   depth?: number;

@@ -278,6 +278,7 @@ function FitasContent() {
                                   alt={ribbon.name}
                                   name={ribbon.name}
                                   fill
+                                  sizes="(min-width: 640px) 48px, 40px"
                                   className="object-cover"
                                 />
                               </div>
@@ -366,6 +367,7 @@ function FitasContent() {
                                 alt={selectedMeterProduct?.name || ""}
                                 name={selectedMeterProduct?.name || ""}
                                 fill
+                                sizes="96px"
                                 className="object-cover"
                               />
                             </div>

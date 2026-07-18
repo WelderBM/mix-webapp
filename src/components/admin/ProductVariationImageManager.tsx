@@ -1,7 +1,7 @@
 "use client";
 
 import { ProductImage, ProductVariant } from "@/types/product";
-import { ImageUploadModal } from "./ImageUploadModal";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -10,34 +10,56 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Trash2 } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { cn } from "@/lib/utils";
+
+export interface VariationImagePatch {
+  variantId: string;
+  variantPatch: Partial<ProductVariant>;
+}
 
 interface ProductVariationImageManagerProps {
   images: ProductImage[];
   variants: ProductVariant[];
-  onChange: (variants: ProductVariant[]) => void;
+  // Manda só a INTENÇÃO (qual variação, o que mudar nela) — quem aplica o
+  // merge de verdade é o pai, de dentro do updater funcional do
+  // `setFormData`, contra o estado mais recente garantido.
+  onChange: (patch: VariationImagePatch) => void;
   disabled?: boolean;
 }
 
+// Escolher imagem de variação só a partir da Galeria de Imagens (já
+// enviada ali, em cima) — nada de upload direto aqui. O upload direto por
+// linha fazia duas coisas de uma vez (criar a imagem na galeria E vincular
+// à variação); se o admin abrisse o diálogo de uma segunda linha antes do
+// upload da primeira terminar de subir, o vínculo da primeira era perdido —
+// mesmo depois de tentar resolver por atualização atômica e por updater
+// funcional. Reduzir pra uma única fonte de verdade (a Galeria, sempre
+// commitada antes de qualquer vínculo) elimina a corrida por completo.
 export function ProductVariationImageManager({
   images,
   variants,
   onChange,
   disabled,
 }: ProductVariationImageManagerProps) {
-  const handleFieldChange = (id: string, patch: Partial<ProductVariant>) => {
-    onChange(variants.map((v) => (v.id === id ? { ...v, ...patch } : v)));
-  };
-
   const handlePickExisting = (id: string, imageId: string) => {
     const img = images.find((i) => i.id === imageId);
-    handleFieldChange(id, { imageId, imageUrl: img?.url });
+    onChange({ variantId: id, variantPatch: { imageId, imageUrl: img?.url } });
   };
 
-  const handleUpload = (id: string, url: string) => {
-    handleFieldChange(id, { imageId: undefined, imageUrl: url || undefined });
+  const handleRemove = (id: string) => {
+    // eslint-disable-next-line no-console
+    console.log(
+      "[DEBUG variation-image] handleRemove clicked for id=" +
+        id +
+        " current variant=" +
+        JSON.stringify(variants.find((v) => v.id === id))
+    );
+    onChange({
+      variantId: id,
+      variantPatch: { imageId: undefined, imageUrl: undefined },
+    });
   };
 
   return (
@@ -45,8 +67,9 @@ export function ProductVariationImageManager({
       <div className="flex flex-col gap-2">
         <Label>Imagens das Variações</Label>
         <span className="text-sm text-slate-500">
-          Toda variação precisa de uma imagem própria — escolha uma já
-          enviada no produto ou envie uma nova.
+          Toda variação precisa de uma imagem própria — envie as fotos na
+          Galeria de Imagens abaixo primeiro, depois escolha uma pra cada
+          variação aqui.
         </span>
       </div>
 
@@ -63,7 +86,11 @@ export function ProductVariationImageManager({
           >
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-700">
-                {variant.type}: {variant.name || "(sem nome)"}
+                {variant.attributes
+                  ? Object.entries(variant.attributes)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(" · ")
+                  : `${variant.type}: ${variant.name || "(sem nome)"}`}
               </p>
               {!variant.imageUrl && (
                 <p className="text-xs text-red-600 font-bold flex items-center gap-1 mt-0.5">
@@ -73,7 +100,7 @@ export function ProductVariationImageManager({
             </div>
 
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              {images.length > 0 && (
+              {images.length > 0 ? (
                 <Select
                   value={variant.imageId || undefined}
                   onValueChange={(v) => handlePickExisting(variant.id, v)}
@@ -91,6 +118,7 @@ export function ProductVariationImageManager({
                               src={img.url}
                               alt=""
                               fill
+                              sizes="20px"
                               className="object-cover"
                             />
                           </span>
@@ -102,15 +130,25 @@ export function ProductVariationImageManager({
                     ))}
                   </SelectContent>
                 </Select>
+              ) : (
+                <span className="text-xs text-slate-400 italic">
+                  Envie uma imagem na Galeria abaixo primeiro
+                </span>
               )}
 
-              <ImageUploadModal
-                multiple={false}
-                value={variant.imageUrl}
-                onChange={(url) => handleUpload(variant.id, url)}
-                folder="products"
-                disabled={disabled}
-              />
+              {variant.imageUrl && (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                  onClick={() => handleRemove(variant.id)}
+                  disabled={disabled}
+                  title="Remover imagem"
+                >
+                  <Trash2 size={14} />
+                </Button>
+              )}
             </div>
           </div>
         ))}

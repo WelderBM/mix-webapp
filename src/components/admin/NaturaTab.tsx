@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface NaturaTabProps {
   allProducts: Product[];
@@ -75,6 +76,10 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
   // SEO Block Editing State
   const [isSeoModalOpen, setIsSeoModalOpen] = useState(false);
   const [editingSeoBlock, setEditingSeoBlock] = useState<SeoBlock | null>(null);
+  const [sectionToDelete, setSectionToDelete] = useState<string | null>(null);
+  const [seoBlockToDelete, setSeoBlockToDelete] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "settings", "natura"), (s) => {
@@ -133,9 +138,8 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
   };
 
   const deleteSection = (id: string) => {
-    if (confirm("Tem certeza que deseja excluir esta seção?")) {
-      setSections((prev) => prev.filter((s) => s.id !== id));
-    }
+    setSections((prev) => prev.filter((s) => s.id !== id));
+    setSectionToDelete(null);
   };
 
   const toggleVisibility = (id: string) => {
@@ -183,9 +187,8 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
   };
 
   const deleteSeoBlock = (id: string) => {
-    if (confirm("Tem certeza que deseja excluir este bloco SEO?")) {
-      setSeoBlocks((prev) => prev.filter((b) => b.id !== id));
-    }
+    setSeoBlocks((prev) => prev.filter((b) => b.id !== id));
+    setSeoBlockToDelete(null);
   };
 
   if (loading) {
@@ -314,7 +317,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => deleteSection(section.id)}
+                  onClick={() => setSectionToDelete(section.id)}
                 >
                   <Trash2 size={16} className="text-red-400" />
                 </Button>
@@ -417,7 +420,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => deleteSeoBlock(block.id)}
+                    onClick={() => setSeoBlockToDelete(block.id)}
                   >
                     <Trash2 size={14} className="text-red-400" />
                   </Button>
@@ -525,6 +528,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                             <SafeImage
                               src={product.imageUrl}
                               fill
+                              sizes="48px"
                               className="object-cover"
                               alt={product.name}
                             />
@@ -691,6 +695,24 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!sectionToDelete}
+        onOpenChange={(open) => !open && setSectionToDelete(null)}
+        title="Excluir esta seção?"
+        description="Essa ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        onConfirm={() => sectionToDelete && deleteSection(sectionToDelete)}
+      />
+
+      <ConfirmDialog
+        open={!!seoBlockToDelete}
+        onOpenChange={(open) => !open && setSeoBlockToDelete(null)}
+        title="Excluir este bloco SEO?"
+        description="Essa ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        onConfirm={() => seoBlockToDelete && deleteSeoBlock(seoBlockToDelete)}
+      />
     </div>
   );
 }

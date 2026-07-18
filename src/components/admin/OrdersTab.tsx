@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
+import { useSearchParamsPatch } from "@/hooks/useSearchParamsPatch";
 import {
   collection,
   onSnapshot,
@@ -57,10 +59,16 @@ import {
 import { cn, formatCurrency } from "@/lib/utils";
 
 export function OrdersTab() {
+  const searchParams = useSearchParams();
+  const patchParams = useSearchParamsPatch();
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>(
-    {}
+    () => {
+      const pedido = searchParams.get("pedido");
+      return pedido ? { [pedido]: true } : {};
+    }
   );
 
   // Refs para controle de notificação
@@ -68,7 +76,9 @@ export function OrdersTab() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Filtros e Paginação
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>(
+    () => searchParams.get("status") || "all"
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
@@ -137,7 +147,16 @@ export function OrdersTab() {
   }, []);
 
   const toggleExpand = (orderId: string) => {
-    setExpandedOrders((prev) => ({ ...prev, [orderId]: !prev[orderId] }));
+    setExpandedOrders((prev) => {
+      const next = { ...prev, [orderId]: !prev[orderId] };
+      patchParams({ pedido: next[orderId] ? orderId : undefined });
+      return next;
+    });
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    patchParams({ status: value === "all" ? undefined : value });
   };
 
   const updateStatus = async (orderId: string, newStatus: OrderStatus) => {
@@ -279,7 +298,7 @@ ${paymentInstruction}`;
     count?: number;
   }) => (
     <button
-      onClick={() => setStatusFilter(value)}
+      onClick={() => handleStatusFilterChange(value)}
       className={cn(
         "px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border",
         statusFilter === value

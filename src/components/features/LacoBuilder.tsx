@@ -143,6 +143,7 @@ export function LacoBuilder() {
                           alt={ribbon.name}
                           name={ribbon.name}
                           fill
+                          sizes="(min-width: 640px) 56px, 48px"
                           className="object-cover"
                         />
                       </div>
@@ -193,6 +194,7 @@ export function LacoBuilder() {
                       alt={style.name}
                       name={style.name}
                       fill
+                      sizes="(min-width: 640px) 80px, 64px"
                       className="object-cover"
                     />
                   </div>
@@ -266,6 +268,7 @@ export function LacoBuilder() {
                         alt={selectedRibbon.name}
                         name={selectedRibbon.name}
                         fill
+                        sizes="(min-width: 640px) 160px, 128px"
                         className="object-cover"
                       />
                       {/* Overlay simulando o estilo - visualmente interessante */}

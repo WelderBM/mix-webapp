@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Product, ProductVariant, CartItem } from "@/types";
+import { Product, ProductVariant, ProductImage, CartItem } from "@/types";
 import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,67 @@ import { toast } from "sonner";
 import { ProductImageGallery } from "@/components/features/ProductImageGallery";
 import { BackButton } from "@/components/ui/BackButton";
 import { cn } from "@/lib/utils";
+
+// Uma dimensão "casa" só quando o valor existe dos dois lados e é igual —
+// `variantAttrs?.[k] === selection[k]` sozinho deixaria `undefined ===
+// undefined` passar como match (variação sem essa dimensão "combinando" com
+// o cliente ainda não ter escolhido nada), permitindo considerar a seleção
+// completa sem o cliente ter escolhido todas as dimensões visíveis.
+function attributesMatch(
+  variantAttrs: Record<string, string> | undefined,
+  selection: Record<string, string>,
+  keys: string[]
+): boolean {
+  return keys.every(
+    (k) => variantAttrs?.[k] !== undefined && variantAttrs[k] === selection[k]
+  );
+}
+
+function countMatchingAttributes(
+  variantAttrs: Record<string, string> | undefined,
+  selection: Record<string, string>,
+  keys: string[]
+): number {
+  return keys.filter(
+    (k) => variantAttrs?.[k] !== undefined && variantAttrs[k] === selection[k]
+  ).length;
+}
+
+// Um valor de dimensão só aparece como opção se existir alguma variação com
+// esse valor QUE TAMBÉM bata com as outras dimensões já escolhidas (a própria
+// dimensão sendo avaliada não entra nessa checagem — é o candidato, não uma
+// restrição). Ex: se "Azul" já está escolhido em Cor e não existe nenhuma
+// variação "Tamanho: M, Cor: Azul", "M" não aparece em Tamanho.
+function isOptionAvailable(
+  variants: ProductVariant[],
+  key: string,
+  value: string,
+  selection: Record<string, string>
+): boolean {
+  return variants.some(
+    (v) =>
+      v.attributes?.[key] === value &&
+      Object.entries(selection).every(
+        ([k, val]) => k === key || v.attributes?.[k] === val
+      )
+  );
+}
+
+// Mesma ideia aplicada às miniaturas: uma imagem vinculada a uma variação só
+// aparece se essa variação (ou alguma outra que use a mesma foto) bater com
+// tudo que já foi escolhido. Imagem sem variação nenhuma vinculada (foto
+// genérica do produto) não é afetada, sempre aparece.
+function isImageRelevant(
+  image: ProductImage,
+  variants: ProductVariant[],
+  selection: Record<string, string>
+): boolean {
+  const linkedVariants = variants.filter((v) => v.imageUrl === image.url);
+  if (linkedVariants.length === 0) return true;
+  return linkedVariants.some((v) =>
+    Object.entries(selection).every(([k, val]) => v.attributes?.[k] === val)
+  );
+}
 
 export default function ProductPage() {
   const { id } = useParams();
@@ -23,6 +84,12 @@ export default function ProductPage() {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     null
   );
+  // Modo "matriz" (dimensões combinadas, ex: Tamanho + Cor) — um valor
+  // escolhido por dimensão, em vez de um único id de variação. Ver
+  // `isMatrixMode` abaixo.
+  const [selectedAttributes, setSelectedAttributes] = useState<
+    Record<string, string>
+  >({});
   const [showError, setShowError] = useState(false);
   const [animateButton, setAnimateButton] = useState(false);
   const { addItem, openCart } = useCartStore();
@@ -48,6 +115,33 @@ export default function ProductPage() {
           } else {
             setSelectedImage(productData.imageUrl || null);
           }
+
+          // A variação padrão é a que bate com a capa escolhida pelo admin
+          // (sinal mais forte de "isso é o que deve aparecer primeiro") —
+          // sem cover correspondente, cai pra primeira variação da lista,
+          // exibida antes de qualquer escolha do cliente, em vez de deixar
+          // preço/imagem em branco até ele clicar numa opção (feedback:
+          // "Selecione uma Variação" ficava travando a compra mesmo com
+          // opções óbvias disponíveis; a ordem das variações é controlada
+          // pelo admin).
+          if (productData.variants?.length) {
+            const cover = productData.images?.find((img) => img.isCover);
+            const defaultVariant =
+              (cover &&
+                productData.variants.find((v) => v.imageUrl === cover.url)) ||
+              productData.variants[0];
+            const matrixMode = productData.variants.every(
+              (v) => v.attributes && Object.keys(v.attributes).length > 0
+            );
+            if (matrixMode) {
+              setSelectedAttributes(defaultVariant.attributes!);
+            } else {
+              setSelectedVariantId(defaultVariant.id);
+            }
+            if (defaultVariant.imageUrl) {
+              setSelectedImage(defaultVariant.imageUrl);
+            }
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar produto", error);
@@ -63,6 +157,19 @@ export default function ProductPage() {
   // sistema antigo (label na imagem) sem nenhuma mudança de comportamento.
   const hasStructuredVariants = !!product?.variants?.length;
 
+  // Modo "matriz": todas as variações têm `attributes` (dimensões
+  // combinadas, ex: Tamanho + Cor). Checado pelo array inteiro, não só
+  // `variants[0]` — um array misto (algumas com `attributes`, outras sem)
+  // cai pro caminho legado inteiro em vez de esconder silenciosamente as
+  // variações sem `attributes`.
+  const isMatrixMode =
+    !!product?.variants?.length &&
+    product.variants.every(
+      (v) => v.attributes && Object.keys(v.attributes).length > 0
+    );
+
+  // Caminho legado (sem `attributes`): agrupa por `.type`, um único
+  // `selectedVariantId` — comportamento inalterado.
   const variantGroups = product?.variants?.reduce<
     Record<string, ProductVariant[]>
   >((acc, v) => {
@@ -70,13 +177,46 @@ export default function ProductPage() {
     return acc;
   }, {});
 
+  // Caminho matriz: união ordenada (primeira aparição) das dimensões e, por
+  // dimensão, os valores distintos disponíveis. A ordem das variações (que o
+  // admin já controla via as setas de reordenar) controla a ordem de
+  // exibição das dimensões.
+  const dimensionKeys: string[] = [];
+  const dimensionOptions: Record<string, string[]> = {};
+  if (isMatrixMode) {
+    product?.variants?.forEach((v) => {
+      Object.entries(v.attributes || {}).forEach(([key, value]) => {
+        if (!dimensionKeys.includes(key)) {
+          dimensionKeys.push(key);
+          dimensionOptions[key] = [];
+        }
+        if (!dimensionOptions[key].includes(value)) {
+          dimensionOptions[key].push(value);
+        }
+      });
+    });
+  }
+
   const selectedVariant = hasStructuredVariants
-    ? product?.variants?.find((v) => v.id === selectedVariantId)
+    ? isMatrixMode
+      ? product?.variants?.find((v) =>
+          attributesMatch(v.attributes, selectedAttributes, dimensionKeys)
+        )
+      : product?.variants?.find((v) => v.id === selectedVariantId)
     : undefined;
 
   // Determine the cover image consistently (match useEffect logic)
   const coverImage =
     product?.images?.find((img) => img.isCover) || product?.images?.[0];
+
+  // Miniaturas seguem a mesma regra dos chips de dimensão: uma foto
+  // vinculada a uma variação incompatível com a seleção atual (ex: "M" numa
+  // foto de Cor Vermelho enquanto Cor Azul já está escolhido) não aparece.
+  const galleryImages = isMatrixMode
+    ? (product?.images || []).filter((img) =>
+        isImageRelevant(img, product?.variants || [], selectedAttributes)
+      )
+    : product?.images || [];
 
   // Clique em QUALQUER imagem (thumbnail, seta do carrossel ou tela cheia)
   // passa por aqui — a ligação com variação/rótulo é centralizada nesta
@@ -86,6 +226,37 @@ export default function ProductPage() {
   const handleImageSelect = (url: string) => {
     setSelectedImage(url);
     setShowError(false);
+
+    if (isMatrixMode) {
+      // Mais de uma combinação pode compartilhar a mesma foto (ex: uma foto
+      // genérica de "GG" usada em GG-Vermelho e GG-Azul). Em vez do primeiro
+      // match — que poderia sobrescrever uma dimensão já escolhida pelo
+      // cliente — usa a combinação que mais concorda com a seleção atual.
+      const candidates =
+        product?.variants?.filter((v) => v.imageUrl === url) || [];
+      const linkedVariant = candidates.reduce<ProductVariant | undefined>(
+        (best, v) => {
+          const score = countMatchingAttributes(
+            v.attributes,
+            selectedAttributes,
+            dimensionKeys
+          );
+          const bestScore = best
+            ? countMatchingAttributes(
+                best.attributes,
+                selectedAttributes,
+                dimensionKeys
+              )
+            : -1;
+          return score > bestScore ? v : best;
+        },
+        undefined
+      );
+      if (linkedVariant) {
+        setSelectedAttributes(linkedVariant.attributes!);
+      }
+      return;
+    }
 
     if (hasStructuredVariants) {
       const linkedVariant = product?.variants?.find(
@@ -117,6 +288,22 @@ export default function ProductPage() {
     }
   };
 
+  // Escolher um valor de dimensão nunca mexe nas outras dimensões já
+  // escolhidas — esse é o fix do bug de "trocar a cor desmarca o tamanho".
+  // Resolve o variant sincronamente (não dentro do updater funcional do
+  // setState) só pra poder também atualizar a imagem exibida.
+  const handleDimensionSelect = (key: string, value: string) => {
+    const next = { ...selectedAttributes, [key]: value };
+    setSelectedAttributes(next);
+    setShowError(false);
+    const resolved = product?.variants?.find((v) =>
+      attributesMatch(v.attributes, next, dimensionKeys)
+    );
+    if (resolved?.imageUrl) {
+      setSelectedImage(resolved.imageUrl);
+    }
+  };
+
   // Helper to determine if product has variations (images with labels that are NOT cover)
   // strict check: ignore the determined cover image by ID — só relevante pro
   // sistema antigo, produto com `variants` nunca usa isso.
@@ -124,15 +311,33 @@ export default function ProductPage() {
     !hasStructuredVariants &&
     product?.images?.some((img) => img.id !== coverImage?.id && !!img.label);
 
-  // Falta escolher: sistema novo exige uma variação; sistema antigo exige um label.
+  // Toda dimensão visível tem um valor escolhido — ainda não garante que a
+  // COMBINAÇÃO resultante existe como variação (ver `combinationUnavailable`
+  // abaixo), só que o cliente não deixou nenhuma em branco.
+  const allDimensionsChosen =
+    !isMatrixMode ||
+    dimensionKeys.every((k) => selectedAttributes[k] !== undefined);
+
+  // Falta escolher: modo matriz exige toda dimensão preenchida; modo legado
+  // exige um id; sistema antigo exige um label.
   const missingSelection = hasStructuredVariants
-    ? !selectedVariantId
+    ? isMatrixMode
+      ? !allDimensionsChosen
+      : !selectedVariantId
     : hasVariations && !selectedLabel;
+
+  // Cliente escolheu um valor pra cada dimensão, mas essa combinação
+  // específica nunca foi cadastrada (ex: só "P + Azul" existe, "M + Azul"
+  // não) — diferente de "faltou escolher", não pode usar a mesma mensagem
+  // "Selecione uma Variação" (o cliente já escolheu tudo que via na tela).
+  const combinationUnavailable =
+    isMatrixMode && allDimensionsChosen && !selectedVariant;
 
   // Variação escolhida mas esgotada especificamente nessa opção.
   const variantOutOfStock = selectedVariant?.inStock === false;
 
-  const isSelectionMissing = missingSelection || variantOutOfStock;
+  const isSelectionMissing =
+    missingSelection || combinationUnavailable || variantOutOfStock;
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -187,7 +392,7 @@ export default function ProductPage() {
           {/* IMAGEM E GALERIA */}
           <div className="md:w-1/2 bg-slate-100 flex flex-col">
             <ProductImageGallery
-              images={product.images || []}
+              images={galleryImages}
               productName={product.name}
               selectedImageUrl={selectedImage}
               onSelectImage={handleImageSelect}
@@ -222,7 +427,48 @@ export default function ProductPage() {
               )}
             </div>
 
-            {hasStructuredVariants && variantGroups && (
+            {hasStructuredVariants && isMatrixMode && (
+              <div className="mt-4 space-y-4">
+                {dimensionKeys.map((key) => (
+                  <div key={key}>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">
+                      {key}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {dimensionOptions[key]
+                        .filter((value) =>
+                          isOptionAvailable(
+                            product?.variants || [],
+                            key,
+                            value,
+                            selectedAttributes
+                          )
+                        )
+                        .map((value) => {
+                          const isSelected = selectedAttributes[key] === value;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => handleDimensionSelect(key, value)}
+                              className={cn(
+                                "px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all",
+                                isSelected
+                                  ? "border-purple-600 bg-purple-50 text-purple-700"
+                                  : "border-slate-200 hover:border-slate-300 text-slate-600"
+                              )}
+                            >
+                              {value}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {hasStructuredVariants && !isMatrixMode && variantGroups && (
               <div className="mt-4 space-y-4">
                 {Object.entries(variantGroups).map(([type, options]) => (
                   <div key={type}>
@@ -273,6 +519,8 @@ export default function ProductPage() {
                     <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                     {variantOutOfStock
                       ? "Essa opção está esgotada. Escolha outra."
+                      : combinationUnavailable
+                      ? "Essa combinação não está disponível. Escolha outra opção."
                       : "Por favor, escolha uma das variações para continuar."}
                   </div>
                   {/* Little arrow down */}
@@ -297,6 +545,8 @@ export default function ProductPage() {
                 />
                 {variantOutOfStock
                   ? "Esgotado Nessa Opção"
+                  : combinationUnavailable
+                  ? "Combinação Indisponível"
                   : missingSelection
                   ? "Selecione uma Variação"
                   : "Adicionar ao Carrinho"}

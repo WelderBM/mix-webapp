@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import {
   collection,
-  deleteDoc,
   doc,
   onSnapshot,
   query,
@@ -12,45 +11,20 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { useRouter } from "next/navigation";
-import { Product, StoreSettings, StoreSection, SectionType } from "@/types";
-import { Order } from "@/types/order";
-import { BalloonConfig, BalloonTypeConfig } from "@/types/balloon";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Product, StoreSettings } from "@/types";
+import { BalloonConfig } from "@/types/balloon";
 import { Category } from "@/types/category";
-import { CategoryManager } from "@/components/admin/CategoryManager";
-import { ImageUpload } from "@/components/admin/ImageUpload";
-import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-// Order type imported from @/types/order
+import { useGlobalSettings } from "@/providers/ThemeProvider";
+import { useSearchParamsPatch } from "@/hooks/useSearchParamsPatch";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -58,44 +32,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import {
-  Plus,
-  Pencil,
-  Trash2,
   LogOut,
   Package,
   Layout,
-  ArrowUp,
-  ArrowDown,
   Save,
-  X,
-  Leaf,
-  Gift,
-  Scissors,
-  Grid2X2,
-  RectangleHorizontal,
-  MonitorPlay,
   Eye,
-  Search,
-  Filter,
-  ExternalLink,
   ShoppingBag,
-  Phone,
-  MessageCircle,
   Database,
   PartyPopper,
-  Copy,
-  Wand2,
-  Layers,
+  Scissors,
   Settings2,
-  ChevronDown,
-  ChevronRight,
-  Ruler,
-  Loader2,
   MoreHorizontal,
-  Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
 import Link from "next/link";
@@ -104,22 +54,86 @@ import {
   useSystemToolsUnlocked,
   SystemPasswordPrompt,
 } from "@/components/admin/SystemPasswordGate";
-import { ProductInfoModal } from "@/components/admin/ProductInfoModal";
-import { SafeImage } from "@/components/ui/SafeImage";
-import { ProductTypeBadge } from "@/components/ui/status-badge";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
-import { suggestHexColor, SAO_ROQUE_COLORS } from "@/lib/balloonColors";
 import { OrdersTab } from "@/components/admin/OrdersTab";
 import { AdminLogin } from "@/components/admin/AdminLogin";
 import { NaturaTab } from "@/components/admin/NaturaTab";
+import { ProductsTab } from "@/components/admin/ProductsTab";
+import { SectionsTab } from "@/components/admin/SectionsTab";
+import { BalloonsTab } from "@/components/admin/BalloonsTab";
+import { RibbonsTab } from "@/components/admin/RibbonsTab";
+import { ConfigTab } from "@/components/admin/ConfigTab";
+import { useDraftPersistence } from "@/hooks/useDraftPersistence";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+
+// Mapeia a aba interna de Estoque pro valor de `?aba=` na URL e vice-versa.
+const ABA_TO_TAB: Record<string, string> = {
+  produtos: "products",
+  vitrine: "sections",
+  baloes: "balloons",
+  fitas: "ribbons",
+  config: "config",
+};
+const TAB_TO_ABA: Record<string, string | undefined> = {
+  products: undefined, // default, omitido da URL
+  sections: "vitrine",
+  balloons: "baloes",
+  ribbons: "fitas",
+  config: "config",
+};
 
 export default function AdminPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-screen flex items-center justify-center bg-slate-100">
+          <Loader2 className="animate-spin text-purple-600 w-8 h-8" />
+        </div>
+      }
+    >
+      <AdminPageContent />
+    </Suspense>
+  );
+}
+
+function AdminPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const patchParams = useSearchParamsPatch();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [isAdminUser, setIsAdminUser] = useState(false);
-  const [viewMode, setViewMode] = useState<"orders" | "inventory">("orders"); // Defaults to orders since user emphasized it
+  // Defaults to orders since user emphasized it — `?view=estoque` abre direto em Gerenciar Estoque.
+  const [viewMode, setViewMode] = useState<"orders" | "inventory">(() =>
+    searchParams.get("view") === "estoque" ? "inventory" : "orders"
+  );
+  const [inventoryTab, setInventoryTab] = useState(
+    () => ABA_TO_TAB[searchParams.get("aba") || ""] || "products"
+  );
+
+  const handleViewModeChange = (mode: "orders" | "inventory") => {
+    setViewMode(mode);
+    patchParams({
+      view: mode === "inventory" ? "estoque" : undefined,
+      aba: undefined,
+      status: undefined,
+      pedido: undefined,
+      nome: undefined,
+      tipo: undefined,
+      categorias: undefined,
+    });
+  };
+
+  const handleInventoryTabChange = (value: string) => {
+    setInventoryTab(value);
+    patchParams({
+      aba: TAB_TO_ABA[value],
+      nome: undefined,
+      tipo: undefined,
+      categorias: undefined,
+    });
+  };
 
   const [allProducts, setAllProducts] = useState<Product[]>([]);
 
@@ -137,37 +151,40 @@ export default function AdminPage() {
     allColors: [],
   });
 
-  // Filtros
-  const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("ALL");
-  const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  // Rascunho local das abas Configurações/Balões (Addendum 4, Parte B,
+  // Fatia 2). `settings`/`balloonConfig` são sincronizados ao vivo via
+  // onSnapshot — só liga o auto-save (e só checa rascunho existente)
+  // depois que a primeira leitura real do Firestore chegar pros dois, pra
+  // não gravar/restaurar em cima dos valores padrão hardcoded acima.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [balloonsLoaded, setBalloonsLoaded] = useState(false);
+  const [configDraftEnabled, setConfigDraftEnabled] = useState(false);
+  // Memoizado pra só trocar de referência quando `settings`/`balloonConfig`
+  // de fato mudam — sem isso, qualquer re-render do admin (há muitos,
+  // vindos de estado sem relação nenhuma com essas duas abas) recriava o
+  // objeto e o hook achava que era uma edição nova.
+  const configDraftValue = useMemo(
+    () => ({ settings, balloonConfig }),
+    [settings, balloonConfig]
+  );
+  const { restoreDraft: restoreConfigDraft, clearDraft: clearConfigDraft } =
+    useDraftPersistence("admin-config", configDraftValue, {
+      enabled: configDraftEnabled,
+    });
+  const [pendingConfigDraft, setPendingConfigDraft] = useState<{
+    settings: StoreSettings;
+    balloonConfig: BalloonConfig;
+  } | null>(null);
 
-  // Modais
+  // Modal único de produto (compartilhado entre as abas Produtos e Fitas)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [productToView, setProductToView] = useState<Product | null>(null);
+  const openProductModal = (product: Product | null) => {
+    setEditingProduct(product);
+    setIsModalOpen(true);
+  };
+
   const [categories, setCategories] = useState<Category[]>([]);
-
-  // Seções
-  const [editingSection, setEditingSection] = useState<StoreSection | null>(
-    null
-  );
-  const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
-  const [sectionSearchTerm, setSectionSearchTerm] = useState("");
-  const [secTypeFilter, setSecTypeFilter] = useState("ALL");
-  const [secCatFilter, setSecCatFilter] = useState("ALL");
-  const [selectedTemplate, setSelectedTemplate] =
-    useState<SectionType>("product_shelf");
-
-  // Sub-tabs para balões
-  const [balloonTab, setBalloonTab] = useState<"edition" | "visual">("visual");
-  const [expandedTypes, setExpandedTypes] = useState<Record<string, boolean>>(
-    {}
-  );
-
-  // Sub-tabs para fitas
-  const [ribbonTab, setRibbonTab] = useState<"edition" | "visual">("visual");
-  const [ribbonSearchTerm, setRibbonSearchTerm] = useState("");
 
   // System Tools Modal
   const [isSysToolsOpen, setIsSysToolsOpen] = useState(false);
@@ -236,14 +253,14 @@ export default function AdminPage() {
         )
     );
 
-    // Buscar Configurações
-    const unsubSett = onSnapshot(doc(db, "settings", "general"), (s) => {
-      if (s.exists()) setSettings(s.data() as StoreSettings);
-    });
+    // settings/general é lido pelo ThemeProvider (aplica o tema em toda a
+    // loja) — reaproveitado via useGlobalSettings logo abaixo em vez de
+    // abrir um segundo onSnapshot redundante no mesmo documento aqui.
 
     // Buscar Configurações de Balões
     const unsubBall = onSnapshot(doc(db, "settings", "balloons"), (s) => {
       if (s.exists()) setBalloonConfig(s.data() as BalloonConfig);
+      setBalloonsLoaded(true);
     });
 
     // Buscar Categorias/Subcategorias
@@ -255,25 +272,55 @@ export default function AdminPage() {
 
     return () => {
       unsubProd();
-      unsubSett();
 
       unsubBall();
       unsubCat();
     };
   }, [currentUser]);
 
-  // Lógica de Filtros de Produtos
-  const filteredProducts = useMemo(() => {
-    return allProducts.filter((product) => {
-      const matchesSearch = product.name
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
-      const matchesType = typeFilter === "ALL" || product.type === typeFilter;
-      const matchesCategory =
-        categoryFilter === "ALL" || product.category === categoryFilter;
-      return matchesSearch && matchesType && matchesCategory;
-    });
-  }, [allProducts, searchTerm, typeFilter, categoryFilter]);
+  // Sincroniza o `settings` local a partir do contexto global (ThemeProvider
+  // já escuta settings/general pra aplicar o tema — reaproveitado aqui em
+  // vez de abrir um segundo onSnapshot redundante no mesmo documento) e
+  // marca settingsLoaded assim que a primeira leitura real chegar, pro
+  // efeito de rascunho abaixo saber quando não são mais só os valores
+  // padrão hardcoded.
+  const globalSettings = useGlobalSettings();
+  useEffect(() => {
+    if (globalSettings) {
+      setSettings(globalSettings);
+      setSettingsLoaded(true);
+    }
+  }, [globalSettings]);
+
+  // Checa rascunho de Configurações/Balões uma única vez, assim que a
+  // primeira leitura real do Firestore chegar pros dois (settingsLoaded +
+  // balloonsLoaded) — antes disso `settings`/`balloonConfig` ainda são só
+  // os valores padrão hardcoded, não faz sentido oferecer restaurar nada.
+  useEffect(() => {
+    if (!settingsLoaded || !balloonsLoaded || configDraftEnabled) return;
+    const draft = restoreConfigDraft();
+    if (draft) {
+      setPendingConfigDraft(draft);
+    } else {
+      setConfigDraftEnabled(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded, balloonsLoaded]);
+
+  const handleRestoreConfigDraft = () => {
+    if (pendingConfigDraft) {
+      setSettings(pendingConfigDraft.settings);
+      setBalloonConfig(pendingConfigDraft.balloonConfig);
+    }
+    setPendingConfigDraft(null);
+    setConfigDraftEnabled(true);
+  };
+
+  const handleDiscardConfigDraft = () => {
+    clearConfigDraft();
+    setPendingConfigDraft(null);
+    setConfigDraftEnabled(true);
+  };
 
   const uniqueCategories = useMemo(
     () =>
@@ -283,131 +330,17 @@ export default function AdminPage() {
     [allProducts]
   );
 
-  const filteredSecProducts = useMemo(() => {
-    return allProducts.filter((product) => {
-      const matchesSearch = product.name
-        .toLowerCase()
-        .includes(sectionSearchTerm.toLowerCase());
-      const matchesType =
-        secTypeFilter === "ALL" || product.type === secTypeFilter;
-      const matchesCategory =
-        secCatFilter === "ALL" || product.category === secCatFilter;
-      return matchesSearch && matchesType && matchesCategory;
-    });
-  }, [allProducts, sectionSearchTerm, secTypeFilter, secCatFilter]);
-
-  // Helpers de Seção
-  const handleSaveSection = () => {
-    if (!editingSection) return;
-    setSettings((prev: StoreSettings) => {
-      const currentSections = prev.homeSections || [];
-      const exists = currentSections.find((s) => s.id === editingSection.id);
-      const newSections = exists
-        ? currentSections.map((s) =>
-            s.id === editingSection.id ? editingSection : s
-          )
-        : [...currentSections, editingSection];
-      return { ...prev, homeSections: newSections };
-    });
-    setIsSectionModalOpen(false);
-  };
-
-  const deleteSection = (id: string) => {
-    setSettings((prev: StoreSettings) => ({
-      ...prev,
-      homeSections: (prev.homeSections || []).filter((s) => s.id !== id),
-    }));
-  };
-
-  const moveSection = (index: number, direction: "up" | "down") => {
-    const newSections = [...(settings.homeSections || [])];
-    if (direction === "up" && index > 0)
-      [newSections[index], newSections[index - 1]] = [
-        newSections[index - 1],
-        newSections[index],
-      ];
-    if (direction === "down" && index < newSections.length - 1)
-      [newSections[index], newSections[index + 1]] = [
-        newSections[index + 1],
-        newSections[index],
-      ];
-    setSettings((prev: StoreSettings) => ({
-      ...prev,
-      homeSections: newSections,
-    }));
-  };
-
   const saveAllSettings = async () => {
     try {
-      await setDoc(doc(db, "settings", "general"), settings);
-      await setDoc(doc(db, "settings", "balloons"), balloonConfig);
+      await Promise.all([
+        setDoc(doc(db, "settings", "general"), settings),
+        setDoc(doc(db, "settings", "balloons"), balloonConfig),
+      ]);
+      clearConfigDraft();
       toast.success("Salvo com sucesso!");
     } catch (e) {
       toast.error("Erro ao salvar.");
     }
-  };
-
-  // === Ações de Balões (Batch) ===
-  const handleDuplicateType = (index: number) => {
-    const source = balloonConfig.types[index];
-    const duplicated: BalloonTypeConfig = {
-      ...JSON.parse(JSON.stringify(source)),
-      id: crypto.randomUUID(),
-      name: `${source.name} (Cópia)`,
-    };
-    setBalloonConfig((prev) => ({
-      ...prev,
-      types: [...prev.types, duplicated],
-    }));
-    toast.success("Tipo duplicado!");
-  };
-
-  const handleSyncSizesToAll = (fromIndex: number) => {
-    if (
-      !confirm(
-        "Isso irá substituir os tamanhos de TODOS os outros tipos. Continuar?"
-      )
-    )
-      return;
-    const sourceSizes = balloonConfig.types[fromIndex].sizes;
-    const newTypes = balloonConfig.types.map((t) => ({
-      ...t,
-      sizes: JSON.parse(JSON.stringify(sourceSizes)),
-    }));
-    setBalloonConfig((prev) => ({ ...prev, types: newTypes }));
-    toast.success("Tamanhos sincronizados!");
-  };
-
-  const handleSyncColorsToAll = (fromIndex: number) => {
-    if (
-      !confirm(
-        "Isso irá substituir as cores de TODOS os outros tipos. Continuar?"
-      )
-    )
-      return;
-    const sourceColors = balloonConfig.types[fromIndex].colors;
-    const newTypes = balloonConfig.types.map((t) => ({
-      ...t,
-      colors: [...sourceColors],
-    }));
-    setBalloonConfig((prev) => ({ ...prev, types: newTypes }));
-    toast.success("Cores sincronizadas!");
-  };
-
-  // Helpers para adicionar/remover produtos da seção (dentro do modal)
-  const addProductToSection = (productId: string) => {
-    if (editingSection && !editingSection.productIds.includes(productId))
-      setEditingSection({
-        ...editingSection,
-        productIds: [...editingSection.productIds, productId],
-      });
-  };
-  const removeProductFromSection = (productId: string) => {
-    if (editingSection)
-      setEditingSection({
-        ...editingSection,
-        productIds: editingSection.productIds.filter((id) => id !== productId),
-      });
   };
 
   if (loadingAuth) {
@@ -447,7 +380,7 @@ export default function AdminPage() {
             >
               <Save size={18} /> Salvar Configurações
             </Button>
-            <Link href="/" target="_blank" className="flex-1 md:flex-none">
+            <Link href="/" className="flex-1 md:flex-none">
               <Button variant="outline" className="w-full">
                 <Eye size={18} className="mr-2" /> Ver Loja
               </Button>
@@ -490,7 +423,7 @@ export default function AdminPage() {
 
         <div className="flex p-1 bg-slate-200/50 border border-slate-200 rounded-lg w-fit mt-6">
           <button
-            onClick={() => setViewMode("orders")}
+            onClick={() => handleViewModeChange("orders")}
             className={cn(
               "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
               viewMode === "orders"
@@ -501,7 +434,7 @@ export default function AdminPage() {
             <ShoppingBag size={16} /> Pedidos
           </button>
           <button
-            onClick={() => setViewMode("inventory")}
+            onClick={() => handleViewModeChange("inventory")}
             className={cn(
               "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
               viewMode === "inventory"
@@ -516,7 +449,7 @@ export default function AdminPage() {
         {viewMode === "orders" ? (
           <OrdersTab />
         ) : (
-          <Tabs defaultValue="products">
+          <Tabs value={inventoryTab} onValueChange={handleInventoryTabChange}>
             <TabsList className="bg-white p-1 rounded-lg border w-full md:w-auto flex flex-wrap gap-1 md:inline-flex md:flex-nowrap h-auto">
               <TabsTrigger value="products" className="gap-2">
                 <Package size={16} /> Produtos
@@ -540,220 +473,16 @@ export default function AdminPage() {
 
             {/* === ABA CONFIGURAÇÕES === */}
             <TabsContent value="config" className="space-y-4">
-              <div className="bg-white p-6 rounded-xl shadow-sm space-y-6">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800">
-                    Configurações Gerais
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Ajuste informações gerais da loja.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label>Nome da Loja</Label>
-                    <Input
-                      value={settings.storeName}
-                      onChange={(e) =>
-                        setSettings({ ...settings, storeName: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Número do WhatsApp (Admin)</Label>
-                    <Input
-                      value={settings.whatsappNumber}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          whatsappNumber: e.target.value,
-                        })
-                      }
-                      placeholder="55999999999"
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Link do Grupo WhatsApp (Pós-Venda)</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={settings.whatsappGroupLink || ""}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            whatsappGroupLink: e.target.value,
-                          })
-                        }
-                        placeholder="https://chat.whatsapp.com/..."
-                      />
-                      <Button
-                        variant="secondary"
-                        onClick={() =>
-                          window.open(settings.whatsappGroupLink, "_blank")
-                        }
-                        disabled={!settings.whatsappGroupLink}
-                      >
-                        Testar
-                      </Button>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      Este link será exibido no modal de agradecimento após a
-                      compra.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-800">
-                    Categorias e Subcategorias
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Gerencie a taxonomia usada no wizard de produtos, sem
-                    precisar abrir a criação de um produto pra chegar lá.
-                  </p>
-                </div>
-                <CategoryManager categories={categories} />
-              </div>
+              <ConfigTab settings={settings} setSettings={setSettings} />
             </TabsContent>
 
             {/* === ABA PRODUTOS === */}
             <TabsContent value="products">
-              <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
-                {/* BARRA DE FERRAMENTAS */}
-                <div className="flex flex-col xl:flex-row justify-between gap-4 items-start xl:items-center">
-                  <div className="flex flex-col md:flex-row gap-2 w-full xl:w-auto flex-1 flex-wrap">
-                    <div className="relative grow md:grow-0 md:w-[300px]">
-                      <Search
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                        size={18}
-                      />
-                      <Input
-                        placeholder="Buscar por nome..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                    <div className="w-full md:w-[180px]">
-                      <Select value={typeFilter} onValueChange={setTypeFilter}>
-                        <SelectTrigger>
-                          <div className="flex items-center gap-2">
-                            <Filter size={14} className="text-slate-400" />{" "}
-                            <SelectValue placeholder="Tipo" />
-                          </div>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ALL">Todos os Tipos</SelectItem>
-                          <SelectItem value="BASE_CONTAINER">
-                            Base/Cesta
-                          </SelectItem>
-                          <SelectItem value="STANDARD_ITEM">
-                            Recheio/Item
-                          </SelectItem>
-                          <SelectItem value="WRAPPER">
-                            Saco/Embalagem
-                          </SelectItem>
-                          <SelectItem value="FILLER">Preenchimento</SelectItem>
-                          <SelectItem value="ACCESSORY">Acessório</SelectItem>
-                          <SelectItem value="RIBBON">Laço</SelectItem>
-                          <SelectItem value="ASSEMBLED_KIT">
-                            Kit Montado
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => {
-                      setEditingProduct(null);
-                      setIsModalOpen(true);
-                    }}
-                    className="bg-purple-600 w-full md:w-auto"
-                  >
-                    <Plus size={16} className="mr-2" /> Novo Produto
-                  </Button>
-                </div>
-
-                <div className="border rounded-lg overflow-hidden overflow-x-auto">
-                  <Table>
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="w-[60px]">Img</TableHead>
-                        <TableHead>Nome</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead className="hidden md:table-cell">
-                          Categ.
-                        </TableHead>
-                        <TableHead>Preço</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredProducts.map((product) => (
-                        <TableRow
-                          key={product.id}
-                          onClick={() => setProductToView(product)}
-                          className="cursor-pointer hover:bg-slate-50"
-                        >
-                          <TableCell>
-                            <div className="w-8 h-8 bg-slate-100 rounded overflow-hidden relative border">
-                              {product.imageUrl ? (
-                                <SafeImage
-                                  src={product.imageUrl}
-                                  alt={product.name}
-                                  name={product.name}
-                                  fill
-                                  className="object-cover"
-                                />
-                              ) : (
-                                <Package
-                                  className="m-auto text-slate-300"
-                                  size={14}
-                                />
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell
-                            className="font-medium max-w-[150px] truncate"
-                            title={product.name}
-                          >
-                            {product.name}
-                          </TableCell>
-                          <TableCell>
-                            <ProductTypeBadge type={product.type} />
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            <Badge variant="secondary" className="text-[10px]">
-                              {product.category || "-"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            R$ {product.price.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-right whitespace-nowrap">
-                            <ChevronRight
-                              size={16}
-                              className="text-slate-300 ml-auto"
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {filteredProducts.length === 0 && (
-                        <TableRow>
-                          <TableCell
-                            colSpan={6}
-                            className="text-center py-12 text-slate-500"
-                          >
-                            Nenhum produto encontrado.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
+              <ProductsTab
+                allProducts={allProducts}
+                categories={categories}
+                onEditProduct={openProductModal}
+              />
             </TabsContent>
 
             {/* === ABA NATURA === */}
@@ -763,1482 +492,29 @@ export default function AdminPage() {
 
             {/* === ABA VITRINE === */}
             <TabsContent value="sections" className="space-y-4">
-              <div className="bg-white p-6 rounded-xl shadow-sm">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-800">
-                      Organização da Home
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                      Adicione vitrines ou banners.
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => {
-                      setEditingSection({
-                        id: crypto.randomUUID(),
-                        title: "Nova Seção",
-                        type: "product_shelf",
-                        width: "full",
-                        productIds: [],
-                        isActive: true,
-                      });
-                      setSelectedTemplate("product_shelf");
-                      setIsSectionModalOpen(true);
-                    }}
-                  >
-                    <Plus size={16} className="mr-2" /> Nova Seção
-                  </Button>
-                </div>
-                <div className="space-y-3">
-                  {settings.homeSections?.map((section, index) => (
-                    <div
-                      key={section.id}
-                      className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-slate-50 border rounded-lg group"
-                    >
-                      <div className="flex items-center gap-4 w-full sm:w-auto">
-                        <div className="flex gap-1 text-slate-400">
-                          <button
-                            onClick={() => moveSection(index, "up")}
-                            disabled={index === 0}
-                            className="hover:text-blue-600 disabled:opacity-30 p-1"
-                          >
-                            <ArrowUp size={16} />
-                          </button>
-                          <button
-                            onClick={() => moveSection(index, "down")}
-                            disabled={
-                              index === (settings.homeSections?.length || 0) - 1
-                            }
-                            className="hover:text-blue-600 disabled:opacity-30 p-1"
-                          >
-                            <ArrowDown size={16} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="flex-1 w-full sm:w-auto">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-bold text-slate-800 break-words line-clamp-1">
-                            {section.title}
-                          </h3>
-                          {!section.isActive && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs shrink-0"
-                            >
-                              Inativo
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-500">{section.type}</p>
-                      </div>
-
-                      <div className="flex items-center justify-end w-full sm:w-auto gap-2 border-t sm:border-t-0 pt-2 sm:pt-0 mt-2 sm:mt-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          title="Alternar Visibilidade"
-                          onClick={() => {
-                            const updated = {
-                              ...section,
-                              isActive: !section.isActive,
-                            };
-                            const newSections = settings.homeSections!.map(
-                              (s) => (s.id === section.id ? updated : s)
-                            );
-                            setSettings({
-                              ...settings,
-                              homeSections: newSections,
-                            });
-                          }}
-                          className={cn(
-                            "hover:bg-slate-100",
-                            !section.isActive && "text-slate-400"
-                          )}
-                        >
-                          {section.isActive ? (
-                            <Eye size={16} />
-                          ) : (
-                            <Eye className="text-slate-300" size={16} />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditingSection(section);
-                            setSelectedTemplate(section.type);
-                            setIsSectionModalOpen(true);
-                          }}
-                          className="text-blue-500 hover:bg-blue-50"
-                        >
-                          <Pencil size={16} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteSection(section.id)}
-                          className="text-red-400 hover:bg-red-50"
-                        >
-                          <Trash2 size={16} />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <SectionsTab
+                settings={settings}
+                setSettings={setSettings}
+                allProducts={allProducts}
+                uniqueCategories={uniqueCategories}
+              />
             </TabsContent>
 
             <TabsContent value="balloons" className="space-y-4">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                  <div>
-                    <h2 className="text-2xl font-black text-slate-800">
-                      Balões
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                      Controle do catálogo e precificação
-                    </p>
-                  </div>
-
-                  <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto">
-                    <button
-                      onClick={() => setBalloonTab("visual")}
-                      className={cn(
-                        "flex-1 md:px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
-                        balloonTab === "visual"
-                          ? "bg-white text-purple-600 shadow-sm"
-                          : "text-slate-500 hover:text-slate-700"
-                      )}
-                    >
-                      <Eye size={16} /> Visualização
-                    </button>
-                    <button
-                      onClick={() => setBalloonTab("edition")}
-                      className={cn(
-                        "flex-1 md:px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
-                        balloonTab === "edition"
-                          ? "bg-white text-purple-600 shadow-sm"
-                          : "text-slate-500 hover:text-slate-700"
-                      )}
-                    >
-                      <Settings2 size={16} /> Edição
-                    </button>
-                  </div>
-                </div>
-
-                {balloonTab === "edition" ? (
-                  <div className="space-y-6 animate-in fade-in duration-300">
-                    {/* Placeholder Global - Moved from SuperAdmin */}
-                    <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100 flex flex-col md:flex-row items-center gap-6 shadow-sm">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2 text-purple-700">
-                          <ImageIcon size={20} />
-                          <h3 className="font-bold uppercase tracking-tight">Fundo Global da Vitrine</h3>
-                        </div>
-                        <p className="text-sm text-slate-500">
-                          Esta imagem aparecerá em todos os balões que não possuem imagem própria. 
-                          Deixe em branco para usar o confete padrão.
-                        </p>
-                      </div>
-                      
-                      <div className="shrink-0 bg-white p-3 rounded-xl border border-purple-200">
-                        <ImageUploadModal 
-                          value={balloonConfig.placeholderUrl || ""}
-                          onChange={(url) => {
-                            setBalloonConfig({
-                              ...balloonConfig,
-                              placeholderUrl: url
-                            });
-                          }}
-                          folder="balloons/placeholders"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end gap-3 pt-6 border-t">
-                      <Button
-                        onClick={() => {
-                          const newType: BalloonTypeConfig = {
-                            id: crypto.randomUUID(),
-                            name: "Novo Tipo",
-                            sizes: [],
-                            colors: [],
-                          };
-                          setBalloonConfig((prev) => ({
-                            ...prev,
-                            types: [...prev.types, newType],
-                          }));
-                        }}
-                        className="bg-purple-600 hover:bg-purple-700 shadow-md active:scale-95 transition-all"
-                      >
-                        <Plus size={16} className="mr-2" /> Novo Tipo de Balão
-                      </Button>
-                    </div>
-
-                    <Accordion type="single" collapsible className="space-y-4">
-                      {balloonConfig.types.map((type, typeIndex) => (
-                        <AccordionItem 
-                          value={type.id} 
-                          key={type.id} 
-                          className="border rounded-xl bg-white border-slate-200 overflow-hidden shadow-sm"
-                        >
-                          <AccordionTrigger className="px-5 hover:no-underline hover:bg-slate-50 transition-colors">
-                            <div className="flex items-center gap-4 w-full text-left">
-                              {/* Small Preview in Header */}
-                              <div className="w-10 h-10 rounded-lg border-2 border-slate-100 bg-slate-50 overflow-hidden flex items-center justify-center shrink-0">
-                                {type.imageUrl ? (
-                                  <img 
-                                    src={type.imageUrl} 
-                                    alt="Preview" 
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <PartyPopper size={16} className="text-slate-300" />
-                                )}
-                              </div>
-                              
-                              <div className="flex-1 min-w-0">
-                                <h3 className="font-bold text-slate-800 truncate uppercase tracking-tight">
-                                  {type.name || "Tipo sem nome"}
-                                </h3>
-                                <div className="flex items-center gap-3 mt-0.5">
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded">
-                                    {type.sizes.length} tamanhos
-                                  </span>
-                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded">
-                                    {type.colors.length} cores
-                                  </span>
-                                  {type.active === false && (
-                                    <Badge variant="outline" className="text-[9px] h-4 bg-red-50 text-red-600 border-red-200 uppercase font-black">
-                                      Inativo
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </AccordionTrigger>
-
-                          <AccordionContent className="px-5 pb-6 pt-2 space-y-8 animate-in slide-in-from-top-2 duration-300">
-                            {/* Basic Info & Actions Area */}
-                            <div className="flex flex-col md:flex-row gap-6 items-start justify-between bg-slate-50/50 p-4 rounded-xl border border-slate-100">
-                              <div className="flex-[2] w-full space-y-4">
-                                <div>
-                                  <Label className="font-black text-[10px] text-slate-500 uppercase tracking-widest mb-1.5 block">
-                                    Configurador do Tipo
-                                  </Label>
-                                  <div className="flex gap-3">
-                                    <Input
-                                      value={type.name}
-                                      placeholder="Ex: Látex Prime"
-                                      onChange={(e) => {
-                                        const newTypes = [...balloonConfig.types];
-                                        newTypes[typeIndex].name = e.target.value;
-                                        setBalloonConfig({
-                                          ...balloonConfig,
-                                          types: newTypes,
-                                        });
-                                      }}
-                                      className="bg-white border-slate-200 h-10 font-bold text-slate-800"
-                                    />
-                                    
-                                    <div className="flex items-center gap-2 bg-white px-3 border border-slate-200 rounded-md shrink-0 h-10 shadow-sm">
-                                      <input
-                                        type="checkbox"
-                                        id={`active-${type.id}`}
-                                        className="w-4 h-4 accent-purple-600 cursor-pointer"
-                                        checked={type.active !== false}
-                                        onChange={(e) => {
-                                          const newTypes = [...balloonConfig.types];
-                                          newTypes[typeIndex].active = e.target.checked;
-                                          setBalloonConfig({
-                                            ...balloonConfig,
-                                            types: newTypes,
-                                          });
-                                        }}
-                                      />
-                                      <Label
-                                        htmlFor={`active-${type.id}`}
-                                        className="text-xs font-black uppercase text-slate-600 cursor-pointer select-none"
-                                      >
-                                        Ativo
-                                      </Label>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="pt-2">
-                                  <Label className="font-black text-[10px] text-slate-500 uppercase tracking-widest mb-1.5 block text-left">
-                                    Imagem Ilustrativa
-                                  </Label>
-                                  <ImageUploadModal 
-                                    value={type.imageUrl || ""}
-                                    onChange={(url) => {
-                                      const newTypes = [...balloonConfig.types];
-                                      newTypes[typeIndex].imageUrl = url;
-                                      setBalloonConfig({
-                                        ...balloonConfig,
-                                        types: newTypes,
-                                      });
-                                    }}
-                                    folder="balloons/types"
-                                    className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm max-w-sm"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="flex gap-2 shrink-0 self-start pt-6">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  title="Duplicar este tipo"
-                                  onClick={() => handleDuplicateType(typeIndex)}
-                                  className="h-9 px-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-100"
-                                >
-                                  <Copy size={16} className="mr-2" />
-                                  Duplicar
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (confirm("Remover este tipo de balão?")) {
-                                      const newTypes = balloonConfig.types.filter(
-                                        (t) => t.id !== type.id
-                                      );
-                                      setBalloonConfig({
-                                        ...balloonConfig,
-                                        types: newTypes,
-                                      });
-                                    }
-                                  }}
-                                  className="h-9 px-3 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-100"
-                                >
-                                  <Trash2 size={16} className="mr-2" />
-                                  Remover
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* Rest of the content (Sizes, Colors) - keep existing logic but inside AccordionContent */}
-
-                          <div className="space-y-4">
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                                <Label className="font-bold text-slate-700 whitespace-nowrap">
-                                  Tamanhos e Preços
-                                </Label>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  title="Aplicar estes tamanhos a todos os outros modelos"
-                                  className="h-7 px-2 text-[10px] text-purple-600 hover:text-purple-700 hover:bg-purple-50 font-bold shrink-0"
-                                  onClick={() =>
-                                    handleSyncSizesToAll(typeIndex)
-                                  }
-                                >
-                                  <Layers size={12} className="mr-1" /> Replicar
-                                  p/ Todos
-                                </Button>
-                              </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-full sm:w-auto border-purple-200 text-purple-600 font-bold shrink-0"
-                                onClick={() => {
-                                  const newTypes = [...balloonConfig.types];
-                                  newTypes[typeIndex].sizes.push({
-                                    size: "",
-                                    price: 0,
-                                    unitsPerPackage: 0,
-                                  });
-                                  setBalloonConfig({
-                                    ...balloonConfig,
-                                    types: newTypes,
-                                  });
-                                }}
-                              >
-                                <Plus size={14} className="mr-1" /> Add Tamanho
-                              </Button>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                              {type.sizes.map((size, sizeIndex) => (
-                                <div
-                                  key={sizeIndex}
-                                  className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3 relative group"
-                                >
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <Label className="text-[10px] uppercase font-black text-slate-400">
-                                        Tamanho
-                                      </Label>
-                                      <Input
-                                        value={size.size}
-                                        placeholder="ex: 5"
-                                        onChange={(e) => {
-                                          const newTypes = [
-                                            ...balloonConfig.types,
-                                          ];
-                                          newTypes[typeIndex].sizes[
-                                            sizeIndex
-                                          ].size = e.target.value;
-                                          setBalloonConfig({
-                                            ...balloonConfig,
-                                            types: newTypes,
-                                          });
-                                        }}
-                                        className="h-9 text-sm font-bold"
-                                      />
-                                    </div>
-                                    <div>
-                                      <Label className="text-[10px] uppercase font-black text-slate-400">
-                                        Preço (pacote)
-                                      </Label>
-                                      <Input
-                                        type="number"
-                                        value={size.price}
-                                        onChange={(e) => {
-                                          const newTypes = [
-                                            ...balloonConfig.types,
-                                          ];
-                                          newTypes[typeIndex].sizes[
-                                            sizeIndex
-                                          ].price = parseFloat(e.target.value);
-                                          setBalloonConfig({
-                                            ...balloonConfig,
-                                            types: newTypes,
-                                          });
-                                        }}
-                                        className="h-9 text-sm font-bold"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div>
-                                    <Label className="text-[10px] uppercase font-black text-slate-400">
-                                      Unid/Pacote
-                                    </Label>
-                                    <Input
-                                      type="number"
-                                      value={size.unitsPerPackage}
-                                      onChange={(e) => {
-                                        const newTypes = [
-                                          ...balloonConfig.types,
-                                        ];
-                                        newTypes[typeIndex].sizes[
-                                          sizeIndex
-                                        ].unitsPerPackage = parseInt(
-                                          e.target.value
-                                        );
-                                        setBalloonConfig({
-                                          ...balloonConfig,
-                                          types: newTypes,
-                                        });
-                                      }}
-                                      className="h-9 text-sm font-bold"
-                                    />
-                                  </div>
-                                  <button
-                                    onClick={() => {
-                                      const newTypes = [...balloonConfig.types];
-                                      newTypes[typeIndex].sizes.splice(
-                                        sizeIndex,
-                                        1
-                                      );
-                                      setBalloonConfig({
-                                        ...balloonConfig,
-                                        types: newTypes,
-                                      });
-                                    }}
-                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
-                                    <X size={12} />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between">
-                              <Label className="font-bold text-slate-700">
-                                Cores Disponíveis
-                              </Label>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                title="Aplicar esta lista de cores a todos os outros modelos"
-                                className="h-7 px-2 text-[10px] text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold"
-                                onClick={() => handleSyncColorsToAll(typeIndex)}
-                              >
-                                <Wand2 size={12} className="mr-1" /> Replicar p/
-                                Todos
-                              </Button>
-                            </div>
-
-                            <p className="text-xs text-slate-500 mb-2">
-                              Digite o nome da cor e Add. O sistema sugere o Hex
-                              aproximado da São Roque.
-                            </p>
-
-                            <div className="flex gap-2">
-                              <div className="relative flex-1">
-                                <Input
-                                  id={`new-color-input-${typeIndex}`}
-                                  list={`color-suggestions-${typeIndex}`}
-                                  placeholder="Nome da cor (ex: Azul Baby)"
-                                  className="bg-white border-slate-200"
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      e.preventDefault();
-                                      const val = e.currentTarget.value.trim();
-                                      if (val) {
-                                        const suggestedHex =
-                                          suggestHexColor(val) || "#CCCCCC";
-                                        const combo = `${val}|${suggestedHex}`;
-                                        const newTypes = [
-                                          ...balloonConfig.types,
-                                        ];
-                                        // Avoid duplicates
-                                        if (
-                                          !newTypes[typeIndex].colors.some(
-                                            (c) =>
-                                              c.split("|")[0].toLowerCase() ===
-                                              val.toLowerCase()
-                                          )
-                                        ) {
-                                          newTypes[typeIndex].colors.push(
-                                            combo
-                                          );
-                                          setBalloonConfig({
-                                            ...balloonConfig,
-                                            types: newTypes,
-                                          });
-                                          e.currentTarget.value = "";
-                                        }
-                                      }
-                                    }
-                                  }}
-                                />
-                                <datalist id={`color-suggestions-${typeIndex}`}>
-                                  {Object.keys(SAO_ROQUE_COLORS).map(
-                                    (colorName) => (
-                                      <option
-                                        key={colorName}
-                                        value={colorName}
-                                      />
-                                    )
-                                  )}
-                                </datalist>
-                                <Button
-                                  size="sm"
-                                  className="absolute right-1 top-1 h-7 bg-purple-600 hover:bg-purple-700 text-xs"
-                                  onClick={() => {
-                                    const input = document.getElementById(
-                                      `new-color-input-${typeIndex}`
-                                    ) as HTMLInputElement;
-                                    if (input && input.value.trim()) {
-                                      const val = input.value.trim();
-                                      const suggestedHex =
-                                        suggestHexColor(val) || "#CCCCCC";
-                                      const combo = `${val}|${suggestedHex}`;
-                                      const newTypes = [...balloonConfig.types];
-                                      if (
-                                        !newTypes[typeIndex].colors.some(
-                                          (c) =>
-                                            c.split("|")[0].toLowerCase() ===
-                                            val.toLowerCase()
-                                        )
-                                      ) {
-                                        newTypes[typeIndex].colors.push(combo);
-                                        setBalloonConfig({
-                                          ...balloonConfig,
-                                          types: newTypes,
-                                        });
-                                        input.value = "";
-                                      }
-                                    }
-                                  }}
-                                >
-                                  <Plus size={14} />
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-wrap gap-2 mt-3">
-                              {type.colors.map((c, idx) => {
-                                // Retro-compatibility handling
-                                const [name, hex] = c.includes("|")
-                                  ? c.split("|")
-                                  : [c, suggestHexColor(c) || "#eee"];
-
-                                return (
-                                  <div
-                                    key={idx}
-                                    className="flex items-center gap-2 bg-white border border-slate-200 rounded-full pl-1 pr-2 py-1 shadow-sm"
-                                  >
-                                    <div
-                                      className="w-4 h-4 rounded-full border border-slate-300 shadow-inner"
-                                      style={{ backgroundColor: hex }}
-                                      title={hex}
-                                    />
-                                    <span className="text-xs font-bold text-slate-700">
-                                      {name}
-                                    </span>
-                                    <button
-                                      onClick={() => {
-                                        const newTypes = [
-                                          ...balloonConfig.types,
-                                        ];
-                                        newTypes[typeIndex].colors = newTypes[
-                                          typeIndex
-                                        ].colors.filter((_, i) => i !== idx);
-                                        setBalloonConfig({
-                                          ...balloonConfig,
-                                          types: newTypes,
-                                        });
-                                      }}
-                                      className="text-slate-400 hover:text-red-500 ml-1"
-                                    >
-                                      <X size={12} />
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      ))}
-                    </Accordion>
-                  </div>
-                ) : (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {balloonConfig.types.map((type) => {
-                        const isExpanded = expandedTypes[type.id];
-                        return (
-                          <div
-                            key={type.id}
-                            className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden transition-all hover:border-purple-200"
-                          >
-                            <div
-                              className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
-                              onClick={() =>
-                                setExpandedTypes((prev) => ({
-                                  ...prev,
-                                  [type.id]: !isExpanded,
-                                }))
-                              }
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-black overflow-hidden border border-purple-200 shrink-0">
-                                  {type.imageUrl ? (
-                                    <img
-                                      src={type.imageUrl}
-                                      alt={type.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  ) : (
-                                    type.name.charAt(0)
-                                  )}
-                                </div>
-                                <div className="min-w-0">
-                                  <h3 className="font-bold text-slate-800 truncate">
-                                    {type.name}
-                                  </h3>
-                                  <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">
-                                    {type.sizes.length} Tamanhos ·{" "}
-                                    {type.colors.length} Cores
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (confirm("Excluir modelo?")) {
-                                      setBalloonConfig((prev) => ({
-                                        ...prev,
-                                        types: prev.types.filter(
-                                          (t) => t.id !== type.id
-                                        ),
-                                      }));
-                                    }
-                                  }}
-                                  className="text-slate-400 hover:text-red-500"
-                                >
-                                  <Trash2 size={16} />
-                                </Button>
-                                <div
-                                  className={cn(
-                                    "text-slate-400 transition-transform",
-                                    isExpanded ? "rotate-180" : ""
-                                  )}
-                                >
-                                  <ChevronDown size={20} />
-                                </div>
-                              </div>
-                            </div>
-
-                            {isExpanded && (
-                              <div className="p-4 bg-white border-t border-slate-200 space-y-4 animate-in slide-in-from-top-2 duration-200">
-                                <div className="space-y-2">
-                                  <Label className="text-[10px] uppercase font-black text-slate-400 tracking-wider">
-                                    Tamanhos Disponíveis
-                                  </Label>
-                                  <div className="flex flex-wrap gap-2">
-                                    {type.sizes.map((s, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-lg flex items-center gap-3"
-                                      >
-                                        <span className="font-black text-slate-700">
-                                          {s.size}"
-                                        </span>
-                                        <span className="text-purple-600 font-bold text-xs">
-                                          {formatCurrency(s.price)}
-                                        </span>
-                                        <span className="text-[10px] text-slate-400">
-                                          {s.unitsPerPackage} un
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label className="text-[10px] uppercase font-black text-slate-400 tracking-wider">
-                                    Cores
-                                  </Label>
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {type.colors.map((c, idx) => (
-                                      <span
-                                        key={idx}
-                                        className="bg-purple-50 text-purple-700 text-[10px] font-bold px-2 py-0.5 rounded-md border border-purple-100"
-                                      >
-                                        {c}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {balloonConfig.types.length === 0 && (
-                  <div className="text-center py-12 border-2 border-dashed rounded-xl text-slate-400">
-                    Nenhum tipo de balão configurado.
-                  </div>
-                )}
-              </div>
+              <BalloonsTab
+                balloonConfig={balloonConfig}
+                setBalloonConfig={setBalloonConfig}
+              />
             </TabsContent>
 
             {/* === ABA FITAS === */}
             <TabsContent value="ribbons">
-              <div className="bg-white p-6 rounded-xl shadow-sm space-y-6">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-800">
-                      Gerenciamento de Fitas
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                      Controle de estoque de rolos e fitas por metro
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
-                    <Button
-                      variant={ribbonTab === "visual" ? "secondary" : "ghost"}
-                      size="sm"
-                      onClick={() => setRibbonTab("visual")}
-                      className={cn(
-                        "rounded-lg px-4 font-bold h-9",
-                        ribbonTab === "visual"
-                          ? "shadow-sm bg-white"
-                          : "text-slate-500"
-                      )}
-                    >
-                      <Grid2X2 size={14} className="mr-2" /> Visualização
-                    </Button>
-                    <Button
-                      variant={ribbonTab === "edition" ? "secondary" : "ghost"}
-                      size="sm"
-                      onClick={() => setRibbonTab("edition")}
-                      className={cn(
-                        "rounded-lg px-4 font-bold h-9",
-                        ribbonTab === "edition"
-                          ? "shadow-sm bg-white"
-                          : "text-slate-500"
-                      )}
-                    >
-                      <Settings2 size={14} className="mr-2" /> Edição
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex flex-col md:flex-row gap-4 items-center">
-                  <div className="relative flex-1">
-                    <Search
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                      size={16}
-                    />
-                    <Input
-                      placeholder="Buscar fita por nome..."
-                      value={ribbonSearchTerm}
-                      onChange={(e) => setRibbonSearchTerm(e.target.value)}
-                      className="pl-9 bg-slate-50 border-slate-200"
-                    />
-                  </div>
-                  <Button
-                    onClick={() => {
-                      setEditingProduct({
-                        id: "",
-                        name: "",
-                        price: 0,
-                        category: "Fitas",
-                        type: "RIBBON",
-                        imageUrl: "",
-                        inStock: true,
-                        unit: "m",
-                        rollPrice: 0,
-                        ribbonInventory: {
-                          status: "FECHADO",
-                          remainingMeters: 10,
-                          totalRollMeters: 10,
-                        },
-                        isAvailableForCustomBow: true,
-                      } as any);
-                      setIsModalOpen(true);
-                    }}
-                    className="bg-primary hover:bg-primary/90 text-white font-bold gap-2"
-                  >
-                    <Plus size={18} /> Nova Fita
-                  </Button>
-                </div>
-
-                {ribbonTab === "visual" ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* COLUNA: ROLOS FECHADOS */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between border-b pb-2">
-                        <h3 className="font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wider text-xs">
-                          <Package size={14} className="text-blue-500" /> Rolos
-                          Fechados
-                        </h3>
-                        <Badge variant="outline" className="bg-blue-50">
-                          {
-                            allProducts.filter(
-                              (p) =>
-                                p.type === "RIBBON" &&
-                                p.ribbonInventory?.status === "FECHADO"
-                            ).length
-                          }
-                        </Badge>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-3">
-                        {allProducts
-                          .filter(
-                            (p) =>
-                              p.type === "RIBBON" &&
-                              p.ribbonInventory?.status === "FECHADO" &&
-                              p.name
-                                .toLowerCase()
-                                .includes(ribbonSearchTerm.toLowerCase())
-                          )
-                          .map((fita) => (
-                            <div
-                              key={fita.id}
-                              className="bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-sm"
-                            >
-                              <div className="flex items-center justify-between flex-wrap gap-y-2 group hover:border-primary/30 transition-all">
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <div className="w-12 h-12 rounded-lg bg-white border overflow-hidden relative shadow-sm shrink-0">
-                                    <SafeImage
-                                      src={fita.imageUrl}
-                                      alt={fita.name}
-                                      name={fita.name}
-                                      fill
-                                      className="object-cover"
-                                    />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <h4 className="font-bold text-slate-800 text-sm leading-tight truncate">
-                                      {fita.name}
-                                    </h4>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                                        {formatCurrency(fita.rollPrice || 0)}
-                                      </span>
-                                      <span className="text-[10px] text-slate-400 font-bold">
-                                        {fita.ribbonInventory?.totalRollMeters}m
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={async () => {
-                                      const updated = {
-                                        ...fita,
-                                        ribbonInventory: {
-                                          ...fita.ribbonInventory,
-                                          status: "ABERTO",
-                                          remainingMeters:
-                                            fita.ribbonInventory
-                                              ?.totalRollMeters || 0,
-                                        },
-                                      };
-                                      await setDoc(
-                                        doc(db, "products", fita.id),
-                                        updated
-                                      );
-                                      toast.success("Rolo aberto para venda!");
-                                    }}
-                                    className="h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-white hover:bg-blue-50 text-blue-600 border-blue-200 rounded-full"
-                                  >
-                                    Abrir Rolo
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => {
-                                      setEditingProduct(fita);
-                                      setIsModalOpen(true);
-                                    }}
-                                    className="h-8 w-8 text-slate-400 hover:text-primary"
-                                  >
-                                    <Pencil size={14} />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() =>
-                                      setExpandedTypes((prev) => ({
-                                        ...prev,
-                                        [fita.id]: !prev[fita.id],
-                                      }))
-                                    }
-                                    className={cn(
-                                      "h-8 w-8 transition-transform",
-                                      expandedTypes[fita.id] && "rotate-180"
-                                    )}
-                                  >
-                                    <ChevronDown size={14} />
-                                  </Button>
-                                </div>
-                              </div>
-
-                              {/* Área Retrátil de Informação */}
-                              {expandedTypes[fita.id] && (
-                                <div className="mt-3 pt-3 border-t border-slate-200/50 animate-in slide-in-from-top-2 duration-300">
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                                        Função Técnica (Tipo)
-                                      </span>
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] bg-blue-50 text-blue-700 border-blue-100 italic"
-                                      >
-                                        RIBBON
-                                      </Badge>
-                                      <p className="text-[9px] text-slate-500 mt-1 leading-tight font-medium">
-                                        Controle de metragem habilitado.
-                                      </p>
-                                    </div>
-                                    <div className="bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                                        Organização (Categoria)
-                                      </span>
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] bg-purple-50 text-purple-700 border-purple-100 font-bold"
-                                      >
-                                        {fita.category}
-                                      </Badge>
-                                      <p className="text-[9px] text-slate-500 mt-1 leading-tight font-medium">
-                                        Localização na vitrine do cliente.
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-
-                    {/* COLUNA: POR METRO (ABERTOS) */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between border-b pb-2">
-                        <h3 className="font-bold text-slate-700 flex items-center gap-2 uppercase tracking-wider text-xs">
-                          <Scissors size={14} className="text-purple-500" />{" "}
-                          Fitas Abertas (Metro)
-                        </h3>
-                        <Badge variant="outline" className="bg-purple-50">
-                          {
-                            allProducts.filter(
-                              (p) =>
-                                p.type === "RIBBON" &&
-                                p.ribbonInventory?.status === "ABERTO"
-                            ).length
-                          }
-                        </Badge>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-3">
-                        {allProducts
-                          .filter(
-                            (p) =>
-                              p.type === "RIBBON" &&
-                              p.ribbonInventory?.status === "ABERTO" &&
-                              p.name
-                                .toLowerCase()
-                                .includes(ribbonSearchTerm.toLowerCase())
-                          )
-                          .map((fita) => (
-                            <div
-                              key={fita.id}
-                              className="bg-white p-3 rounded-xl border border-purple-100 shadow-sm transition-all hover:border-purple-300"
-                            >
-                              <div className="flex items-center justify-between flex-wrap gap-y-2">
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <div className="w-12 h-12 rounded-lg bg-slate-50 border overflow-hidden relative shrink-0">
-                                    <SafeImage
-                                      src={fita.imageUrl}
-                                      alt={fita.name}
-                                      name={fita.name}
-                                      fill
-                                      className="object-cover"
-                                    />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <h4 className="font-bold text-slate-800 text-sm leading-tight truncate">
-                                      {fita.name}
-                                    </h4>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <span className="text-[10px] font-black text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 uppercase tracking-widest">
-                                        {formatCurrency(fita.price)}/m
-                                      </span>
-                                      <div className="flex items-center gap-1.5 ml-2">
-                                        <Ruler
-                                          size={10}
-                                          className="text-slate-400"
-                                        />
-                                        <span className="text-[10px] font-bold text-slate-600">
-                                          {
-                                            fita.ribbonInventory
-                                              ?.remainingMeters
-                                          }
-                                          m /{" "}
-                                          {
-                                            fita.ribbonInventory
-                                              ?.totalRollMeters
-                                          }
-                                          m
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={async () => {
-                                      const updated = {
-                                        ...fita,
-                                        ribbonInventory: {
-                                          ...fita.ribbonInventory,
-                                          status: "FECHADO",
-                                        },
-                                      };
-                                      await setDoc(
-                                        doc(db, "products", fita.id),
-                                        updated
-                                      );
-                                      toast.success(
-                                        "Fita movida para rolos fechados"
-                                      );
-                                    }}
-                                    className="h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-slate-50 hover:bg-slate-100 text-slate-500 border-slate-200 rounded-full"
-                                  >
-                                    Fechar Manual
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => {
-                                      setEditingProduct(fita);
-                                      setIsModalOpen(true);
-                                    }}
-                                    className="h-8 w-8 text-slate-400 hover:text-primary"
-                                  >
-                                    <Pencil size={14} />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() =>
-                                      setExpandedTypes((prev) => ({
-                                        ...prev,
-                                        [fita.id]: !prev[fita.id],
-                                      }))
-                                    }
-                                    className={cn(
-                                      "h-8 w-8 transition-transform",
-                                      expandedTypes[fita.id] && "rotate-180"
-                                    )}
-                                  >
-                                    <ChevronDown size={14} />
-                                  </Button>
-                                </div>
-                              </div>
-
-                              {/* Área Retrátil de Informação */}
-                              {expandedTypes[fita.id] && (
-                                <div className="mt-3 pt-3 border-t border-slate-200/50 animate-in slide-in-from-top-2 duration-300">
-                                  <div className="grid grid-cols-2 gap-4">
-                                    <div className="bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                                        Função Técnica (Tipo)
-                                      </span>
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] bg-blue-50 text-blue-700 border-blue-100 italic"
-                                      >
-                                        RIBBON
-                                      </Badge>
-                                      <p className="text-[9px] text-slate-500 mt-1 leading-tight font-medium">
-                                        Controle de metragem habilitado.
-                                      </p>
-                                    </div>
-                                    <div className="bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                                        Organização (Categoria)
-                                      </span>
-                                      <Badge
-                                        variant="outline"
-                                        className="text-[10px] bg-purple-50 text-purple-700 border-purple-100 font-bold"
-                                      >
-                                        {fita.category}
-                                      </Badge>
-                                      <p className="text-[9px] text-slate-500 mt-1 leading-tight font-medium">
-                                        Localização na vitrine do cliente.
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="border rounded-xl overflow-hidden shadow-sm">
-                    <Table>
-                      <TableHeader className="bg-slate-50 uppercase tracking-widest text-[10px] font-black">
-                        <TableRow>
-                          <TableHead className="w-[80px]">Foto</TableHead>
-                          <TableHead>Nome</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Preço Rolo</TableHead>
-                          <TableHead>Preço Metro</TableHead>
-                          <TableHead>Restante</TableHead>
-                          <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {allProducts
-                          .filter(
-                            (p) =>
-                              p.type === "RIBBON" &&
-                              p.name
-                                .toLowerCase()
-                                .includes(ribbonSearchTerm.toLowerCase())
-                          )
-                          .map((fita) => (
-                            <TableRow
-                              key={fita.id}
-                              className="hover:bg-slate-50/50"
-                            >
-                              <TableCell>
-                                <div className="w-10 h-10 rounded border overflow-hidden relative bg-white">
-                                  <SafeImage
-                                    src={fita.imageUrl}
-                                    alt={fita.name}
-                                    name={fita.name}
-                                    fill
-                                    className="object-cover"
-                                  />
-                                </div>
-                              </TableCell>
-                              <TableCell className="font-bold text-slate-700">
-                                {fita.name}
-                              </TableCell>
-                              <TableCell>
-                                <Badge
-                                  variant={
-                                    fita.ribbonInventory?.status === "FECHADO"
-                                      ? "secondary"
-                                      : "default"
-                                  }
-                                  className={cn(
-                                    "text-[9px] font-black uppercase whitespace-normal text-center h-auto py-1",
-                                    fita.ribbonInventory?.status === "FECHADO"
-                                      ? "bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-50"
-                                      : "bg-purple-50 text-purple-600 border-purple-100 hover:bg-purple-50"
-                                  )}
-                                >
-                                  {fita.ribbonInventory?.status === "FECHADO"
-                                    ? "Fechado"
-                                    : "Aberto"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="font-medium text-slate-500">
-                                {formatCurrency(fita.rollPrice || 0)}
-                              </TableCell>
-                              <TableCell className="font-medium text-slate-500">
-                                {formatCurrency(fita.price)}/m
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="text-xs font-bold text-slate-700">
-                                    {fita.ribbonInventory?.remainingMeters}m
-                                  </span>
-                                  <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-primary"
-                                      style={{
-                                        width: `${
-                                          ((fita.ribbonInventory
-                                            ?.remainingMeters || 0) /
-                                            (fita.ribbonInventory
-                                              ?.totalRollMeters || 1)) *
-                                          100
-                                        }%`,
-                                      }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex justify-end gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => {
-                                      setEditingProduct(fita);
-                                      setIsModalOpen(true);
-                                    }}
-                                    className="h-8 w-8"
-                                  >
-                                    <Pencil size={14} />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={async () => {
-                                      if (confirm("Excluir fita?")) {
-                                        await deleteDoc(
-                                          doc(db, "products", fita.id)
-                                        );
-                                        toast.success("Fita excluída");
-                                      }
-                                    }}
-                                    className="h-8 w-8 text-red-500 hover:bg-red-50"
-                                  >
-                                    <Trash2 size={14} />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-
-                {/* ===== CONFIGURAÇÃO DO LAÇO ===== */}
-                <div className="bg-white p-6 rounded-xl shadow-sm space-y-6 mt-6 border border-slate-100">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                      <Gift size={20} className="text-primary" /> Configuração do Laço
-                    </h2>
-                    <p className="text-sm text-slate-500 mt-1">
-                      Gerencie os modelos e tamanhos disponíveis no montador de laços.
-                    </p>
-                  </div>
-
-                  {/* Modelos */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-slate-700">Modelos de Laço</h3>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-2 text-xs"
-                        onClick={() => {
-                          const newModel = {
-                            id: crypto.randomUUID(),
-                            name: "Novo Modelo",
-                            subtitle: "Descrição do modelo",
-                            imageUrl: "",
-                          };
-                          setSettings((prev: StoreSettings) => ({
-                            ...prev,
-                            bowModels: [...(prev.bowModels || []), newModel],
-                          }));
-                        }}
-                      >
-                        <Plus size={14} /> Adicionar Modelo
-                      </Button>
-                    </div>
-                    <div className="space-y-3">
-                      {(settings.bowModels || []).map((model, idx) => (
-                        <div key={model.id} className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                          <ImageUploadModal
-                            value={model.imageUrl}
-                            folder="laco/models"
-                            onChange={(url) => {
-                              const updated = [...(settings.bowModels || [])];
-                              updated[idx] = { ...updated[idx], imageUrl: url };
-                              setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
-                            }}
-                          />
-                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <Input
-                              placeholder="Nome"
-                              value={model.name}
-                              onChange={(e) => {
-                                const updated = [...(settings.bowModels || [])];
-                                updated[idx] = { ...updated[idx], name: e.target.value };
-                                setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
-                              }}
-                              className="text-sm"
-                            />
-                            <Input
-                              placeholder="Subtítulo"
-                              value={model.subtitle}
-                              onChange={(e) => {
-                                const updated = [...(settings.bowModels || [])];
-                                updated[idx] = { ...updated[idx], subtitle: e.target.value };
-                                setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
-                              }}
-                              className="text-sm"
-                            />
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-500 hover:bg-red-50 shrink-0"
-                            onClick={() => {
-                              setSettings((prev: StoreSettings) => ({
-                                ...prev,
-                                bowModels: (prev.bowModels || []).filter((_, i) => i !== idx),
-                              }));
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      ))}
-                      {(settings.bowModels || []).length === 0 && (
-                        <p className="text-sm text-slate-400 text-center py-4">Nenhum modelo cadastrado.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Tamanhos */}
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-slate-700">Tamanhos</h3>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-2 text-xs"
-                        onClick={() => {
-                          const newSize = {
-                            id: crypto.randomUUID(),
-                            name: "Novo Tamanho",
-                            price: 0,
-                          };
-                          setSettings((prev: StoreSettings) => ({
-                            ...prev,
-                            bowSizes: [...(prev.bowSizes || []), newSize],
-                          }));
-                        }}
-                      >
-                        <Plus size={14} /> Adicionar Tamanho
-                      </Button>
-                    </div>
-                    <div className="space-y-3">
-                      {(settings.bowSizes || []).map((size, idx) => (
-                        <div key={size.id} className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                          <div className="flex-1 grid grid-cols-2 gap-2">
-                            <Input
-                              placeholder="Nome (ex: Pequeno)"
-                              value={size.name}
-                              onChange={(e) => {
-                                const updated = [...(settings.bowSizes || [])];
-                                updated[idx] = { ...updated[idx], name: e.target.value };
-                                setSettings((prev: StoreSettings) => ({ ...prev, bowSizes: updated }));
-                              }}
-                              className="text-sm"
-                            />
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">R$</span>
-                              <Input
-                                type="number"
-                                placeholder="0,00"
-                                value={size.price}
-                                onChange={(e) => {
-                                  const updated = [...(settings.bowSizes || [])];
-                                  updated[idx] = { ...updated[idx], price: parseFloat(e.target.value) || 0 };
-                                  setSettings((prev: StoreSettings) => ({ ...prev, bowSizes: updated }));
-                                }}
-                                className="pl-9 text-sm"
-                              />
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-500 hover:bg-red-50 shrink-0"
-                            onClick={() => {
-                              setSettings((prev: StoreSettings) => ({
-                                ...prev,
-                                bowSizes: (prev.bowSizes || []).filter((_, i) => i !== idx),
-                              }));
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      ))}
-                      {(settings.bowSizes || []).length === 0 && (
-                        <p className="text-sm text-slate-400 text-center py-4">Nenhum tamanho cadastrado.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-slate-400">
-                    Clique em <strong>Salvar Configurações</strong> no topo para aplicar as alterações.
-                  </p>
-                </div>
-              </div>
+              <RibbonsTab
+                allProducts={allProducts}
+                settings={settings}
+                setSettings={setSettings}
+                onEditProduct={openProductModal}
+              />
             </TabsContent>
           </Tabs>
         )}
@@ -2265,448 +541,24 @@ export default function AdminPage() {
           }}
         />
 
-        {/* MODAL CONFIGURAR SEÇÃO (Mantido do original para não quebrar) */}
-        <Dialog open={isSectionModalOpen} onOpenChange={setIsSectionModalOpen}>
-          <DialogContent className="sm:h-[85vh] flex flex-col bg-slate-50">
-            <DialogHeader>
-              <DialogTitle>Configurar Seção</DialogTitle>
-            </DialogHeader>
-            <div className="overflow-y-auto p-1 space-y-6">
-              <div className="bg-white p-4 rounded-xl border shadow-sm space-y-4">
-                <Label>Título da Seção</Label>
-                <Input
-                  value={editingSection?.title}
-                  onChange={(e) =>
-                    setEditingSection((prev) =>
-                      prev ? { ...prev, title: e.target.value } : null
-                    )
-                  }
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div
-                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
-                    onClick={() => {
-                      setSelectedTemplate("product_shelf");
-                      setEditingSection((prev) =>
-                        prev ? { ...prev, type: "product_shelf" } : null
-                      );
-                    }}
-                  >
-                    <div
-                      className={cn(
-                        "text-sm font-bold mb-1",
-                        selectedTemplate === "product_shelf"
-                          ? "text-purple-600"
-                          : "text-slate-700"
-                      )}
-                    >
-                      Vitrine de Produtos
-                    </div>
-                    <p className="text-[10px] text-slate-500">
-                      Lista de produtos selecionados manualmente.
-                    </p>
-                  </div>
-                  <div
-                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
-                    onClick={() => {
-                      setSelectedTemplate("custom_banner");
-                      setEditingSection((prev) =>
-                        prev ? { ...prev, type: "custom_banner" } : null
-                      );
-                    }}
-                  >
-                    <div
-                      className={cn(
-                        "text-sm font-bold mb-1",
-                        selectedTemplate === "custom_banner"
-                          ? "text-purple-600"
-                          : "text-slate-700"
-                      )}
-                    >
-                      Banner Customizado
-                    </div>
-                    <p className="text-[10px] text-slate-500">
-                      Imagem com link para qualquer lugar.
-                    </p>
-                  </div>
-                  <div
-                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
-                    onClick={() => {
-                      setSelectedTemplate("banner_kit");
-                      setEditingSection((prev) =>
-                        prev ? { ...prev, type: "banner_kit" } : null
-                      );
-                    }}
-                  >
-                    <div
-                      className={cn(
-                        "text-sm font-bold mb-1",
-                        selectedTemplate === "banner_kit"
-                          ? "text-purple-600"
-                          : "text-slate-700"
-                      )}
-                    >
-                      Banner Monte seu Kit
-                    </div>
-                    <p className="text-[10px] text-slate-500">
-                      Atalho para montar kit personalizado.
-                    </p>
-                  </div>
-                  <div
-                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
-                    onClick={() => {
-                      setSelectedTemplate("banner_ribbon");
-                      setEditingSection((prev) =>
-                        prev ? { ...prev, type: "banner_ribbon" } : null
-                      );
-                    }}
-                  >
-                    <div
-                      className={cn(
-                        "text-sm font-bold mb-1",
-                        selectedTemplate === "banner_ribbon"
-                          ? "text-purple-600"
-                          : "text-slate-700"
-                      )}
-                    >
-                      Banner Fitas
-                    </div>
-                    <p className="text-[10px] text-slate-500">
-                      Atalho para fitas personalizadas.
-                    </p>
-                  </div>
-                  <div
-                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
-                    onClick={() => {
-                      setSelectedTemplate("banner_balloon");
-                      setEditingSection((prev) =>
-                        prev ? { ...prev, type: "banner_balloon" } : null
-                      );
-                    }}
-                  >
-                    <div
-                      className={cn(
-                        "text-sm font-bold mb-1",
-                        selectedTemplate === "banner_balloon"
-                          ? "text-purple-600"
-                          : "text-slate-700"
-                      )}
-                    >
-                      Banner Balões
-                    </div>
-                    <p className="text-[10px] text-slate-500">
-                      Atalho para montar balões.
-                    </p>
-                  </div>
-                  <div
-                    className="bg-slate-50 p-3 rounded-lg border border-slate-100 cursor-pointer hover:border-purple-200 transition-colors"
-                    onClick={() => {
-                      setSelectedTemplate("banner_natura");
-                      setEditingSection((prev) =>
-                        prev ? { ...prev, type: "banner_natura" } : null
-                      );
-                    }}
-                  >
-                    <div
-                      className={cn(
-                        "text-sm font-bold mb-1",
-                        selectedTemplate === "banner_natura"
-                          ? "text-purple-600"
-                          : "text-slate-700"
-                      )}
-                    >
-                      Banner Natura
-                    </div>
-                    <p className="text-[10px] text-slate-500">
-                      Banner promocional Natura.
-                    </p>
-                  </div>
-                </div>
-
-                {/* CONFIGURAÇÃO DE BANNER CUSTOMIZADO */}
-                {selectedTemplate === "custom_banner" && (
-                  <div className="space-y-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div className="space-y-2">
-                      <Label>Imagem do Banner</Label>
-                      <ImageUploadModal
-                        value={editingSection?.bannerUrl || ""}
-                        folder="banners"
-                        onChange={(url) =>
-                          setEditingSection((prev) =>
-                            prev ? { ...prev, bannerUrl: url } : null
-                          )
-                        }
-                      />
-                      <p className="text-[10px] text-slate-500">
-                        Recomendado: 1200x400px
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Link de Destino (Opcional)</Label>
-                      <Input
-                        value={editingSection?.bannerLink || ""}
-                        onChange={(e) =>
-                          setEditingSection((prev) =>
-                            prev
-                              ? { ...prev, bannerLink: e.target.value }
-                              : null
-                          )
-                        }
-                        placeholder="https:// ou use um atalho abaixo"
-                      />
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7"
-                          onClick={() =>
-                            setEditingSection((prev) =>
-                              prev
-                                ? { ...prev, bannerLink: "/montar-kit" }
-                                : null
-                            )
-                          }
-                        >
-                          Montar Kit (/montar-kit)
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7"
-                          onClick={() =>
-                            setEditingSection((prev) =>
-                              prev ? { ...prev, bannerLink: "/fitas" } : null
-                            )
-                          }
-                        >
-                          Fitas (/fitas)
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="text-xs h-7"
-                          onClick={() =>
-                            setEditingSection((prev) =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    bannerLink: "https://wa.me/5595991136427",
-                                  }
-                                : null
-                            )
-                          }
-                        >
-                          WhatsApp
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Seletor simplificado de produtos para exemplo */}
-                {selectedTemplate === "product_shelf" && (
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                      <Label className="font-bold text-slate-700">
-                        Adicionar Produtos à Vitrine
-                      </Label>
-                      <div className="flex flex-col md:flex-row gap-2">
-                        <div className="relative flex-1">
-                          <Search
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                            size={16}
-                          />
-                          <Input
-                            placeholder="Buscar produto..."
-                            value={sectionSearchTerm}
-                            onChange={(e) =>
-                              setSectionSearchTerm(e.target.value)
-                            }
-                            className="pl-9 h-10 border-slate-200"
-                          />
-                        </div>
-                        <Select
-                          value={secCatFilter}
-                          onValueChange={setSecCatFilter}
-                        >
-                          <SelectTrigger className="w-full md:w-[150px] h-10 border-slate-200">
-                            <SelectValue placeholder="Categoria" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ALL">
-                              Todas Categorias
-                            </SelectItem>
-                            {uniqueCategories.map((c) => (
-                              <SelectItem key={c} value={c}>
-                                {c}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Select
-                          value={secTypeFilter}
-                          onValueChange={setSecTypeFilter}
-                        >
-                          <SelectTrigger className="w-full md:w-[150px] h-10 border-slate-200">
-                            <SelectValue placeholder="Tipo" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ALL">Todos Tipos</SelectItem>
-                            <SelectItem value="BASE_CONTAINER">
-                              Base/Cesta
-                            </SelectItem>
-                            <SelectItem value="STANDARD_ITEM">
-                              Recheio/Item
-                            </SelectItem>
-                            <SelectItem value="ASSEMBLED_KIT">
-                              Kit Montado
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
-                      <ScrollArea className="h-[350px]">
-                        <div className="p-2 space-y-1">
-                          {filteredSecProducts.map((p) => {
-                            const isSelected =
-                              editingSection?.productIds.includes(p.id);
-                            return (
-                              <div
-                                key={p.id}
-                                className={cn(
-                                  "flex justify-between items-center p-2 rounded-lg transition-colors group",
-                                  isSelected
-                                    ? "bg-purple-50 text-purple-700"
-                                    : "hover:bg-white"
-                                )}
-                              >
-                                <div className="flex items-center gap-3 min-w-0 flex-1">
-                                  <div className="w-10 h-10 rounded border bg-white overflow-hidden relative shrink-0">
-                                    {p.imageUrl ? (
-                                      <SafeImage
-                                        src={p.imageUrl}
-                                        alt={p.name}
-                                        name={p.name}
-                                        fill
-                                        className="object-cover"
-                                      />
-                                    ) : (
-                                      <Package
-                                        size={16}
-                                        className="m-auto text-slate-300"
-                                      />
-                                    )}
-                                  </div>
-                                  <div className="flex flex-col min-w-0">
-                                    <span className="text-sm font-bold truncate">
-                                      {p.name}
-                                    </span>
-                                    <span className="text-[10px] uppercase font-black opacity-50">
-                                      {p.category || "Sem Categoria"}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <Button
-                                  size="sm"
-                                  variant={
-                                    isSelected ? "destructive" : "outline"
-                                  }
-                                  onClick={() =>
-                                    isSelected
-                                      ? removeProductFromSection(p.id)
-                                      : addProductToSection(p.id)
-                                  }
-                                  className={cn(
-                                    "h-8 px-3 rounded-full text-xs font-bold transition-all shrink-0 ml-2",
-                                    isSelected
-                                      ? "bg-red-500 hover:bg-red-600 border-none shadow-sm shadow-red-200"
-                                      : "hover:border-purple-600 hover:text-purple-600"
-                                  )}
-                                >
-                                  {isSelected ? (
-                                    <>
-                                      <X size={14} className="mr-1" /> Remover
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Plus size={14} className="mr-1" />{" "}
-                                      Adicionar
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            );
-                          })}
-                          {filteredSecProducts.length === 0 && (
-                            <div className="py-10 text-center text-slate-400 text-sm">
-                              Nenhum produto encontrado com esses filtros.
-                            </div>
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </div>
-
-                    <div className="flex items-center justify-between px-2">
-                      <div className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
-                        Produtos na vitrine:{" "}
-                        <span className="text-purple-600">
-                          {editingSection?.productIds?.length || 0}
-                        </span>
-                      </div>
-                      {(editingSection?.productIds?.length || 0) > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-[10px] text-red-500 font-black uppercase hover:bg-red-50"
-                          onClick={() =>
-                            setEditingSection((prev) =>
-                              prev ? { ...prev, productIds: [] } : null
-                            )
-                          }
-                        >
-                          Limpar Tudo
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <DialogFooter className="p-4 border-t bg-white">
-              <Button onClick={handleSaveSection} className="bg-green-600">
-                Salvar Seção
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* MODAL ÚNICO DE PRODUTO (ver/editar/excluir/ver na loja) */}
-        <ProductInfoModal
-          product={productToView}
-          open={!!productToView}
-          onOpenChange={(o) => !o && setProductToView(null)}
-          onEdit={(p) => {
-            setProductToView(null);
-            setEditingProduct(p);
-            setIsModalOpen(true);
-          }}
-          onDeleted={() => setProductToView(null)}
-        />
-
-        {/* MODAL EDITAR PRODUTO */}
+        {/* MODAL EDITAR PRODUTO (compartilhado entre Produtos e Fitas) */}
         <ProductFormDialog
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           productToEdit={editingProduct}
           onSuccess={() => setIsModalOpen(false)}
           categories={categories}
+        />
+
+        <ConfirmDialog
+          open={!!pendingConfigDraft}
+          onOpenChange={(open) => !open && handleDiscardConfigDraft()}
+          title="Alterações não salvas encontradas"
+          description="Você tem alterações não salvas nas Configurações/Balões. Deseja continuar de onde parou?"
+          confirmLabel="Continuar rascunho"
+          cancelLabel="Descartar"
+          destructive={false}
+          onConfirm={handleRestoreConfigDraft}
         />
       </div>
     </div>

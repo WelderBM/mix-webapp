@@ -352,6 +352,7 @@ export function CartSidebar() {
                             name={item.product?.name}
                             alt=""
                             fill
+                            sizes="64px"
                             className="object-cover"
                           />
                         </div>

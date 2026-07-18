@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
@@ -44,6 +45,7 @@ export function ProductInfoModal({
   onEdit,
   onDeleted,
 }: ProductInfoModalProps) {
+  const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -84,6 +86,7 @@ export function ProductInfoModal({
                   alt={product.name}
                   name={product.name}
                   fill
+                  sizes="(min-width: 640px) 512px, 100vw"
                   className="object-cover"
                 />
               ) : (
@@ -162,9 +165,7 @@ export function ProductInfoModal({
                 type="button"
                 variant="outline"
                 className="gap-2"
-                onClick={() =>
-                  window.open(`/produto/${product.id}`, "_blank")
-                }
+                onClick={() => router.push(`/produto/${product.id}`)}
               >
                 <ExternalLink size={16} /> Ver na Loja
               </Button>
