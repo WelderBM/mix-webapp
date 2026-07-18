@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ProductImage } from "@/types/product";
 import { SafeImage } from "@/components/ui/SafeImage";
 import {
@@ -36,18 +36,31 @@ export function ProductImageGallery({
   const [fullscreenOpen, setFullscreenOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Capa sempre primeiro no carrossel/miniaturas — sem isso, a posição da
+  // capa fica só o que a ordem de upload no array já tinha por acaso, então
+  // marcar uma imagem do meio/fim como capa não a trazia pro início visual.
+  const sortedImages = useMemo(() => {
+    const coverIdx = images.findIndex((img) => img.id === coverImageId);
+    if (coverIdx <= 0) return images;
+    return [
+      images[coverIdx],
+      ...images.slice(0, coverIdx),
+      ...images.slice(coverIdx + 1),
+    ];
+  }, [images, coverImageId]);
+
   const currentIndex = Math.max(
     0,
-    images.findIndex((img) => img.url === selectedImageUrl)
+    sortedImages.findIndex((img) => img.url === selectedImageUrl)
   );
 
   // Passagem entre imagens (setas, thumbnails e tela cheia chamam a mesma
   // função, que por sua vez chama onSelectImage — a ligação com
   // variação/rótulo fica toda no componente pai, aqui é só navegação.
   const goToIndex = (index: number) => {
-    if (images.length === 0) return;
-    const clamped = (index + images.length) % images.length;
-    onSelectImage(images[clamped].url);
+    if (sortedImages.length === 0) return;
+    const clamped = (index + sortedImages.length) % sortedImages.length;
+    onSelectImage(sortedImages[clamped].url);
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -108,7 +121,7 @@ export function ProductImageGallery({
           </button>
         )}
 
-        {images.length > 1 && (
+        {sortedImages.length > 1 && (
           <>
             <button
               type="button"
@@ -137,7 +150,7 @@ export function ProductImageGallery({
       </div>
 
       {/* THUMBNAILS */}
-      {images.length > 1 && (
+      {sortedImages.length > 1 && (
         <div
           className={cn(
             "flex gap-2 p-4 overflow-x-auto border-t items-center transition-all duration-300",
@@ -146,7 +159,7 @@ export function ProductImageGallery({
               : "bg-white"
           )}
         >
-          {images.map((img, index) => {
+          {sortedImages.map((img, index) => {
             const isCover = coverImageId === img.id;
             return (
               <div key={img.id} className="flex items-center">
@@ -209,7 +222,7 @@ export function ProductImageGallery({
                 className="object-contain"
               />
             )}
-            {images.length > 1 && (
+            {sortedImages.length > 1 && (
               <>
                 <button
                   type="button"
@@ -228,7 +241,7 @@ export function ProductImageGallery({
                   <ChevronRight size={24} />
                 </button>
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                  {images.map((img) => (
+                  {sortedImages.map((img) => (
                     <button
                       key={img.id}
                       type="button"

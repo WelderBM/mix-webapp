@@ -1,7 +1,7 @@
 // src/components/admin/ProductFormDialog.tsx (WIZARD POR PASSOS)
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
@@ -66,18 +66,17 @@ interface ProductDraft {
 // aparece como campo se a categoria escolhida tiver alguma) + tipo numa
 // tela só — eram 3 passos de um campo cada, virou 1 (feedback: passos com
 // "input solitário" deixavam o fluxo burocrático demais). "especifico" só
-// existe pra tipos que precisam de campos extras (hoje só RIBBON).
-// "imagens-variacoes" só existe se alguma variação foi criada no passo
-// "variacoes" — declarar variação (tipo/nome/preço/estoque) e atribuir
-// imagem são passos separados de propósito (feedback: misturar os dois
-// numa lista só ficava poluído; e imagem de variação agora é obrigatória,
-// então vale a pena um passo dedicado só pra isso).
+// existe pra tipos que precisam de campos extras (hoje só RIBBON). A
+// imagem de cada variação é escolhida dentro do próprio passo "revisao",
+// junto da galeria geral do produto — não é um passo à parte (feedback:
+// ter a imagem da variação num passo e a capa/galeria do produto em outro
+// deixava a escolha de imagem espalhada em dois lugares diferentes pro
+// mesmo produto).
 type StepId =
   | "classificacao"
   | "detalhes"
   | "especifico"
   | "variacoes"
-  | "imagens-variacoes"
   | "revisao";
 
 const STEP_LABELS: Record<StepId, string> = {
@@ -85,15 +84,13 @@ const STEP_LABELS: Record<StepId, string> = {
   detalhes: "Detalhes",
   especifico: "Config. da Fita",
   variacoes: "Variações",
-  "imagens-variacoes": "Imagens das Variações",
   revisao: "Revisão",
 };
 
-function stepsFor(type: ProductType, hasVariants: boolean): StepId[] {
+function stepsFor(type: ProductType): StepId[] {
   const base: StepId[] = ["classificacao", "detalhes"];
   if (type === "RIBBON") base.push("especifico");
   base.push("variacoes");
-  if (hasVariants) base.push("imagens-variacoes");
   base.push("revisao");
   return base;
 }
@@ -181,6 +178,23 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     [categories, formData.category]
   );
 
+  // `categories` vem de um onSnapshot ao vivo (admin/page.tsx) — ganha uma
+  // referência nova a cada disparo do listener, mesmo sem nenhuma mudança
+  // real (reconexão de rede, sync entre abas, etc). Se o efeito abaixo
+  // dependesse de `categories` diretamente, qualquer disparo desses no meio
+  // da edição resetava `formData` de volta pro que já estava salvo,
+  // silenciosamente apagando edição não salva (ex: imagem de variação recém
+  // vinculada) — mesma categoria de bug já documentada em
+  // docs/claude-lessons.md ("objeto recriado a cada render engana useEffect
+  // por referência"). Guardado num ref pra o efeito só reagir a
+  // `productToEdit`/`isOpen`/`initialStep` (quando o wizard de fato deveria
+  // recarregar), lendo a versão mais recente de `categories` sem precisar
+  // dela como dependência.
+  const categoriesRef = useRef(categories);
+  useEffect(() => {
+    categoriesRef.current = categories;
+  }, [categories]);
+
   useEffect(() => {
     let nextFormData: ProductFormData;
     if (productToEdit) {
@@ -192,7 +206,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       };
       // Verifica se a categoria/subcategoria são personalizadas (digitadas
       // na hora, ainda sem doc correspondente em `categories`)
-      const matchedCategory = categories.find(
+      const matchedCategory = categoriesRef.current.find(
         (c) => c.name === productToEdit.category
       );
       setCustomCategory(!!productToEdit.category && !matchedCategory);
@@ -214,13 +228,11 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     // carregado (não do estado antigo, que ainda não foi atualizado).
     const startStepId: StepId =
       initialStep ?? (productToEdit?.id ? "detalhes" : "classificacao");
-    const startSteps = stepsFor(
-      nextFormData.type,
-      !!nextFormData.variants?.length
-    );
+    const startSteps = stepsFor(nextFormData.type);
     const startIndex = startSteps.indexOf(startStepId);
     setStepIndex(startIndex >= 0 ? startIndex : 0);
-  }, [productToEdit, isOpen, categories, initialStep]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productToEdit, isOpen, initialStep]);
 
   // Checa rascunho salvo toda vez que o wizard abre (depois do reset acima,
   // pra um "sim" de restaurar sobrescrever os dados recém-carregados do
@@ -254,10 +266,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     setDraftPersistenceEnabled(true);
   };
 
-  const steps = useMemo(
-    () => stepsFor(formData.type, !!formData.variants?.length),
-    [formData.type, formData.variants?.length]
-  );
+  const steps = useMemo(() => stepsFor(formData.type), [formData.type]);
   const currentStepIndex = Math.min(stepIndex, steps.length - 1);
   const currentStepId = steps[currentStepIndex];
   const isFirstStep = currentStepIndex === 0;
@@ -268,9 +277,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
 
   const isNextDisabled =
-    (currentStepId === "classificacao" && !formData.category?.trim()) ||
-    (currentStepId === "imagens-variacoes" &&
-      !!formData.variants?.some((v) => !v.imageUrl));
+    currentStepId === "classificacao" && !formData.category?.trim();
 
   // Sem `e` quando chamado direto pelo onClick do botão final do wizard
   // (não é mais um handler de onSubmit nativo — ver comentário na tag
@@ -306,6 +313,16 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
     if (formData.variants?.some((v) => !v.imageUrl)) {
       toast.error("Toda variação precisa de uma imagem.");
+      return;
+    }
+
+    // Sem variações, a galeria é a única fonte de imagem do produto — sem
+    // pelo menos uma capa definida, o card na vitrine e outras telas que
+    // não sabem de variações ficam sem nenhuma imagem pra mostrar (feedback:
+    // a imagem padrão precisa ser garantida já na criação, não só corrigida
+    // depois na página do produto).
+    if (!formData.variants?.length && !formData.images?.length) {
+      toast.error("Adicione ao menos uma imagem para o produto.");
       return;
     }
 
@@ -360,12 +377,24 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       // Gera ID se for novo
       const productId = formData.id || doc(collection(db, "products")).id;
 
+      // Com variações e sem galeria própria, a imagem da primeira variação
+      // (a padrão) também vira a capa do produto — telas que não sabem de
+      // variações (card na vitrine, tabela do admin, carrinho) leem
+      // `images`/`imageUrl`, não `variants`.
+      const defaultVariantImage = formData.variants?.[0]?.imageUrl;
+      const images =
+        !formData.images?.length && defaultVariantImage
+          ? [{ id: crypto.randomUUID(), url: defaultVariantImage, isCover: true }]
+          : formData.images;
+
       const productData: Product = {
         ...formData,
         id: productId,
         price: Number(formData.price),
         category: formData.category.trim(),
         unit: formData.unit.trim() as any,
+        images,
+        imageUrl: formData.imageUrl || defaultVariantImage || "",
       };
 
       await setDoc(doc(db, "products", productId), productData);
@@ -803,17 +832,6 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
               />
             )}
 
-            {currentStepId === "imagens-variacoes" && (
-              <ProductVariationImageManager
-                images={formData.images || []}
-                variants={formData.variants || []}
-                onChange={(newVariants: ProductVariant[]) =>
-                  handleInputChange("variants", newVariants)
-                }
-                disabled={loading}
-              />
-            )}
-
             {currentStepId === "revisao" && (
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
@@ -827,24 +845,86 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                   <Label htmlFor="inStock">Em Estoque</Label>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-2 border-t pt-4">
                   <ProductImageManager
                     images={formData.images || []}
                     onChange={(newImages: ProductImage[]) => {
-                      // Sync images list
                       const cover =
                         newImages.find((img) => img.isCover) || newImages[0];
-                      handleInputChange("images", newImages);
-                      // Sync legacy imageUrl for backward compat
-                      if (cover) {
-                        handleInputChange("imageUrl", cover.url);
-                      } else {
-                        handleInputChange("imageUrl", "");
-                      }
+                      const validImageIds = new Set(
+                        newImages.map((img) => img.id)
+                      );
+                      setFormData((prev) => ({
+                        ...prev,
+                        images: newImages,
+                        // Sync legacy imageUrl for backward compat
+                        imageUrl: cover ? cover.url : "",
+                        // Variação vinculada a uma imagem removida da
+                        // galeria (ex: apagada aqui) fica com referência
+                        // morta — limpa o vínculo pra voltar a pedir
+                        // "Imagem obrigatória" em vez de continuar
+                        // mostrando/selecionando uma foto que não existe
+                        // mais na lista.
+                        variants: (prev.variants || []).map((v) => {
+                          if (!v.imageId || validImageIds.has(v.imageId))
+                            return v;
+                          const { imageId, imageUrl, ...rest } = v;
+                          return rest as ProductVariant;
+                        }),
+                      }));
                     }}
                     disabled={loading}
                   />
                 </div>
+
+                {!!formData.variants?.length && (
+                  <div className="space-y-2 border-t pt-4">
+                    <ProductVariationImageManager
+                      images={formData.images || []}
+                      variants={formData.variants || []}
+                      onChange={(patch) => {
+                        // eslint-disable-next-line no-console
+                        console.log(
+                          "[DEBUG variation-image] ProductFormDialog patch=" +
+                            JSON.stringify(patch)
+                        );
+                        // Merge feito aqui, contra `prev` — não contra o que
+                        // o ProductVariationImageManager tinha em mãos quando
+                        // o clique aconteceu. O updater funcional garante que
+                        // a intenção ("variação X, campo Y") é aplicada sobre
+                        // o estado mais recente de verdade.
+                        setFormData((prev) => {
+                          const nextVariants = (prev.variants || []).map(
+                            (v) => {
+                              if (v.id !== patch.variantId) return v;
+                              const merged = { ...v, ...patch.variantPatch };
+                              (
+                                Object.keys(merged) as (keyof ProductVariant)[]
+                              ).forEach((key) => {
+                                if (merged[key] === undefined)
+                                  delete merged[key];
+                              });
+                              return merged;
+                            }
+                          );
+                          // eslint-disable-next-line no-console
+                          console.log(
+                            "[DEBUG variation-image] nextVariants=" +
+                              JSON.stringify(
+                                nextVariants.map((v) => ({
+                                  id: v.id,
+                                  imageId: v.imageId,
+                                  imageUrl: v.imageUrl,
+                                }))
+                              )
+                          );
+                          return { ...prev, variants: nextVariants };
+                        });
+                      }}
+                      disabled={loading}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
