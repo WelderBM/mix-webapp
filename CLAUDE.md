@@ -29,5 +29,7 @@ Next.js 16 (App Router, Turbopack) + Firebase (Firestore client SDK, Auth com Go
 ## Documentação viva
 - `docs/claude-lessons.md` — catálogo de bugs reais, causas-raiz e padrões técnicos descobertos, pra não redescobrir o mesmo problema em outra sessão/máquina.
 - `docs/qa-fase2-checklist.md` — checklist de QA ponta-a-ponta do fluxo de pedido.
+- Skills do projeto vivem em `.claude/skills/`, commitadas no repo, e carregam sob demanda em qualquer sessão/máquina — inclusive sessões cloud.
+- Pipeline de graduação: lição nova entra em `docs/claude-lessons.md`; quando uma categoria acumula 3+ entradas relacionadas ou vira um procedimento com passos a seguir, ela gradua pra uma skill em `.claude/skills/` (o lessons.md fica com uma linha apontando pra skill correspondente).
 
 Se você (Claude) aprender algo que vai te morder de novo em outra sessão — um gotcha de biblioteca, uma decisão de arquitetura não óbvia, um bug sutil — adicione em `docs/claude-lessons.md` antes de terminar a tarefa. Esse arquivo existe pra não perder esse conhecimento quando a sessão acabar ou trocar de máquina.
