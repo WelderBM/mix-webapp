@@ -75,14 +75,7 @@ Comparar conteúdo via `JSON.stringify(a) === JSON.stringify(b)` funciona só se
 
 ## Vercel / Deploy
 
-### Variáveis de ambiente são escopadas por branch — uma branch nova não herda automaticamente
-Preview deploys usam as env vars configuradas pra aquele branch específico. Se `NEXT_PUBLIC_FIREBASE_*` só foi configurado pra `Preview (dev)`, toda branch de feature nova builda sem config nenhuma do Firebase — e quebra exatamente pelo motivo do gotcha do `sitemap.ts` acima. **Isso já quebrou builds de verdade, mais de uma vez, e foi erroneamente descartado como "Vercel fail genérico, não relacionado" antes de alguém realmente investigar** — não repita esse erro: um check vermelho no Vercel merece abrir o log, não presumir que é ruído só porque o check de testes/build passou.
-
-### `vercel env add <nome> preview` sem branch trava em loop, em modo não-interativo
-A CLI devolve um JSON `"status": "action_required", "reason": "git_branch_required"` pedindo pra rodar o MESMO comando de novo — mas em modo agente/não-interativo isso nunca resolve, mesmo com `--yes --force`. **Workaround que funciona**: escopar pra uma branch específica (`vercel env add <nome> preview <branch> --value <valor> --yes`) — funciona direto, sem loop. Não existe hoje um jeito confiável de aplicar "todas as branches de preview" via CLI em modo agente; isso precisa ser feito pelo dashboard do Vercel (Settings → Environment Variables → editar cada var → marcar "Preview" sem restringir a uma branch).
-
-### Cuidado ao editar env var que já tem escopo combinado (`Production, Preview, Development` numa linha só)
-Um valor pode estar aplicado a vários ambientes de uma vez. Rodar `vercel env rm <nome>` sem escopo remove de TODOS os ambientes que aquela entrada cobre — inclusive produção. Antes de remover, rode `vercel env ls` e confirme exatamente quais ambientes aquela linha específica cobre. Pra sobrescrever só o comportamento de Preview sem tocar produção, adicione uma entrada NOVA escopada só pra Preview (mais específica vence, não precisa remover a antiga) em vez de remover e recriar.
+Graduou para skill: ver `.claude/skills/deploy-vercel/SKILL.md` (env vars escopadas por branch, workaround da CLI pra `vercel env add`, cuidado com `vercel env rm` em escopo combinado, e o gotcha do `sitemap.ts` em build time).
 
 ---
 
@@ -97,4 +90,4 @@ Cada PR cobre uma responsabilidade (modelo de dados → UI → integração → 
 Sessões paralelas em máquinas diferentes tendem a violar essa regra por conta própria: cada sessão fatia bem localmente, mas ninguém fatia entre sessões — o resultado, quando tudo se junta, é um PR gigante de fato (achado real: 26 arquivos, 5 responsabilidades sem relação direta, numa auditoria única). Se o trabalho paralelo já aconteceu e não dá mais pra desfazer a fusão, pelo menos documente isso explicitamente no PR/relatório de auditoria, pra quem revisar saber que está avaliando várias fatias de uma vez, não uma só.
 
 ### Auditar código que outra sessão escreveu antes de confiar nele
-Quando trabalho chega pronto de outra sessão/máquina sem ter passado por revisão nesta, vale a pena rodar uma auditoria de código de verdade (múltiplos ângulos: bugs de linha, comportamento removido, rastreamento entre arquivos, duplicação, simplificação, eficiência, profundidade da solução, convenções) antes de assumir que está correto só porque compilou e os testes passaram — `tsc`/`vitest`/`build` verificam que o código roda, não que a lógica está certa. Essa auditoria já achou bugs reais (comparação `undefined === undefined` tratando ausência como igualdade, fallback `||` engolindo um `0` válido, uma condição de corrida introduzida por trocar `confirm()` síncrono por modal assíncrono) que nenhum desses três comandos detectaria.
+Graduou para skill: ver `.claude/skills/auditoria-de-pr/SKILL.md` (checklist multi-ângulo — bugs de linha, comportamento removido, rastreamento entre arquivos, condição de corrida, duplicação, aderência a padrões).
