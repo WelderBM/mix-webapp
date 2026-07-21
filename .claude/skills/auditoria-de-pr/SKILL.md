@@ -13,6 +13,8 @@ Se o PR junta várias responsabilidades sem relação direta (ex: sessões paral
 
 Leia o diff inteiro, não só os arquivos que parecem centrais. Um bug real já foi encontrado num arquivo "secundário" (`ProductVariationImageManager.tsx`) que ninguém revisou de perto porque a atenção estava no arquivo principal da feature.
 
+**Diff acima de ~500 linhas ou ~20 arquivos (fora gerado/lockfile) é parada obrigatória**: antes de seguir pro checklist, declare no relatório a estratégia de divisão em passadas por responsabilidade (ex: estado/efeitos, dados/Firestore, UI) — atenção uniforme numa passada única não escala pra esse tamanho de diff, e foi exatamente esse padrão (atenção concentrada nos arquivos "centrais") que quase deixou passar o achado do parágrafo acima. Passada única silenciosa num diff grande é, por si só, um achado de processo a reportar — não só um risco a evitar em silêncio.
+
 ## Checklist multi-ângulo
 
 Passe por cada item abaixo contra o diff. Não pule um item só porque os outros já vieram limpos — cada um pega uma classe de bug diferente.
@@ -46,4 +48,10 @@ Além de duplicação, confira convenções que o repo já fixou: todo botão de
 
 ## Ao reportar
 
-Liste os achados por severidade, cada um com o cenário concreto que quebra (input/estado específico → saída errada), não uma descrição vaga do tipo "pode ter um problema aqui". Reporte direto no corpo/comentário do PR. Se nada sobreviver à auditoria, diga isso explicitamente — "auditado, nada encontrado" é um resultado válido, não um relatório vazio.
+**Severidade não é rótulo solto — define o que acontece com o PR**: alta bloqueia o merge até corrigir; média corrige nesta fatia OU vira issue registrada antes do merge, com a decisão explícita no PR (nunca uma omissão silenciosa); baixa/processo é registro — não bloqueia, mas fica documentado (ex: a declaração de passadas de um diff grande, ou uma duplicação encontrada que não é urgente resolver agora).
+
+Liste os achados por severidade, cada um com o cenário concreto que quebra (input/estado específico → saída errada), não uma descrição vaga do tipo "pode ter um problema aqui". Todo achado inclui uma linha **Como confirmar corrigido:** com o critério observável de fechamento — o que passa a ser verdadeiro, qual teste passa a passar, qual warning some. Quem corrige é frequentemente outra sessão, não quem auditou (caso real: PR #50, achado identificado e mesmo assim não fechado) — sem esse critério, a correção mira "algo parecido" em vez do caso específico reportado.
+
+**3 ou mais ocorrências da mesma classe de bug no diff viram um achado só, de causa raiz**: liste como achado #1, com recomendação de correção estrutural (helper compartilhado, regra de lint) em vez de N patches pontuais. N achados soltos do mesmo padrão escondem a causa sistêmica — corrigem-se as instâncias reportadas e a próxima cópia do mesmo padrão nasce livre pra próxima auditoria encontrar de novo.
+
+Reporte direto no corpo/comentário do PR. Se nada sobreviver à auditoria, diga isso explicitamente — "auditado, nada encontrado" é um resultado válido, não um relatório vazio.
