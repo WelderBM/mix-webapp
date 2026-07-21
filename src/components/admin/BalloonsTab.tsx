@@ -41,10 +41,10 @@ export function BalloonsTab({
   const [expandedTypes, setExpandedTypes] = useState<Record<string, boolean>>(
     {}
   );
-  const [sizesSyncSource, setSizesSyncSource] = useState<number | null>(null);
-  const [colorsSyncSource, setColorsSyncSource] = useState<number | null>(
-    null
-  );
+  const [sizesSyncSource, setSizesSyncSource] =
+    useState<BalloonTypeConfig | null>(null);
+  const [colorsSyncSource, setColorsSyncSource] =
+    useState<BalloonTypeConfig | null>(null);
   const [balloonTypeToDelete, setBalloonTypeToDelete] =
     useState<BalloonTypeConfig | null>(null);
 
@@ -70,25 +70,55 @@ export function BalloonsTab({
     setBalloonTypeToDelete(null);
   };
 
-  const handleSyncSizesToAll = (fromIndex: number) => {
-    const sourceSizes = balloonConfig.types[fromIndex].sizes;
-    const newTypes = balloonConfig.types.map((t) => ({
-      ...t,
-      sizes: JSON.parse(JSON.stringify(sourceSizes)),
-    }));
-    setBalloonConfig((prev) => ({ ...prev, types: newTypes }));
+  const handleSyncSizesToAll = (sourceType: BalloonTypeConfig) => {
+    const currentSource = balloonConfig.types.find(
+      (t) => t.id === sourceType.id
+    );
     setSizesSyncSource(null);
+    if (!currentSource) {
+      toast.error(
+        "O tipo de origem foi removido antes da confirmação — nada foi sincronizado."
+      );
+      return;
+    }
+    setBalloonConfig((prev) => {
+      const source = prev.types.find((t) => t.id === sourceType.id);
+      if (!source) return prev;
+      const sourceSizes = source.sizes;
+      return {
+        ...prev,
+        types: prev.types.map((t) => ({
+          ...t,
+          sizes: JSON.parse(JSON.stringify(sourceSizes)),
+        })),
+      };
+    });
     toast.success("Tamanhos sincronizados!");
   };
 
-  const handleSyncColorsToAll = (fromIndex: number) => {
-    const sourceColors = balloonConfig.types[fromIndex].colors;
-    const newTypes = balloonConfig.types.map((t) => ({
-      ...t,
-      colors: [...sourceColors],
-    }));
-    setBalloonConfig((prev) => ({ ...prev, types: newTypes }));
+  const handleSyncColorsToAll = (sourceType: BalloonTypeConfig) => {
+    const currentSource = balloonConfig.types.find(
+      (t) => t.id === sourceType.id
+    );
     setColorsSyncSource(null);
+    if (!currentSource) {
+      toast.error(
+        "O tipo de origem foi removido antes da confirmação — nada foi sincronizado."
+      );
+      return;
+    }
+    setBalloonConfig((prev) => {
+      const source = prev.types.find((t) => t.id === sourceType.id);
+      if (!source) return prev;
+      const sourceColors = source.colors;
+      return {
+        ...prev,
+        types: prev.types.map((t) => ({
+          ...t,
+          colors: [...sourceColors],
+        })),
+      };
+    });
     toast.success("Cores sincronizadas!");
   };
 
@@ -325,9 +355,7 @@ export function BalloonsTab({
                           size="sm"
                           title="Aplicar estes tamanhos a todos os outros modelos"
                           className="h-7 px-2 text-[10px] text-purple-600 hover:text-purple-700 hover:bg-purple-50 font-bold shrink-0"
-                          onClick={() =>
-                            setSizesSyncSource(typeIndex)
-                          }
+                          onClick={() => setSizesSyncSource(type)}
                         >
                           <Layers size={12} className="mr-1" /> Replicar
                           p/ Todos
@@ -460,7 +488,7 @@ export function BalloonsTab({
                         size="sm"
                         title="Aplicar esta lista de cores a todos os outros modelos"
                         className="h-7 px-2 text-[10px] text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold"
-                        onClick={() => setColorsSyncSource(typeIndex)}
+                        onClick={() => setColorsSyncSource(type)}
                       >
                         <Wand2 size={12} className="mr-1" /> Replicar p/
                         Todos

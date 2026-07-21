@@ -47,6 +47,11 @@ O gesto/botão nativo de voltar do celular aciona o histórico do **navegador**,
 
 **Padrão**: pra navegação realmente interna (ex: "Ver na Loja" saindo do admin), troque `window.open`/`target="_blank"` por navegação na mesma aba (`router.push`/`<Link>` normal) — aí o histórico é real e o voltar nativo funciona sozinho. Quando a nova aba é necessária de verdade (preview lado a lado, por exemplo — ver decisão em `docs/` sobre isso), o botão "Voltar" customizado da página de destino deve checar `window.opener` e chamar `window.close()` nesse caso, já que não existe histórico pra voltar. Ver `src/components/ui/BackButton.tsx`.
 
+### Componentes Radix (`Accordion`, `AlertDialog`) testam direto com `@testing-library/react` + `happy-dom`, sem polyfill extra
+Ao escrever o primeiro teste de componente deste repo que renderiza `Accordion`/`AlertDialog` (via `ConfirmDialog`), não foi preciso mockar `ResizeObserver`, `PointerEvent` ou `scrollIntoView` — diferente do Radix `Select`, que já exige mock de `scrollIntoView` neste projeto (ver `BalloonBuilder.test.tsx`). `fireEvent.click` no trigger expande o conteúdo normalmente e o `AlertDialog` renderiza seu conteúdo (incluindo via portal) de forma que `screen` encontra sem configuração adicional.
+
+**Padrão**: ao testar um componente que usa `Accordion`/`AlertDialog`/`ConfirmDialog`, tente direto sem polyfill — só adicione mock de API de browser (`ResizeObserver`, `scrollIntoView`, etc.) se o teste realmente falhar por causa disso. Pra distinguir itens com o mesmo texto visível (ex: dois botões "Replicar p/ Todos"), prefira `getByTitle`/atributo único a depender da ordem do DOM.
+
 ---
 
 ## Firebase / Firestore
