@@ -82,6 +82,14 @@ function openSizesSyncDialogFor(typeName: string) {
   );
 }
 
+function openColorsSyncDialogFor(typeName: string) {
+  fireEvent.click(screen.getByRole("button", { name: /edição/i }));
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(typeName, "i") }));
+  fireEvent.click(
+    screen.getByTitle("Aplicar esta lista de cores a todos os outros modelos")
+  );
+}
+
 describe("BalloonsTab — condição de corrida no sync-to-all (achado do PR #48)", () => {
   it("resolve a origem por id, não pelo índice congelado no clique, quando a lista reordena com o modal aberto", () => {
     const onChange = vi.fn();
@@ -108,6 +116,43 @@ describe("BalloonsTab — condição de corrida no sync-to-all (achado do PR #48
     render(<Harness initial={initial} onChange={onChange} />);
 
     openSizesSyncDialogFor("Tipo A");
+
+    // Tipo A (origem capturada) é removido enquanto o modal segue aberto.
+    fireEvent.click(screen.getByText("simular-remocao-t1"));
+    const configAntesDoConfirm = onChange.mock.calls.at(-1)![0] as BalloonConfig;
+
+    fireEvent.click(screen.getByRole("button", { name: /Substituir/i }));
+
+    expect(toast.error).toHaveBeenCalled();
+    const configDepoisDoConfirm = onChange.mock.calls.at(-1)![0] as BalloonConfig;
+    expect(configDepoisDoConfirm).toEqual(configAntesDoConfirm);
+  });
+
+  it("[cores] resolve a origem por id, não pelo índice congelado no clique, quando a lista reordena com o modal aberto", () => {
+    const onChange = vi.fn();
+    const initial = makeConfig();
+    render(<Harness initial={initial} onChange={onChange} />);
+
+    openColorsSyncDialogFor("Tipo A");
+
+    // Enquanto o ConfirmDialog está aberto, uma mudança externa (onSnapshot
+    // concorrente) reordena a lista — Tipo A deixa de estar no índice 0.
+    fireEvent.click(screen.getByText("simular-reorder-externo"));
+
+    fireEvent.click(screen.getByRole("button", { name: /Substituir/i }));
+
+    const finalConfig = onChange.mock.calls.at(-1)![0] as BalloonConfig;
+    for (const type of finalConfig.types) {
+      expect(type.colors).toEqual(initial.types[0].colors); // cores do Tipo A, não do que ocupa o índice 0 agora
+    }
+  });
+
+  it("[cores] vira no-op com toast de erro, sem alterar o estado, se o tipo de origem for removido com o modal aberto", () => {
+    const onChange = vi.fn();
+    const initial = makeConfig();
+    render(<Harness initial={initial} onChange={onChange} />);
+
+    openColorsSyncDialogFor("Tipo A");
 
     // Tipo A (origem capturada) é removido enquanto o modal segue aberto.
     fireEvent.click(screen.getByText("simular-remocao-t1"));

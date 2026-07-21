@@ -81,12 +81,18 @@ export function BalloonsTab({
       );
       return;
     }
-    const sourceSizes = currentSource.sizes;
-    const newTypes = balloonConfig.types.map((t) => ({
-      ...t,
-      sizes: JSON.parse(JSON.stringify(sourceSizes)),
-    }));
-    setBalloonConfig({ ...balloonConfig, types: newTypes });
+    setBalloonConfig((prev) => {
+      const source = prev.types.find((t) => t.id === sourceType.id);
+      if (!source) return prev;
+      const sourceSizes = source.sizes;
+      return {
+        ...prev,
+        types: prev.types.map((t) => ({
+          ...t,
+          sizes: JSON.parse(JSON.stringify(sourceSizes)),
+        })),
+      };
+    });
     toast.success("Tamanhos sincronizados!");
   };
 
@@ -101,12 +107,18 @@ export function BalloonsTab({
       );
       return;
     }
-    const sourceColors = currentSource.colors;
-    const newTypes = balloonConfig.types.map((t) => ({
-      ...t,
-      colors: [...sourceColors],
-    }));
-    setBalloonConfig({ ...balloonConfig, types: newTypes });
+    setBalloonConfig((prev) => {
+      const source = prev.types.find((t) => t.id === sourceType.id);
+      if (!source) return prev;
+      const sourceColors = source.colors;
+      return {
+        ...prev,
+        types: prev.types.map((t) => ({
+          ...t,
+          colors: [...sourceColors],
+        })),
+      };
+    });
     toast.success("Cores sincronizadas!");
   };
 
