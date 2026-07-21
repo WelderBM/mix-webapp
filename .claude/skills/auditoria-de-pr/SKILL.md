@@ -44,6 +44,14 @@ O PR reimplementa algo que já existe no repo em vez de reaproveitar? Padrões c
 
 Além de duplicação, confira convenções que o repo já fixou: todo botão dentro de um wizard multi-passo precisa de `type="button"` explícito (exceto dentro do Portal de um Dialog Radix); toda imagem `fill` do `next/image` precisa de `sizes` correspondente ao layout real; `Promise.all` em vez de awaits sequenciais quando as chamadas não dependem uma da outra.
 
+### 7. Efeito colateral dentro de um updater funcional de `setState`
+
+`setX((prev) => { ...; return next; })` **não é** um lugar seguro pra rodar algo além de calcular `next`. Updaters funcionais rodam de novo durante a fase de **render** sempre que o React precisa recalcular o estado (replay ao processar a fila de updates) — qualquer efeito colateral lá dentro é um setState-durante-render latente, mesmo que o handler que disparou tudo tenha sido um clique normal. Assinatura pra reconhecer no stack trace de um warning "Cannot update a component while rendering a different component": o frame `updateReducer`/`renderWithHooks` aparece ENTRE o updater (`(prev) => {...}`) e o componente — se o efeito lá dentro mexe em OUTRO componente/contexto (Router, um listener), o React acusa.
+
+Já apareceu duas vezes neste projeto com exatamente essa forma: `BalloonsTab.tsx` (`handleSyncSizesToAll`/`handleSyncColorsToAll`, corrigido tocando o Router via `patchParams` dentro do updater) e `OrdersTab.tsx` (`toggleExpand`, mesma coisa). Grep pra achar: `set[A-Z]\w*\(\s*\(?\w+\)?\s*=>\s*\{` — qualquer ocorrência com corpo em bloco (chaves), não expressão única — e leia o corpo procurando por `patchParams(`, `toast.`/`router.`/chamada ao Firestore (`updateDoc`, `setDoc`, `addDoc`) antes do `return`.
+
+**Corrija** as que tocam `patchParams`/`router` (mesma classe do bug real: atualiza outro componente durante o render). Pra `toast`/`console.log`/outros efeitos sem essa consequência, ainda vale reportar como achado (é código impuro, pode duplicar em Strict Mode), mas normalmente não é bloqueante pra o PR em questão — decisão de corrigir ali ou reportar como achado separado depende do quanto foge do escopo da fatia sendo revisada.
+
 ## Ao reportar
 
 Liste os achados por severidade, cada um com o cenário concreto que quebra (input/estado específico → saída errada), não uma descrição vaga do tipo "pode ter um problema aqui". Reporte direto no corpo/comentário do PR. Se nada sobreviver à auditoria, diga isso explicitamente — "auditado, nada encontrado" é um resultado válido, não um relatório vazio.
