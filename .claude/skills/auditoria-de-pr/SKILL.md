@@ -46,4 +46,4 @@ Além de duplicação, confira convenções que o repo já fixou: todo botão de
 
 ## Ao reportar
 
-Liste os achados por severidade, cada um com o cenário concreto que quebra (input/estado específico → saída errada), não uma descrição vaga do tipo "pode ter um problema aqui". Se o `ReportFindings` estiver disponível na sessão, use-o. Se nada sobreviver à auditoria, diga isso explicitamente — "auditado, nada encontrado" é um resultado válido, não um relatório vazio.
+Liste os achados por severidade, cada um com o cenário concreto que quebra (input/estado específico → saída errada), não uma descrição vaga do tipo "pode ter um problema aqui". Reporte direto no corpo/comentário do PR. Se nada sobreviver à auditoria, diga isso explicitamente — "auditado, nada encontrado" é um resultado válido, não um relatório vazio.
