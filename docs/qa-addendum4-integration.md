@@ -73,12 +73,18 @@ Esse teste só é 100% confiável **no celular** (o bug era especificamente sobr
 
 1. No admin, dispare qualquer ação que antes usava `confirm()` nativo do browser (ex: excluir um produto, uma seção, uma imagem).
 2. **Esperado**: modal customizado (ConfirmDialog) aparece, não o popup nativo feio do navegador. Cancelar não executa a ação; confirmar executa.
+3. **Regressão da condição de corrida (documentada no lessons.md — `confirm()` síncrono → modal assíncrono)**:
+   - Abra o admin em duas abas (staging).
+   - Na aba A, dispare a ação "Replicar p/ Todos" (tamanhos ou cores, admin de Balões) num item específico e **deixe o modal de confirmação aberto sem responder**.
+   - Na aba B, adicione ou remova um item da mesma lista de tipos, forçando o `onSnapshot` da aba A a reordenar a lista enquanto o modal está aberto.
+   - Volte à aba A e confirme.
+   - **Esperado**: a ação atinge o item originalmente clicado, não o que agora ocupa aquela posição na lista.
 
 ## 9. Performance (Addendum 4, Parte C) — checagem indireta
 
 Difícil de "ver" diretamente, mas dá pra confirmar não-regressão:
 1. Abra o admin com o DevTools Network aberto, filtre por Firestore (`firestore.googleapis.com`). Recarregue a página de Configurações.
-2. **Esperado**: apenas **um** listener ativo em `settings/general` (antes havia dois — um no ThemeProvider global, outro duplicado no admin/page.tsx).
+2. **Contagem de listeners não dá pra ver pela aba Network** — listeners do Firestore multiplexam num único canal WebChannel/Listen, então contar requisições ali não conta quantos `onSnapshot` estão ativos. Método confiável: adicione temporariamente um `console.log` (ou breakpoint) dentro do callback do `onSnapshot` de `settings/general` (tanto no `ThemeProvider` quanto em qualquer listener remanescente no admin) e confirme que ele dispara **uma única vez** por mudança real de dado, não duas. **Remova o log/breakpoint depois do teste** — é só instrumentação temporária, não deve ficar no código.
 3. Clique "Salvar Configurações" com Network aberto — as duas escritas (`settings` + `balloonConfig`) devem sair praticamente juntas (paralelas via `Promise.all`), não uma esperando a outra.
 4. Passeie pela loja em geral (produto, carrinho, seções com imagem) e confira que nenhuma imagem quebra ou distorce — era um sweep de `sizes` em `next/image fill` em 27 lugares.
 
