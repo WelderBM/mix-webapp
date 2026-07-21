@@ -65,10 +65,7 @@ export function OrdersTab() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>(
-    () => {
-      const pedido = searchParams.get("pedido");
-      return pedido ? { [pedido]: true } : {};
-    }
+    {}
   );
 
   // Refs para controle de notificação
@@ -145,6 +142,22 @@ export function OrdersTab() {
 
     return () => unsubscribe();
   }, []);
+
+  // Auto-expande o pedido do deep-link (?pedido=) num efeito, não no corpo
+  // do componente: chamar patchParams (Router) durante o render de OrdersTab
+  // é o que disparava "Cannot update a component (Router) while rendering a
+  // different component (OrdersTab)". Roda de novo quando o param muda (ex:
+  // usuário navega para outro link com ?pedido= diferente) ou quando a lista
+  // termina de carregar — cobre o deep-link chegando antes do onSnapshot
+  // popular `orders`, quando o pedido ainda não existe na lista pra expandir.
+  useEffect(() => {
+    const pedido = searchParams.get("pedido");
+    if (!pedido) return;
+    if (!orders.some((o) => o.id === pedido)) return;
+    setExpandedOrders((prev) =>
+      prev[pedido] ? prev : { ...prev, [pedido]: true }
+    );
+  }, [searchParams, orders]);
 
   const toggleExpand = (orderId: string) => {
     setExpandedOrders((prev) => {
