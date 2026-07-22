@@ -52,6 +52,11 @@ Ao escrever o primeiro teste de componente deste repo que renderiza `Accordion`/
 
 **Padrão**: ao testar um componente que usa `Accordion`/`AlertDialog`/`ConfirmDialog`, tente direto sem polyfill — só adicione mock de API de browser (`ResizeObserver`, `scrollIntoView`, etc.) se o teste realmente falhar por causa disso. Pra distinguir itens com o mesmo texto visível (ex: dois botões "Replicar p/ Todos"), prefira `getByTitle`/atributo único a depender da ordem do DOM.
 
+### Um `useRouter()` mockado como stub não consegue provar a ausência do warning "Cannot update a component (Router)..."
+Esse projeto mocka `next/navigation` em vários testes (`vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }), ... }))`, ver `meu-pedido/page.test.tsx`). Um `vi.spyOn(console, "error")` rodando contra um componente que chama `router.replace()` **nunca** vai capturar o warning real do React ("Cannot update a component (`Router`) while rendering a different component") nesse cenário, porque o mock é um `vi.fn()` sem estado nenhum por trás — não existe um "componente Router" de verdade sendo atualizado, então o React não tem o que reclamar, não importa se o código de produção tem o bug ou não. Confirmado experimentalmente: revertendo de propósito o fix de `OrdersTab.tsx` (que causou esse warning em produção) e rodando o mesmo teste, o `console.error` mockado continuou vazio.
+
+**Padrão**: um teste assim só prova o resultado observável (o estado final bate com o esperado, considerando timing de dados assíncronos), não a ausência do warning de "setState durante o render de outro componente" — esse warning exige o Router/contexto real do Next.js, não um stub. Pra essa classe de bug, confie na leitura do código (efeito colateral nunca dentro de um updater funcional de `setState`, nunca no corpo do componente) mais do que no teste automatizado; o teste cobre regressão de comportamento, não a ausência do warning específico.
+
 ---
 
 ## Firebase / Firestore

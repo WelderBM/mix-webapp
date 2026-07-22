@@ -65,10 +65,7 @@ export function OrdersTab() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>(
-    () => {
-      const pedido = searchParams.get("pedido");
-      return pedido ? { [pedido]: true } : {};
-    }
+    {}
   );
 
   // Refs para controle de notificação
@@ -146,12 +143,33 @@ export function OrdersTab() {
     return () => unsubscribe();
   }, []);
 
+  // Auto-expande o pedido do deep-link (?pedido=) num efeito, não no corpo
+  // do componente: chamar patchParams (Router) durante o render de OrdersTab
+  // é o que disparava "Cannot update a component (Router) while rendering a
+  // different component (OrdersTab)". Roda de novo quando o param muda (ex:
+  // usuário navega para outro link com ?pedido= diferente) ou quando a lista
+  // termina de carregar — cobre o deep-link chegando antes do onSnapshot
+  // popular `orders`, quando o pedido ainda não existe na lista pra expandir.
+  useEffect(() => {
+    const pedido = searchParams.get("pedido");
+    if (!pedido) return;
+    if (!orders.some((o) => o.id === pedido)) return;
+    setExpandedOrders((prev) =>
+      prev[pedido] ? prev : { ...prev, [pedido]: true }
+    );
+  }, [searchParams, orders]);
+
   const toggleExpand = (orderId: string) => {
-    setExpandedOrders((prev) => {
-      const next = { ...prev, [orderId]: !prev[orderId] };
-      patchParams({ pedido: next[orderId] ? orderId : undefined });
-      return next;
-    });
+    // patchParams fica fora do updater de propósito: updaters funcionais
+    // rodam de novo durante a fase de render sempre que o React precisa
+    // recalcular o estado (ex: replay ao processar a fila de updates) — um
+    // efeito colateral lá dentro (aqui, mexer no Router) é um
+    // setState-durante-render latente. A decisão pelo closure é segura
+    // aqui porque isto é um handler de clique: o estado no closure já é o
+    // do render corrente.
+    const willExpand = !expandedOrders[orderId];
+    setExpandedOrders((prev) => ({ ...prev, [orderId]: !prev[orderId] }));
+    patchParams({ pedido: willExpand ? orderId : undefined });
   };
 
   const handleStatusFilterChange = (value: string) => {
