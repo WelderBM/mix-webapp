@@ -445,7 +445,9 @@ describe("useProductStore", () => {
       setSort("price_asc");
       display = useProductStore.getState().displayProducts;
       for (let i = 1; i < display.length; i++) {
-        expect(display[i].price).toBeGreaterThanOrEqual(display[i - 1].price);
+        expect(display[i].price ?? 0).toBeGreaterThanOrEqual(
+          display[i - 1].price ?? 0
+        );
       }
 
       // Step 3: Load more

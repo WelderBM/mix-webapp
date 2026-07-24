@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { ProductImageGallery } from "@/components/features/ProductImageGallery";
 import { BackButton } from "@/components/ui/BackButton";
 import { cn } from "@/lib/utils";
+import { getEffectiveUnitPrice, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 
 // Uma dimensão "casa" só quando o valor existe dos dois lados e é igual —
 // `variantAttrs?.[k] === selection[k]` sozinho deixaria `undefined ===
@@ -339,10 +340,16 @@ export default function ProductPage() {
   const isSelectionMissing =
     missingSelection || combinationUnavailable || variantOutOfStock;
 
+  const effectivePrice = product
+    ? selectedVariant?.price ?? getEffectiveUnitPrice(product)
+    : null;
+  const priceUnavailable = effectivePrice == null;
+  const isActionBlocked = isSelectionMissing || priceUnavailable;
+
   const handleAddToCart = () => {
     if (!product) return;
 
-    if (isSelectionMissing) {
+    if (isActionBlocked) {
       // Trigger Visual Feedback
       setShowError(true);
       setAnimateButton(true);
@@ -419,10 +426,18 @@ export default function ProductPage() {
             </div>
 
             <div className="text-3xl font-bold text-purple-600 mt-4">
-              R$ {(selectedVariant?.price ?? product.price).toFixed(2)}
-              {product.unit !== "un" && (
-                <span className="text-sm text-slate-400 font-normal ml-1">
-                  /{product.unit}
+              {effectivePrice != null ? (
+                <>
+                  R$ {effectivePrice.toFixed(2)}
+                  {getEffectiveUnitLabel(product) !== "un" && (
+                    <span className="text-sm text-slate-400 font-normal ml-1">
+                      /{getEffectiveUnitLabel(product)}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-xl text-slate-400">
+                  Preço indisponível
                 </span>
               )}
             </div>
@@ -534,16 +549,18 @@ export default function ProductPage() {
                 className={cn(
                   "w-full h-14 text-lg gap-2 shadow-lg transition-all relative overflow-hidden",
                   // If missing selection: Grey styling but NOT disabled interactive-wise
-                  isSelectionMissing
+                  isActionBlocked
                     ? "bg-slate-100 text-slate-400 hover:bg-slate-200 shadow-none border border-slate-200"
                     : "bg-slate-900 hover:bg-slate-800 text-white shadow-slate-200",
                   animateButton && "animate-shake" // Simple shake animation class
                 )}
               >
                 <ShoppingCart
-                  className={cn(isSelectionMissing ? "opacity-50" : "")}
+                  className={cn(isActionBlocked ? "opacity-50" : "")}
                 />
-                {variantOutOfStock
+                {priceUnavailable
+                  ? "Preço Indisponível"
+                  : variantOutOfStock
                   ? "Esgotado Nessa Opção"
                   : combinationUnavailable
                   ? "Combinação Indisponível"

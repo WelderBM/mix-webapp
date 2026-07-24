@@ -32,6 +32,7 @@ import {
   useSystemToolsUnlocked,
   SystemPasswordPrompt,
 } from "@/components/admin/SystemPasswordGate";
+import { toOptionalPositiveNumber } from "@/lib/ribbon-pricing";
 
 // ──────────────────────────────────────
 // TIPOS
@@ -131,6 +132,23 @@ export default function BatchImportPage() {
         if (!item.id || !item.name) {
           return { item, status: "error", reason: "ID ou nome ausente" };
         }
+        // Mesma exigência do ProductFormDialog pra RIBBON: rollPrice é
+        // obrigatório. O #52 aconteceu justamente porque esse import em
+        // lote era o único jeito de gravar rollPrice sem passar por
+        // validação nenhuma — se o form exige e o CSV não, a assimetria
+        // volta pela porta dos fundos.
+        const resolvedType = item.type || "RIBBON";
+        if (
+          resolvedType === "RIBBON" &&
+          toOptionalPositiveNumber(item.rollPrice) === undefined
+        ) {
+          return {
+            item,
+            status: "error",
+            reason:
+              "rollPrice ausente ou inválido — obrigatório para fitas (RIBBON)",
+          };
+        }
         if (existingSet.has(item.id)) {
           return { item, status: "update", reason: "Produto já existe (será atualizado)" };
         }
@@ -216,8 +234,8 @@ export default function BatchImportPage() {
               id: item.id,
               name: item.name,
               description: item.description || "",
-              price: item.price ?? 0,
-              rollPrice: item.rollPrice ?? undefined,
+              price: toOptionalPositiveNumber(item.price),
+              rollPrice: toOptionalPositiveNumber(item.rollPrice),
               originalPrice: item.originalPrice ?? undefined,
               type: item.type || "RIBBON",
               category: item.category || "Fitas",
@@ -495,8 +513,9 @@ export default function BatchImportPage() {
                 <div className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-xl p-4 mb-4 text-sm text-red-700">
                   <AlertTriangle size={18} className="shrink-0 mt-0.5" />
                   <div>
-                    <strong>{counts.error} item(s) com erro</strong> — verifique
-                    se todos têm id e name válidos. Estes serão ignorados na
+                    <strong>{counts.error} item(s) com erro</strong> — confira
+                    o motivo de cada um na lista abaixo (id/nome ausente ou
+                    rollPrice inválido pra fitas). Estes serão ignorados na
                     importação.
                   </div>
                 </div>

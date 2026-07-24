@@ -140,8 +140,8 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
     filtered.sort((a, b) => {
       if (sortOption === "name_asc") return a.name.localeCompare(b.name);
-      if (sortOption === "price_asc") return a.price - b.price;
-      if (sortOption === "price_desc") return b.price - a.price;
+      if (sortOption === "price_asc") return (a.price ?? 0) - (b.price ?? 0);
+      if (sortOption === "price_desc") return (b.price ?? 0) - (a.price ?? 0);
       return 0;
     });
 

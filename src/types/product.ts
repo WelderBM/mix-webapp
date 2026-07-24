@@ -44,7 +44,11 @@ export interface Product {
   id: string;
   name: string;
   description?: string;
-  price: number;
+  // Opcional de propósito — não existe valor numérico que signifique
+  // "ainda não precificado" sem virar sentinela ambíguo (ver #52/#53 em
+  // docs/claude-lessons.md). Nunca leia `.price`/`.rollPrice` direto fora de
+  // src/lib/ribbon-pricing.ts; passe pelos predicados/funções de lá.
+  price?: number;
   rollPrice?: number;
   originalPrice?: number;
   type: ProductType;

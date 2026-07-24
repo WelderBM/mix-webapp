@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useSearchParamsPatch } from "@/hooks/useSearchParamsPatch";
 import { Product } from "@/types";
 import { Category } from "@/types/category";
+import { getEffectiveUnitPrice } from "@/lib/ribbon-pricing";
 import { CategoryManager } from "@/components/admin/CategoryManager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -206,7 +207,10 @@ export function ProductsTab({
                   </Badge>
                 </TableCell>
                 <TableCell className="whitespace-nowrap">
-                  R$ {product.price.toFixed(2)}
+                  {(() => {
+                    const price = getEffectiveUnitPrice(product);
+                    return price != null ? `R$ ${price.toFixed(2)}` : "—";
+                  })()}
                 </TableCell>
                 <TableCell className="text-right whitespace-nowrap">
                   <ChevronRight

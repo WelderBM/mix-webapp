@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/store/cartStore";
 import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
+import { getEffectiveUnitPrice, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
 // NOVO IMPORT:
 import { SafeImage } from "@/components/ui/SafeImage";
@@ -25,7 +26,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const { addItem, openCart } = useCartStore();
   const openKitBuilder = useKitBuilderStore((state) => state.openKitBuilder);
 
-  const finalPrice = product.price;
+  const finalPrice = getEffectiveUnitPrice(product);
+  // `null` = não dá pra vender agora (fita sem preço configurado pro
+  // estado atual) — nunca tratado como grátis. Kits não dependem disso:
+  // o preço deles é calculado ao vivo no KitBuilderModal, não em product.price.
+  const priceUnavailable = finalPrice == null && product.type !== "ASSEMBLED_KIT";
 
   // Removemos todos os useEffects e useStates de imagem daqui.
   // O SafeImage cuida disso agora.
@@ -37,12 +42,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     } else if (onSelect) {
       onSelect(product);
     } else {
+      if (priceUnavailable) return;
       addItem({
         cartId: crypto.randomUUID(),
         type: "SIMPLE",
         product: product,
         quantity: 1,
-        kitTotalAmount: finalPrice,
+        kitTotalAmount: finalPrice ?? 0,
       });
       toast.success(`${product.name} adicionado!`);
       openCart();
@@ -65,11 +71,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
         />
 
-        {product.originalPrice && product.originalPrice > product.price && (
-          <div className="absolute left-2 top-2 rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white shadow-md z-10">
-            Oferta
-          </div>
-        )}
+        {product.originalPrice != null &&
+          finalPrice != null &&
+          product.originalPrice > finalPrice && (
+            <div className="absolute left-2 top-2 rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white shadow-md z-10">
+              Oferta
+            </div>
+          )}
       </Link>
 
       {/* CONTENT SECTION */}
@@ -87,20 +95,27 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {/* PRICE */}
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              {product.originalPrice &&
-                product.originalPrice > product.price && (
+              {product.originalPrice != null &&
+                finalPrice != null &&
+                product.originalPrice > finalPrice && (
                   <span className="text-xs text-slate-400 line-through">
                     R$ {product.originalPrice.toFixed(2)}
                   </span>
                 )}
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-extrabold text-primary whitespace-nowrap">
-                  {formatCurrency(finalPrice)}
+              {finalPrice != null ? (
+                <div className="flex items-baseline gap-1">
+                  <span className="text-lg font-extrabold text-primary whitespace-nowrap">
+                    {formatCurrency(finalPrice)}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter shrink-0">
+                    / {getEffectiveUnitLabel(product)}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-sm font-bold text-slate-400">
+                  Preço indisponível
                 </span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter shrink-0">
-                  / {product.unit || "un"}
-                </span>
-              </div>
+              )}
             </div>
           </div>
 
@@ -131,11 +146,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 </Link>
               ) : (
                 <Button
-                  className="w-full bg-green-600 hover:bg-green-700 text-white gap-2 font-bold shadow-green-200 shadow-md h-10 transition-all hover:scale-[1.02]"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white gap-2 font-bold shadow-green-200 shadow-md h-10 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
                   onClick={handleAction}
+                  disabled={priceUnavailable}
                 >
                   <ShoppingCart size={18} />
-                  Adicionar
+                  {priceUnavailable ? "Indisponível" : "Adicionar"}
                 </Button>
               )}
             </div>

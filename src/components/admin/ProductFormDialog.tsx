@@ -11,7 +11,6 @@ import {
   ProductImage,
   ProductVariant,
   RibbonInventory,
-  RibbonRollStatus,
 } from "@/types/product";
 import { Category } from "@/types/category";
 import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
@@ -51,6 +50,7 @@ import {
 import { ProductImageManager } from "./ProductImageManager";
 import { ProductVariationManager } from "./ProductVariationManager";
 import { ProductVariationImageManager } from "./ProductVariationImageManager";
+import { toOptionalPositiveNumber } from "@/lib/ribbon-pricing";
 
 // Definindo o tipo base de dados do formulário (simplificado)
 interface ProductFormData extends Product {
@@ -65,35 +65,25 @@ interface ProductDraft {
 // Passos do wizard. "classificacao" junta categoria + subcategoria (só
 // aparece como campo se a categoria escolhida tiver alguma) + tipo numa
 // tela só — eram 3 passos de um campo cada, virou 1 (feedback: passos com
-// "input solitário" deixavam o fluxo burocrático demais). "especifico" só
-// existe pra tipos que precisam de campos extras (hoje só RIBBON). A
-// imagem de cada variação é escolhida dentro do próprio passo "revisao",
+// "input solitário" deixavam o fluxo burocrático demais). RIBBON não tem
+// mais um passo à parte: metragem, preços e disponibilidade pro laço
+// custom vivem dentro de "detalhes" mesmo, na mesma ordem que aparecem
+// pro lojista pensar (nome → metragem → preço do rolo → preço por metro).
+// A imagem de cada variação é escolhida dentro do próprio passo "revisao",
 // junto da galeria geral do produto — não é um passo à parte (feedback:
 // ter a imagem da variação num passo e a capa/galeria do produto em outro
 // deixava a escolha de imagem espalhada em dois lugares diferentes pro
 // mesmo produto).
-type StepId =
-  | "classificacao"
-  | "detalhes"
-  | "especifico"
-  | "variacoes"
-  | "revisao";
+type StepId = "classificacao" | "detalhes" | "variacoes" | "revisao";
+
+const STEPS: StepId[] = ["classificacao", "detalhes", "variacoes", "revisao"];
 
 const STEP_LABELS: Record<StepId, string> = {
   classificacao: "Classificação",
   detalhes: "Detalhes",
-  especifico: "Config. da Fita",
   variacoes: "Variações",
   revisao: "Revisão",
 };
-
-function stepsFor(type: ProductType): StepId[] {
-  const base: StepId[] = ["classificacao", "detalhes"];
-  if (type === "RIBBON") base.push("especifico");
-  base.push("variacoes");
-  base.push("revisao");
-  return base;
-}
 
 interface ProductFormDialogProps {
   productToEdit: Product | null;
@@ -111,7 +101,6 @@ interface ProductFormDialogProps {
 const initialFormState: ProductFormData = {
   id: "",
   name: "",
-  price: 0,
   type: "STANDARD_ITEM",
   category: "Geral",
   unit: "un",
@@ -228,8 +217,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     // carregado (não do estado antigo, que ainda não foi atualizado).
     const startStepId: StepId =
       initialStep ?? (productToEdit?.id ? "detalhes" : "classificacao");
-    const startSteps = stepsFor(nextFormData.type);
-    const startIndex = startSteps.indexOf(startStepId);
+    const startIndex = STEPS.indexOf(startStepId);
     setStepIndex(startIndex >= 0 ? startIndex : 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productToEdit, isOpen, initialStep]);
@@ -266,14 +254,13 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     setDraftPersistenceEnabled(true);
   };
 
-  const steps = useMemo(() => stepsFor(formData.type), [formData.type]);
-  const currentStepIndex = Math.min(stepIndex, steps.length - 1);
-  const currentStepId = steps[currentStepIndex];
+  const currentStepIndex = Math.min(stepIndex, STEPS.length - 1);
+  const currentStepId = STEPS[currentStepIndex];
   const isFirstStep = currentStepIndex === 0;
-  const isLastStep = currentStepIndex === steps.length - 1;
+  const isLastStep = currentStepIndex === STEPS.length - 1;
 
   const goNext = () =>
-    setStepIndex((i) => Math.min(i + 1, steps.length - 1));
+    setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
   const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
 
   const isNextDisabled =
@@ -291,7 +278,27 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       return;
     }
 
-    if (Number(formData.price) <= 0) {
+    if (formData.type === "RIBBON") {
+      // Rolo primeiro (ordem em que os campos aparecem no passo "Detalhes"):
+      // metragem → preço do rolo (obrigatório) → preço por metro (opcional).
+      if (!((formData.ribbonInventory?.totalRollMeters || 0) > 0)) {
+        toast.error("A metragem do rolo deve ser maior que zero.");
+        return;
+      }
+      if (!(Number(formData.rollPrice) > 0)) {
+        toast.error("O preço do rolo fechado é obrigatório e deve ser maior que zero.");
+        return;
+      }
+      const rawMeterPrice = formData.price;
+      const meterPriceFilled =
+        rawMeterPrice !== undefined &&
+        rawMeterPrice !== null &&
+        String(rawMeterPrice).trim() !== "";
+      if (meterPriceFilled && !(Number(rawMeterPrice) > 0)) {
+        toast.error("O preço por metro, se preenchido, deve ser maior que zero.");
+        return;
+      }
+    } else if (!(Number(formData.price) > 0)) {
       toast.error("O preço deve ser maior que zero.");
       return;
     }
@@ -306,7 +313,10 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       return;
     }
 
-    if (!formData.unit || formData.unit.trim() === "") {
+    if (
+      formData.type !== "RIBBON" &&
+      (!formData.unit || formData.unit.trim() === "")
+    ) {
       toast.error("A unidade de venda (un, m, kg) é obrigatória.");
       return;
     }
@@ -387,12 +397,19 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
           ? [{ id: crypto.randomUUID(), url: defaultVariantImage, isCover: true }]
           : formData.images;
 
+      const isRibbon = formData.type === "RIBBON";
+      // `price` opcional de propósito (ver types/product.ts) — nunca grava
+      // 0 como sentinela de "sem preço por metro ainda". `""`/undefined
+      // viram `undefined` de verdade, não `0`.
+      const meterPrice = toOptionalPositiveNumber(formData.price);
+
       const productData: Product = {
         ...formData,
         id: productId,
-        price: Number(formData.price),
+        price: isRibbon ? meterPrice : Number(formData.price),
+        rollPrice: isRibbon ? Number(formData.rollPrice) : formData.rollPrice,
         category: formData.category.trim(),
-        unit: formData.unit.trim() as any,
+        unit: isRibbon ? "m" : (formData.unit.trim() as any),
         images,
         imageUrl: formData.imageUrl || defaultVariantImage || "",
       };
@@ -418,28 +435,14 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     }));
   };
 
+  // `status` não é mais alterável aqui — vira transição de estado só pelas
+  // ações "Abrir Rolo"/"Fechar Manual" em RibbonsTab, nunca campo de form
+  // (nem em criação, nem em edição).
   const handleRibbonInventoryChange = (
     key: keyof RibbonInventory,
     value: any
   ) => {
     setFormData((prev) => {
-      const totalMeters = prev.ribbonInventory?.totalRollMeters || 0;
-
-      if (key === "status") {
-        const newStatus = value as RibbonRollStatus;
-        return {
-          ...prev,
-          ribbonInventory: {
-            ...prev.ribbonInventory,
-            status: newStatus,
-            remainingMeters:
-              newStatus === "FECHADO"
-                ? totalMeters
-                : prev.ribbonInventory?.remainingMeters || 0,
-          } as RibbonInventory,
-        };
-      }
-
       if (key === "totalRollMeters") {
         const newTotal = parseFloat(value) || 0;
         return {
@@ -481,12 +484,12 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
           </DialogDescription>
           <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase tracking-wide">
             <span>
-              Passo {currentStepIndex + 1} de {steps.length} —{" "}
+              Passo {currentStepIndex + 1} de {STEPS.length} —{" "}
               {STEP_LABELS[currentStepId]}
             </span>
           </div>
           <Progress
-            value={((currentStepIndex + 1) / steps.length) * 100}
+            value={((currentStepIndex + 1) / STEPS.length) * 100}
             className="h-1.5"
           />
         </DialogHeader>
@@ -687,38 +690,136 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="price">Preço</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      step="0.01"
-                      value={formData.price}
-                      onChange={(e) =>
-                        handleInputChange("price", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
+                {formData.type === "RIBBON" ? (
+                  <div className="space-y-4 rounded-lg border p-4 bg-yellow-50/50">
+                    <h4 className="font-bold text-sm text-yellow-800 flex items-center gap-2 uppercase tracking-wide">
+                      <Ruler size={16} /> Metragem e Preços do Rolo
+                    </h4>
 
-                  <div className="space-y-2">
-                    <Label>Unidade de Venda</Label>
-                    <Select
-                      value={formData.unit}
-                      onValueChange={(v) => handleInputChange("unit", v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione Unidade" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="un">UNIDADE (un)</SelectItem>
-                        <SelectItem value="m">METRO (m)</SelectItem>
-                        <SelectItem value="pct">PACOTE (pct)</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-2">
+                      <Label htmlFor="totalMeters">Metragem do Rolo (m)</Label>
+                      <Input
+                        id="totalMeters"
+                        type="number"
+                        value={formData.ribbonInventory?.totalRollMeters || ""}
+                        onChange={(e) =>
+                          handleRibbonInventoryChange(
+                            "totalRollMeters",
+                            e.target.value
+                          )
+                        }
+                        placeholder="Ex: 100"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="rollPrice">Preço do Rolo Fechado</Label>
+                      <Input
+                        id="rollPrice"
+                        type="number"
+                        step="0.01"
+                        value={formData.rollPrice ?? ""}
+                        onChange={(e) =>
+                          handleInputChange("rollPrice", e.target.value)
+                        }
+                        placeholder="Ex: 40.00"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="meterPrice">
+                        Preço por Metro{" "}
+                        <span className="text-slate-400 font-normal">
+                          (opcional)
+                        </span>
+                      </Label>
+                      <Input
+                        id="meterPrice"
+                        type="number"
+                        step="0.01"
+                        value={formData.price ?? ""}
+                        onChange={(e) =>
+                          handleInputChange("price", e.target.value)
+                        }
+                        placeholder="Pode confirmar depois, ao abrir o rolo"
+                      />
+                    </div>
+
+                    {formData.ribbonInventory?.status === "ABERTO" && (
+                      <div className="space-y-2 animate-in fade-in">
+                        <Label
+                          htmlFor="remainingMeters"
+                          className="flex justify-between"
+                        >
+                          Metragem Restante (m)
+                          <span className="text-sm text-slate-500">
+                            Total: {formData.ribbonInventory.totalRollMeters}m
+                          </span>
+                        </Label>
+                        <Input
+                          id="remainingMeters"
+                          type="number"
+                          value={formData.ribbonInventory.remainingMeters}
+                          onChange={(e) =>
+                            handleRibbonInventoryChange(
+                              "remainingMeters",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Ex: 25.5"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-yellow-100">
+                      <Label htmlFor="customBow" className="text-sm font-normal">
+                        Disponível para Laço Customizado/Venda ao Metro?
+                      </Label>
+                      <Switch
+                        id="customBow"
+                        checked={formData.isAvailableForCustomBow}
+                        onCheckedChange={(checked) =>
+                          handleInputChange("isAvailableForCustomBow", checked)
+                        }
+                      />
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="price">Preço</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        step="0.01"
+                        value={formData.price ?? ""}
+                        onChange={(e) =>
+                          handleInputChange("price", e.target.value)
+                        }
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Unidade de Venda</Label>
+                      <Select
+                        value={formData.unit}
+                        onValueChange={(v) => handleInputChange("unit", v)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione Unidade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="un">UNIDADE (un)</SelectItem>
+                          <SelectItem value="m">METRO (m)</SelectItem>
+                          <SelectItem value="pct">PACOTE (pct)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="description">Descrição</Label>
@@ -727,95 +828,6 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     value={formData.description || ""}
                     onChange={(e) =>
                       handleInputChange("description", e.target.value)
-                    }
-                  />
-                </div>
-              </div>
-            )}
-
-            {currentStepId === "especifico" && (
-              <div className="space-y-4 rounded-lg border p-4 bg-yellow-50/50">
-                <h4 className="font-bold text-lg text-yellow-800 flex items-center gap-2">
-                  <Ruler size={20} /> Controle de Estoque da Fita
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="totalMeters">
-                      Metragem Total do Rolo (m)
-                    </Label>
-                    <Input
-                      id="totalMeters"
-                      type="number"
-                      value={formData.ribbonInventory?.totalRollMeters || 0}
-                      onChange={(e) =>
-                        handleRibbonInventoryChange(
-                          "totalRollMeters",
-                          e.target.value
-                        )
-                      }
-                      placeholder="Ex: 500"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Status do Rolo</Label>
-                    <Select
-                      value={formData.ribbonInventory?.status || "FECHADO"}
-                      onValueChange={(status: RibbonRollStatus) => {
-                        handleRibbonInventoryChange("status", status);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="FECHADO">
-                          🔴 Fechado (Venda Rolo Inteiro)
-                        </SelectItem>
-                        <SelectItem value="ABERTO">
-                          🟢 Aberto (Venda por Metro/Laço)
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {formData.ribbonInventory?.status === "ABERTO" && (
-                  <div className="space-y-2 animate-in fade-in">
-                    <Label
-                      htmlFor="remainingMeters"
-                      className="flex justify-between"
-                    >
-                      Metragem Restante (m)
-                      <span className="text-sm text-slate-500">
-                        Total: {formData.ribbonInventory.totalRollMeters}m
-                      </span>
-                    </Label>
-                    <Input
-                      id="remainingMeters"
-                      type="number"
-                      value={formData.ribbonInventory.remainingMeters}
-                      onChange={(e) =>
-                        handleRibbonInventoryChange(
-                          "remainingMeters",
-                          e.target.value
-                        )
-                      }
-                      placeholder="Ex: 25.5"
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="customBow">
-                    Disponível para Laço Customizado/Venda ao Metro?
-                  </Label>
-                  <Switch
-                    id="customBow"
-                    checked={formData.isAvailableForCustomBow}
-                    onCheckedChange={(checked) =>
-                      handleInputChange("isAvailableForCustomBow", checked)
                     }
                   />
                 </div>
@@ -883,11 +895,6 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                       images={formData.images || []}
                       variants={formData.variants || []}
                       onChange={(patch) => {
-                        // eslint-disable-next-line no-console
-                        console.log(
-                          "[DEBUG variation-image] ProductFormDialog patch=" +
-                            JSON.stringify(patch)
-                        );
                         // Merge feito aqui, contra `prev` — não contra o que
                         // o ProductVariationImageManager tinha em mãos quando
                         // o clique aconteceu. O updater funcional garante que
@@ -906,17 +913,6 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                               });
                               return merged;
                             }
-                          );
-                          // eslint-disable-next-line no-console
-                          console.log(
-                            "[DEBUG variation-image] nextVariants=" +
-                              JSON.stringify(
-                                nextVariants.map((v) => ({
-                                  id: v.id,
-                                  imageId: v.imageId,
-                                  imageUrl: v.imageUrl,
-                                }))
-                              )
                           );
                           return { ...prev, variants: nextVariants };
                         });

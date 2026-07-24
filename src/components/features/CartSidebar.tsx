@@ -30,6 +30,7 @@ import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { getProductImage } from "@/lib/image-utils";
+import { getCartItemTotal } from "@/lib/cart-pricing";
 import { SafeImage } from "../ui/SafeImage";
 import { OrderSuccessModal } from "@/components/features/OrderSuccessModal";
 
@@ -237,11 +238,7 @@ export function CartSidebar() {
           variation = ` (${item.selectedImageLabel})`;
         }
 
-        const itemPrice =
-          item.kitTotalAmount && item.kitTotalAmount > 0
-            ? item.kitTotalAmount
-            : (item.selectedVariant?.price ?? item.product?.price ?? 0) *
-              item.quantity;
+        const itemPrice = getCartItemTotal(item);
 
         // Formato: 1x Nome (Variação) - R$ 10,00
         message += `${item.quantity}x ${name}${variation} - ${formatCurrency(
@@ -334,12 +331,7 @@ export function CartSidebar() {
                         item.product?.imageUrl,
                       item.product?.type || "DEFAULT"
                     );
-                    const itemPrice =
-                      item.kitTotalAmount && item.kitTotalAmount > 0
-                        ? item.kitTotalAmount
-                        : (item.selectedVariant?.price ??
-                            item.product?.price ??
-                            0) * item.quantity;
+                    const itemPrice = getCartItemTotal(item);
 
                     return (
                       <div
