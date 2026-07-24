@@ -22,12 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trash2, ShoppingCart, MessageCircle, Loader2 } from "lucide-react";
+import { Trash2, ShoppingCart, MessageCircle, Loader2, Lock } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/types";
 import { toast } from "sonner";
+import { getCartItemTotal } from "@/lib/cart-pricing";
+import { isSealedRibbonRoll } from "@/lib/ribbon-pricing";
 import { useRouter } from "next/navigation";
 import { getProductImage } from "@/lib/image-utils";
 import { SafeImage } from "../ui/SafeImage";
@@ -237,11 +239,7 @@ export function CartSidebar() {
           variation = ` (${item.selectedImageLabel})`;
         }
 
-        const itemPrice =
-          item.kitTotalAmount && item.kitTotalAmount > 0
-            ? item.kitTotalAmount
-            : (item.selectedVariant?.price ?? item.product?.price ?? 0) *
-              item.quantity;
+        const itemPrice = getCartItemTotal(item);
 
         // Formato: 1x Nome (Variação) - R$ 10,00
         message += `${item.quantity}x ${name}${variation} - ${formatCurrency(
@@ -334,12 +332,7 @@ export function CartSidebar() {
                         item.product?.imageUrl,
                       item.product?.type || "DEFAULT"
                     );
-                    const itemPrice =
-                      item.kitTotalAmount && item.kitTotalAmount > 0
-                        ? item.kitTotalAmount
-                        : (item.selectedVariant?.price ??
-                            item.product?.price ??
-                            0) * item.quantity;
+                    const itemPrice = getCartItemTotal(item);
 
                     return (
                       <div
@@ -355,6 +348,14 @@ export function CartSidebar() {
                             sizes="64px"
                             className="object-cover"
                           />
+                          {isSealedRibbonRoll(item.product) && (
+                            <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-black/40 backdrop-blur-sm py-0.5">
+                              <Lock size={8} className="text-white" />
+                              <span className="text-[8px] font-bold uppercase tracking-tight text-white">
+                                Lacrado
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0 pr-6">
                           <h4 className="font-medium text-slate-800 text-sm line-clamp-2">

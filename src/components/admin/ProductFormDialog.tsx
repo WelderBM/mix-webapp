@@ -296,6 +296,11 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       return;
     }
 
+    if (formData.type === "RIBBON" && Number(formData.rollPrice) <= 0) {
+      toast.error("O preço do rolo fechado deve ser maior que zero.");
+      return;
+    }
+
     if (!formData.category || formData.category.trim() === "") {
       toast.error("A categoria é obrigatória.");
       return;
@@ -391,6 +396,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         ...formData,
         id: productId,
         price: Number(formData.price),
+        rollPrice:
+          formData.type === "RIBBON" ? Number(formData.rollPrice) : formData.rollPrice,
         category: formData.category.trim(),
         unit: formData.unit.trim() as any,
         images,
@@ -689,7 +696,11 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="price">Preço</Label>
+                    <Label htmlFor="price">
+                      {formData.type === "RIBBON"
+                        ? "Preço por Metro (fita aberta)"
+                        : "Preço"}
+                    </Label>
                     <Input
                       id="price"
                       type="number"
@@ -779,6 +790,28 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="rollPrice">
+                    Preço do Rolo Fechado (venda do rolo inteiro)
+                  </Label>
+                  <Input
+                    id="rollPrice"
+                    type="number"
+                    step="0.01"
+                    value={formData.rollPrice || 0}
+                    onChange={(e) =>
+                      handleInputChange("rollPrice", e.target.value)
+                    }
+                    placeholder="Ex: 40.00"
+                  />
+                  <p className="text-xs text-slate-500">
+                    O campo &quot;Preço&quot; do passo Detalhes é o preço{" "}
+                    <strong>por metro</strong> (fita aberta/cortada). Este
+                    aqui é o preço do <strong>rolo lacrado inteiro</strong> —
+                    são unidades diferentes, os dois precisam estar certos.
+                  </p>
                 </div>
 
                 {formData.ribbonInventory?.status === "ABERTO" && (

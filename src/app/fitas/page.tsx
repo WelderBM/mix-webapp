@@ -24,6 +24,7 @@ import { hexToRgb, getContrastColor } from "@/lib/utils";
 import { LacoBuilder } from "@/components/features/LacoBuilder";
 import { getProductImage } from "@/lib/image-utils";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { getEffectiveUnitPrice } from "@/lib/ribbon-pricing";
 
 function FitasContent() {
   const { allProducts, fetchProducts } = useProductStore();
@@ -79,9 +80,10 @@ function FitasContent() {
   );
 
   const handleAddRoll = (product: any) => {
+    const rollPrice = getEffectiveUnitPrice(product);
     const productToAdd = {
       ...product,
-      price: product.rollPrice || product.price,
+      price: rollPrice,
       name: `${product.name} (Rolo Fechado)`,
     };
 
@@ -90,7 +92,7 @@ function FitasContent() {
       type: "SIMPLE",
       product: productToAdd,
       quantity: 1,
-      kitTotalAmount: product.rollPrice || product.price,
+      kitTotalAmount: rollPrice,
     });
     toast.success("Rolo fechado adicionado ao carrinho!");
   };
@@ -209,7 +211,7 @@ function FitasContent() {
                   {closedRolls.map((product) => {
                     const displayProduct = {
                       ...product,
-                      price: product.rollPrice || product.price,
+                      price: getEffectiveUnitPrice(product),
                     };
 
                     return (

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { CartItem } from "@/types/cart";
 import { toast } from "sonner";
+import { getCartItemTotal } from "@/lib/cart-pricing";
 
 interface CartStore {
   items: CartItem[];
@@ -115,22 +116,10 @@ export const useCartStore = create<CartStore>()(
 
       getCartTotal: () => {
         const state = get();
-        return state.items.reduce((total, item) => {
-          let itemPrice = 0;
-
-          if (item.type === "SIMPLE" && item.product) {
-            const unitPrice = item.selectedVariant?.price || item.product.price;
-            itemPrice = unitPrice * item.quantity;
-          } else if (
-            item.type === "CUSTOM_KIT" ||
-            item.type === "CUSTOM_RIBBON" ||
-            item.type === "CUSTOM_BALLOON"
-          ) {
-            itemPrice = (item.kitTotalAmount || 0) * item.quantity;
-          }
-
-          return total + itemPrice;
-        }, 0);
+        return state.items.reduce(
+          (total, item) => total + getCartItemTotal(item),
+          0
+        );
       },
     }),
     {

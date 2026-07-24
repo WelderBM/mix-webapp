@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { ProductImageGallery } from "@/components/features/ProductImageGallery";
 import { BackButton } from "@/components/ui/BackButton";
 import { cn } from "@/lib/utils";
+import { getEffectiveUnitPrice } from "@/lib/ribbon-pricing";
 
 // Uma dimensão "casa" só quando o valor existe dos dois lados e é igual —
 // `variantAttrs?.[k] === selection[k]` sozinho deixaria `undefined ===
@@ -419,7 +420,7 @@ export default function ProductPage() {
             </div>
 
             <div className="text-3xl font-bold text-purple-600 mt-4">
-              R$ {(selectedVariant?.price ?? product.price).toFixed(2)}
+              R$ {(selectedVariant?.price ?? getEffectiveUnitPrice(product)).toFixed(2)}
               {product.unit !== "un" && (
                 <span className="text-sm text-slate-400 font-normal ml-1">
                   /{product.unit}

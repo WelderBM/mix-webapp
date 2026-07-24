@@ -11,6 +11,7 @@ import { Check, Clock, Package, Truck, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { BackButton } from "@/components/ui/BackButton";
 import { cn } from "@/lib/utils";
+import { getCartItemTotal } from "@/lib/cart-pricing";
 
 export default function OrderTrackingPage() {
   const { id } = useParams();
@@ -149,11 +150,7 @@ export default function OrderTrackingPage() {
                   </span>
                 </div>
                 <span className="font-mono text-slate-500">
-                  R${" "}
-                  {(
-                    (item.kitTotalAmount || item.product?.price || 0) *
-                    item.quantity
-                  ).toFixed(2)}
+                  R$ {getCartItemTotal(item).toFixed(2)}
                 </span>
               </div>
             ))}

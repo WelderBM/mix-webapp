@@ -22,6 +22,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { getProductImage } from "@/lib/image-utils";
+import { getCartItemTotal } from "@/lib/cart-pricing";
 
 // Componente para a barra de progresso do status
 const StatusTimeline = ({
@@ -350,11 +351,7 @@ export function TrackOrderContent() {
                             Qtd: {item.quantity}
                           </p>
                           <p className="text-xs font-bold text-slate-700">
-                            {formatCurrency(
-                              (item.kitTotalAmount ||
-                                item.product?.price ||
-                                0) * item.quantity
-                            )}
+                            {formatCurrency(getCartItemTotal(item))}
                           </p>
                         </div>
                       </div>

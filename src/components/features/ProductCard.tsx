@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/store/cartStore";
 import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
+import { getEffectiveUnitPrice, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
 // NOVO IMPORT:
 import { SafeImage } from "@/components/ui/SafeImage";
@@ -25,7 +26,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const { addItem, openCart } = useCartStore();
   const openKitBuilder = useKitBuilderStore((state) => state.openKitBuilder);
 
-  const finalPrice = product.price;
+  const finalPrice = getEffectiveUnitPrice(product);
 
   // Removemos todos os useEffects e useStates de imagem daqui.
   // O SafeImage cuida disso agora.
@@ -98,7 +99,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   {formatCurrency(finalPrice)}
                 </span>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter shrink-0">
-                  / {product.unit || "un"}
+                  / {getEffectiveUnitLabel(product)}
                 </span>
               </div>
             </div>
