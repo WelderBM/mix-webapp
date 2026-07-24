@@ -49,13 +49,6 @@ export function ProductVariationImageManager({
   };
 
   const handleRemove = (id: string) => {
-    // eslint-disable-next-line no-console
-    console.log(
-      "[DEBUG variation-image] handleRemove clicked for id=" +
-        id +
-        " current variant=" +
-        JSON.stringify(variants.find((v) => v.id === id))
-    );
     onChange({
       variantId: id,
       variantPatch: { imageId: undefined, imageUrl: undefined },
@@ -102,7 +95,15 @@ export function ProductVariationImageManager({
             <div className="flex items-center gap-2 flex-wrap shrink-0">
               {images.length > 0 ? (
                 <Select
-                  value={variant.imageId || undefined}
+                  // "" (não `undefined`) representa "nada selecionado" sem
+                  // tirar o Select do modo controlado — passar `undefined`
+                  // depois de já ter passado um valor real faz o Radix
+                  // considerar o componente "não controlado" e ele para de
+                  // atualizar o rótulo exibido, deixando o nome da imagem
+                  // removida visível mesmo com `variant.imageId` já limpo
+                  // (bug real do #54: removia a imagem mas o dropdown
+                  // continuava mostrando o nome antigo).
+                  value={variant.imageId || ""}
                   onValueChange={(v) => handlePickExisting(variant.id, v)}
                   disabled={disabled}
                 >

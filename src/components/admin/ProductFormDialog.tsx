@@ -883,11 +883,6 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                       images={formData.images || []}
                       variants={formData.variants || []}
                       onChange={(patch) => {
-                        // eslint-disable-next-line no-console
-                        console.log(
-                          "[DEBUG variation-image] ProductFormDialog patch=" +
-                            JSON.stringify(patch)
-                        );
                         // Merge feito aqui, contra `prev` — não contra o que
                         // o ProductVariationImageManager tinha em mãos quando
                         // o clique aconteceu. O updater funcional garante que
@@ -906,17 +901,6 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                               });
                               return merged;
                             }
-                          );
-                          // eslint-disable-next-line no-console
-                          console.log(
-                            "[DEBUG variation-image] nextVariants=" +
-                              JSON.stringify(
-                                nextVariants.map((v) => ({
-                                  id: v.id,
-                                  imageId: v.imageId,
-                                  imageUrl: v.imageUrl,
-                                }))
-                              )
                           );
                           return { ...prev, variants: nextVariants };
                         });

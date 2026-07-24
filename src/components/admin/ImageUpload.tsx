@@ -93,12 +93,21 @@ export function ImageUpload({
     }
   };
 
+  // Achado ao investigar #54: em modo `multiple` (galeria de produto),
+  // `onChange` nunca é passado pelo chamador (só `onUploadComplete`) — só
+  // chamar `onChange` aqui fazia o link "aplicar" sem erro nenhum (toast de
+  // sucesso disparava) mas sem nunca adicionar a imagem à galeria de
+  // verdade, porque não havia `onChange` pra receber o valor.
   const handleUrlSubmit = () => {
-    if (urlInput.trim()) {
-      onChange(urlInput.trim());
-      setUrlInput("");
-      toast.success("Link da imagem aplicado!");
+    const url = urlInput.trim();
+    if (!url) return;
+    if (multiple && onUploadComplete) {
+      onUploadComplete([url]);
+    } else {
+      onChange(url);
     }
+    setUrlInput("");
+    toast.success("Link da imagem aplicado!");
   };
 
   const removeImage = () => {

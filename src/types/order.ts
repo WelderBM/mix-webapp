@@ -8,6 +8,8 @@ export type OrderStatus =
 
 import { CartItem } from "./cart";
 export type PaymentMethod = "pix" | "credit_card" | "debit_card" | "cash";
+export type PaymentTiming = "prepaid" | "on_delivery";
+export type PixPaymentDestination = "store" | "carrier";
 
 export interface OrderItem {
   name: string;
@@ -23,6 +25,11 @@ export interface Order {
   total: number;
   status: OrderStatus;
   paymentMethod: PaymentMethod;
+  // Gravados no checkout (CartSidebar) desde sempre, mas nunca declarados
+  // aqui nem exibidos no admin — cliente preenche, equipe nunca vê (#54).
+  paymentTiming?: PaymentTiming;
+  pixPaymentDestination?: PixPaymentDestination | null;
+  observation?: string | null;
   deliveryMethod: "pickup" | "delivery";
   address?: string;
   createdAt: string; // ISO String
