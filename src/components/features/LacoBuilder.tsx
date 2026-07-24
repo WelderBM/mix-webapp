@@ -16,12 +16,14 @@ const DEFAULT_BOW_STYLES = [
     name: "Bola",
     imageUrl: "https://placehold.co/400x400/png?text=Laco+Bola",
     subtitle: "Clássico e elegante, plano.",
+    sizeId: "M",
   },
   {
     id: "borboleta",
     name: "Borboleta",
     imageUrl: "https://placehold.co/400x400/png?text=Laco+Borboleta",
     subtitle: "Simples e versátil.",
+    sizeId: "P",
   },
 ];
 
@@ -46,7 +48,6 @@ export function LacoBuilder() {
 
   const [selectedRibbonId, setSelectedRibbonId] = useState<string>("");
   const [selectedStyleId, setSelectedStyleId] = useState<string>("");
-  const [selectedSizeId, setSelectedSizeId] = useState<string>("");
 
   const ribbons = useMemo(
     () =>
@@ -58,7 +59,12 @@ export function LacoBuilder() {
 
   const selectedRibbon = ribbons.find((r) => r.id === selectedRibbonId);
   const selectedStyle = BOW_STYLES.find((s) => s.id === selectedStyleId);
-  const selectedSize = SIZES.find((s) => s.id === selectedSizeId);
+  // Tamanho não é mais uma escolha livre — cada modelo tem exatamente um
+  // tamanho atrelado (`sizeId`), pra não permitir combinar modelo e tamanho
+  // fora do que a loja realmente produz.
+  const selectedSize = selectedStyle
+    ? SIZES.find((s) => s.id === selectedStyle.sizeId)
+    : undefined;
 
   const finalPrice = useMemo(() => {
     if (!selectedSize) return 0;
@@ -94,7 +100,6 @@ export function LacoBuilder() {
     // Opcional: Resetar campos após adicionar
     setSelectedRibbonId("");
     setSelectedStyleId("");
-    setSelectedSizeId("");
 
     // Scroll para o topo em mobile pode ser útil
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -216,7 +221,9 @@ export function LacoBuilder() {
             </div>
           </section>
 
-          {/* SEÇÃO 3: TAMANHO */}
+          {/* SEÇÃO 3: TAMANHO — não é mais escolha livre, cada modelo já vem
+              com um tamanho fixo (ver BowModel.sizeId). Mostra só o que
+              resultou da escolha do modelo. */}
           <section
             className={`transition-opacity duration-300 ${
               !selectedStyleId ? "opacity-40 pointer-events-none grayscale" : ""
@@ -228,24 +235,22 @@ export function LacoBuilder() {
               </span>{" "}
               Tamanho
             </h3>
-            <div className="flex flex-wrap gap-3">
-              {SIZES.map((size) => (
-                <button
-                  key={size.id}
-                  onClick={() => setSelectedSizeId(size.id)}
-                  className={`flex-1 sm:flex-none px-4 py-3 sm:px-8 rounded-full border text-sm font-medium transition-all ${
-                    selectedSizeId === size.id
-                      ? "bg-slate-800 text-white border-slate-800 shadow-lg scale-105"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="block text-base">{size.name}</span>
-                  <span className="block text-xs opacity-80 font-normal">
-                    R$ {size.price.toFixed(2)}
-                  </span>
-                </button>
-              ))}
-            </div>
+            {selectedStyleId && !selectedSize ? (
+              <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl flex items-center gap-3 text-yellow-800 text-sm">
+                <AlertCircle className="shrink-0" size={18} />
+                Este modelo ainda não tem um tamanho configurado. Fale com a
+                loja ou escolha outro modelo.
+              </div>
+            ) : (
+              <div className="px-6 py-3 rounded-full border bg-slate-800 text-white border-slate-800 inline-block shadow-lg">
+                <span className="block text-base font-medium">
+                  {selectedSize?.name || "—"}
+                </span>
+                <span className="block text-xs opacity-80 font-normal">
+                  {selectedSize ? `R$ ${selectedSize.price.toFixed(2)}` : ""}
+                </span>
+              </div>
+            )}
           </section>
         </div>
 

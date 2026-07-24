@@ -16,6 +16,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
@@ -613,6 +620,7 @@ export function RibbonsTab({
                     name: "Novo Modelo",
                     subtitle: "Descrição do modelo",
                     imageUrl: "",
+                    sizeId: "",
                   };
                   setSettings((prev: StoreSettings) => ({
                     ...prev,
@@ -635,7 +643,7 @@ export function RibbonsTab({
                       setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
                     }}
                   />
-                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <Input
                       placeholder="Nome"
                       value={model.name}
@@ -656,6 +664,25 @@ export function RibbonsTab({
                       }}
                       className="text-sm"
                     />
+                    <Select
+                      value={model.sizeId || ""}
+                      onValueChange={(sizeId) => {
+                        const updated = [...(settings.bowModels || [])];
+                        updated[idx] = { ...updated[idx], sizeId };
+                        setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
+                      }}
+                    >
+                      <SelectTrigger className="text-sm">
+                        <SelectValue placeholder="Tamanho (obrigatório)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(settings.bowSizes || []).map((size) => (
+                          <SelectItem key={size.id} value={size.id}>
+                            {size.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <Button
                     variant="ghost"

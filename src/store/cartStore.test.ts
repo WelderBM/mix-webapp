@@ -260,18 +260,69 @@ describe("useCartStore", () => {
   });
 
   describe("addItem - CUSTOM_RIBBON type", () => {
-    it("should deduplicate by product.id+kitName", () => {
+    it("should deduplicate by product.id + customizations (style+size)", () => {
       const { addItem } = useCartStore.getState();
       const baseItem = {
         cartId: "cart-1",
         type: "CUSTOM_RIBBON" as const,
         quantity: 1,
         product: { id: "ribbon-1", name: "Ribbon", price: 30, type: "RIBBON" as const, category: "Test", unit: "m" as const, inStock: true, disabled: false },
-        kitName: "My Ribbon Kit",
+        customizations: { style: "Bola", size: "Pequeno" },
       };
 
       addItem(baseItem as any);
       addItem({ ...baseItem, cartId: "cart-2" } as any);
+
+      const { items } = useCartStore.getState();
+      expect(items).toHaveLength(1);
+      expect(items[0].quantity).toBe(2);
+    });
+
+    // Regressão do bug real (#53): LacoBuilder nunca preenche `kitName`, e o
+    // dedup antigo comparava só por `product.id + kitName` — dois laços
+    // distintos da MESMA fita (estilo/tamanho diferentes) colapsavam num
+    // item só, porque `undefined === undefined` sempre batia.
+    it("should NOT deduplicate two different laços (same fita, different style/size)", () => {
+      const { addItem } = useCartStore.getState();
+      const ribbon = { id: "ribbon-1", name: "Ribbon", price: 30, type: "RIBBON" as const, category: "Test", unit: "m" as const, inStock: true, disabled: false };
+
+      addItem({
+        cartId: "cart-1",
+        type: "CUSTOM_RIBBON" as const,
+        quantity: 1,
+        product: { ...ribbon, name: "Laço Bola - Ribbon" },
+        kitTotalAmount: 3,
+        customizations: { style: "Bola", size: "Pequeno" },
+      } as any);
+
+      addItem({
+        cartId: "cart-2",
+        type: "CUSTOM_RIBBON" as const,
+        quantity: 1,
+        product: { ...ribbon, name: "Laço Borboleta - Ribbon" },
+        kitTotalAmount: 5,
+        customizations: { style: "Borboleta", size: "Grande" },
+      } as any);
+
+      const { items } = useCartStore.getState();
+      expect(items).toHaveLength(2);
+      expect(items[0].customizations?.style).toBe("Bola");
+      expect(items[1].customizations?.style).toBe("Borboleta");
+    });
+
+    it("should deduplicate same fita+style+size even without an explicit kitName", () => {
+      const { addItem } = useCartStore.getState();
+      const item = {
+        cartId: "cart-1",
+        type: "CUSTOM_RIBBON" as const,
+        quantity: 1,
+        product: { id: "ribbon-1", name: "Laço Bola - Ribbon", price: 30, type: "RIBBON" as const, category: "Test", unit: "m" as const, inStock: true, disabled: false },
+        kitTotalAmount: 3,
+        customizations: { style: "Bola", size: "Pequeno" },
+      };
+
+      addItem(item as any);
+      addItem({ ...item, cartId: "cart-2" } as any);
 
       const { items } = useCartStore.getState();
       expect(items).toHaveLength(1);
