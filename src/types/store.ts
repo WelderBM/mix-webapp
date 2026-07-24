@@ -3,6 +3,12 @@ export interface BowModel {
   name: string;
   subtitle: string;
   imageUrl: string;
+  // Um modelo tem exatamente um tamanho — não dá pra montar o mesmo modelo
+  // em tamanhos diferentes. Opcional só pra não quebrar modelos já
+  // cadastrados antes dessa regra existir; o LacoBuilder trata ausência
+  // como "modelo incompleto" (não pode ser selecionado até o admin
+  // escolher um tamanho).
+  sizeId?: string;
 }
 
 export interface BowSize {

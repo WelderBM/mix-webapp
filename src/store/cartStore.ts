@@ -45,12 +45,22 @@ export const useCartStore = create<CartStore>()(
                 i.balloonDetails?.color === item.balloonDetails?.color
             );
           } else if (item.type === "CUSTOM_RIBBON") {
-            // Para laços, comparamos o nome/detalhes que definem o laço
+            // Dois laços são "o mesmo item" quando usam a mesma fita E o
+            // mesmo estilo/tamanho — comparar só por `kitName` mesclava
+            // qualquer par de laços da mesma fita num item só (LacoBuilder
+            // nunca preenche `kitName`, então `undefined === undefined`
+            // sempre batia, perdendo o estilo/tamanho do segundo laço). O
+            // guard em `style !== undefined` evita cair na mesma armadilha
+            // aqui: só considera duplicata quando os dois lados realmente
+            // têm customização preenchida e igual, não quando ambos estão
+            // vazios.
             existingItem = state.items.find(
               (i) =>
                 i.type === "CUSTOM_RIBBON" &&
                 i.product?.id === item.product?.id &&
-                i.kitName === item.kitName
+                i.customizations?.style !== undefined &&
+                i.customizations?.style === item.customizations?.style &&
+                i.customizations?.size === item.customizations?.size
             );
           } else if (item.type === "CUSTOM_KIT") {
             // Kits são mais complexos, mas se tiverem o mesmo kitName e kitTotalAmount, tratamos como igual
