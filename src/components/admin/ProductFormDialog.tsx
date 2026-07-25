@@ -414,6 +414,15 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         imageUrl: formData.imageUrl || defaultVariantImage || "",
       };
 
+      // Firestore rejeita `undefined` explícito em qualquer campo (diferente
+      // de campo ausente) — `price`/`rollPrice` viram `undefined` de
+      // propósito quando não preenchidos (opcionais, sem sentinela 0), então
+      // precisam sair do objeto antes do setDoc, não só ficar com esse
+      // valor. Mesmo idioma já usado no merge de variantPatch acima.
+      (Object.keys(productData) as (keyof Product)[]).forEach((key) => {
+        if (productData[key] === undefined) delete productData[key];
+      });
+
       await setDoc(doc(db, "products", productId), productData);
 
       toast.success(productToEdit ? "Produto atualizado!" : "Produto criado!");

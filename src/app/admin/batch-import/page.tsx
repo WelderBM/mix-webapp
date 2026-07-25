@@ -254,6 +254,14 @@ export default function BatchImportPage() {
               },
             };
 
+            // Firestore rejeita `undefined` explícito em qualquer campo —
+            // price/rollPrice/originalPrice/width viram `undefined` de
+            // propósito quando ausentes no CSV (sem sentinela 0), então
+            // precisam sair do objeto antes do setDoc.
+            (Object.keys(product) as (keyof Product)[]).forEach((key) => {
+              if (product[key] === undefined) delete product[key];
+            });
+
             const ref = doc(db, "products", item.id);
             await setDoc(ref, product, { merge: status === "update" });
 
