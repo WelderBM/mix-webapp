@@ -24,8 +24,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
+import { OpenRibbonRollModal } from "@/components/admin/OpenRibbonRollModal";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
+import { hasRollPrice, hasMeterPrice } from "@/lib/ribbon-pricing";
 import {
   Plus,
   Pencil,
@@ -62,6 +64,7 @@ export function RibbonsTab({
   );
   const [fitaToDelete, setFitaToDelete] = useState<Product | null>(null);
   const [deletingFita, setDeletingFita] = useState(false);
+  const [fitaToOpen, setFitaToOpen] = useState<Product | null>(null);
 
   const handleDeleteFita = async () => {
     if (!fitaToDelete) return;
@@ -138,17 +141,15 @@ export function RibbonsTab({
               onEditProduct({
                 id: "",
                 name: "",
-                price: 0,
                 category: "Fitas",
                 type: "RIBBON",
                 imageUrl: "",
                 inStock: true,
                 unit: "m",
-                rollPrice: 0,
                 ribbonInventory: {
                   status: "FECHADO",
-                  remainingMeters: 10,
-                  totalRollMeters: 10,
+                  remainingMeters: 0,
+                  totalRollMeters: 0,
                 },
                 isAvailableForCustomBow: true,
               } as any);
@@ -212,7 +213,9 @@ export function RibbonsTab({
                             </h4>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                                {formatCurrency(fita.rollPrice || 0)}
+                                {hasRollPrice(fita)
+                                  ? formatCurrency(fita.rollPrice)
+                                  : "Preço não configurado"}
                               </span>
                               <span className="text-[10px] text-slate-400 font-bold">
                                 {fita.ribbonInventory?.totalRollMeters}m
@@ -224,23 +227,7 @@ export function RibbonsTab({
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={async () => {
-                              const updated = {
-                                ...fita,
-                                ribbonInventory: {
-                                  ...fita.ribbonInventory,
-                                  status: "ABERTO",
-                                  remainingMeters:
-                                    fita.ribbonInventory
-                                      ?.totalRollMeters || 0,
-                                },
-                              };
-                              await setDoc(
-                                doc(db, "products", fita.id),
-                                updated
-                              );
-                              toast.success("Rolo aberto para venda!");
-                            }}
+                            onClick={() => setFitaToOpen(fita)}
                             className="h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-white hover:bg-blue-50 text-blue-600 border-blue-200 rounded-full"
                           >
                             Abrir Rolo
@@ -364,7 +351,9 @@ export function RibbonsTab({
                             </h4>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-[10px] font-black text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 uppercase tracking-widest">
-                                {formatCurrency(fita.price)}/m
+                                {hasMeterPrice(fita)
+                                  ? `${formatCurrency(fita.price)}/m`
+                                  : "Preço não definido"}
                               </span>
                               <div className="flex items-center gap-1.5 ml-2">
                                 <Ruler
@@ -542,10 +531,14 @@ export function RibbonsTab({
                         </Badge>
                       </TableCell>
                       <TableCell className="font-medium text-slate-500">
-                        {formatCurrency(fita.rollPrice || 0)}
+                        {hasRollPrice(fita)
+                          ? formatCurrency(fita.rollPrice)
+                          : "—"}
                       </TableCell>
                       <TableCell className="font-medium text-slate-500">
-                        {formatCurrency(fita.price)}/m
+                        {hasMeterPrice(fita)
+                          ? `${formatCurrency(fita.price)}/m`
+                          : "—"}
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
@@ -791,6 +784,12 @@ export function RibbonsTab({
         confirmLabel="Excluir"
         loading={deletingFita}
         onConfirm={handleDeleteFita}
+      />
+
+      <OpenRibbonRollModal
+        fita={fitaToOpen}
+        onOpenChange={(open) => !open && setFitaToOpen(null)}
+        onOpened={() => setFitaToOpen(null)}
       />
     </div>
   );

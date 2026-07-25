@@ -29,6 +29,7 @@ import { ProductTypeBadge } from "@/components/ui/status-badge";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { ExternalLink, Pencil, Trash2, Package, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { getEffectiveUnitPrice, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 
 interface ProductInfoModalProps {
   product: Product | null;
@@ -50,6 +51,8 @@ export function ProductInfoModal({
   const [deleting, setDeleting] = useState(false);
 
   if (!product) return null;
+
+  const effectivePrice = getEffectiveUnitPrice(product);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -113,14 +116,18 @@ export function ProductInfoModal({
                   Preço
                 </p>
                 <p className="font-bold text-slate-800">
-                  {formatCurrency(product.price)}
+                  {effectivePrice != null
+                    ? formatCurrency(effectivePrice)
+                    : "—"}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-slate-400 font-bold uppercase">
                   Unidade
                 </p>
-                <p className="font-bold text-slate-800">{product.unit}</p>
+                <p className="font-bold text-slate-800">
+                  {getEffectiveUnitLabel(product)}
+                </p>
               </div>
             </div>
 

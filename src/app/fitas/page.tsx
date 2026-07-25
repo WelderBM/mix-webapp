@@ -24,6 +24,7 @@ import { hexToRgb, getContrastColor } from "@/lib/utils";
 import { LacoBuilder } from "@/components/features/LacoBuilder";
 import { getProductImage } from "@/lib/image-utils";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { getEffectiveUnitPrice } from "@/lib/ribbon-pricing";
 
 function FitasContent() {
   const { allProducts, fetchProducts } = useProductStore();
@@ -79,18 +80,18 @@ function FitasContent() {
   );
 
   const handleAddRoll = (product: any) => {
-    const productToAdd = {
-      ...product,
-      price: product.rollPrice || product.price,
-      name: `${product.name} (Rolo Fechado)`,
-    };
+    const rollPrice = getEffectiveUnitPrice(product);
+    if (rollPrice == null) {
+      toast.error("Esse rolo ainda não tem preço configurado.");
+      return;
+    }
 
     addItem({
       cartId: crypto.randomUUID(),
       type: "SIMPLE",
-      product: productToAdd,
+      product: { ...product, name: `${product.name} (Rolo Fechado)` },
       quantity: 1,
-      kitTotalAmount: product.rollPrice || product.price,
+      kitTotalAmount: rollPrice,
     });
     toast.success("Rolo fechado adicionado ao carrinho!");
   };
@@ -98,7 +99,12 @@ function FitasContent() {
   const handleAddMeter = () => {
     const product = openRibbons.find((p) => p.id === selectedRibbonId);
     if (!product) return;
-    const totalPrice = product.price * meterAmount;
+    const meterPrice = getEffectiveUnitPrice(product);
+    if (meterPrice == null) {
+      toast.error("Essa fita ainda não tem preço por metro configurado.");
+      return;
+    }
+    const totalPrice = meterPrice * meterAmount;
     addItem({
       cartId: crypto.randomUUID(),
       type: "SIMPLE",
@@ -126,9 +132,11 @@ function FitasContent() {
   const selectedMeterProduct = openRibbons.find(
     (p) => p.id === selectedRibbonId
   );
-  const meterTotalPrice = selectedMeterProduct
-    ? selectedMeterProduct.price * meterAmount
-    : 0;
+  const selectedMeterPrice = selectedMeterProduct
+    ? getEffectiveUnitPrice(selectedMeterProduct)
+    : null;
+  const meterTotalPrice =
+    selectedMeterPrice != null ? selectedMeterPrice * meterAmount : null;
 
   return (
     <main
@@ -206,25 +214,18 @@ function FitasContent() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-                  {closedRolls.map((product) => {
-                    const displayProduct = {
-                      ...product,
-                      price: product.rollPrice || product.price,
-                    };
-
-                    return (
-                      <div key={product.id} className="relative">
-                        <ProductCard
-                          product={displayProduct}
-                          onSelect={() => handleAddRoll(product)}
-                          actionLabel="Comprar"
-                        />
-                        <div className="absolute top-2 right-2 bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm z-10">
-                          <Lock size={10} /> LACRADO
-                        </div>
+                  {closedRolls.map((product) => (
+                    <div key={product.id} className="relative">
+                      <ProductCard
+                        product={product}
+                        onSelect={() => handleAddRoll(product)}
+                        actionLabel="Comprar"
+                      />
+                      <div className="absolute top-2 right-2 bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm z-10">
+                        <Lock size={10} /> LACRADO
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
             </TabsContent>
@@ -262,14 +263,22 @@ function FitasContent() {
                             ribbon.imageUrl,
                             ribbon.type
                           );
+                          const ribbonPrice = getEffectiveUnitPrice(ribbon);
+                          const unavailable = ribbonPrice == null;
                           return (
                             <div
                               key={ribbon.id}
-                              onClick={() => setSelectedRibbonId(ribbon.id)}
-                              className={`cursor-pointer rounded-lg border p-2 flex flex-col items-center gap-2 transition-all hover:shadow-md relative group ${
-                                selectedRibbonId === ribbon.id
-                                  ? "border-primary ring-2 ring-primary ring-opacity-20 bg-purple-50"
-                                  : "border-slate-200 bg-white hover:border-(--primary)/50"
+                              onClick={() =>
+                                !unavailable && setSelectedRibbonId(ribbon.id)
+                              }
+                              className={`rounded-lg border p-2 flex flex-col items-center gap-2 transition-all relative group ${
+                                unavailable
+                                  ? "opacity-50 grayscale cursor-not-allowed border-slate-200 bg-white"
+                                  : `cursor-pointer hover:shadow-md ${
+                                      selectedRibbonId === ribbon.id
+                                        ? "border-primary ring-2 ring-primary ring-opacity-20 bg-purple-50"
+                                        : "border-slate-200 bg-white hover:border-(--primary)/50"
+                                    }`
                               }`}
                             >
                               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 relative overflow-hidden shrink-0">
@@ -286,7 +295,9 @@ function FitasContent() {
                                 {ribbon.name}
                               </span>
                               <span className="text-[10px] font-bold text-slate-500 mt-auto">
-                                R$ {ribbon.price.toFixed(2)}/m
+                                {unavailable
+                                  ? "Indisponível"
+                                  : `R$ ${ribbonPrice.toFixed(2)}/m`}
                               </span>
                               {selectedRibbonId === ribbon.id && (
                                 <div className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow-sm">
@@ -390,8 +401,9 @@ function FitasContent() {
                         <div className="flex justify-between py-2 border-b border-slate-100">
                           <span className="text-slate-500">Valor Unit.</span>
                           <span className="font-medium text-slate-800">
-                            R${" "}
-                            {selectedMeterProduct?.price.toFixed(2) || "0.00"}/m
+                            {selectedMeterPrice != null
+                              ? `R$ ${selectedMeterPrice.toFixed(2)}/m`
+                              : "Indisponível"}
                           </span>
                         </div>
                         <div className="flex justify-between py-2 border-b border-slate-100">
@@ -408,12 +420,14 @@ function FitasContent() {
                             Total
                           </span>
                           <span className="text-3xl font-bold text-primary">
-                            R$ {meterTotalPrice.toFixed(2)}
+                            {meterTotalPrice != null
+                              ? `R$ ${meterTotalPrice.toFixed(2)}`
+                              : "—"}
                           </span>
                         </div>
                         <Button
                           onClick={handleAddMeter}
-                          disabled={!selectedRibbonId}
+                          disabled={!selectedRibbonId || meterTotalPrice == null}
                           className="w-full h-12 text-lg font-bold shadow-md transition-transform hover:scale-[1.02]"
                           style={{
                             backgroundColor: selectedRibbonId
@@ -436,12 +450,14 @@ function FitasContent() {
                       Total ({meterAmount}m)
                     </span>
                     <span className="text-xl font-bold text-primary">
-                      R$ {meterTotalPrice.toFixed(2)}
+                      {meterTotalPrice != null
+                        ? `R$ ${meterTotalPrice.toFixed(2)}`
+                        : "—"}
                     </span>
                   </div>
                   <Button
                     onClick={handleAddMeter}
-                    disabled={!selectedRibbonId}
+                    disabled={!selectedRibbonId || meterTotalPrice == null}
                     className="flex-1 h-12 text-base font-bold rounded-xl shadow-sm"
                     style={{
                       backgroundColor: selectedRibbonId
@@ -449,12 +465,14 @@ function FitasContent() {
                         : undefined,
                     }}
                   >
-                    {selectedRibbonId ? (
+                    {!selectedRibbonId ? (
+                      "Selecione..."
+                    ) : meterTotalPrice == null ? (
+                      "Indisponível"
+                    ) : (
                       <>
                         <ShoppingCart className="mr-2 h-5 w-5" /> Adicionar
                       </>
-                    ) : (
-                      "Selecione..."
                     )}
                   </Button>
                 </div>

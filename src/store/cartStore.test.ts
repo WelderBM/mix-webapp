@@ -171,6 +171,115 @@ describe("useCartStore", () => {
     });
   });
 
+  describe("addItem - price gate (regression: #52 invertido)", () => {
+    it("refuses a SIMPLE item whose product has no effective price (open ribbon, no price/m)", () => {
+      const { addItem } = useCartStore.getState();
+      addItem({
+        cartId: "cart-1",
+        type: "SIMPLE" as const,
+        quantity: 1,
+        product: {
+          id: "ribbon-1",
+          name: "Fita Aberta Sem Preço",
+          type: "RIBBON" as const,
+          category: "Fitas",
+          unit: "m" as const,
+          inStock: true,
+          disabled: false,
+          ribbonInventory: {
+            status: "ABERTO" as const,
+            remainingMeters: 50,
+            totalRollMeters: 100,
+          },
+        },
+      } as any);
+
+      const { items } = useCartStore.getState();
+      expect(items).toHaveLength(0);
+    });
+
+    it("refuses a SIMPLE item whose sealed ribbon roll has no rollPrice", () => {
+      const { addItem } = useCartStore.getState();
+      addItem({
+        cartId: "cart-1",
+        type: "SIMPLE" as const,
+        quantity: 1,
+        product: {
+          id: "ribbon-2",
+          name: "Rolo Sem Preço",
+          type: "RIBBON" as const,
+          category: "Fitas",
+          unit: "m" as const,
+          inStock: true,
+          disabled: false,
+          ribbonInventory: {
+            status: "FECHADO" as const,
+            remainingMeters: 100,
+            totalRollMeters: 100,
+          },
+        },
+      } as any);
+
+      const { items } = useCartStore.getState();
+      expect(items).toHaveLength(0);
+    });
+
+    it("accepts a SIMPLE item once the product has a valid effective price", () => {
+      const { addItem } = useCartStore.getState();
+      addItem({
+        cartId: "cart-1",
+        type: "SIMPLE" as const,
+        quantity: 1,
+        product: {
+          id: "ribbon-3",
+          name: "Rolo Com Preço",
+          rollPrice: 40,
+          type: "RIBBON" as const,
+          category: "Fitas",
+          unit: "m" as const,
+          inStock: true,
+          disabled: false,
+          ribbonInventory: {
+            status: "FECHADO" as const,
+            remainingMeters: 100,
+            totalRollMeters: 100,
+          },
+        },
+      } as any);
+
+      const { items } = useCartStore.getState();
+      expect(items).toHaveLength(1);
+    });
+
+    it("does not gate CUSTOM_RIBBON/CUSTOM_KIT/CUSTOM_BALLOON on product.price (they price via kitTotalAmount)", () => {
+      const { addItem } = useCartStore.getState();
+      addItem({
+        cartId: "cart-1",
+        type: "CUSTOM_RIBBON" as const,
+        quantity: 1,
+        product: {
+          id: "ribbon-4",
+          name: "Fita p/ Laço",
+          type: "RIBBON" as const,
+          category: "Fitas",
+          unit: "m" as const,
+          inStock: true,
+          disabled: false,
+          ribbonInventory: {
+            status: "ABERTO" as const,
+            remainingMeters: 50,
+            totalRollMeters: 100,
+          },
+        },
+        kitTotalAmount: 5,
+        customizations: { style: "Bola", size: "Pequeno" },
+      } as any);
+
+      const { items } = useCartStore.getState();
+      expect(items).toHaveLength(1);
+    });
+  });
+
   describe("addItem - CUSTOM_BALLOON type", () => {
     it("should add a custom balloon item", () => {
       const { addItem } = useCartStore.getState();

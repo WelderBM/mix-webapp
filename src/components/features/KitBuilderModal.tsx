@@ -263,7 +263,7 @@ export function KitBuilderModal() {
                                           {p.name}
                                         </p>
                                         <p className="text-xs text-primary font-bold">
-                                          {formatCurrency(p.price)}
+                                          {formatCurrency(p.price ?? 0)}
                                         </p>
                                         <div className="mt-auto pt-1">
                                           {qty === 0 ? (
