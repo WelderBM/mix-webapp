@@ -55,6 +55,8 @@ import {
   XCircle,
   Package,
   MessageCircle,
+  StickyNote,
+  Wallet,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -193,8 +195,7 @@ export function OrdersTab() {
 
     if (order.paymentMethod === "pix") {
       // Se tiver a info save no pedido, usa ela, senão infere (assumindo Loja se não especificado ou se tiver pago)
-      // Como o Order type local pode não ter 'pixPaymentDestination', checamos se existe no objeto (any cast se precisar ou apenas lógica)
-      const isCarrier = (order as any).pixPaymentDestination === "carrier";
+      const isCarrier = order.pixPaymentDestination === "carrier";
 
       if (isCarrier) {
         paymentInstruction =
@@ -229,6 +230,22 @@ ${paymentInstruction}`;
 
     navigator.clipboard.writeText(text);
     toast.success("Texto copiado! Pronto para enviar.");
+  };
+
+  // Pagamento e PIX são gravados no checkout desde sempre, mas nunca
+  // apareciam aqui — equipe não sabia se já tinha sido pago, nem pra quem
+  // mandar o PIX (loja ou motoboy). Ver types/order.ts (#54).
+  const getPaymentInfo = (order: Order) => {
+    const timingText =
+      order.paymentTiming === "on_delivery"
+        ? "Pagamento na entrega/retirada"
+        : "Pago antecipado";
+    if (order.paymentMethod !== "pix") return timingText;
+    const destText =
+      order.pixPaymentDestination === "carrier"
+        ? "PIX para o motoboy"
+        : "PIX para a loja";
+    return `${timingText} · ${destText}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -423,8 +440,16 @@ ${paymentInstruction}`;
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-bold text-slate-800">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5">
                         {order.customerName}
+                        {order.observation && (
+                          <StickyNote
+                            size={12}
+                            className="text-amber-500 shrink-0"
+                          >
+                            <title>Tem observação do cliente</title>
+                          </StickyNote>
+                        )}
                       </span>
                       <div className="flex items-center gap-1 text-[10px] text-slate-500">
                         <Phone size={10} />
@@ -606,6 +631,26 @@ ${paymentInstruction}`;
                             </Button>
                           </div>
                         </div>
+                        <div className="mt-4 space-y-3">
+                          <div className="flex items-center gap-2 text-sm text-slate-700 bg-white p-3 rounded border">
+                            <Wallet size={16} className="text-slate-500 shrink-0" />
+                            {getPaymentInfo(order)}
+                          </div>
+                          {order.observation && (
+                            <div className="flex items-start gap-2 text-sm text-amber-900 bg-amber-50 border border-amber-200 p-3 rounded">
+                              <StickyNote
+                                size={16}
+                                className="text-amber-600 shrink-0 mt-0.5"
+                              />
+                              <div>
+                                <p className="font-bold text-xs uppercase tracking-wide text-amber-700">
+                                  Observação do cliente
+                                </p>
+                                {order.observation}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -626,7 +671,14 @@ ${paymentInstruction}`;
             {/* Header do Card */}
             <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
               <div className="flex flex-col">
-                <span className="font-bold text-sm">{order.customerName}</span>
+                <span className="font-bold text-sm flex items-center gap-1.5">
+                  {order.customerName}
+                  {order.observation && (
+                    <StickyNote size={12} className="text-amber-500 shrink-0">
+                      <title>Tem observação do cliente</title>
+                    </StickyNote>
+                  )}
+                </span>
                 <span
                   className="text-xs text-slate-500 flex items-center gap-1"
                   suppressHydrationWarning
@@ -742,6 +794,26 @@ ${paymentInstruction}`;
                       <div className="bg-slate-50 p-3 rounded border text-xs text-slate-600">
                         <p className="font-bold mb-1">📍 Endereço Entrega:</p>
                         {order.address}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-3 rounded border">
+                      <Wallet size={14} className="text-slate-500 shrink-0" />
+                      {getPaymentInfo(order)}
+                    </div>
+
+                    {order.observation && (
+                      <div className="flex items-start gap-2 text-xs text-amber-900 bg-amber-50 border border-amber-200 p-3 rounded">
+                        <StickyNote
+                          size={14}
+                          className="text-amber-600 shrink-0 mt-0.5"
+                        />
+                        <div>
+                          <p className="font-bold uppercase tracking-wide text-amber-700">
+                            Observação do cliente
+                          </p>
+                          {order.observation}
+                        </div>
                       </div>
                     )}
 
