@@ -151,3 +151,89 @@ describe("OrdersTab — deep-link ?pedido= não dispara setState-durante-render"
     errorSpy.mockRestore();
   });
 });
+
+describe("OrdersTab — área de pedidos mais descritiva (#54)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    params.delete("pedido");
+  });
+
+  function emitAndExpand(order: Order) {
+    params.set("pedido", order.id);
+    (firestore.onSnapshot as any).mockImplementation(
+      (_q: any, callback: any) => {
+        callback({
+          docChanges: () => [],
+          docs: [order].map((o) => ({ id: o.id, data: () => o })),
+        });
+        return () => {};
+      }
+    );
+    render(<OrdersTab />);
+  }
+
+  it("mostra a observação do cliente quando presente, com indicador visível na linha fechada", async () => {
+    emitAndExpand(
+      makeOrder({ observation: "Troco para R$ 50, deixar na portaria" })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/Troco para R\$ 50, deixar na portaria/).length
+      ).toBeGreaterThan(0);
+    });
+    expect(
+      screen.getAllByTitle("Tem observação do cliente").length
+    ).toBeGreaterThan(0);
+  });
+
+  it("não mostra bloco de observação nem o indicador quando o pedido não tem uma", async () => {
+    emitAndExpand(makeOrder());
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Maria Silva").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryAllByText(/Observação do cliente/).length).toBe(0);
+    expect(screen.queryAllByTitle("Tem observação do cliente").length).toBe(
+      0
+    );
+  });
+
+  it("descreve o momento do pagamento e, pra PIX, o destino", async () => {
+    emitAndExpand(
+      makeOrder({
+        paymentMethod: "pix",
+        paymentTiming: "on_delivery",
+        pixPaymentDestination: "carrier",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/Pagamento na entrega\/retirada/).length
+      ).toBeGreaterThan(0);
+      expect(
+        screen.getAllByText(/PIX para o motoboy/).length
+      ).toBeGreaterThan(0);
+    });
+  });
+
+  it("pedido pago antecipado via PIX pra loja não confunde com pagamento na entrega", async () => {
+    emitAndExpand(
+      makeOrder({
+        paymentMethod: "pix",
+        paymentTiming: "prepaid",
+        pixPaymentDestination: "store",
+      })
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Pago antecipado/).length).toBeGreaterThan(
+        0
+      );
+      expect(screen.getAllByText(/PIX para a loja/).length).toBeGreaterThan(
+        0
+      );
+    });
+  });
+});
