@@ -14,6 +14,17 @@ Next.js 16 (App Router, Turbopack) + Firebase (Firestore client SDK, Auth com Go
 - **Antes de qualquer PR ir pra `dev`, validação local é obrigatória** — quem está pedindo a mudança testa rodando local antes do merge. `.env` local aponta pro projeto Firebase de **staging** (`mix-webapp-staging`), nunca pro de produção — testar local não pode sujar dado real de cliente.
 - PRs ficam abertos, sem merge, até essa validação acontecer — isso é esperado, não um bloqueio a resolver sozinho.
 
+## Roteador de skills (gatilho por evento)
+As descriptions das skills disparam bem quando o *pedido* bate semanticamente, mas falham quando o gatilho é um *evento* no meio de outra tarefa (ex: `npm audit` acusando vulnerabilidade durante a validação de um PR que não tinha nada a ver com dependências). As regras abaixo disparam por evento, mesmo sem pedido explícito:
+- npm acusou vulnerabilidade (aviso pós-install, `npm audit`, Dependabot), em qualquer momento → carrega `auditoria-de-dependencias`. Nunca rodar `npm audit fix` inline na branch atual.
+- antes de qualquer `gh issue create` → carrega `triagem-de-issues` (modo criação).
+- antes de abrir qualquer PR → aplica `auditoria-de-pr` no diff.
+- após merge de dependências/config/infra, ou antes de promover `dev` → `master` → carrega `smoke-de-runtime`.
+- check da Vercel vermelho → carrega `deploy-vercel`.
+- início de sessão de planejamento, backlog com mais de 15 issues sem revisão, ou sensação de "projeto grande demais pra monitorar" → carrega `varredura-de-saude`.
+- trabalho em rendering/imagem/cache/bundle → consulta `next-performance-guide`.
+- HEAD diferente do esperado ao rodar comando git → para e avisa (nunca "corrige" por conta própria).
+
 ## Como entregar trabalho aqui
 - **Fatiado**: cada mudança significativa vira uma sequência de PRs pequenos e revisáveis (uma "Fatia" por PR — modelo de dados, depois UI, depois integração, depois exibição), não um PR gigante. Ver `docs/claude-lessons.md` pros exemplos reais dessa sequência.
 - **Ritual antes de todo commit**: `npx tsc --noEmit` limpo + `npx vitest run` passando (rode a suíte inteira, não só o arquivo tocado) + `npx next build` quando a mudança for estrutural (troca de wizard, mudança em provider compartilhado, etc.) — build local pega coisa que typecheck sozinho não pega (ver seção de erros de build no lessons.md).
