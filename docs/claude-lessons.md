@@ -107,3 +107,6 @@ Graduou para skill: ver `.claude/skills/triagem-de-issues/SKILL.md` (varredura p
 
 ### Varredura periódica de saúde do projeto (código morto, backlog, drift de docs/infra)
 Graduou para skill: ver `.claude/skills/varredura-de-saude/SKILL.md` (orquestra as skills já existentes — `triagem-de-issues`, `next-performance-guide`, `deploy-vercel`, `auditoria-de-pr` — e cobre com probe próprio o que nenhuma delas cobre sozinha: código morto via `knip`, higiene de branch/PR, drift de arquitetura, saúde da própria documentação viva).
+
+### npm acusou vulnerabilidade (aviso de install, `npm audit`, Dependabot)
+Graduou para skill: ver `.claude/skills/auditoria-de-dependencias/SKILL.md` (triagem por exposição real — direta de produção vs. transitiva vs. tooling de build — antes de rodar fix; fix como fatia própria, nunca `--force` automático).
