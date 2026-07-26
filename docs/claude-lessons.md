@@ -81,6 +81,11 @@ Comparar conteúdo via `JSON.stringify(a) === JSON.stringify(b)` funciona só se
 ### Firebase Auth (Google Sign-In) exige domínio autorizado com match exato
 "Authorized domains" no Console Firebase não aceita wildcard nem CIDR pra IP — é string exata. Testar login com Google a partir de um IP de rede local (ex: celular acessando `192.168.x.x:3000`) precisa desse IP adicionado manualmente em Authentication → Settings → Authorized domains, no projeto de **staging**, não produção. Se o IP mudar (DHCP), isso quebra nível de novo — resolver de raiz é dar um IP fixo (reserva DHCP no roteador) pro computador de desenvolvimento, não ficar re-adicionando.
 
+### Duas definições de `Order`/`OrderStatus` no repo — só uma é real
+`src/types/order.ts` é a que todo consumidor real importa (`OrdersTab.tsx`, `meu-pedido/page.tsx`, `status-badge.tsx` — todos com `from "@/types/order"` direto). Mas `src/types/cart.ts` também declara, no final do arquivo, um segundo `Order`/`OrderStatus`/`PaymentTiming`/`PaymentMethod` — divergente (status diferentes, `paymentTiming` obrigatório em vez de opcional, sem `pixPaymentDestination`, `createdAt: number` em vez de ISO string) e não usada por nada (`src/types/index.ts` reexporta `./cart`, então `import { Order } from "@/types"` — o barrel — pega essa versão morta, não a real). Achado auditando o seed de staging (`scripts/seed-data/orders.ts`): importar de `@/types` por engano teria compilado normalmente e produzido um doc com o shape errado, sem nenhum erro do TypeScript pra avisar.
+
+**Padrão**: pra `Order`, sempre importe de `@/types/order` explicitamente, nunca do barrel `@/types`. Duas interfaces com o mesmo nome exportadas por arquivos diferentes do mesmo barrel não é um erro de compilação — é um "qual delas eu peguei?" que só aparece em runtime, quando o campo que você esperava não existe.
+
 ---
 
 ## Vercel / Deploy
