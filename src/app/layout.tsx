@@ -10,6 +10,8 @@ import { CartSidebar } from "@/components/features/CartSidebar";
 // 1. IMPORT DO MODAL
 import { KitBuilderModal } from "@/components/features/KitBuilderModal";
 import OrganizationJsonLd from "@/components/seo/OrganizationJsonLd";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -108,6 +110,8 @@ export default function RootLayout({
           />
           <OrganizationJsonLd />
         </ThemeProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
