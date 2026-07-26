@@ -101,3 +101,6 @@ Sessões paralelas em máquinas diferentes tendem a violar essa regra por conta 
 
 ### Auditar código que outra sessão escreveu antes de confiar nele
 Graduou para skill: ver `.claude/skills/auditoria-de-pr/SKILL.md` (checklist multi-ângulo — bugs de linha, comportamento removido, rastreamento entre arquivos, condição de corrida, duplicação, aderência a padrões).
+
+### Triar issues do backlog antes de virarem branch duplicada
+Graduou para skill: ver `.claude/skills/triagem-de-issues/SKILL.md` (varredura periódica do backlog + checagem na criação de issue nova, pra agrupar por superfície de diff — duplicata, fusão numa branch, ou fatias de epic — antes que duas issues relacionadas virem duas branches mexendo no mesmo arquivo).
