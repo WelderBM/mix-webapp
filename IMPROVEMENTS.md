@@ -95,3 +95,15 @@ Esta branch documenta e aplica melhorias de qualidade de código identificadas a
 | `src/components/features/ProductCard.tsx` | Uso de `formatCurrency` em vez de `Intl.NumberFormat` inline |
 | `src/store/productStore.ts` | Tipagem correta de `recipe: KitRecipe` (era `any`) |
 | `src/lib/utils.ts` | Implementação real de `adjustColor` |
+
+---
+
+## Radar (auditoria externa jul/2026 — não fazer antes do gatilho)
+
+Itens levantados por uma auditoria externa que não viram issue nem branch agora — ficam aqui como radar, pra revisitar só quando o gatilho descrito acontecer.
+
+- **`lib/` organizado por domínio** (`lib/cart/…`, em vez de arquivos soltos em `lib/`) — gatilho: chegada de cupons, frete ou campanhas (qualquer coisa que engorde a lógica de carrinho o suficiente pra justificar a divisão).
+- **Camada de acesso ao Firestore** (`collection()`/`query()` centralizados num só lugar, em vez de espalhados pelos componentes) — gatilho: queries repetidas aparecendo em mais de um componente.
+- **DTO por página** (ex. Home) — gatilho: o payload retornado pelo server component da página ficar pesado o suficiente pra valer a pena moldar antes de descer pro client.
+- **`getCartTotal` como função pura** (hoje acoplada à store) — oportunista: fazer junto de algum outro trabalho que já esteja mexendo na store, não sozinho.
+- **Custo do `JSON.stringify` em `useDraftPersistence`** — gatilho: o draft persistido crescer o suficiente pra esse custo aparecer em profiling.
