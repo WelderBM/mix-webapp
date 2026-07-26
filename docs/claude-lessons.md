@@ -110,3 +110,6 @@ Graduou para skill: ver `.claude/skills/varredura-de-saude/SKILL.md` (orquestra 
 
 ### npm acusou vulnerabilidade (aviso de install, `npm audit`, Dependabot)
 Graduou para skill: ver `.claude/skills/auditoria-de-dependencias/SKILL.md` (triagem por exposição real — direta de produção vs. transitiva vs. tooling de build — antes de rodar fix; fix como fatia própria, nunca `--force` automático).
+
+### Depois de merge de dependências/config/infra, rodar o app e colher o console
+Graduou para skill: ver `.claude/skills/smoke-de-runtime/SKILL.md` (roteiro de navegação pelas superfícies principais com app rodando, colheita literal de avisos de terminal/console, e triagem em issue própria vs. issue agrupada de polish vs. ruído conhecido — pega o que auditoria estática e teste automatizado não pegam).
