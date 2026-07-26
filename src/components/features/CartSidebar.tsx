@@ -22,7 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trash2, ShoppingCart, MessageCircle, Loader2 } from "lucide-react";
+import {
+  Trash2,
+  ShoppingCart,
+  MessageCircle,
+  Loader2,
+  AlertTriangle,
+} from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -30,7 +36,11 @@ import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { getProductImage } from "@/lib/image-utils";
-import { getCartItemTotal } from "@/lib/cart-pricing";
+import {
+  getCartItemTotal,
+  getCartItemUnavailableReason,
+  sumCartItemTotals,
+} from "@/lib/cart-pricing";
 import { SafeImage } from "../ui/SafeImage";
 import { OrderSuccessModal } from "@/components/features/OrderSuccessModal";
 
@@ -70,7 +80,8 @@ export function CartSidebar() {
     getCartTotal,
     clearCart,
   } = useCartStore();
-  const { getProductById } = useProductStore();
+  const { getProductById, allProducts, isLoading: isLoadingProducts } =
+    useProductStore();
 
   const [isMounted, setIsMounted] = useState(false);
 
@@ -144,6 +155,20 @@ export function CartSidebar() {
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
+
+    // Carrinho pode ter sobrevivido de uma sessão anterior (persiste em
+    // localStorage) com um item que ficou indisponível nesse meio tempo —
+    // barra aqui, antes de gravar o pedido, em vez de deixar estourar depois
+    // do addDoc (pedido já criado, mensagem de WhatsApp que quebra no meio).
+    if (!isLoadingProducts) {
+      const reason = items
+        .map((item) => getCartItemUnavailableReason(item, allProducts))
+        .find((r) => r != null);
+      if (reason) {
+        toast.error(`${reason} Remova esse item para continuar.`);
+        return;
+      }
+    }
 
     if (!customerName.trim()) {
       toast.warning("Por favor, digite seu nome.");
@@ -331,7 +356,12 @@ export function CartSidebar() {
                         item.product?.imageUrl,
                       item.product?.type || "DEFAULT"
                     );
-                    const itemPrice = getCartItemTotal(item);
+                    const unavailableReason = isLoadingProducts
+                      ? null
+                      : getCartItemUnavailableReason(item, allProducts);
+                    const itemPrice = unavailableReason
+                      ? 0
+                      : getCartItemTotal(item);
 
                     return (
                       <div
@@ -376,9 +406,17 @@ export function CartSidebar() {
                                 {item.balloonDetails.unitsPerPackage} un/pac
                               </p>
                             )}
+                          {unavailableReason && (
+                            <p className="flex items-center gap-1 text-xs font-medium text-red-600 mt-2">
+                              <AlertTriangle size={13} className="shrink-0" />
+                              {unavailableReason} Remova pra continuar.
+                            </p>
+                          )}
                           <div className="flex items-center justify-between mt-2">
                             <p className="font-bold text-sm text-primary">
-                              {formatCurrency(itemPrice)}
+                              {unavailableReason
+                                ? "—"
+                                : formatCurrency(itemPrice)}
                             </p>
                             <div className="flex items-center gap-2">
                               {(item.type === "SIMPLE" ||
@@ -664,7 +702,7 @@ export function CartSidebar() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-slate-500">Total</span>
                   <span className="text-2xl font-bold text-slate-900">
-                    {formatCurrency(getCartTotal())}
+                    {formatCurrency(sumCartItemTotals(items))}
                   </span>
                 </div>
                 <Button

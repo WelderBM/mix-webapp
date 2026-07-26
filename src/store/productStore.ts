@@ -81,8 +81,14 @@ export const useProductStore = create<ProductState>((set, get) => ({
       const kits: AssembledKitProduct[] = productsData.filter(
         (p) => p.type === "ASSEMBLED_KIT"
       ) as AssembledKitProduct[];
+      // `disabled` já bloqueava um produto de entrar como componente de kit
+      // (isKitAvailable, abaixo) mas nunca era checado aqui — um produto
+      // avulso marcado disabled continuava aparecendo normalmente pro
+      // cliente. Esta store é só o catálogo voltado pro cliente (o admin usa
+      // seu próprio onSnapshot em admin/page.tsx, sem passar por aqui), então
+      // filtrar aqui não esconde nada do admin.
       const nonKitProducts = productsData.filter(
-        (p) => p.type !== "ASSEMBLED_KIT"
+        (p) => p.type !== "ASSEMBLED_KIT" && !p.disabled
       );
 
       // 2. Aplicar a Regra da Venda Garantida nos Kits

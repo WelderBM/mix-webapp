@@ -1,4 +1,5 @@
 import { CartItem } from "@/types/cart";
+import { Product } from "@/types/product";
 import { getEffectiveUnitPrice } from "./ribbon-pricing";
 
 // Preço unitário de um item SIMPLE — variação tem prioridade sobre o
@@ -41,4 +42,44 @@ export function getCartItemTotal(item: CartItem): number {
     );
   }
   return unitPrice * item.quantity;
+}
+
+// Carrinho persiste em localStorage entre sessões — um item SIMPLE pode ter
+// entrado válido e o produto ter ficado indisponível depois (desativado por
+// nome placeholder nunca editado, ver ProductFormDialog, ou removido/sem
+// preço), sem o carrinho saber. Compara contra o catálogo vivo (não o
+// snapshot embutido no item) pra detectar isso; `null` = segue disponível.
+// Não lança — quem bloqueia a venda de verdade é a validação em
+// CartSidebar.handleCheckout antes de gravar o pedido; isto aqui só decide
+// o que mostrar durante a navegação normal.
+export function getCartItemUnavailableReason(
+  item: CartItem,
+  liveProducts: Product[]
+): string | null {
+  if (item.type !== "SIMPLE" || !item.product) return null;
+
+  const name = item.product.name || "Este item";
+  const live = liveProducts.find((p) => p.id === item.product!.id);
+  // Produto desativado já não aparece em `liveProducts` (productStore filtra
+  // `disabled` do catálogo do cliente) — "sumiu" e "está desativado" caem no
+  // mesmo caso aqui.
+  if (!live) return `${name} não está mais disponível para venda.`;
+  if (getEffectiveUnitPrice(live) == null) {
+    return `${name} está sem preço configurado no momento.`;
+  }
+  return null;
+}
+
+// Total pra exibição (ex: rodapé do carrinho) — precisa sobreviver a um item
+// que ficou indisponível (ver getCartItemUnavailableReason acima) sem
+// derrubar a tela inteira; ignora esse item da soma em vez de lançar, já que
+// quem impede a venda de fato é a validação no checkout, não este total.
+export function sumCartItemTotals(items: CartItem[]): number {
+  return items.reduce((total, item) => {
+    try {
+      return total + getCartItemTotal(item);
+    } catch {
+      return total;
+    }
+  }, 0);
 }

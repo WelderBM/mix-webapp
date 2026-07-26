@@ -40,6 +40,17 @@ export const useCartStore = create<CartStore>()(
           return;
         }
 
+        // Mesmo portão: produto desativado (ex: cadastro incompleto, nome
+        // placeholder nunca editado — ver ProductFormDialog) não pode entrar
+        // no carrinho mesmo se alguém chegar direto pela URL /produto/[id],
+        // que busca o doc por id e não passa pelo filtro de `allProducts`.
+        if (item.type === "SIMPLE" && item.product?.disabled) {
+          toast.error(
+            `${item.product?.name || "Este item"} não está disponível para venda no momento.`
+          );
+          return;
+        }
+
         set((state) => {
           let existingItem = null;
 

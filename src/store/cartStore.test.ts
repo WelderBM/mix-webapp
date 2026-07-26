@@ -251,6 +251,28 @@ describe("useCartStore", () => {
       expect(items).toHaveLength(1);
     });
 
+    it("refuses a SIMPLE item whose product is disabled, even with a valid price (#58 placeholder-name guard)", () => {
+      const { addItem } = useCartStore.getState();
+      addItem({
+        cartId: "cart-1",
+        type: "SIMPLE" as const,
+        quantity: 1,
+        product: {
+          id: "p1",
+          name: "Novo Produto",
+          price: 25,
+          type: "STANDARD_ITEM" as const,
+          category: "Test",
+          unit: "un" as const,
+          inStock: true,
+          disabled: true,
+        },
+      } as any);
+
+      const { items } = useCartStore.getState();
+      expect(items).toHaveLength(0);
+    });
+
     it("does not gate CUSTOM_RIBBON/CUSTOM_KIT/CUSTOM_BALLOON on product.price (they price via kitTotalAmount)", () => {
       const { addItem } = useCartStore.getState();
       addItem({
