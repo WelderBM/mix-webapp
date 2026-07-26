@@ -104,3 +104,6 @@ Graduou para skill: ver `.claude/skills/auditoria-de-pr/SKILL.md` (checklist mul
 
 ### Triar issues do backlog antes de virarem branch duplicada
 Graduou para skill: ver `.claude/skills/triagem-de-issues/SKILL.md` (varredura periódica do backlog + checagem na criação de issue nova, pra agrupar por superfície de diff — duplicata, fusão numa branch, ou fatias de epic — antes que duas issues relacionadas virem duas branches mexendo no mesmo arquivo).
+
+### Varredura periódica de saúde do projeto (código morto, backlog, drift de docs/infra)
+Graduou para skill: ver `.claude/skills/varredura-de-saude/SKILL.md` (orquestra as skills já existentes — `triagem-de-issues`, `next-performance-guide`, `deploy-vercel`, `auditoria-de-pr` — e cobre com probe próprio o que nenhuma delas cobre sozinha: código morto via `knip`, higiene de branch/PR, drift de arquitetura, saúde da própria documentação viva).
