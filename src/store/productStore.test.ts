@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useProductStore } from "./productStore";
 import { Product } from "@/types";
+import { getDocs } from "firebase/firestore";
 
 // Mock firebase/firestore
 vi.mock("firebase/firestore", () => ({
@@ -8,10 +9,20 @@ vi.mock("firebase/firestore", () => ({
   getDocs: vi.fn(),
 }));
 
+const mockSnapshot = (products: Product[]) => ({
+  docs: products.map((p) => ({
+    id: p.id,
+    data: () => {
+      const { id, ...rest } = p;
+      return rest;
+    },
+  })),
+});
+
 // Mock @/store/kitStore
 vi.mock("@/store/kitStore", () => ({
   useKitStore: {
-    getState: vi.fn(() => ({ recipes: [] })),
+    getState: vi.fn(() => ({ recipes: [], fetchRecipes: vi.fn() })),
   },
 }));
 
@@ -87,6 +98,34 @@ describe("useProductStore", () => {
     it("should have visibleCount 12", () => {
       const { visibleCount } = useProductStore.getState();
       expect(visibleCount).toBe(12);
+    });
+  });
+
+  describe("fetchProducts", () => {
+    it("excludes disabled non-kit products from the customer-facing catalog", async () => {
+      const products = [
+        makeProduct({ id: "prod-1", name: "Ativo", disabled: false }),
+        makeProduct({ id: "prod-2", name: "Novo Produto", disabled: true }),
+      ];
+      vi.mocked(getDocs).mockResolvedValueOnce(mockSnapshot(products) as any);
+
+      await useProductStore.getState().fetchProducts();
+
+      const { allProducts } = useProductStore.getState();
+      expect(allProducts.map((p) => p.id)).toEqual(["prod-1"]);
+    });
+
+    it("keeps a non-kit product that has no disabled field set (legacy data)", async () => {
+      const legacyProduct = makeProduct({ id: "prod-1" });
+      delete (legacyProduct as Partial<Product>).disabled;
+      vi.mocked(getDocs).mockResolvedValueOnce(
+        mockSnapshot([legacyProduct]) as any
+      );
+
+      await useProductStore.getState().fetchProducts();
+
+      const { allProducts } = useProductStore.getState();
+      expect(allProducts.map((p) => p.id)).toEqual(["prod-1"]);
     });
   });
 

@@ -74,6 +74,13 @@ interface ProductDraft {
 // ter a imagem da variação num passo e a capa/galeria do produto em outro
 // deixava a escolha de imagem espalhada em dois lugares diferentes pro
 // mesmo produto).
+// Pré-preenchido no campo "Nome do Produto" de todo produto novo. Se o
+// admin salvar sem trocar esse valor, o produto nasce `disabled: true` (ver
+// handleSubmit) — guarda contra um cadastro incompleto (ex: alguém montando
+// preço/imagens/categoria e deixando o nome pra outra pessoa terminar
+// depois) ir pro ar vendável com um nome sem sentido pro cliente.
+export const PLACEHOLDER_PRODUCT_NAME = "Novo Produto";
+
 type StepId = "classificacao" | "detalhes" | "variacoes" | "revisao";
 
 const STEPS: StepId[] = ["classificacao", "detalhes", "variacoes", "revisao"];
@@ -100,7 +107,7 @@ interface ProductFormDialogProps {
 
 const initialFormState: ProductFormData = {
   id: "",
-  name: "",
+  name: PLACEHOLDER_PRODUCT_NAME,
   type: "STANDARD_ITEM",
   category: "Geral",
   unit: "un",
@@ -403,6 +410,13 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       // viram `undefined` de verdade, não `0`.
       const meterPrice = toOptionalPositiveNumber(formData.price);
 
+      // Guarda de nome placeholder: não há toggle manual de `disabled` neste
+      // form (nunca existiu), então o campo é 100% computado aqui — sai
+      // `true` enquanto o nome for o padrão nunca editado, e volta a `false`
+      // sozinho assim que o nome for trocado num salvamento seguinte.
+      const nameIsPlaceholder =
+        formData.name.trim() === PLACEHOLDER_PRODUCT_NAME;
+
       const productData: Product = {
         ...formData,
         id: productId,
@@ -412,6 +426,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         unit: isRibbon ? "m" : (formData.unit.trim() as any),
         images,
         imageUrl: formData.imageUrl || defaultVariantImage || "",
+        disabled: nameIsPlaceholder,
       };
 
       // Firestore rejeita `undefined` explícito em qualquer campo (diferente
@@ -425,7 +440,13 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
       await setDoc(doc(db, "products", productId), productData);
 
-      toast.success(productToEdit ? "Produto atualizado!" : "Produto criado!");
+      if (nameIsPlaceholder) {
+        toast.warning(
+          `Produto salvo como inativo — ainda está com o nome padrão "${PLACEHOLDER_PRODUCT_NAME}". Edite o nome para colocar à venda.`
+        );
+      } else {
+        toast.success(productToEdit ? "Produto atualizado!" : "Produto criado!");
+      }
       clearDraft();
       onSuccess();
       onClose();
@@ -697,6 +718,11 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     onChange={(e) => handleInputChange("name", e.target.value)}
                     required
                   />
+                  <p className="text-xs text-slate-500">
+                    Ex: &quot;Balão Metalizado Coração Vermelho 18&quot;. Enquanto o
+                    nome ficar como &quot;{PLACEHOLDER_PRODUCT_NAME}&quot;, o produto
+                    é salvo inativo e não aparece pro cliente.
+                  </p>
                 </div>
 
                 {formData.type === "RIBBON" ? (
@@ -807,6 +833,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         onChange={(e) =>
                           handleInputChange("price", e.target.value)
                         }
+                        placeholder="Ex: 25.90"
                         required
                       />
                     </div>
