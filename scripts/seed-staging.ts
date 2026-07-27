@@ -16,6 +16,11 @@
 //      dado → ver "Roteador de skills" no CLAUDE.md (atualizar
 //      scripts/seed-data/ na MESMA fatia da mudança).
 //
+// REGRA DE FIDELIDADE DO SEED: todo campo seedado deve ser alcançável pela
+// UI/admin. Campo de modelo sem caminho de admin: ou vira issue de
+// admin-gap na hora, ou sai do seed. Seed exercita ESTADOS possíveis em
+// produção, não features inalcançáveis.
+//
 // Volume/carga: NÃO esticar este script pra testar performance/paginação —
 // criar um scripts/seed-load.ts separado com writeBatch e geração
 // procedural. Este arquivo é sobre cobertura de casos de borda, não volume.
