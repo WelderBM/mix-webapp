@@ -5,8 +5,8 @@ description: Use quando for auditar SEO técnico (metadata, dados estruturados/J
 
 ## Proveniência
 
-Origem: `tinh2/skills-hub-registry/analysis/seo/SKILL.md` (v2.1.0), importado em 2026-07-27.
-Auditoria de admissão: skills-hub explore, aprovação condicional (ver PR `chore/hub-skills-batch`).
+Origem: catálogo comunitário de agent skills (skills-hub.ai / registro público), path `analysis/seo/SKILL.md`, versão 2.1.0, obtida em 2026-07-27. Titularidade do registro (se `tinh2/skills-hub-registry` — repositório GitHub que se apresenta como "daily-synced to skills-hub.ai" — é de fato o mantenedor oficial por trás do site, ou um espelho/fork homônimo) **não verificada** — ver #122.
+Auditada e adaptada em 2026-07-27 (PR `chore/hub-skills-batch`), aprovação condicional: mérito do conteúdo avaliado item a item, independente da proveniência ainda não confirmada acima — ver modificações abaixo.
 
 Modificações aplicadas nesta cópia:
 - **Removido o framing "autonomous agent... commit fixes directly".** O original instruía a skill a corrigir o código e commitar em lotes sozinha ("Commit fixes in focused batches"). Isso conflita direto com a regra do projeto de que todo PR fica aberto até validação local explícita. Nesta cópia a skill audita e propõe; commitar/abrir PR segue o fluxo fatiado normal.

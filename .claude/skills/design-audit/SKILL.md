@@ -5,8 +5,8 @@ description: Use quando quiser uma auditoria read-only de consistência visual (
 
 ## Proveniência
 
-Origem: `tinh2/skills-hub-registry/ux/design-audit/SKILL.md` (v1.0.0), importado em 2026-07-27.
-Auditoria de admissão: skills-hub explore (ver PR `chore/hub-skills-batch`).
+Origem: catálogo comunitário de agent skills (skills-hub.ai / registro público), path `ux/design-audit/SKILL.md`, versão 1.0.0, obtida em 2026-07-27. Titularidade do registro (se `tinh2/skills-hub-registry` — repositório GitHub que se apresenta como "daily-synced to skills-hub.ai" — é de fato o mantenedor oficial por trás do site, ou um espelho/fork homônimo) **não verificada** — ver #122.
+Auditada e adaptada em 2026-07-27 (PR `chore/hub-skills-batch`): mérito do conteúdo avaliado item a item, independente da proveniência ainda não confirmada acima — ver modificações abaixo.
 
 Modificações aplicadas nesta cópia:
 - **Cortadas as Fases 2 (Acessibilidade), 3 (Performance) e 5 (Responsivo/Adaptativo) do original** — cada uma duplicava uma skill já existente no repo (`accessibility-test`, `next-performance-guide`, `mobile-first-guide` respectivamente). Regra de admissão: sobreposição com skill nossa, a nossa vence. Ficaram só as Fases 1 (levantamento), 4 (Theming) e 6 (Anti-padrões), que não têm equivalente aqui.
