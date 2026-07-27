@@ -5,8 +5,8 @@ description: Use quando precisar gerar testes unitários pra código sem cobertu
 
 ## Proveniência
 
-Origem: `tinh2/skills-hub-registry/test/unit-test/SKILL.md` (v2.0.0), importado em 2026-07-27.
-Auditoria de admissão: skills-hub explore (ver PR `chore/hub-skills-batch`).
+Origem: catálogo comunitário de agent skills (skills-hub.ai / registro público), path `test/unit-test/SKILL.md`, versão 2.0.0, obtida em 2026-07-27. Titularidade do registro (se `tinh2/skills-hub-registry` — repositório GitHub que se apresenta como "daily-synced to skills-hub.ai" — é de fato o mantenedor oficial por trás do site, ou um espelho/fork homônimo) **não verificada** — ver #122.
+Auditada e adaptada em 2026-07-27 (PR `chore/hub-skills-batch`): mérito do conteúdo avaliado item a item, independente da proveniência ainda não confirmada acima — ver modificações abaixo.
 
 Modificações aplicadas nesta cópia:
 - **Fase 4.2 (self-healing loop): correção automática de "bug de aplicação" (categoria B) DESATIVADA.** No original, a skill podia editar código de produção sozinha pra fazer um teste vermelho passar. Isso é exatamente o padrão de risco por trás dos incidentes #52/#53 do `CLAUDE.md` — um "fix" automático otimizando só pra "teste verde" pode introduzir um fallback (`a || b`) ou uma comparação sem guard sem que ninguém revise a decisão. Nesta cópia, bug de categoria B vira achado reportado; quem decide a correção é você.

@@ -5,8 +5,8 @@ description: Use quando for adicionar teste de acessibilidade novo, auditar conf
 
 ## Proveniência
 
-Origem: `tinh2/skills-hub-registry/test/accessibility-test/SKILL.md` (v2.0.0), importado em 2026-07-27.
-Auditoria de admissão: skills-hub explore (ver PR `chore/hub-skills-batch`).
+Origem: catálogo comunitário de agent skills (skills-hub.ai / registro público), path `test/accessibility-test/SKILL.md`, versão 2.0.0, obtida em 2026-07-27. Titularidade do registro (se `tinh2/skills-hub-registry` — repositório GitHub que se apresenta como "daily-synced to skills-hub.ai" — é de fato o mantenedor oficial por trás do site, ou um espelho/fork homônimo) **não verificada** — ver #122.
+Auditada e adaptada em 2026-07-27 (PR `chore/hub-skills-batch`): mérito do conteúdo avaliado item a item, independente da proveniência ainda não confirmada acima — ver modificações abaixo.
 Primeiro alvo real: issue #105 (manifest icons, `sizes` do banner, `DialogContent` sem `aria-describedby`, `scroll-behavior` sem guard de `prefers-reduced-motion`).
 
 Modificações aplicadas nesta cópia:
