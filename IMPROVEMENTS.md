@@ -107,3 +107,4 @@ Itens levantados por uma auditoria externa que não viram issue nem branch agora
 - **DTO por página** (ex. Home) — gatilho: o payload retornado pelo server component da página ficar pesado o suficiente pra valer a pena moldar antes de descer pro client.
 - **`getCartTotal` como função pura** (hoje acoplada à store) — oportunista: fazer junto de algum outro trabalho que já esteja mexendo na store, não sozinho.
 - **Custo do `JSON.stringify` em `useDraftPersistence`** — gatilho: o draft persistido crescer o suficiente pra esse custo aparecer em profiling.
+- **Modelo de encaixe do kit custom** (base×itens×wrapper: `capacity`/`capacityRef`/`requiredWrapperSize` existem mas sem regra completa) — resolver ANTES de reabrir o builder na loja. Gatilho: builder custom voltar à pauta (ver epic #94, issue #108 — builder escondido atrás de flag até lá).
