@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { assertFidelityRegistryValid, unreachableFields } from "./fidelity";
+import { assertFidelityRegistryValid } from "./fidelity";
 
 describe("assertFidelityRegistryValid", () => {
-  it("não lança com o registro vazio (estado atual do dataset)", () => {
-    expect(unreachableFields).toEqual([]);
+  it("não lança com o registro real do dataset (default do parâmetro)", () => {
+    // Não trava o estado do registro em "vazio pra sempre" — só confirma
+    // que o que estiver lá hoje passa na validação. Uma entrada nova e
+    // válida (com issue de admin-gap) não deveria quebrar este teste.
     expect(() => assertFidelityRegistryValid()).not.toThrow();
   });
 
