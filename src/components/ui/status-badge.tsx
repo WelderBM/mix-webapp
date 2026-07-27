@@ -55,7 +55,7 @@ export const PRODUCT_TYPE_META: Record<
   FILLER: { label: "Preench.", filterLabel: "Preenchimento", tone: "info" },
   ACCESSORY: { label: "Acess.", filterLabel: "Acessório", tone: "warning" },
   WRAPPER: { label: "Saco", filterLabel: "Saco/Embalagem", tone: "accent" },
-  RIBBON: { label: "Laço", filterLabel: "Laço", tone: "pink" },
+  RIBBON: { label: "Fita", filterLabel: "Fita", tone: "pink" },
   ASSEMBLED_KIT: {
     label: "Kit Montado",
     filterLabel: "Kit Montado",
