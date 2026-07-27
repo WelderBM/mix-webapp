@@ -24,6 +24,9 @@ As descriptions das skills disparam bem quando o *pedido* bate semanticamente, m
 - início de sessão de planejamento, backlog com mais de 15 issues sem revisão, ou sensação de "projeto grande demais pra monitorar" → carrega `varredura-de-saude`.
 - trabalho em rendering/imagem/cache/bundle → consulta `next-performance-guide`.
 - HEAD diferente do esperado ao rodar comando git → para e avisa (nunca "corrige" por conta própria).
+- coleção/singleton novo no Firestore, ou membro novo em união seedada (`ProductType`, `OrderStatus`, `SectionType`...) → atualizar `scripts/seed-data/` na MESMA fatia (o seed cobre o esquema inteiro ou mente).
+- bug causado por estado de dado (classe #52/#66) → o estado vira caso nomeado no seed junto do fix, como fixture de regressão.
+- antes de promover `dev` → `master` → `npm run seed:staging` (staging em estado conhecido) e `smoke-de-runtime` por cima; só então mergeia.
 
 ## Como entregar trabalho aqui
 - **Fatiado**: cada mudança significativa vira uma sequência de PRs pequenos e revisáveis (uma "Fatia" por PR — modelo de dados, depois UI, depois integração, depois exibição), não um PR gigante. Ver `docs/claude-lessons.md` pros exemplos reais dessa sequência.
