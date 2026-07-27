@@ -99,6 +99,11 @@ Graduou para skill: ver `.claude/skills/deploy-vercel/SKILL.md` (env vars escopa
 ### Múltiplas sessões podem estar trabalhando no mesmo repo ao mesmo tempo, inclusive em máquinas diferentes
 Sempre rode `git branch -a` e `git log --all --oneline` antes de assumir que sabe o estado atual do repositório. Um merge que parece simples pode ter dois lados que evoluíram de forma incompatível (ex: uma função que perdeu um parâmetro numa branch, enquanto a outra branch ainda chama com a assinatura antiga) — ao resolver conflito, confirme contra o resto do arquivo (já mesclado, sem marcador de conflito) qual assinatura/formato é o que sobreviveu, não assuma que "o lado que parece mais completo" está certo.
 
+### `Closes #N` só dispara em merge pro branch DEFAULT do GitHub
+O texto `Closes #N` no corpo de um PR só fecha a issue automaticamente se o PR for mergeado no branch marcado como **default** nas configurações do repositório (`gh repo view --json defaultBranchRef`) — não importa se o merge caiu em qualquer outra branch de longa duração. Neste repo o default agora é `dev` (mudou de `master` em 2026-07-27); antes da mudança, `Closes #N` em PRs mergeados em `dev` nunca fechava nada, mesmo com o texto certo — achado real: PR #67 tinha `Closes #52` explícito, mergeado, e a issue #52 continuou aberta.
+
+A varredura de fechamento (cruzar `gh pr list --state merged` com `gh issue list --state open`, dentro da `varredura-de-saude`) é a rede de segurança pra isso: pega tanto PR sem `Closes #N` quanto entrega parcial onde o `Closes` existe mas a issue tem critério de aceite ainda não cumprido de fato (caso #67/#52 — a issue tinha um segundo item, diferenciação visual no carrinho, que o PR não implementou; `Closes` no corpo não significa "está tudo feito", só "a intenção era fechar").
+
 ### Fatiar entregas grandes em PRs sequenciais pequenos
 Cada PR cobre uma responsabilidade (modelo de dados → UI → integração → exibição), com `tsc`/`vitest`/build limpos antes de cada commit, e fica aberto sem merge até validação local de quem pediu a mudança. Isso apareceu repetidamente como o ritmo que funcionou bem nesse projeto — evita PR gigante difícil de revisar, e cada fatia é testável isoladamente.
 

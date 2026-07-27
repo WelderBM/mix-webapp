@@ -13,6 +13,7 @@ Next.js 16 (App Router, Turbopack) + Firebase (Firestore client SDK, Auth com Go
 - Apague branches locais já mescladas (`git branch -d`).
 - **Antes de qualquer PR ir pra `dev`, validação local é obrigatória** — quem está pedindo a mudança testa rodando local antes do merge. `.env` local aponta pro projeto Firebase de **staging** (`mix-webapp-staging`), nunca pro de produção — testar local não pode sujar dado real de cliente.
 - PRs ficam abertos, sem merge, até essa validação acontecer — isso é esperado, não um bloqueio a resolver sozinho.
+- Todo PR de fatia referencia a issue com `Closes #N` — merge fecha a issue sozinho.
 
 ## Roteador de skills (gatilho por evento)
 As descriptions das skills disparam bem quando o *pedido* bate semanticamente, mas falham quando o gatilho é um *evento* no meio de outra tarefa (ex: `npm audit` acusando vulnerabilidade durante a validação de um PR que não tinha nada a ver com dependências). As regras abaixo disparam por evento, mesmo sem pedido explícito:
