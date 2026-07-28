@@ -1,0 +1,3 @@
+# Branches que NUNCA devem ser removidas por wt-clean.mjs, mesmo mergeadas
+# em dev e sem PR aberto — uma por linha. Linhas começando com # são
+# comentário e são ignoradas.

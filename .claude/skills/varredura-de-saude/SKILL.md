@@ -58,6 +58,12 @@ O fluxo deste repo (ver `CLAUDE.md`) define o que é saudável aqui, então os p
   git rev-list --count origin/master..origin/dev
   ```
   Não é problema, é lembrete de promoção pendente — vai pra LEMBRETES.
+- **Worktrees órfãos** — cruze `git worktree list` com branches já mescladas:
+  ```
+  git worktree list --porcelain
+  git branch --merged dev
+  ```
+  Worktree cujo branch já mergeou (e sem PR aberto) é candidato a `node scripts/wt-clean.mjs` (dry-run primeiro) — vai pra LEMBRETES, nunca remova aqui dentro da varredura.
 
 ### 4. Drift de performance / rendering — carrega `next-performance-guide`
 
