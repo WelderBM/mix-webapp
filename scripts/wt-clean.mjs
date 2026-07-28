@@ -19,7 +19,7 @@
 //   node scripts/wt-clean.mjs --yes     # remove de verdade os elegíveis
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 function git(args, opts = {}) {
@@ -35,21 +35,26 @@ const gitCommonDir = git([
 ]).trim();
 const mainWorktreePath = path.dirname(gitCommonDir);
 
-// ── Keep-list (guard e) — nasce vazia na primeira execução ────────────────
+// ── Keep-list (guard e) ────────────────────────────────────────────────────
+// Vive commitada em scripts/wt-keep.txt (dev), compartilhada entre todos os
+// worktrees. NÃO auto-cria o arquivo se estiver ausente — o worktree
+// principal pode estar checked out numa branch antiga que ainda não tem
+// este arquivo tracked, e escrever ali poluiria o working tree de uma
+// branch sem relação nenhuma com esta fatia. Ausente = lista vazia (guard e
+// nunca bloqueia sozinho); só avisa.
 
 const keepListPath = path.join(mainWorktreePath, "scripts", "wt-keep.txt");
-if (!existsSync(keepListPath)) {
-  writeFileSync(
-    keepListPath,
-    "# Branches que NUNCA devem ser removidas por wt-clean.mjs, mesmo\n" +
-      "# mergeadas em dev e sem PR aberto — uma por linha. Linhas começando\n" +
-      "# com # são comentário e são ignoradas.\n"
+let keepList = [];
+if (existsSync(keepListPath)) {
+  keepList = readFileSync(keepListPath, "utf-8")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#"));
+} else {
+  console.warn(
+    `⚠️  ${keepListPath} não encontrado — nenhuma exceção manual será respeitada até ele existir (rode a partir de uma branch que já tenha esse arquivo, ex. dev).`
   );
 }
-const keepList = readFileSync(keepListPath, "utf-8")
-  .split("\n")
-  .map((l) => l.trim())
-  .filter((l) => l && !l.startsWith("#"));
 
 // ── Worktrees existentes (exceto o principal) ─────────────────────────────
 
@@ -80,9 +85,13 @@ if (others.length === 0) {
 
 let mergedBranches = [];
 try {
+  // "git branch" prefixa com "* " a branch atual e com "+ " qualquer branch
+  // checked out noutro worktree — os dois precisam ser removidos, senão o
+  // nome nunca bate com o "branch" que git worktree list --porcelain
+  // reporta (sem prefixo nenhum).
   mergedBranches = git(["branch", "--merged", "dev"])
     .split("\n")
-    .map((l) => l.replace("*", "").trim())
+    .map((l) => l.replace(/^[*+]\s*/, "").trim())
     .filter(Boolean);
 } catch (err) {
   console.warn(
