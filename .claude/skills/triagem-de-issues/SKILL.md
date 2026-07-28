@@ -67,7 +67,7 @@ Antes de todo `gh issue create`, rode esta checagem — é o que impede o backlo
 Registro do estado real em que a skill nasceu (17 issues abertas), pra reconhecer os padrões de novo:
 
 - **Fundir #74 → #75** (mesma toolbar do `ProductsTab`; redesign já corrige o overflow). Caso-modelo do destino 2.
-- **Fundir #66 → branch da #52** (mesma lógica `remainingMeters`/`ribbon-pricing.ts`; #66 é caso de borda nascido do modal da #52). Manter **#65 separada** (auditoria de dados, não lógica).
+- **Fusão #66 → #52 morreu antes de executar** (auditoria de 27/07/2026): a branch da #52 (PR #67) já tinha mergeado em `dev` quando #66 foi aberta — nunca existiu uma branch viva pra fundir. Padrão a reconhecer: uma decisão de fusão registrada aqui pode ficar obsoleta sozinha se o alvo mergear antes de ser executada; antes de propor "fundir X → branch de Y", confirme que a branch/PR de Y ainda está aberta. #66 segue como issue própria (decisão de produto em aberto sobre rolo fechado parcial, `remainingMeters`/`ribbon-pricing.ts`). Manter **#65 separada** (auditoria de dados, não lógica).
 - **#57 ∩ #71**: fechar a parte "vitrine automática por categoria" da #57 como dup do modo `category`/`auto` da #71; recortar só a *gestão* (excluir/renomear/ocultar/drag/persistência) como sub-issue. #71 assume a arquitetura.
 - **Epic Taxonomia (não colapsar)**: #68 (modelo Tags) → #69 (categoria controlada) → #70 (navbar dinâmica) → #71 (StoreSection por source) → gestão-de-vitrines (recorte da #57). #55 (campo `marca`) alimenta as vitrines por marca — dependência, não parte.
 - **Standalone confirmadas**: #73 (OrdersTab, superfície própria), #72 (CartSidebar) — considerar sequenciar #56 (toggle maquininha no checkout) *depois* da #72 pra não mexer no `CartSidebar` duas vezes.
