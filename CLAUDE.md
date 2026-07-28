@@ -14,6 +14,11 @@ Next.js 16 (App Router, Turbopack) + Firebase (Firestore client SDK, Auth com Go
 - **Antes de qualquer PR ir pra `dev`, validação local é obrigatória** — quem está pedindo a mudança testa rodando local antes do merge. `.env` local aponta pro projeto Firebase de **staging** (`mix-webapp-staging`), nunca pro de produção — testar local não pode sujar dado real de cliente.
 - PRs ficam abertos, sem merge, até essa validação acontecer — isso é esperado, não um bloqueio a resolver sozinho.
 - Todo PR de fatia referencia a issue com `Closes #N` — merge fecha a issue sozinho.
+- **Uma sessão de agente por working directory.** A sessão primária trabalha no diretório principal normalmente — worktree só quando o diretório já está ocupado por outra sessão ativa.
+  **DETECÇÃO** (estende a verificação de chão): antes de iniciar uma fatia, rodar `git branch --show-current` + `git status`. Sinais de ocupação: HEAD numa branch que a sessão não criou, ou modificações que não são dela. Nesse caso: PARA, avisa, e PROPÕE o worktree (`node scripts/wt-new.mjs <branch>`) em vez de prosseguir no diretório disputado. Nunca "corrige" o chão por conta própria.
+  Worktree nasce e morre com a fatia; limpeza via `scripts/wt-clean.mjs` (dry-run por padrão, exceções em `scripts/wt-keep.txt`).
+  Compartilhados entre worktrees e ainda sujeitos a colisão: Firestore de staging (não rodar seed de dois lugares) e porta do dev server (3000 + N).
+- **PROMOÇÃO**: antes do merge `dev` → `master`, criar tag anotada `promo-YYYY-MM-DD` no HEAD de `dev` e dar push — ponto de retorno nomeado para rollback.
 
 ## Roteador de skills (gatilho por evento)
 As descriptions das skills disparam bem quando o *pedido* bate semanticamente, mas falham quando o gatilho é um *evento* no meio de outra tarefa (ex: `npm audit` acusando vulnerabilidade durante a validação de um PR que não tinha nada a ver com dependências). As regras abaixo disparam por evento, mesmo sem pedido explícito:
