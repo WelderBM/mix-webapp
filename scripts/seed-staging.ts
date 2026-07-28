@@ -19,7 +19,10 @@
 // REGRA DE FIDELIDADE DO SEED: todo campo seedado deve ser alcançável pela
 // UI/admin. Campo de modelo sem caminho de admin: ou vira issue de
 // admin-gap na hora, ou sai do seed. Seed exercita ESTADOS possíveis em
-// produção, não features inalcançáveis.
+// produção, não features inalcançáveis. Regra VERIFICADA (não só
+// documentada) em scripts/seed-data/fidelity.ts — todo campo marcado como
+// unreachable lá precisa de uma issue de admin-gap associada, ou este
+// script recusa rodar (guard abaixo, antes de qualquer inserção).
 //
 // Volume/carga: NÃO esticar este script pra testar performance/paginação —
 // criar um scripts/seed-load.ts separado com writeBatch e geração
@@ -45,6 +48,7 @@ import { generalSettings, balloonConfig } from "./seed-data/settings";
 import { products } from "./seed-data/products";
 import { kitRecipes } from "./seed-data/kitRecipes";
 import { orders } from "./seed-data/orders";
+import { assertFidelityRegistryValid } from "./seed-data/fidelity";
 
 const SEED_PREFIX = "seed-";
 const WIPE = process.argv.includes("--wipe");
@@ -54,6 +58,12 @@ const WIPE = process.argv.includes("--wipe");
 function abort(message: string): never {
   console.error(`\n❌ ABORTADO: ${message}\n`);
   process.exit(1);
+}
+
+try {
+  assertFidelityRegistryValid();
+} catch (err) {
+  abort((err as Error).message);
 }
 
 if (!env.NEXT_PUBLIC_FIREBASE_PROJECT_ID.includes("staging")) {
