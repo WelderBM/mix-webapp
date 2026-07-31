@@ -32,27 +32,39 @@ const StatusTimeline = ({
   status: OrderStatus;
   isDelivery: boolean;
 }) => {
-  const steps = [
-    { id: "pending", label: "Recebido", icon: Clock },
-    { id: "preparing", label: "Preparando", icon: Package },
-    {
-      id: isDelivery ? "out_for_delivery" : "ready",
-      label: isDelivery ? "Saiu p/ Entrega" : "Pronto",
-      icon: isDelivery ? Bike : MapPin,
-    },
-    { id: "delivered", label: "Entregue", icon: CheckCircle2 },
-  ];
+  const steps = isDelivery
+    ? [
+        { id: "pending", label: "Recebido", icon: Clock },
+        { id: "preparing", label: "Preparando", icon: Package },
+        { id: "ready", label: "Pronto", icon: Store },
+        { id: "out_for_delivery", label: "Saiu p/ Entrega", icon: Bike },
+        { id: "delivered", label: "Entregue", icon: CheckCircle2 },
+      ]
+    : [
+        { id: "pending", label: "Recebido", icon: Clock },
+        { id: "preparing", label: "Preparando", icon: Package },
+        { id: "ready", label: "Pronto p/ Retirada", icon: MapPin },
+        { id: "delivered", label: "Entregue", icon: CheckCircle2 },
+      ];
 
   // Mapa de progresso: qual índice de 'steps' o status atual representa?
-  // Se cancelado, não vamos mostrar nessa timeline ou trataremos diferente.
-  const statusMap: Record<string, number> = {
-    pending: 0,
-    preparing: 1,
-    ready: 2,
-    out_for_delivery: 2,
-    delivered: 3,
-    cancelled: -1,
-  };
+  const statusMap: Record<string, number> = isDelivery
+    ? {
+        pending: 0,
+        preparing: 1,
+        ready: 2,
+        out_for_delivery: 3,
+        delivered: 4,
+        cancelled: -1,
+      }
+    : {
+        pending: 0,
+        preparing: 1,
+        ready: 2,
+        out_for_delivery: 2,
+        delivered: 3,
+        cancelled: -1,
+      };
 
   const currentStepIndex = statusMap[status] ?? 0;
   const isCancelled = status === "cancelled";
