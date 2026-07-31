@@ -41,6 +41,7 @@ import {
   getCartItemUnavailableReason,
   sumCartItemTotals,
 } from "@/lib/cart-pricing";
+import { isSealedRibbonRoll, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 import { SafeImage } from "../ui/SafeImage";
 import { OrderSuccessModal } from "@/components/features/OrderSuccessModal";
 
@@ -363,6 +364,10 @@ export function CartSidebar() {
                       ? 0
                       : getCartItemTotal(item);
 
+                    const isRibbon = item.product?.type === "RIBBON";
+                    const isSealed = isSealedRibbonRoll(item.product);
+                    const unitLabel = item.product ? getEffectiveUnitLabel(item.product) : "un";
+
                     return (
                       <div
                         key={item.cartId}
@@ -377,6 +382,18 @@ export function CartSidebar() {
                             sizes="64px"
                             className="object-cover"
                           />
+                          {isRibbon && (
+                            <div
+                              className={cn(
+                                "absolute bottom-0 inset-x-0 py-0.5 text-[9px] font-bold text-center backdrop-blur-xs truncate leading-none z-10",
+                                isSealed
+                                  ? "bg-amber-950/80 text-amber-200"
+                                  : "bg-emerald-950/80 text-emerald-200"
+                              )}
+                            >
+                              {isSealed ? "Rolo Fechado" : "Fita Aberta"}
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0 pr-6">
                           <h4 className="font-medium text-slate-800 text-sm line-clamp-2">
@@ -387,6 +404,20 @@ export function CartSidebar() {
                               ? `Kit: ${item.kitName}`
                               : item.product?.name}
                           </h4>
+                          {isRibbon && (
+                            <p
+                              className={cn(
+                                "text-xs font-semibold px-1.5 py-0.5 rounded-md inline-block mt-0.5",
+                                isSealed
+                                  ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                  : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              )}
+                            >
+                              {isSealed
+                                ? `Rolo fechado (${item.product?.ribbonInventory?.totalRollMeters || 0}m)`
+                                : "Fita aberta (por metro)"}
+                            </p>
+                          )}
                           {item.selectedVariant ? (
                             <p className="text-xs font-medium text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
                               {item.selectedVariant.type}:{" "}
