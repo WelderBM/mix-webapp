@@ -545,11 +545,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                   <Label>Categoria</Label>
                   {!customCategory ? (
                     <Select
-                      value={
-                        categoryNames.includes(formData.category)
-                          ? formData.category
-                          : undefined
-                      }
+                      value={formData.category || ""}
                       onValueChange={(v) => {
                         if (v === "custom_new") {
                           setCustomCategory(true);
@@ -631,13 +627,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                       </div>
                     ) : selectedCategory.subcategories.length > 0 ? (
                       <Select
-                        value={
-                          selectedCategory.subcategories.some(
-                            (s) => s.name === formData.subcategory
-                          )
-                            ? formData.subcategory
-                            : undefined
-                        }
+                        value={formData.subcategory || ""}
                         onValueChange={(v) => {
                           if (v === "custom_new_sub") {
                             setCustomSubcategory(true);
