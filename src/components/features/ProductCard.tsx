@@ -32,6 +32,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   // o preço deles é calculado ao vivo no KitBuilderModal, não em product.price.
   const priceUnavailable = finalPrice == null && product.type !== "ASSEMBLED_KIT";
 
+  // Fitas não têm PDP standalone como destino "natural" a partir da vitrine:
+  // levam pra Central de Fitas (/fitas) já com a fita em questão selecionada,
+  // pra o cliente ver as outras fitas e a opção de cortar/criar laço.
+  // /produto/[id] continua funcionando via URL direta (issue #117).
+  const productHref =
+    product.type === "RIBBON"
+      ? `/fitas?fita=${product.id}&aba=${
+          product.ribbonInventory?.status === "FECHADO" ? "fechados" : "abertas"
+        }`
+      : `/produto/${product.id}`;
+
   // Removemos todos os useEffects e useStates de imagem daqui.
   // O SafeImage cuida disso agora.
 
@@ -59,7 +70,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     <div className="group flex h-full flex-col overflow-hidden rounded-xl bg-white shadow-lg transition-all hover:shadow-xl">
       {/* IMAGE SECTION - LINKED */}
       <Link
-        href={`/produto/${product.id}`}
+        href={productHref}
         className="relative aspect-square w-full overflow-hidden bg-slate-50 flex items-center justify-center cursor-pointer"
       >
         <SafeImage
@@ -82,7 +93,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* CONTENT SECTION */}
       <div className="flex flex-1 flex-col justify-between p-4">
-        <Link href={`/produto/${product.id}`} className="block cursor-pointer">
+        <Link href={productHref} className="block cursor-pointer">
           <h3 className="line-clamp-2 text-base font-semibold text-slate-800 group-hover:text-primary transition-colors">
             {product.name}
           </h3>
@@ -135,7 +146,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <div className="w-full">
               {/* Lógica de Botão: Se tiver variações (imagens extras com label), obriga a ver detalhes */}
               {product.images && product.images.length > 1 ? (
-                <Link href={`/produto/${product.id}`} className="w-full block">
+                <Link href={productHref} className="w-full block">
                   <Button
                     className="w-full bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200 gap-2 font-bold h-10 shadow-sm hover:shadow-md transition-all"
                     variant="ghost"

@@ -35,6 +35,10 @@ function FitasContent() {
   const [activeTab, setActiveTab] = useState("rolls");
   const [selectedRibbonId, setSelectedRibbonId] = useState<string>("");
   const [meterAmount, setMeterAmount] = useState<number>(1);
+  // Fita chegando via link da vitrine (ProductCard, issue #117): destacamos e
+  // damos scroll até ela ao montar. Some depois do primeiro highlight pra não
+  // ficar reaplicando ao trocar de aba manualmente.
+  const [highlightedRibbonId, setHighlightedRibbonId] = useState<string>("");
 
   useEffect(() => {
     fetchProducts();
@@ -49,8 +53,33 @@ function FitasContent() {
       tabParam === "service"
     ) {
       setActiveTab("service");
+    } else if (tabParam === "abertas" || tabParam === "meter") {
+      setActiveTab("meter");
+    } else if (tabParam === "fechados" || tabParam === "rolls") {
+      setActiveTab("rolls");
     }
-  }, [searchParams]);
+
+    const fitaParam = searchParams.get("fita");
+    if (fitaParam) {
+      setHighlightedRibbonId(fitaParam);
+      if (tabParam === "abertas" || tabParam === "meter") {
+        setSelectedRibbonId(fitaParam);
+      }
+    }
+    // Só precisa rodar na montagem — não queremos reagir a mudanças
+    // subsequentes de searchParams causadas por interação do usuário na página.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Scroll até a fita destacada assim que a lista correspondente estiver
+  // disponível (produtos carregam async, então esperamos allProducts também).
+  useEffect(() => {
+    if (!highlightedRibbonId) return;
+    const el = document.getElementById(`ribbon-${highlightedRibbonId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedRibbonId, activeTab, allProducts]);
 
   const themeStyles = useMemo(() => {
     const primary = settings.theme?.primaryColor || "#7c3aed";
@@ -215,7 +244,15 @@ function FitasContent() {
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
                   {closedRolls.map((product) => (
-                    <div key={product.id} className="relative">
+                    <div
+                      key={product.id}
+                      id={`ribbon-${product.id}`}
+                      className={`relative rounded-xl transition-all ${
+                        highlightedRibbonId === product.id
+                          ? "ring-2 ring-primary ring-offset-2 animate-in zoom-in duration-300"
+                          : ""
+                      }`}
+                    >
                       <ProductCard
                         product={product}
                         onSelect={() => handleAddRoll(product)}
@@ -268,6 +305,7 @@ function FitasContent() {
                           return (
                             <div
                               key={ribbon.id}
+                              id={`ribbon-${ribbon.id}`}
                               onClick={() =>
                                 !unavailable && setSelectedRibbonId(ribbon.id)
                               }
