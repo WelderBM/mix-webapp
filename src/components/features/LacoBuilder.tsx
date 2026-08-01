@@ -33,6 +33,16 @@ const DEFAULT_SIZES = [
   { id: "G", name: "Grande", price: 5 },
 ];
 
+// Defensivo: alguns modelos legados foram salvos já com a palavra "Laço" no
+// nome (ex.: "Laço Bola"). O nome do item no carrinho já adiciona o prefixo
+// "Laço " na montagem (ver handleAddToCart abaixo), então sem isso o cliente
+// veria "Laço Laço Bola". Remove qualquer prefixo "laço" (case-insensitive,
+// com ou sem espaço) já presente no nome do modelo antes de compor.
+function stripLacoPrefix(styleName: string) {
+  const stripped = styleName.replace(/^\s*laço\s*/i, "").trim();
+  return stripped.length > 0 ? stripped : styleName.trim();
+}
+
 export function LacoBuilder() {
   const { allProducts } = useProductStore();
   const { addItem, openCart } = useCartStore();
@@ -87,7 +97,7 @@ export function LacoBuilder() {
       type: "CUSTOM_RIBBON",
       product: {
         ...selectedRibbon,
-        name: `Laço ${selectedStyle.name} - ${selectedRibbon.name}`,
+        name: `Laço ${stripLacoPrefix(selectedStyle.name)} - ${selectedRibbon.name}`,
       },
       quantity: 1,
       kitTotalAmount: finalPrice,

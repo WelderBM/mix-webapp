@@ -40,7 +40,7 @@ export const generalSettings: StoreSettings = {
     // Modelo COMPLETO: tem sizeId apontando pra um BowSize existente.
     {
       id: "seed-bow-model-completo",
-      name: "Laço Bola (seed)",
+      name: "Bola (seed)",
       subtitle: "Clássico, pronto pra usar",
       imageUrl: placeholder("Laco Bola"),
       sizeId: "seed-bow-size-p",
@@ -50,7 +50,7 @@ export const generalSettings: StoreSettings = {
     // src/types/store.ts).
     {
       id: "seed-bow-model-incompleto",
-      name: "Laço Borboleta (seed)",
+      name: "Borboleta (seed)",
       subtitle: "Sem tamanho definido ainda",
       imageUrl: placeholder("Laco Borboleta"),
     },
