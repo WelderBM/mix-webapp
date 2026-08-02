@@ -162,4 +162,77 @@ describe("TrackOrderContent", () => {
     expect(replaceMock).toHaveBeenCalled();
     expect(replaceMock.mock.calls[0][0]).toContain("id=manual123");
   });
+
+  it("should show a distinct 'Pronto p/ Entrega' step (not 'Saiu p/ Entrega') when a delivery order is ready", async () => {
+    const mockOrder = {
+      id: "order-ready",
+      customerName: "Ana",
+      status: "ready",
+      total: 80,
+      items: [],
+      deliveryMethod: "delivery",
+      address: "Rua B",
+    };
+
+    (firestore.onSnapshot as any).mockImplementation(
+      (_ref: any, callback: any) => {
+        callback({
+          exists: () => true,
+          data: () => mockOrder,
+          id: "order-ready",
+        });
+        return () => {};
+      }
+    );
+
+    render(<TrackOrderContent />);
+
+    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    fireEvent.change(input, { target: { value: "order-ready" } });
+    fireEvent.submit(input.closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Olá, Ana/)).toBeTruthy();
+    });
+
+    // Both steps must be present and distinct for delivery orders
+    expect(screen.getByText("Pronto p/ Entrega")).toBeTruthy();
+    expect(screen.getByText("Saiu p/ Entrega")).toBeTruthy();
+  });
+
+  it("should keep the 4-step pickup timeline without a 'Saiu p/ Entrega' step", async () => {
+    const mockOrder = {
+      id: "order-pickup",
+      customerName: "Bruno",
+      status: "ready",
+      total: 40,
+      items: [],
+      deliveryMethod: "pickup",
+    };
+
+    (firestore.onSnapshot as any).mockImplementation(
+      (_ref: any, callback: any) => {
+        callback({
+          exists: () => true,
+          data: () => mockOrder,
+          id: "order-pickup",
+        });
+        return () => {};
+      }
+    );
+
+    render(<TrackOrderContent />);
+
+    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    fireEvent.change(input, { target: { value: "order-pickup" } });
+    fireEvent.submit(input.closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Olá, Bruno/)).toBeTruthy();
+    });
+
+    expect(screen.getByText("Pronto")).toBeTruthy();
+    expect(screen.queryByText("Saiu p/ Entrega")).toBeNull();
+    expect(screen.queryByText("Pronto p/ Entrega")).toBeNull();
+  });
 });
