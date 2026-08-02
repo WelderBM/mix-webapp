@@ -432,11 +432,7 @@ export const ProductVariationManager: React.FC<
                       </div>
                     ) : (
                       <Select
-                        value={
-                          knownTypes.includes(variant.type)
-                            ? variant.type
-                            : undefined
-                        }
+                        value={variant.type || ""}
                         onValueChange={(v) => {
                           if (v === "custom_new_type") {
                             setCustomTypeRowId(variant.id);
