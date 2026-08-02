@@ -64,6 +64,7 @@ O fluxo deste repo (ver `CLAUDE.md`) define o que é saudável aqui, então os p
   git branch --merged dev
   ```
   Worktree cujo branch já mergeou (e sem PR aberto) é candidato a `node scripts/wt-clean.mjs` (dry-run primeiro) — vai pra LEMBRETES, nunca remova aqui dentro da varredura.
+- **Skill fora do repo** — skills pessoais em `~/.claude/skills/` que já amadureceram o suficiente pra virar skill do projeto (versionada, disponível em qualquer sessão/máquina) ficam invisíveis se continuarem só locais. Compare o que existe em `~/.claude/skills/` com `.claude/skills/` do projeto; skill usada repetidamente neste repo mas ausente do projeto é candidata a mover — vai pra LEMBRETES.
 
 ### 4. Drift de performance / rendering — carrega `next-performance-guide`
 
