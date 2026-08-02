@@ -40,9 +40,16 @@ import {
   Search,
   Ruler,
   Gift,
+  AlertTriangle,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
+
+// O carrinho já compõe o nome do item como "Laço {modelo}" (ver
+// LacoBuilder.tsx). Se o admin também salvar "Laço" dentro do nome do
+// modelo, o cliente vê "Laço Laço Bola" duplicado — então o nome do modelo
+// deve conter só o formato (ex.: "Bola"), nunca a palavra "Laço".
+const LACO_WORD_REGEX = /laço/i;
 
 interface RibbonsTabProps {
   allProducts: Product[];
@@ -637,16 +644,29 @@ export function RibbonsTab({
                     }}
                   />
                   <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <Input
-                      placeholder="Nome"
-                      value={model.name}
-                      onChange={(e) => {
-                        const updated = [...(settings.bowModels || [])];
-                        updated[idx] = { ...updated[idx], name: e.target.value };
-                        setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
-                      }}
-                      className="text-sm"
-                    />
+                    <div>
+                      <Input
+                        placeholder="Nome (ex: Bola)"
+                        value={model.name}
+                        onChange={(e) => {
+                          const updated = [...(settings.bowModels || [])];
+                          updated[idx] = { ...updated[idx], name: e.target.value };
+                          setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
+                        }}
+                        className={cn(
+                          "text-sm",
+                          LACO_WORD_REGEX.test(model.name) &&
+                            "border-red-300 focus-visible:ring-red-300"
+                        )}
+                      />
+                      {LACO_WORD_REGEX.test(model.name) && (
+                        <p className="text-[10px] text-red-600 font-bold flex items-center gap-1 mt-1 leading-tight">
+                          <AlertTriangle size={11} className="shrink-0" />
+                          Não inclua &quot;Laço&quot; no nome — o carrinho já
+                          adiciona esse prefixo (use só o formato, ex.: &quot;Bola&quot;).
+                        </p>
+                      )}
+                    </div>
                     <Input
                       placeholder="Subtítulo"
                       value={model.subtitle}
