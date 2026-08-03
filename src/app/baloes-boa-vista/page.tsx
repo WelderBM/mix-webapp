@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { MapPin, Phone, CheckCircle, Star, ArrowRight } from "lucide-react";
@@ -25,7 +26,14 @@ export default function BaloesBoaVistaPage() {
     <main className="bg-slate-50 min-h-screen">
       {/* HERO SECTION */}
       <section className="relative py-20 bg-slate-900 overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1530103862676-de3c9da59af7?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center opacity-20" />
+        <Image
+          src="https://images.unsplash.com/photo-1530103862676-de3c9da59af7?q=80&w=2000&auto=format&fit=crop"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center opacity-20"
+        />
         <div className="absolute inset-0 bg-linear-to-t from-slate-900 via-slate-900/80 to-transparent" />
 
         <div className="container mx-auto px-4 relative z-10 text-center max-w-4xl">

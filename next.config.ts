@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "placehold.co" },
       { protocol: "https", hostname: "firebasestorage.googleapis.com" }, // Para o futuro
+      { protocol: "https", hostname: "images.unsplash.com" },
     ],
   },
 };

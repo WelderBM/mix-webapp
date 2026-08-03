@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import {
   collection,
@@ -29,7 +30,6 @@ import {
   Sun,
 } from "lucide-react";
 
-export const dynamic = "force-dynamic";
 export const revalidate = 60;
 
 export const metadata: Metadata = {
@@ -56,20 +56,44 @@ interface NaturaPageSettings {
   sections: StoreSection[];
 }
 
+// Com `revalidate = 60` (sem `force-dynamic`, issue #113) a rota vira
+// elegível a prerender em build time — `next build` chama este componente
+// de verdade durante o build, inclusive no CI, onde as credenciais do
+// Firebase são dummy (ver .github/workflows). Sem o try/catch, o
+// PERMISSION_DENIED do Firestore contra credencial fake derrubava o build
+// inteiro (visto em CI: "Error occurred prerendering page /natura"). Mesmo
+// padrão de fallback silencioso já usado em src/app/page.tsx (home) — só
+// que ali já existia desde antes de #113, aqui faltava porque a rota nunca
+// tinha sido prerenderizada em build antes.
+async function getNaturaData() {
+  try {
+    const [productsSnap, settingsSnap] = await Promise.all([
+      getDocs(query(collection(db, "products"), orderBy("name"))),
+      getDoc(doc(db, "settings", "natura")),
+    ]);
+
+    const products = productsSnap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Product[];
+
+    const settings = settingsSnap.exists()
+      ? (settingsSnap.data() as NaturaPageSettings)
+      : { sections: [] };
+
+    return { products, settings };
+  } catch (error) {
+    console.error(
+      `Erro ao buscar dados da página Natura: ${
+        (error as any)?.message || "Erro desconhecido"
+      }`
+    );
+    return { products: [] as Product[], settings: { sections: [] } };
+  }
+}
+
 export default async function NaturaPage() {
-  const [productsSnap, settingsSnap] = await Promise.all([
-    getDocs(query(collection(db, "products"), orderBy("name"))),
-    getDoc(doc(db, "settings", "natura")),
-  ]);
-
-  const products = productsSnap.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Product[];
-
-  const settings = settingsSnap.exists()
-    ? (settingsSnap.data() as NaturaPageSettings)
-    : { sections: [] };
+  const { products, settings } = await getNaturaData();
 
   const activeSections = settings.sections?.filter((s) => s.isActive) || [];
 
@@ -77,7 +101,14 @@ export default async function NaturaPage() {
     <main className="bg-slate-50 min-h-screen">
       {/* HERO SECTION */}
       <section className="relative py-20 bg-slate-900 overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1596462502278-27bfdc403348?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center opacity-15" />
+        <Image
+          src="https://images.unsplash.com/photo-1596462502278-27bfdc403348?q=80&w=2000&auto=format&fit=crop"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center opacity-15"
+        />
         <div className="absolute inset-0 bg-linear-to-t from-slate-900 via-slate-900/80 to-transparent" />
 
         <div className="container mx-auto px-4 relative z-10 text-center max-w-4xl">
