@@ -1,7 +1,7 @@
 // src/components/admin/ProductFormDialog.tsx (WIZARD POR PASSOS)
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
@@ -42,8 +42,6 @@ import {
   Ruler,
   Save,
   Loader2,
-  X,
-  Plus,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -132,8 +130,6 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 }) => {
   const [formData, setFormData] = useState<ProductFormData>(initialFormState);
   const [loading, setLoading] = useState(false);
-  const [customCategory, setCustomCategory] = useState(false);
-  const [customSubcategory, setCustomSubcategory] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
 
   // Rascunho local (Addendum 4, Parte B): sobrevive a reload/fechamento
@@ -174,23 +170,49 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     [categories, formData.category]
   );
 
-  // `categories` vem de um onSnapshot ao vivo (admin/page.tsx) — ganha uma
-  // referência nova a cada disparo do listener, mesmo sem nenhuma mudança
-  // real (reconexão de rede, sync entre abas, etc). Se o efeito abaixo
-  // dependesse de `categories` diretamente, qualquer disparo desses no meio
-  // da edição resetava `formData` de volta pro que já estava salvo,
-  // silenciosamente apagando edição não salva (ex: imagem de variação recém
-  // vinculada) — mesma categoria de bug já documentada em
-  // docs/claude-lessons.md ("objeto recriado a cada render engana useEffect
-  // por referência"). Guardado num ref pra o efeito só reagir a
-  // `productToEdit`/`isOpen`/`initialStep` (quando o wizard de fato deveria
-  // recarregar), lendo a versão mais recente de `categories` sem precisar
-  // dela como dependência.
-  const categoriesRef = useRef(categories);
-  useEffect(() => {
-    categoriesRef.current = categories;
-  }, [categories]);
+  // Categoria/subcategoria são seleção travada (issue #69) — o único lugar
+  // que cria categoria/subcategoria nova é o CategoryManager (atrás do botão
+  // "Categorias e Subcategorias" na aba de produtos). Esses dois `useMemo`
+  // existem só pra não travar a edição de um produto ANTIGO cujo valor de
+  // categoria/subcategoria não bate com nenhum doc de `categories` hoje
+  // (texto livre de antes desta issue, categoria renomeada/apagada depois,
+  // etc) — o valor "órfão" some da lista se o campo mudar, sem opção de
+  // recriá-lo por aqui.
+  const categoryIsOrphan =
+    !!formData.category && !categories.some((c) => c.name === formData.category);
+  const categoryOptions = useMemo(
+    () =>
+      categoryIsOrphan
+        ? [formData.category, ...categoryNames]
+        : categoryNames,
+    [categoryIsOrphan, formData.category, categoryNames]
+  );
+  const subcategoryIsOrphan =
+    !!formData.subcategory &&
+    !!selectedCategory &&
+    !selectedCategory.subcategories.some(
+      (s) => s.name === formData.subcategory
+    );
+  const subcategoryOptions = useMemo(() => {
+    if (!selectedCategory) return [];
+    const names = selectedCategory.subcategories
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((s) => s.name);
+    return subcategoryIsOrphan
+      ? [formData.subcategory as string, ...names]
+      : names;
+  }, [selectedCategory, subcategoryIsOrphan, formData.subcategory]);
 
+  // Efeito abaixo depende só de `productToEdit`/`isOpen`/`initialStep`, nunca
+  // de `categories` diretamente: `categories` vem de um onSnapshot ao vivo
+  // (admin/page.tsx) e ganha uma referência nova a cada disparo, mesmo sem
+  // mudança real (reconexão de rede, sync entre abas, etc). Se o efeito
+  // dependesse dela, qualquer disparo desses no meio da edição resetava
+  // `formData` de volta pro que já estava salvo, apagando edição não salva
+  // (ex: imagem de variação recém vinculada) — mesma categoria de bug já
+  // documentada em docs/claude-lessons.md ("objeto recriado a cada render
+  // engana useEffect por referência").
   useEffect(() => {
     let nextFormData: ProductFormData;
     if (productToEdit) {
@@ -200,23 +222,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         ribbonInventory:
           productToEdit.ribbonInventory || initialFormState.ribbonInventory,
       };
-      // Verifica se a categoria/subcategoria são personalizadas (digitadas
-      // na hora, ainda sem doc correspondente em `categories`)
-      const matchedCategory = categoriesRef.current.find(
-        (c) => c.name === productToEdit.category
-      );
-      setCustomCategory(!!productToEdit.category && !matchedCategory);
-      setCustomSubcategory(
-        !!productToEdit.subcategory &&
-          !!matchedCategory &&
-          !matchedCategory.subcategories.some(
-            (s) => s.name === productToEdit.subcategory
-          )
-      );
     } else {
       nextFormData = initialFormState;
-      setCustomCategory(false);
-      setCustomSubcategory(false);
     }
     setFormData(nextFormData);
 
@@ -346,10 +353,13 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     setLoading(true);
 
     try {
-      // Categoria/subcategoria digitadas na hora (fluxo "+ Nova Categoria" /
-      // "+ Nova Subcategoria") ainda não têm doc em `categories` — cria
-      // agora, pra não deixar o produto referenciando algo que não existe
-      // na taxonomia.
+      // Rede de segurança pra dado LEGADO (categoria/subcategoria "órfã" —
+      // texto livre de antes da issue #69, ou nome apagado/renomeado depois
+      // da seleção). O wizard não oferece mais criação de categoria/
+      // subcategoria (só seleção da lista); se ainda assim `formData.category`
+      // não bate com nenhum doc de `categories` (produto antigo mantido como
+      // está na edição), cria o doc agora pra não deixar o produto
+      // referenciando algo que não existe na taxonomia.
       const categoryName = formData.category.trim();
       let category = categories.find((c) => c.name === categoryName);
       if (!category) {
@@ -543,57 +553,40 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Categoria</Label>
-                  {!customCategory ? (
-                    <Select
-                      value={formData.category || ""}
-                      onValueChange={(v) => {
-                        if (v === "custom_new") {
-                          setCustomCategory(true);
-                          handleInputChange("category", "");
-                        } else {
-                          handleInputChange("category", v);
-                        }
-                        handleInputChange("subcategory", "");
-                        setCustomSubcategory(false);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categoryNames.map((c) => (
-                          <SelectItem key={c} value={c}>
-                            {c}
-                          </SelectItem>
-                        ))}
-                        <SelectItem
-                          value="custom_new"
-                          className="text-purple-600 font-bold"
-                        >
-                          + Nova Categoria
+                  <Select
+                    value={formData.category || ""}
+                    onValueChange={(v) => {
+                      handleInputChange("category", v);
+                      handleInputChange("subcategory", "");
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryOptions.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                          {categoryIsOrphan && c === formData.category
+                            ? " (fora da lista atual)"
+                            : ""}
                         </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Nome da nova categoria"
-                        value={formData.category}
-                        onChange={(e) =>
-                          handleInputChange("category", e.target.value)
-                        }
-                        className="flex-1"
-                        autoFocus
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setCustomCategory(false)}
-                        title="Voltar para lista"
-                      >
-                        <X size={16} />
-                      </Button>
-                    </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500">
+                    O tipo de produto (ex: Balões, Perfumaria, Fitas) — o
+                    catálogo todo costuma ter entre 5 e 12 categorias.
+                    Categoria nova não se cria aqui: use o botão
+                    &quot;Categorias e Subcategorias&quot; na lista de
+                    produtos.
+                  </p>
+                  {categoryIsOrphan && (
+                    <p className="text-xs text-amber-600">
+                      Esse produto usa uma categoria que não existe mais na
+                      lista atual. Ela continua selecionada até você trocar
+                      por uma da lista.
+                    </p>
                   )}
                 </div>
 
@@ -605,66 +598,46 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         (opcional)
                       </span>
                     </Label>
-                    {customSubcategory ? (
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Nome da nova subcategoria"
-                          value={formData.subcategory || ""}
-                          onChange={(e) =>
-                            handleInputChange("subcategory", e.target.value)
-                          }
-                          className="flex-1"
-                          autoFocus
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => setCustomSubcategory(false)}
-                          title="Cancelar"
-                        >
-                          <X size={16} />
-                        </Button>
-                      </div>
-                    ) : selectedCategory.subcategories.length > 0 ? (
+                    {subcategoryOptions.length > 0 ? (
                       <Select
                         value={formData.subcategory || ""}
-                        onValueChange={(v) => {
-                          if (v === "custom_new_sub") {
-                            setCustomSubcategory(true);
-                            handleInputChange("subcategory", "");
-                          } else {
-                            handleInputChange("subcategory", v);
-                          }
-                        }}
+                        onValueChange={(v) =>
+                          handleInputChange("subcategory", v)
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>
-                          {selectedCategory.subcategories.map((s) => (
-                            <SelectItem key={s.id} value={s.name}>
-                              {s.name}
+                          {subcategoryOptions.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {s}
+                              {subcategoryIsOrphan && s === formData.subcategory
+                                ? " (fora da lista atual)"
+                                : ""}
                             </SelectItem>
                           ))}
-                          <SelectItem
-                            value="custom_new_sub"
-                            className="text-purple-600 font-bold"
-                          >
-                            + Nova Subcategoria
-                          </SelectItem>
                         </SelectContent>
                       </Select>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => setCustomSubcategory(true)}
-                        className="text-xs text-purple-600 font-bold flex items-center gap-1"
-                      >
-                        <Plus size={12} /> Adicionar subcategoria
-                      </button>
+                      <p className="text-xs text-slate-400 italic">
+                        Essa categoria ainda não tem subcategorias.
+                      </p>
                     )}
+                    <p className="text-xs text-slate-500">
+                      Só faz sentido se a categoria tiver muitos produtos
+                      (referência: a partir de ~6) e precisar ser dividida por
+                      tipo. Subcategoria nova também se cria só no botão
+                      &quot;Categorias e Subcategorias&quot;.
+                    </p>
                   </div>
                 )}
+
+                <p className="text-xs text-slate-400 italic border-t pt-3">
+                  Ocasião (aniversário, casamento, chá revelação...) não é um
+                  campo deste passo — é vitrine/tag do produto, tratada em
+                  outro lugar do cadastro.
+                </p>
 
                 <div className="space-y-2">
                   <Label>Tipo</Label>

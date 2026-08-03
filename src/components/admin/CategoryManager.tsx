@@ -14,6 +14,7 @@ import {
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
 import { Category, CategorySubcategory } from "@/types/category";
+import { Product } from "@/types/product";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,19 +26,33 @@ import {
   Check,
   X,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { uniqueSlug } from "@/lib/migrateCategories";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface CategoryManagerProps {
   categories: Category[];
+  // Opcional: sem produtos (ex: chamadas antigas do componente que ainda não
+  // foram atualizadas) os nudges abaixo simplesmente não aparecem, em vez de
+  // quebrar a tela — mas todo chamador atual (ProductsTab) já passa.
+  products?: Product[];
 }
+
+// Categoria com produtos "de menos" pra fazer sentido subdividir por
+// subcategoria — referência da issue #69 (cartilha em
+// docs/PADRONIZACAO-CATALOGO.md): a partir de ~6 produtos numa categoria sem
+// nenhuma subcategoria já vale a pena considerar dividir.
+const MANY_PRODUCTS_THRESHOLD = 6;
 
 // Reaproveitado tanto dentro do wizard de produto (passo "Categoria", atrás
 // do botão "Gerenciar") quanto no card de Configurações — mesmo componente,
 // os dois pontos do addendum do plano, em vez de duas UIs separadas.
 
-export function CategoryManager({ categories }: CategoryManagerProps) {
+export function CategoryManager({
+  categories,
+  products = [],
+}: CategoryManagerProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -62,6 +77,15 @@ export function CategoryManager({ categories }: CategoryManagerProps) {
   } | null>(null);
 
   const sorted = [...categories].sort((a, b) => a.order - b.order);
+
+  const productCountByCategory = products.reduce<Record<string, number>>(
+    (acc, p) => {
+      if (!p.category) return acc;
+      acc[p.category] = (acc[p.category] || 0) + 1;
+      return acc;
+    },
+    {}
+  );
 
   const handleAddCategory = async () => {
     const name = newCategoryName.trim();
@@ -230,7 +254,13 @@ export function CategoryManager({ categories }: CategoryManagerProps) {
 
   return (
     <div className="space-y-2">
-      {sorted.map((category) => (
+      {sorted.map((category) => {
+        const productCount = productCountByCategory[category.name] || 0;
+        const isEmpty = products.length > 0 && productCount === 0;
+        const needsSplit =
+          productCount >= MANY_PRODUCTS_THRESHOLD &&
+          category.subcategories.length === 0;
+        return (
         <div key={category.id} className="border rounded-lg bg-white">
           <div className="flex items-center gap-1 p-2">
             <button
@@ -282,6 +312,11 @@ export function CategoryManager({ categories }: CategoryManagerProps) {
                       {category.subcategories.length > 1 ? "s" : ""})
                     </span>
                   )}
+                  {products.length > 0 && (
+                    <span className="ml-2 text-xs text-slate-400">
+                      ({productCount} produto{productCount !== 1 ? "s" : ""})
+                    </span>
+                  )}
                 </span>
                 <Button
                   type="button"
@@ -313,6 +348,24 @@ export function CategoryManager({ categories }: CategoryManagerProps) {
               </>
             )}
           </div>
+
+          {(isEmpty || needsSplit) && (
+            <div className="border-t px-2 py-1.5 space-y-1">
+              {isEmpty && (
+                <p className="flex items-center gap-1.5 text-xs text-amber-600">
+                  <AlertTriangle size={12} className="shrink-0" />
+                  Nenhum produto usa essa categoria hoje. Considere apagar.
+                </p>
+              )}
+              {needsSplit && (
+                <p className="flex items-center gap-1.5 text-xs text-amber-600">
+                  <AlertTriangle size={12} className="shrink-0" />
+                  {productCount} produtos e nenhuma subcategoria. Considere
+                  subdividir.
+                </p>
+              )}
+            </div>
+          )}
 
           {expandedId === category.id && (
             <div className="border-t bg-slate-50/70 p-2 pl-8 space-y-1">
@@ -424,7 +477,8 @@ export function CategoryManager({ categories }: CategoryManagerProps) {
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
 
       {sorted.length === 0 && (
         <p className="text-sm text-slate-400 italic p-2">

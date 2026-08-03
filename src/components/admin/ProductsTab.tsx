@@ -252,7 +252,7 @@ export function ProductsTab({
           <DialogHeader>
             <DialogTitle>Categorias e Subcategorias</DialogTitle>
           </DialogHeader>
-          <CategoryManager categories={categories} />
+          <CategoryManager categories={categories} products={allProducts} />
         </DialogContent>
       </Dialog>
     </div>
