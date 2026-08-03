@@ -27,7 +27,11 @@ import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
 import { OpenRibbonRollModal } from "@/components/admin/OpenRibbonRollModal";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
-import { hasRollPrice, hasMeterPrice } from "@/lib/ribbon-pricing";
+import {
+  hasRollPrice,
+  hasMeterPrice,
+  isPartiallyOpenedRoll,
+} from "@/lib/ribbon-pricing";
 import {
   Plus,
   Pencil,
@@ -387,7 +391,26 @@ export function RibbonsTab({
                           <Button
                             variant="outline"
                             size="sm"
+                            title={
+                              isPartiallyOpenedRoll(fita)
+                                ? "Rolo com sobra: \"Fechar Manual\" só reverte uma abertura indevida quando o rolo está intacto. Venda de sobra avulsa ainda não tem fluxo próprio (#66)."
+                                : undefined
+                            }
                             onClick={async () => {
+                              // #66: "Fechar Manual" com sobra reaplicaria o
+                              // rollPrice CHEIO a uma metragem parcial —
+                              // cobrando o preço do rolo inteiro por um rolo
+                              // que só tem parte dele. Até existir um fluxo
+                              // próprio pra vender a sobra avulsa (ou um
+                              // modelo de preço parcial), restringimos este
+                              // botão a reverter só uma abertura indevida
+                              // (rolo ainda intacto).
+                              if (isPartiallyOpenedRoll(fita)) {
+                                toast.error(
+                                  "Esse rolo já tem sobra vendida — \"Fechar Manual\" cobraria o preço do rolo cheio por uma metragem parcial. Sem fluxo de venda de sobra avulsa ainda (issue #66)."
+                                );
+                                return;
+                              }
                               const updated = {
                                 ...fita,
                                 ribbonInventory: {
@@ -403,7 +426,11 @@ export function RibbonsTab({
                                 "Fita movida para rolos fechados"
                               );
                             }}
-                            className="h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-slate-50 hover:bg-slate-100 text-slate-500 border-slate-200 rounded-full"
+                            className={cn(
+                              "h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-slate-50 hover:bg-slate-100 text-slate-500 border-slate-200 rounded-full",
+                              isPartiallyOpenedRoll(fita) &&
+                                "opacity-50 hover:bg-slate-50"
+                            )}
                           >
                             Fechar Manual
                           </Button>
