@@ -29,9 +29,22 @@ export interface Order {
   // aqui nem exibidos no admin — cliente preenche, equipe nunca vê (#54).
   paymentTiming?: PaymentTiming;
   pixPaymentDestination?: PixPaymentDestination | null;
+  // Troco pedido pelo cliente quando paymentMethod === "cash". Só existe
+  // nesse caso — não confundir com valor total do pedido (#72).
+  changeFor?: string | null;
   observation?: string | null;
   deliveryMethod: "pickup" | "delivery";
   address?: string;
+  // Estruturado a partir do checkout (#72) — reference é opcional
+  // (ponto de referência), o resto só existe quando deliveryMethod === "delivery".
+  addressDetails?: {
+    cep?: string;
+    street?: string;
+    number?: string;
+    neighborhood?: string;
+    city?: string;
+    reference?: string | null;
+  } | null;
   createdAt: string; // ISO String
   items: CartItem[]; // Itens completos do carrinho
   timestamp?: any; // Firebase Server Timestamp
