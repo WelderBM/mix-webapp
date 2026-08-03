@@ -98,6 +98,7 @@ export function CartSidebar() {
   const [street, setStreet] = useState("");
   const [number, setNumber] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
+  const [addressReference, setAddressReference] = useState("");
   const [city, setCity] = useState("Boa Vista");
   const [uf, setUf] = useState("RR");
   const [isInvalidLocation, setIsInvalidLocation] = useState(false);
@@ -107,6 +108,7 @@ export function CartSidebar() {
     useState<DeliveryMethod>("pickup");
   const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>("prepaid");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
+  const [cashChangeFor, setCashChangeFor] = useState("");
 
   const [pixPaymentDestination, setPixPaymentDestination] = useState<
     "store" | "carrier"
@@ -115,6 +117,24 @@ export function CartSidebar() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [observation, setObservation] = useState("");
+
+  // "Para quem paga" só faz sentido em Entrega (moto-táxi). Na Retirada
+  // esse valor fica oculto na UI e precisa ficar travado em "store" pra não
+  // vazar um "carrier" residual (selecionado antes de voltar pra Retirar)
+  // nem na validação nem na mensagem de WhatsApp (#72).
+  useEffect(() => {
+    if (deliveryMethod === "pickup" && pixPaymentDestination !== "store") {
+      setPixPaymentDestination("store");
+    }
+  }, [deliveryMethod, pixPaymentDestination]);
+
+  // "Troco para quanto?" só existe quando o método é Dinheiro — limpa o
+  // valor ao trocar de método pra não sobrar residual escondido no payload.
+  useEffect(() => {
+    if (paymentMethod !== "cash" && cashChangeFor !== "") {
+      setCashChangeFor("");
+    }
+  }, [paymentMethod, cashChangeFor]);
 
   const handleCepBlur = async () => {
     const cleanCep = cep.replace(/\D/g, "");
@@ -221,13 +241,24 @@ export function CartSidebar() {
             ? {
                 cep,
                 street,
+                number,
+                neighborhood,
                 city,
+                reference: addressReference.trim() || null,
               }
             : null,
         paymentMethod,
         paymentTiming,
+        // "Para quem paga" só existe em Entrega — na Retirada o estado já
+        // fica travado em "store" pelo effect acima, mas o guard aqui é
+        // explícito pra não depender só disso.
         pixPaymentDestination:
-          paymentMethod === "pix" ? pixPaymentDestination : null,
+          paymentMethod === "pix" && deliveryMethod === "delivery"
+            ? pixPaymentDestination
+            : null,
+        // "Troco para quanto" só existe quando o método é Dinheiro.
+        changeFor:
+          paymentMethod === "cash" ? cashChangeFor.trim() || null : null,
         observation: observation.trim() || null,
       };
 
@@ -282,10 +313,16 @@ export function CartSidebar() {
           : "Dinheiro"
       }`;
 
-      if (paymentMethod === "pix") {
+      // Destino do PIX só é relevante em Entrega (loja x moto-táxi); na
+      // Retirada é sempre a loja e não precisa aparecer na mensagem.
+      if (paymentMethod === "pix" && deliveryMethod === "delivery") {
         message += ` (Destino: ${
           pixPaymentDestination === "store" ? "Loja" : "Moto Táxi"
         })`;
+      }
+
+      if (paymentMethod === "cash" && cashChangeFor.trim()) {
+        message += ` (Troco para R$ ${cashChangeFor.trim()})`;
       }
 
       message += `\nEntrega: ${
@@ -294,6 +331,9 @@ export function CartSidebar() {
 
       if (deliveryMethod === "delivery") {
         message += `Endereço: ${street}, ${number} - ${neighborhood}\n`;
+        if (addressReference.trim()) {
+          message += `Referência: ${addressReference.trim()}\n`;
+        }
       }
 
       if (observation.trim()) {
@@ -525,104 +565,52 @@ export function CartSidebar() {
                       placeholder="(99) 99999-9999"
                       className="bg-white"
                       maxLength={15}
+                      type="tel"
+                      inputMode="numeric"
                     />
                   </div>
-                  <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                    <Label className="text-blue-800">
-                      Para quem você vai realizar o pagamento?
-                    </Label>
-                    <RadioGroup
-                      value={pixPaymentDestination}
-                      onValueChange={(v: "store" | "carrier") => {
-                        setPixPaymentDestination(v);
-                        if (
-                          v === "carrier" &&
-                          paymentMethod !== "cash" &&
-                          paymentMethod !== "pix"
-                        ) {
-                          setPaymentMethod("pix");
-                        }
-                      }}
-                      className="flex flex-col gap-2 mt-1"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="store"
-                          id="pay-store"
-                          className="text-blue-600 border-blue-400"
-                        />
-                        <Label
-                          htmlFor="pay-store"
-                          className="font-normal cursor-pointer"
-                        >
-                          Pagar para a <b>Loja</b> (Chave da Loja)
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="carrier"
-                          id="pay-carrier"
-                          className="text-blue-600 border-blue-400"
-                        />
-                        <Label
-                          htmlFor="pay-carrier"
-                          className="font-normal cursor-pointer"
-                        >
-                          Pagar para o <b>Moto Táxi</b> (Na entrega)
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Forma de Pagamento</Label>
-                    <Select
-                      value={paymentMethod}
-                      onValueChange={(v: any) => setPaymentMethod(v)}
-                    >
-                      <SelectTrigger className="bg-white">
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pix">💠 PIX</SelectItem>
-                        <SelectItem
-                          value="credit_card"
-                          disabled={pixPaymentDestination === "carrier"}
-                        >
-                          💳 Cartão de Crédito
-                        </SelectItem>
-                        <SelectItem
-                          value="debit_card"
-                          disabled={pixPaymentDestination === "carrier"}
-                        >
-                          💳 Cartão de Débito
-                        </SelectItem>
-                        <SelectItem value="cash">💵 Dinheiro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {pixPaymentDestination === "carrier" && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        * Moto Táxi aceita apenas <b>PIX</b> ou <b>Dinheiro</b>.
-                      </p>
-                    )}
-                  </div>
+
+                  {/* Decisão-mãe: Retirar x Entrega decide se endereço e
+                      "para quem paga" existem na tela. Sobe pra logo após
+                      o contato e vira toggle segmentado (pill) — é a escolha
+                      binária mais tocada da tela, alvo de toque grande (#72). */}
                   <div className="space-y-2">
                     <Label>Entrega</Label>
-                    <RadioGroup
-                      value={deliveryMethod}
-                      onValueChange={(v: DeliveryMethod) =>
-                        setDeliveryMethod(v)
-                      }
-                      className="flex gap-4"
+                    <div
+                      role="radiogroup"
+                      aria-label="Forma de entrega"
+                      className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-lg"
                     >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="pickup" id="pickup" />
-                        <Label htmlFor="pickup">Retirar</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="delivery" id="delivery" />
-                        <Label htmlFor="delivery">Entrega</Label>
-                      </div>
-                    </RadioGroup>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={deliveryMethod === "pickup"}
+                        onClick={() => setDeliveryMethod("pickup")}
+                        className={cn(
+                          "h-11 rounded-md text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1",
+                          deliveryMethod === "pickup"
+                            ? "bg-white text-purple-700 shadow-sm"
+                            : "text-slate-500 hover:text-slate-700"
+                        )}
+                      >
+                        Retirar
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={deliveryMethod === "delivery"}
+                        onClick={() => setDeliveryMethod("delivery")}
+                        className={cn(
+                          "h-11 rounded-md text-sm font-semibold transition-colors",
+                          deliveryMethod === "delivery"
+                            ? "bg-white text-purple-700 shadow-sm"
+                            : "text-slate-500 hover:text-slate-700"
+                        )}
+                      >
+                        Entrega
+                      </button>
+                    </div>
+
                     {deliveryMethod === "delivery" && (
                       <div
                         className={cn(
@@ -664,6 +652,7 @@ export function CartSidebar() {
                                     "border-red-300 ring-offset-red-100"
                                 )}
                                 maxLength={9}
+                                inputMode="numeric"
                               />
                               {isLoadingCep && (
                                 <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-slate-400" />
@@ -678,6 +667,7 @@ export function CartSidebar() {
                               placeholder="Nº"
                               disabled={isInvalidLocation}
                               className="bg-white h-9"
+                              inputMode="numeric"
                             />
                           </div>
                         </div>
@@ -714,13 +704,127 @@ export function CartSidebar() {
                             )}
                           />
                         </div>
+                        <div>
+                          <Label className="text-xs">
+                            Ponto de referência (Opcional)
+                          </Label>
+                          <Input
+                            value={addressReference}
+                            onChange={(e) =>
+                              setAddressReference(e.target.value)
+                            }
+                            placeholder="Ex: Perto do mercado, portão azul..."
+                            disabled={isInvalidLocation}
+                            className="bg-white h-9"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
+
+                  <div className="space-y-2">
+                    <Label>Forma de Pagamento</Label>
+                    <Select
+                      value={paymentMethod}
+                      onValueChange={(v: any) => setPaymentMethod(v)}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pix">💠 PIX</SelectItem>
+                        <SelectItem
+                          value="credit_card"
+                          disabled={pixPaymentDestination === "carrier"}
+                        >
+                          💳 Cartão de Crédito
+                        </SelectItem>
+                        <SelectItem
+                          value="debit_card"
+                          disabled={pixPaymentDestination === "carrier"}
+                        >
+                          💳 Cartão de Débito
+                        </SelectItem>
+                        <SelectItem value="cash">💵 Dinheiro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {pixPaymentDestination === "carrier" && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        * Moto Táxi aceita apenas <b>PIX</b> ou <b>Dinheiro</b>.
+                      </p>
+                    )}
+                    {paymentMethod === "cash" && (
+                      <div className="space-y-1 mt-2">
+                        <Label className="text-xs">
+                          Troco para quanto? (Opcional)
+                        </Label>
+                        <Input
+                          value={cashChangeFor}
+                          onChange={(e) => setCashChangeFor(e.target.value)}
+                          placeholder="Ex: R$ 50"
+                          className="bg-white h-9"
+                          inputMode="numeric"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Só existe em Entrega — na Retirada não há moto-táxi,
+                      então a pergunta é ruído puro e o valor fica travado
+                      internamente em "store" (ver effect acima, #72). */}
+                  {deliveryMethod === "delivery" && (
+                    <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <Label className="text-blue-800">
+                        Para quem você vai realizar o pagamento?
+                      </Label>
+                      <RadioGroup
+                        value={pixPaymentDestination}
+                        onValueChange={(v: "store" | "carrier") => {
+                          setPixPaymentDestination(v);
+                          if (
+                            v === "carrier" &&
+                            paymentMethod !== "cash" &&
+                            paymentMethod !== "pix"
+                          ) {
+                            setPaymentMethod("pix");
+                          }
+                        }}
+                        className="flex flex-col gap-2 mt-1"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="store"
+                            id="pay-store"
+                            className="text-blue-600 border-blue-400"
+                          />
+                          <Label
+                            htmlFor="pay-store"
+                            className="font-normal cursor-pointer"
+                          >
+                            Pagar para a <b>Loja</b> (Chave da Loja)
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="carrier"
+                            id="pay-carrier"
+                            className="text-blue-600 border-blue-400"
+                          />
+                          <Label
+                            htmlFor="pay-carrier"
+                            className="font-normal cursor-pointer"
+                          >
+                            Pagar para o <b>Moto Táxi</b> (Na entrega)
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label>Observação (Opcional)</Label>
                     <Textarea
-                      placeholder="Ex: Ponto de referência, troco para R$ 50, deixar na portaria..."
+                      placeholder="Ex: Deixar na portaria, embrulhar pra presente..."
                       value={observation}
                       onChange={(e) => setObservation(e.target.value)}
                       className="bg-white min-h-[80px]"
