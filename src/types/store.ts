@@ -58,4 +58,10 @@ export interface StoreSettings {
   whatsappGroupLink?: string;
   bowModels?: BowModel[];
   bowSizes?: BowSize[];
+  // Flags atrás das quais features com domínio ainda não maturado ficam
+  // escondidas da loja. Ausência do campo (docs de produção existentes,
+  // pré-flag) deve ser tratada como OFF — ver #108.
+  features?: {
+    customKitEnabled?: boolean;
+  };
 }
