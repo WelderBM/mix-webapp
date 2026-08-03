@@ -7,8 +7,10 @@ import { Footer } from "@/components/layout/Footer";
 import ConditionalFooter from "@/components/layout/ConditionalFooter";
 import { Toaster } from "@/components/ui/sonner";
 import { CartSidebar } from "@/components/features/CartSidebar";
-// 1. IMPORT DO MODAL
-import { KitBuilderModal } from "@/components/features/KitBuilderModal";
+// 1. IMPORT DO MODAL (lazy via wrapper client — ver KitBuilderModalLoader.tsx.
+// `next/dynamic({ ssr: false })` não é permitido direto num Server Component
+// como este layout, por isso o dynamic() mora num Client Component dedicado.
+import { KitBuilderModalLoader } from "@/components/features/KitBuilderModalLoader";
 import OrganizationJsonLd from "@/components/seo/OrganizationJsonLd";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -93,8 +95,8 @@ export default function RootLayout({
         <ThemeProvider>
           <Navbar />
 
-          {/* 2. MODAL DISPONÍVEL GLOBALMENTE */}
-          <KitBuilderModal />
+          {/* 2. MODAL DISPONÍVEL GLOBALMENTE (lazy, ver KitBuilderModalLoader.tsx) */}
+          <KitBuilderModalLoader />
 
           <div className="min-h-screen">{children}</div>
 
