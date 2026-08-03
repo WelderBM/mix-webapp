@@ -3,7 +3,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useState, ElementType } from "react";
+import React, { useEffect, useState, ElementType } from "react";
 import {
   Sparkles,
   Gift,
@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ChevronDown,
   Scissors,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
@@ -28,6 +29,9 @@ import {
 } from "@/components/ui/sheet";
 import { usePathname } from "next/navigation";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useCategoryStore } from "@/store/categoryStore";
+import { useProductStore } from "@/store/productStore";
+import { getVisibleCategories } from "@/lib/categories";
 
 // Links da navegação principal (Estrutura de dados unificada)
 // Links da navegação principal (Estrutura de dados unificada)
@@ -85,6 +89,43 @@ const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const storeName = useSettingsStore((state) => state.settings.storeName);
+
+  // Categorias (menu "Loja", issue #70): listener em tempo real, reflete
+  // criar/renomear/reordenar categoria no admin sem precisar de deploy.
+  const categories = useCategoryStore((state) => state.categories);
+  const subscribeToCategories = useCategoryStore((state) => state.subscribe);
+  // Produtos: a Navbar fica montada no layout raiz (persiste entre
+  // navegações), então só dispara fetchProducts se nenhuma outra página já
+  // tiver carregado o catálogo — evita duplicar a query em toda troca de
+  // rota (não é por-categoria, é a mesma coleção que as páginas já buscam).
+  const allProducts = useProductStore((state) => state.allProducts);
+
+  useEffect(() => {
+    subscribeToCategories();
+  }, [subscribeToCategories]);
+
+  useEffect(() => {
+    // Adiado pra um microtask: a Navbar fica no layout raiz e roda ANTES de
+    // `children` no mesmo commit (ex: HomeClient/useStoreHydration, que
+    // hidrata o catálogo via SSR de forma síncrona). `fetchProducts()` só
+    // marca `isLoading: true` depois de um `await` interno (fetchRecipes),
+    // então checar `allProducts`/`isLoading` de forma síncrona aqui correria
+    // na frente da hidratação da página e disparava uma 2ª leitura
+    // redundante do Firestore (a store acabava sendo populada duas vezes na
+    // Home). Um microtask roda só depois que todos os effects deste commit
+    // (incluindo o da página) já terminaram de rodar de forma síncrona.
+    queueMicrotask(() => {
+      const state = useProductStore.getState();
+      if (state.allProducts.length === 0 && state.isLoading) {
+        state.fetchProducts();
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Guarda-corpo: só categoria ativa com >=1 produto vendável entra no
+  // mega-menu (ver src/lib/categories.ts).
+  const visibleCategories = getVisibleCategories(categories, allProducts);
 
   // Se a rota começar com "/admin", não renderiza nada
   if (pathname && pathname.startsWith("/admin")) {
@@ -217,6 +258,67 @@ const Navbar = () => {
               )}
             </div>
           ))}
+
+          {/* Loja: mega-menu dinâmico de categorias (issue #70) — só
+              renderiza se houver pelo menos 1 categoria ativa com produto
+              em estoque (guarda-corpo em getVisibleCategories). */}
+          {visibleCategories.length > 0 && (
+            <div className="relative group">
+              <button
+                data-testid="loja-menu-trigger"
+                className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-purple-600 transition-colors group-hover:text-purple-600 py-2"
+              >
+                Loja
+                <ChevronDown
+                  size={14}
+                  className="group-hover:rotate-180 transition-transform"
+                />
+              </button>
+
+              {/* Dropdown Mega-Menu (Hover CSS) */}
+              <div className="absolute top-full right-0 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 w-80 z-50">
+                <div className="bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden p-2 max-h-[70vh] overflow-y-auto">
+                  {visibleCategories.map((category) => (
+                    <div key={category.id} className="p-1">
+                      <Link
+                        href={`/categoria/${category.id}`}
+                        className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="bg-purple-50 text-purple-600 p-2 rounded-md shrink-0">
+                          <Tag size={18} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-700">
+                            {category.name}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {category.productCount}{" "}
+                            {category.productCount === 1
+                              ? "produto"
+                              : "produtos"}
+                          </p>
+                        </div>
+                      </Link>
+
+                      {category.visibleSubcategories.length > 0 && (
+                        <div className="ml-11 mt-1 mb-2 flex flex-wrap gap-1.5">
+                          {category.visibleSubcategories.map((sub) => (
+                            <Link
+                              key={sub.id}
+                              href={`/categoria/${category.id}?sub=${sub.id}`}
+                              className="text-xs font-medium text-slate-500 hover:text-purple-600 bg-slate-50 hover:bg-purple-50 rounded-full px-2.5 py-1 transition-colors"
+                            >
+                              {sub.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -314,6 +416,57 @@ const Navbar = () => {
                 )}
               </div>
             ))}
+
+            {/* Loja: mesmo dado dinâmico do mega-menu desktop (issue #70) */}
+            {visibleCategories.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Loja
+                </h4>
+                <div className="space-y-3">
+                  {visibleCategories.map((category) => (
+                    <div key={category.id} className="space-y-2">
+                      <Link
+                        href={`/categoria/${category.id}`}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center gap-3 p-3 min-h-11 bg-white rounded-xl border border-slate-100 shadow-sm active:scale-95 transition-transform"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-white border border-slate-100 flex items-center justify-center text-purple-600 shrink-0">
+                          <Tag size={20} />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <h5 className="font-bold text-slate-800">
+                            {category.name}
+                          </h5>
+                          <p className="text-xs text-slate-500">
+                            {category.productCount}{" "}
+                            {category.productCount === 1
+                              ? "produto"
+                              : "produtos"}
+                          </p>
+                        </div>
+                        <ChevronRight size={16} className="text-slate-300" />
+                      </Link>
+
+                      {category.visibleSubcategories.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pl-2">
+                          {category.visibleSubcategories.map((sub) => (
+                            <Link
+                              key={sub.id}
+                              href={`/categoria/${category.id}?sub=${sub.id}`}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                              className="min-h-11 min-w-11 flex items-center justify-center text-xs font-medium text-slate-600 bg-white border border-slate-100 rounded-full px-3 py-2 active:scale-95 transition-transform"
+                            >
+                              {sub.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="p-6 bg-white border-t text-center text-xs text-slate-400">
