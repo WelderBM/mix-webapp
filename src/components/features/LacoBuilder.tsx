@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { getModelSizeIds } from "@/types";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, ShoppingCart, AlertCircle, Package } from "lucide-react";
 import { toast } from "sonner";
@@ -16,14 +17,14 @@ const DEFAULT_BOW_STYLES = [
     name: "Bola",
     imageUrl: "https://placehold.co/400x400/png?text=Laco+Bola",
     subtitle: "Clássico e elegante, plano.",
-    sizeId: "M",
+    sizeIds: ["M"],
   },
   {
     id: "borboleta",
     name: "Borboleta",
     imageUrl: "https://placehold.co/400x400/png?text=Laco+Borboleta",
     subtitle: "Simples e versátil.",
-    sizeId: "P",
+    sizeIds: ["P"],
   },
 ];
 
@@ -58,6 +59,7 @@ export function LacoBuilder() {
 
   const [selectedRibbonId, setSelectedRibbonId] = useState<string>("");
   const [selectedStyleId, setSelectedStyleId] = useState<string>("");
+  const [selectedSizeId, setSelectedSizeId] = useState<string>("");
 
   const ribbons = useMemo(
     () =>
@@ -69,12 +71,24 @@ export function LacoBuilder() {
 
   const selectedRibbon = ribbons.find((r) => r.id === selectedRibbonId);
   const selectedStyle = BOW_STYLES.find((s) => s.id === selectedStyleId);
-  // Tamanho não é mais uma escolha livre — cada modelo tem exatamente um
-  // tamanho atrelado (`sizeId`), pra não permitir combinar modelo e tamanho
-  // fora do que a loja realmente produz.
-  const selectedSize = selectedStyle
-    ? SIZES.find((s) => s.id === selectedStyle.sizeId)
-    : undefined;
+  // Um modelo pode aceitar vários tamanhos (ver #144/getModelSizeIds) — o
+  // cliente escolhe entre os tamanhos que o modelo realmente oferece, nunca
+  // um tamanho fora do que a loja produz pra esse modelo.
+  const availableSizeIds = selectedStyle ? getModelSizeIds(selectedStyle) : [];
+  const availableSizes = SIZES.filter((s) => availableSizeIds.includes(s.id));
+
+  // Modelo com um único tamanho não exige escolha extra do cliente — troca
+  // de modelo sempre reseta o tamanho antes de auto-selecionar de novo.
+  useEffect(() => {
+    if (availableSizeIds.length === 1) {
+      setSelectedSizeId(availableSizeIds[0]);
+    } else {
+      setSelectedSizeId("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStyleId]);
+
+  const selectedSize = availableSizes.find((s) => s.id === selectedSizeId);
 
   const finalPrice = useMemo(() => {
     if (!selectedSize) return 0;
@@ -231,9 +245,11 @@ export function LacoBuilder() {
             </div>
           </section>
 
-          {/* SEÇÃO 3: TAMANHO — não é mais escolha livre, cada modelo já vem
-              com um tamanho fixo (ver BowModel.sizeId). Mostra só o que
-              resultou da escolha do modelo. */}
+          {/* SEÇÃO 3: TAMANHO — um modelo pode aceitar vários tamanhos (ver
+              #144/getModelSizeIds). Com um único tamanho disponível, o
+              useEffect acima já auto-seleciona e aqui só exibe o resultado;
+              com mais de um, o cliente escolhe entre os oferecidos por esse
+              modelo (nunca um tamanho fora do que o modelo produz). */}
           <section
             className={`transition-opacity duration-300 ${
               !selectedStyleId ? "opacity-40 pointer-events-none grayscale" : ""
@@ -245,13 +261,13 @@ export function LacoBuilder() {
               </span>{" "}
               Tamanho
             </h3>
-            {selectedStyleId && !selectedSize ? (
+            {selectedStyleId && availableSizes.length === 0 ? (
               <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl flex items-center gap-3 text-yellow-800 text-sm">
                 <AlertCircle className="shrink-0" size={18} />
                 Este modelo ainda não tem um tamanho configurado. Fale com a
                 loja ou escolha outro modelo.
               </div>
-            ) : (
+            ) : availableSizes.length === 1 ? (
               <div className="px-6 py-3 rounded-full border bg-slate-800 text-white border-slate-800 inline-block shadow-lg">
                 <span className="block text-base font-medium">
                   {selectedSize?.name || "—"}
@@ -259,6 +275,28 @@ export function LacoBuilder() {
                 <span className="block text-xs opacity-80 font-normal">
                   {selectedSize ? `R$ ${selectedSize.price.toFixed(2)}` : ""}
                 </span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {availableSizes.map((size) => (
+                  <button
+                    key={size.id}
+                    type="button"
+                    onClick={() => setSelectedSizeId(size.id)}
+                    className={`px-6 py-3 rounded-full border shadow-sm transition-all ${
+                      selectedSizeId === size.id
+                        ? "bg-slate-800 text-white border-slate-800 shadow-lg"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-slate-400"
+                    }`}
+                  >
+                    <span className="block text-base font-medium">
+                      {size.name}
+                    </span>
+                    <span className="block text-xs opacity-80 font-normal">
+                      R$ {size.price.toFixed(2)}
+                    </span>
+                  </button>
+                ))}
               </div>
             )}
           </section>
