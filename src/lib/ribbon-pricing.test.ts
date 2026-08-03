@@ -3,6 +3,7 @@ import {
   getEffectiveUnitPrice,
   getEffectiveUnitLabel,
   isSealedRibbonRoll,
+  isPartiallyOpenedRoll,
   hasMeterPrice,
   hasRollPrice,
   suggestMeterPrice,
@@ -185,6 +186,36 @@ describe("isSealedRibbonRoll", () => {
 
   it("is false for undefined product", () => {
     expect(isSealedRibbonRoll(undefined)).toBe(false);
+  });
+});
+
+describe("isPartiallyOpenedRoll (#66)", () => {
+  it("is true when ABERTO with remainingMeters < totalRollMeters", () => {
+    const product = makeRibbon({
+      ribbonInventory: { status: "ABERTO", remainingMeters: 30, totalRollMeters: 100 },
+    });
+    expect(isPartiallyOpenedRoll(product)).toBe(true);
+  });
+
+  it("is false when ABERTO but the roll is still intact (remainingMeters === totalRollMeters)", () => {
+    const product = makeRibbon({
+      ribbonInventory: { status: "ABERTO", remainingMeters: 100, totalRollMeters: 100 },
+    });
+    expect(isPartiallyOpenedRoll(product)).toBe(false);
+  });
+
+  it("is false when FECHADO, regardless of remainingMeters", () => {
+    const product = makeRibbon({
+      ribbonInventory: { status: "FECHADO", remainingMeters: 30, totalRollMeters: 100 },
+    });
+    expect(isPartiallyOpenedRoll(product)).toBe(false);
+  });
+
+  it("is false for non-RIBBON products and for undefined", () => {
+    expect(isPartiallyOpenedRoll({ ...makeRibbon(), type: "STANDARD_ITEM" })).toBe(
+      false
+    );
+    expect(isPartiallyOpenedRoll(undefined)).toBe(false);
   });
 });
 
