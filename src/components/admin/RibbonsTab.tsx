@@ -3,7 +3,7 @@
 import { Dispatch, SetStateAction, useState } from "react";
 import { doc, deleteDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Product, StoreSettings } from "@/types";
+import { Product, StoreSettings, getModelSizeIds } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -16,18 +16,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
 import { OpenRibbonRollModal } from "@/components/admin/OpenRibbonRollModal";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
-import { hasRollPrice, hasMeterPrice } from "@/lib/ribbon-pricing";
+import {
+  hasRollPrice,
+  hasMeterPrice,
+  isPartiallyOpenedRoll,
+} from "@/lib/ribbon-pricing";
 import {
   Plus,
   Pencil,
@@ -387,7 +384,26 @@ export function RibbonsTab({
                           <Button
                             variant="outline"
                             size="sm"
+                            title={
+                              isPartiallyOpenedRoll(fita)
+                                ? "Rolo com sobra: \"Fechar Manual\" só reverte uma abertura indevida quando o rolo está intacto. Venda de sobra avulsa ainda não tem fluxo próprio (#66)."
+                                : undefined
+                            }
                             onClick={async () => {
+                              // #66: "Fechar Manual" com sobra reaplicaria o
+                              // rollPrice CHEIO a uma metragem parcial —
+                              // cobrando o preço do rolo inteiro por um rolo
+                              // que só tem parte dele. Até existir um fluxo
+                              // próprio pra vender a sobra avulsa (ou um
+                              // modelo de preço parcial), restringimos este
+                              // botão a reverter só uma abertura indevida
+                              // (rolo ainda intacto).
+                              if (isPartiallyOpenedRoll(fita)) {
+                                toast.error(
+                                  "Esse rolo já tem sobra vendida — \"Fechar Manual\" cobraria o preço do rolo cheio por uma metragem parcial. Sem fluxo de venda de sobra avulsa ainda (issue #66)."
+                                );
+                                return;
+                              }
                               const updated = {
                                 ...fita,
                                 ribbonInventory: {
@@ -403,7 +419,11 @@ export function RibbonsTab({
                                 "Fita movida para rolos fechados"
                               );
                             }}
-                            className="h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-slate-50 hover:bg-slate-100 text-slate-500 border-slate-200 rounded-full"
+                            className={cn(
+                              "h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-slate-50 hover:bg-slate-100 text-slate-500 border-slate-200 rounded-full",
+                              isPartiallyOpenedRoll(fita) &&
+                                "opacity-50 hover:bg-slate-50"
+                            )}
                           >
                             Fechar Manual
                           </Button>
@@ -620,7 +640,7 @@ export function RibbonsTab({
                     name: "Novo Modelo",
                     subtitle: "Descrição do modelo",
                     imageUrl: "",
-                    sizeId: "",
+                    sizeIds: [],
                   };
                   setSettings((prev: StoreSettings) => ({
                     ...prev,
@@ -632,86 +652,106 @@ export function RibbonsTab({
               </Button>
             </div>
             <div className="space-y-3">
-              {(settings.bowModels || []).map((model, idx) => (
-                <div key={model.id} className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  <ImageUploadModal
-                    value={model.imageUrl}
-                    folder="laco/models"
-                    onChange={(url) => {
-                      const updated = [...(settings.bowModels || [])];
-                      updated[idx] = { ...updated[idx], imageUrl: url };
-                      setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
-                    }}
-                  />
-                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div>
+              {(settings.bowModels || []).map((model, idx) => {
+                const modelSizeIds = getModelSizeIds(model);
+                const toggleSize = (sizeId: string) => {
+                  const nextSizeIds = modelSizeIds.includes(sizeId)
+                    ? modelSizeIds.filter((id) => id !== sizeId)
+                    : [...modelSizeIds, sizeId];
+                  const updated = [...(settings.bowModels || [])];
+                  updated[idx] = { ...updated[idx], sizeIds: nextSizeIds };
+                  setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
+                };
+                return (
+                  <div key={model.id} className="flex items-start gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <ImageUploadModal
+                      value={model.imageUrl}
+                      folder="laco/models"
+                      onChange={(url) => {
+                        const updated = [...(settings.bowModels || [])];
+                        updated[idx] = { ...updated[idx], imageUrl: url };
+                        setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
+                      }}
+                    />
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <Input
+                          placeholder="Nome (ex: Bola)"
+                          value={model.name}
+                          onChange={(e) => {
+                            const updated = [...(settings.bowModels || [])];
+                            updated[idx] = { ...updated[idx], name: e.target.value };
+                            setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
+                          }}
+                          className={cn(
+                            "text-sm",
+                            LACO_WORD_REGEX.test(model.name) &&
+                              "border-red-300 focus-visible:ring-red-300"
+                          )}
+                        />
+                        {LACO_WORD_REGEX.test(model.name) && (
+                          <p className="text-[10px] text-red-600 font-bold flex items-center gap-1 mt-1 leading-tight">
+                            <AlertTriangle size={11} className="shrink-0" />
+                            Não inclua &quot;Laço&quot; no nome — o carrinho já
+                            adiciona esse prefixo (use só o formato, ex.: &quot;Bola&quot;).
+                          </p>
+                        )}
+                      </div>
                       <Input
-                        placeholder="Nome (ex: Bola)"
-                        value={model.name}
+                        placeholder="Subtítulo"
+                        value={model.subtitle}
                         onChange={(e) => {
                           const updated = [...(settings.bowModels || [])];
-                          updated[idx] = { ...updated[idx], name: e.target.value };
+                          updated[idx] = { ...updated[idx], subtitle: e.target.value };
                           setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
                         }}
-                        className={cn(
-                          "text-sm",
-                          LACO_WORD_REGEX.test(model.name) &&
-                            "border-red-300 focus-visible:ring-red-300"
-                        )}
+                        className="text-sm"
                       />
-                      {LACO_WORD_REGEX.test(model.name) && (
-                        <p className="text-[10px] text-red-600 font-bold flex items-center gap-1 mt-1 leading-tight">
-                          <AlertTriangle size={11} className="shrink-0" />
-                          Não inclua &quot;Laço&quot; no nome — o carrinho já
-                          adiciona esse prefixo (use só o formato, ex.: &quot;Bola&quot;).
-                        </p>
-                      )}
+                      <div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(settings.bowSizes || []).map((size) => {
+                            const active = modelSizeIds.includes(size.id);
+                            return (
+                              <button
+                                key={size.id}
+                                type="button"
+                                onClick={() => toggleSize(size.id)}
+                                className={cn(
+                                  "px-2.5 h-7 rounded-full text-xs font-bold border transition-colors",
+                                  active
+                                    ? "bg-primary text-white border-primary"
+                                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                                )}
+                              >
+                                {size.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {modelSizeIds.length === 0 && (
+                          <p className="text-[10px] text-red-600 font-bold flex items-center gap-1 mt-1 leading-tight">
+                            <AlertTriangle size={11} className="shrink-0" />
+                            Selecione ao menos um tamanho.
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <Input
-                      placeholder="Subtítulo"
-                      value={model.subtitle}
-                      onChange={(e) => {
-                        const updated = [...(settings.bowModels || [])];
-                        updated[idx] = { ...updated[idx], subtitle: e.target.value };
-                        setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
-                      }}
-                      className="text-sm"
-                    />
-                    <Select
-                      value={model.sizeId || ""}
-                      onValueChange={(sizeId) => {
-                        const updated = [...(settings.bowModels || [])];
-                        updated[idx] = { ...updated[idx], sizeId };
-                        setSettings((prev: StoreSettings) => ({ ...prev, bowModels: updated }));
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-500 hover:bg-red-50 shrink-0"
+                      onClick={() => {
+                        setSettings((prev: StoreSettings) => ({
+                          ...prev,
+                          bowModels: (prev.bowModels || []).filter((_, i) => i !== idx),
+                        }));
                       }}
                     >
-                      <SelectTrigger className="text-sm">
-                        <SelectValue placeholder="Tamanho (obrigatório)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(settings.bowSizes || []).map((size) => (
-                          <SelectItem key={size.id} value={size.id}>
-                            {size.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <Trash2 size={14} />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-red-500 hover:bg-red-50 shrink-0"
-                    onClick={() => {
-                      setSettings((prev: StoreSettings) => ({
-                        ...prev,
-                        bowModels: (prev.bowModels || []).filter((_, i) => i !== idx),
-                      }));
-                    }}
-                  >
-                    <Trash2 size={14} />
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
               {(settings.bowModels || []).length === 0 && (
                 <p className="text-sm text-slate-400 text-center py-4">Nenhum modelo cadastrado.</p>
               )}
