@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest",
-    "seed:staging": "tsx scripts/seed-staging.ts"
+    "seed:staging": "tsx scripts/seed-staging.ts",
+    "audit:ribbon-prices": "tsx scripts/audit-ribbon-prices.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
