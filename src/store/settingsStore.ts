@@ -25,6 +25,10 @@ const DEFAULT_SETTINGS: StoreSettings = {
     categoryOrder: [], // Aqui salvaremos a ordem dos Grupos
   },
   homeSections: [],
+  // OFF por padrão — só staging liga via seed (#108). Ver StoreSettings.features.
+  features: {
+    customKitEnabled: false,
+  },
   bowModels: [
     {
       id: "bola",

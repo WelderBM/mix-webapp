@@ -24,6 +24,11 @@ export const generalSettings: StoreSettings = {
     activeCategories: activeCategoryNames,
     categoryOrder: activeCategoryNames,
   },
+  // ON em staging pra manter o fluxo atual do KitBuilder testável; produção
+  // fica OFF por padrão (ausência do campo no doc real) até #108 maturar.
+  features: {
+    customKitEnabled: true,
+  },
   homeSections: [
     {
       id: "seed-section-vitrine",
