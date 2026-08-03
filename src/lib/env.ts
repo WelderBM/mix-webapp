@@ -7,6 +7,10 @@ const envSchema = z.object({
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: z.string().min(1),
   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: z.string().min(1),
   NEXT_PUBLIC_FIREBASE_APP_ID: z.string().min(1),
+  // Opcional: sem DSN, a inicialização do Sentry vira no-op (ver
+  // instrumentation.ts / instrumentation-client.ts). O valor real de
+  // produção/preview é configurado no dashboard da Vercel, não commitado.
+  NEXT_PUBLIC_SENTRY_DSN: z.string().min(1).optional(),
 });
 
 function parseEnv() {
@@ -17,6 +21,7 @@ function parseEnv() {
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
     NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN || undefined,
   });
 
   if (!result.success) {
