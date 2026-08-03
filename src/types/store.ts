@@ -3,12 +3,22 @@ export interface BowModel {
   name: string;
   subtitle: string;
   imageUrl: string;
-  // Um modelo tem exatamente um tamanho — não dá pra montar o mesmo modelo
-  // em tamanhos diferentes. Opcional só pra não quebrar modelos já
-  // cadastrados antes dessa regra existir; o LacoBuilder trata ausência
-  // como "modelo incompleto" (não pode ser selecionado até o admin
-  // escolher um tamanho).
+  // Um modelo pode ser oferecido em vários tamanhos (P/M/G) sem duplicar
+  // cadastro/imagem — ver #144. `sizeIds` é a fonte de verdade nova.
+  sizeIds?: string[];
+  // @deprecated — mantido só como leitura tolerante de dado de produção
+  // cadastrado antes de #144 (1 modelo = 1 tamanho). Nunca escrever aqui de
+  // novo; use `sizeIds`. Passe por `getModelSizeIds(model)` em vez de ler
+  // `sizeId`/`sizeIds` direto — ele cobre os dois formatos.
   sizeId?: string;
+}
+
+// Único ponto de leitura de "quais tamanhos este modelo aceita" — cobre
+// tanto o dado novo (`sizeIds`) quanto o legado (`sizeId` único, pré-#144)
+// sem exigir migração: modelo de produção salvo antes de #144 continua
+// funcionando, tratado como uma lista de um item só.
+export function getModelSizeIds(model: BowModel): string[] {
+  return model.sizeIds ?? (model.sizeId ? [model.sizeId] : []);
 }
 
 export interface BowSize {
