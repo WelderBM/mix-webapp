@@ -601,7 +601,7 @@ export function CartSidebar() {
                         aria-checked={deliveryMethod === "delivery"}
                         onClick={() => setDeliveryMethod("delivery")}
                         className={cn(
-                          "h-11 rounded-md text-sm font-semibold transition-colors",
+                          "h-11 rounded-md text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1",
                           deliveryMethod === "delivery"
                             ? "bg-white text-purple-700 shadow-sm"
                             : "text-slate-500 hover:text-slate-700"
@@ -722,56 +722,14 @@ export function CartSidebar() {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Forma de Pagamento</Label>
-                    <Select
-                      value={paymentMethod}
-                      onValueChange={(v: any) => setPaymentMethod(v)}
-                    >
-                      <SelectTrigger className="bg-white">
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pix">💠 PIX</SelectItem>
-                        <SelectItem
-                          value="credit_card"
-                          disabled={pixPaymentDestination === "carrier"}
-                        >
-                          💳 Cartão de Crédito
-                        </SelectItem>
-                        <SelectItem
-                          value="debit_card"
-                          disabled={pixPaymentDestination === "carrier"}
-                        >
-                          💳 Cartão de Débito
-                        </SelectItem>
-                        <SelectItem value="cash">💵 Dinheiro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {pixPaymentDestination === "carrier" && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        * Moto Táxi aceita apenas <b>PIX</b> ou <b>Dinheiro</b>.
-                      </p>
-                    )}
-                    {paymentMethod === "cash" && (
-                      <div className="space-y-1 mt-2">
-                        <Label className="text-xs">
-                          Troco para quanto? (Opcional)
-                        </Label>
-                        <Input
-                          value={cashChangeFor}
-                          onChange={(e) => setCashChangeFor(e.target.value)}
-                          placeholder="Ex: R$ 50"
-                          className="bg-white h-9"
-                          inputMode="numeric"
-                        />
-                      </div>
-                    )}
-                  </div>
-
                   {/* Só existe em Entrega — na Retirada não há moto-táxi,
                       então a pergunta é ruído puro e o valor fica travado
-                      internamente em "store" (ver effect acima, #72). */}
+                      internamente em "store" (ver effect acima, #72).
+                      Vem ANTES de "Forma de Pagamento" porque é a decisão
+                      que restringe a outra: Moto Táxi só aceita PIX ou
+                      Dinheiro, então quem paga precisa ser escolhido
+                      primeiro pra essa restrição fazer sentido na tela
+                      (feedback de revisão do PR #148). */}
                   {deliveryMethod === "delivery" && (
                     <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
                       <Label className="text-blue-800">
@@ -820,6 +778,53 @@ export function CartSidebar() {
                       </RadioGroup>
                     </div>
                   )}
+
+                  <div className="space-y-2">
+                    <Label>Forma de Pagamento</Label>
+                    <Select
+                      value={paymentMethod}
+                      onValueChange={(v: any) => setPaymentMethod(v)}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pix">💠 PIX</SelectItem>
+                        <SelectItem
+                          value="credit_card"
+                          disabled={pixPaymentDestination === "carrier"}
+                        >
+                          💳 Cartão de Crédito
+                        </SelectItem>
+                        <SelectItem
+                          value="debit_card"
+                          disabled={pixPaymentDestination === "carrier"}
+                        >
+                          💳 Cartão de Débito
+                        </SelectItem>
+                        <SelectItem value="cash">💵 Dinheiro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {pixPaymentDestination === "carrier" && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        * Moto Táxi aceita apenas <b>PIX</b> ou <b>Dinheiro</b>.
+                      </p>
+                    )}
+                    {paymentMethod === "cash" && (
+                      <div className="space-y-1 mt-2">
+                        <Label className="text-xs">
+                          Troco para quanto? (Opcional)
+                        </Label>
+                        <Input
+                          value={cashChangeFor}
+                          onChange={(e) => setCashChangeFor(e.target.value)}
+                          placeholder="Ex: R$ 50"
+                          className="bg-white h-9"
+                          inputMode="numeric"
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   <div className="space-y-2">
                     <Label>Observação (Opcional)</Label>
