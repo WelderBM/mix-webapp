@@ -61,6 +61,19 @@ export function isSealedRibbonRoll(product: Product | undefined): boolean {
   );
 }
 
+// "Fechar Manual" (RibbonsTab) nunca recalcula `rollPrice` — reabrir e
+// fechar de novo um rolo com sobra vendida cobraria o preço do rolo CHEIO
+// por uma metragem parcial. Até existir um fluxo próprio de venda de sobra
+// avulsa ou um modelo de preço parcial (decisão de produto em aberto, ver
+// #66), "Fechar Manual" fica restrito a reverter uma abertura indevida —
+// só permitido quando o rolo ainda está intacto (nada vendido da abertura).
+export function isPartiallyOpenedRoll(product: Product | undefined): boolean {
+  if (!product || product.type !== "RIBBON") return false;
+  const inv = product.ribbonInventory;
+  if (!inv || inv.status !== "ABERTO") return false;
+  return inv.remainingMeters < inv.totalRollMeters;
+}
+
 // Campo vazio/0 vira `undefined`, nunca `0` — `0` é um preço legítimo (grátis
 // de propósito), não um jeito de dizer "ainda não preenchido". Único parser
 // compartilhado entre ProductFormDialog (input manual) e batch-import (CSV):

@@ -19,7 +19,7 @@ import { useGlobalSettings } from "@/providers/ThemeProvider";
 import { useSearchParamsPatch } from "@/hooks/useSearchParamsPatch";
 
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -36,25 +36,21 @@ import { toast } from "sonner";
 import {
   LogOut,
   Package,
-  Layout,
   Save,
   Eye,
-  ShoppingBag,
   Database,
-  PartyPopper,
-  Scissors,
-  Settings2,
   MoreHorizontal,
   Loader2,
+  Settings2,
 } from "lucide-react";
 import { ProductFormDialog } from "@/components/admin/ProductFormDialog";
+import { AdminNav } from "@/components/admin/AdminNav";
 import Link from "next/link";
 import { SuperAdminZone } from "@/components/admin/SuperAdminZone";
 import {
   useSystemToolsUnlocked,
   SystemPasswordPrompt,
 } from "@/components/admin/SystemPasswordGate";
-import { cn } from "@/lib/utils";
 
 import { OrdersTab } from "@/components/admin/OrdersTab";
 import { AdminLogin } from "@/components/admin/AdminLogin";
@@ -421,55 +417,14 @@ function AdminPageContent() {
           </div>
         </div>
 
-        <div className="flex p-1 bg-slate-200/50 border border-slate-200 rounded-lg w-fit mt-6">
-          <button
-            onClick={() => handleViewModeChange("orders")}
-            className={cn(
-              "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-              viewMode === "orders"
-                ? "bg-white text-blue-700 shadow-sm font-bold"
-                : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            <ShoppingBag size={16} /> Pedidos
-          </button>
-          <button
-            onClick={() => handleViewModeChange("inventory")}
-            className={cn(
-              "px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2",
-              viewMode === "inventory"
-                ? "bg-white text-purple-700 shadow-sm font-bold"
-                : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            <Package size={16} /> Gerenciar Estoque
-          </button>
-        </div>
-
         {viewMode === "orders" ? (
-          <OrdersTab />
+          <>
+            <AdminNav viewMode={viewMode} onViewModeChange={handleViewModeChange} />
+            <OrdersTab />
+          </>
         ) : (
           <Tabs value={inventoryTab} onValueChange={handleInventoryTabChange}>
-            <TabsList className="bg-white p-1 rounded-lg border w-full md:w-auto flex flex-wrap gap-1 md:inline-flex md:flex-nowrap h-auto">
-              <TabsTrigger value="products" className="gap-2">
-                <Package size={16} /> Produtos
-              </TabsTrigger>
-              <TabsTrigger value="sections" className="gap-2">
-                <Layout size={16} /> Vitrine
-              </TabsTrigger>
-              <TabsTrigger value="balloons" className="gap-2">
-                <PartyPopper size={16} /> Balões
-              </TabsTrigger>
-              <TabsTrigger value="ribbons" className="gap-2">
-                <Scissors size={16} /> Fitas
-              </TabsTrigger>
-              <TabsTrigger
-                value="config"
-                className="gap-2 text-slate-700 data-[state=active]:bg-slate-100 data-[state=active]:text-slate-900"
-              >
-                <Settings2 size={16} /> Configurações
-              </TabsTrigger>
-            </TabsList>
+            <AdminNav viewMode={viewMode} onViewModeChange={handleViewModeChange} />
 
             {/* === ABA CONFIGURAÇÕES === */}
             <TabsContent value="config" className="space-y-4">
