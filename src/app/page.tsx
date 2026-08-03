@@ -10,9 +10,6 @@ import { db } from "@/lib/firebase";
 import { Product, StoreSettings, KitRecipe } from "@/types"; // Import atualizado
 import HomeClient from "@/components/views/HomeClient";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 async function getInitialData() {
   try {
     // Executa as 3 buscas em paralelo para performance máxima
