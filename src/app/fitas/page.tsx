@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, useMemo, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useProductStore } from "@/store/productStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { StoreHeader } from "@/components/layout/StoreHeader";
@@ -31,6 +31,7 @@ function FitasContent() {
   const { addItem } = useCartStore();
   const { settings, fetchSettings } = useSettingsStore();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [activeTab, setActiveTab] = useState("rolls");
   const [selectedRibbonId, setSelectedRibbonId] = useState<string>("");
@@ -39,6 +40,10 @@ function FitasContent() {
   // damos scroll até ela ao montar. Some depois do primeiro highlight pra não
   // ficar reaplicando ao trocar de aba manualmente.
   const [highlightedRibbonId, setHighlightedRibbonId] = useState<string>("");
+  // Garante que o auto-scroll rode uma única vez para o deep-link inicial,
+  // mesmo que o usuário troque de aba manualmente depois (o que também
+  // dispara o mesmo efeito, já que ele depende de `activeTab`).
+  const hasAutoScrolledRef = useRef(false);
 
   useEffect(() => {
     fetchProducts();
@@ -73,12 +78,24 @@ function FitasContent() {
 
   // Scroll até a fita destacada assim que a lista correspondente estiver
   // disponível (produtos carregam async, então esperamos allProducts também).
+  // Depois do scroll inicial limpamos `fita` da URL (mantendo `aba`) pra o
+  // destaque ser transitório — clicar em outros cards não deve reacender o
+  // ring nem re-disparar scroll (issue #140).
   useEffect(() => {
-    if (!highlightedRibbonId) return;
+    if (!highlightedRibbonId || hasAutoScrolledRef.current) return;
     const el = document.getElementById(`ribbon-${highlightedRibbonId}`);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "center" });
+      hasAutoScrolledRef.current = true;
+
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("fita");
+      const query = params.toString();
+      router.replace(query ? `/fitas?${query}` : "/fitas", { scroll: false });
     }
+    // Só depende dos gatilhos que fazem a fita ficar disponível pra scroll —
+    // searchParams/router mudam a cada replace e não devem re-rodar isto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightedRibbonId, activeTab, allProducts]);
 
   const themeStyles = useMemo(() => {
@@ -257,6 +274,7 @@ function FitasContent() {
                         product={product}
                         onSelect={() => handleAddRoll(product)}
                         actionLabel="Comprar"
+                        disableRibbonRedirect
                       />
                       <div className="absolute top-2 right-2 bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm z-10">
                         <Lock size={10} /> LACRADO
