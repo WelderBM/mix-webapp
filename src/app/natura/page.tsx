@@ -56,20 +56,44 @@ interface NaturaPageSettings {
   sections: StoreSection[];
 }
 
+// Com `revalidate = 60` (sem `force-dynamic`, issue #113) a rota vira
+// elegível a prerender em build time — `next build` chama este componente
+// de verdade durante o build, inclusive no CI, onde as credenciais do
+// Firebase são dummy (ver .github/workflows). Sem o try/catch, o
+// PERMISSION_DENIED do Firestore contra credencial fake derrubava o build
+// inteiro (visto em CI: "Error occurred prerendering page /natura"). Mesmo
+// padrão de fallback silencioso já usado em src/app/page.tsx (home) — só
+// que ali já existia desde antes de #113, aqui faltava porque a rota nunca
+// tinha sido prerenderizada em build antes.
+async function getNaturaData() {
+  try {
+    const [productsSnap, settingsSnap] = await Promise.all([
+      getDocs(query(collection(db, "products"), orderBy("name"))),
+      getDoc(doc(db, "settings", "natura")),
+    ]);
+
+    const products = productsSnap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Product[];
+
+    const settings = settingsSnap.exists()
+      ? (settingsSnap.data() as NaturaPageSettings)
+      : { sections: [] };
+
+    return { products, settings };
+  } catch (error) {
+    console.error(
+      `Erro ao buscar dados da página Natura: ${
+        (error as any)?.message || "Erro desconhecido"
+      }`
+    );
+    return { products: [] as Product[], settings: { sections: [] } };
+  }
+}
+
 export default async function NaturaPage() {
-  const [productsSnap, settingsSnap] = await Promise.all([
-    getDocs(query(collection(db, "products"), orderBy("name"))),
-    getDoc(doc(db, "settings", "natura")),
-  ]);
-
-  const products = productsSnap.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Product[];
-
-  const settings = settingsSnap.exists()
-    ? (settingsSnap.data() as NaturaPageSettings)
-    : { sections: [] };
+  const { products, settings } = await getNaturaData();
 
   const activeSections = settings.sections?.filter((s) => s.isActive) || [];
 
