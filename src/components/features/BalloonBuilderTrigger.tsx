@@ -3,6 +3,7 @@
 import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { SafeImage } from "@/components/ui/SafeImage";
 
 // Simple Single Balloon Icon
 const BalloonIcon = ({ className }: { className?: string }) => (
@@ -72,11 +73,16 @@ export function BalloonBuilderTrigger() {
 
         <div className="absolute top-1/2 -translate-y-1/2 right-6 text-slate-200 group-hover:text-purple-200/50 transition-colors rotate-12 flex items-center justify-center">
           {placeholderUrl ? (
-            <img 
-              src={placeholderUrl} 
-              alt="Balões" 
-              className="w-[120px] h-[120px] object-contain drop-shadow-xl"
-            />
+            <div className="relative w-[120px] h-[120px] drop-shadow-xl">
+              <SafeImage
+                src={placeholderUrl}
+                alt="Balões"
+                name="Balões"
+                fill
+                sizes="120px"
+                className="object-contain"
+              />
+            </div>
           ) : (
             <BalloonIcon className="w-[100px] h-[100px]" />
           )}
