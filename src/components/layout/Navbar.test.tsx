@@ -107,6 +107,22 @@ describe("Navbar", () => {
     mockProductState.allProducts = [];
   });
 
+  describe("badge de área de atendimento (issue #159)", () => {
+    it("renders 'Entregamos em Boa Vista - RR' visible on every page", () => {
+      render(<Navbar />);
+      expect(
+        screen.getByText("Entregamos em Boa Vista - RR")
+      ).toBeInTheDocument();
+    });
+
+    it("renders the badge as a single element shared by desktop and mobile (not duplicated per breakpoint)", () => {
+      render(<Navbar />);
+      expect(
+        screen.getAllByText("Entregamos em Boa Vista - RR")
+      ).toHaveLength(1);
+    });
+  });
+
   describe("serviços fixos (regressão)", () => {
     it("renders 'Central de Fitas' linking to /fitas", () => {
       render(<Navbar />);
