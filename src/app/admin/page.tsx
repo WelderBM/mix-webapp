@@ -15,6 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Product, StoreSettings } from "@/types";
 import { BalloonConfig } from "@/types/balloon";
 import { Category } from "@/types/category";
+import { Tag } from "@/types/tag";
 import { useGlobalSettings } from "@/providers/ThemeProvider";
 import { useSearchParamsPatch } from "@/hooks/useSearchParamsPatch";
 
@@ -181,6 +182,7 @@ function AdminPageContent() {
   };
 
   const [categories, setCategories] = useState<Category[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
 
   // System Tools Modal
   const [isSysToolsOpen, setIsSysToolsOpen] = useState(false);
@@ -266,11 +268,19 @@ function AdminPageContent() {
         setCategories(s.docs.map((d) => ({ id: d.id, ...d.data() } as Category)))
     );
 
+    // Buscar Tags (catálogo gerenciado, issue #68) — mesmo padrão de
+    // categorias, sem `subcategories`.
+    const unsubTags = onSnapshot(
+      query(collection(db, "tags"), orderBy("order")),
+      (s) => setTags(s.docs.map((d) => ({ id: d.id, ...d.data() } as Tag)))
+    );
+
     return () => {
       unsubProd();
 
       unsubBall();
       unsubCat();
+      unsubTags();
     };
   }, [currentUser]);
 
@@ -462,6 +472,7 @@ function AdminPageContent() {
               <ProductsTab
                 allProducts={allProducts}
                 categories={categories}
+                tags={tags}
                 onEditProduct={openProductModal}
               />
             </TabsContent>
@@ -529,6 +540,7 @@ function AdminPageContent() {
           productToEdit={editingProduct}
           onSuccess={() => setIsModalOpen(false)}
           categories={categories}
+          tags={tags}
         />
 
         <ConfirmDialog
