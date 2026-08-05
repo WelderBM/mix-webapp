@@ -116,6 +116,8 @@ function AdminPageContent() {
       aba: undefined,
       status: undefined,
       pedido: undefined,
+      produto: undefined,
+      page: undefined,
       nome: undefined,
       tipo: undefined,
       categorias: undefined,

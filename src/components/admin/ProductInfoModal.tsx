@@ -37,6 +37,14 @@ interface ProductInfoModalProps {
   onOpenChange: (open: boolean) => void;
   onEdit: (product: Product) => void;
   onDeleted: () => void;
+  /**
+   * Variante/imagem que o CLIENTE escolheu num pedido específico (não é do
+   * produto em si — vem do `CartItem`). Quando presente, destaca essa
+   * escolha visualmente em vez de mostrar só o produto genérico (issue #73).
+   */
+  highlightVariant?: { type: string; name: string } | null;
+  highlightImageLabel?: string | null;
+  highlightImageUrl?: string | null;
 }
 
 export function ProductInfoModal({
@@ -45,6 +53,9 @@ export function ProductInfoModal({
   onOpenChange,
   onEdit,
   onDeleted,
+  highlightVariant,
+  highlightImageLabel,
+  highlightImageUrl,
 }: ProductInfoModalProps) {
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -53,6 +64,12 @@ export function ProductInfoModal({
   if (!product) return null;
 
   const effectivePrice = getEffectiveUnitPrice(product);
+  const displayImageUrl = highlightImageUrl || product.imageUrl;
+  const hasHighlight = !!(
+    highlightVariant ||
+    highlightImageLabel ||
+    highlightImageUrl
+  );
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -83,9 +100,9 @@ export function ProductInfoModal({
 
           <div className="space-y-4">
             <div className="w-full h-40 bg-slate-100 rounded-lg overflow-hidden relative border flex items-center justify-center">
-              {product.imageUrl ? (
+              {displayImageUrl ? (
                 <SafeImage
-                  src={product.imageUrl}
+                  src={displayImageUrl}
                   alt={product.name}
                   name={product.name}
                   fill
@@ -96,6 +113,19 @@ export function ProductInfoModal({
                 <Package className="text-slate-300" size={32} />
               )}
             </div>
+
+            {hasHighlight && (
+              <div className="text-sm bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-1">
+                <p className="text-xs text-purple-500 font-bold uppercase">
+                  Escolhido pelo cliente neste pedido
+                </p>
+                <p className="text-purple-900 font-medium">
+                  {highlightVariant
+                    ? `${highlightVariant.type}: ${highlightVariant.name}`
+                    : highlightImageLabel}
+                </p>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2">
               <ProductTypeBadge type={product.type} />
