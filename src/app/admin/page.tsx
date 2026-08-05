@@ -327,6 +327,21 @@ function AdminPageContent() {
   );
 
   const saveAllSettings = async () => {
+    // Guard contra condição de corrida (issue #166): `settings`/`balloonConfig`
+    // começam como um objeto DEFAULT hardcoded (homeSections: [] incluso) até
+    // o onSnapshot de settings/general|balloons entregar a primeira leitura
+    // real. `setDoc` aqui embaixo é sem merge — salvar antes disso sobrescreve
+    // o doc inteiro no Firestore com o default, apagando homeSections/config
+    // real em silêncio. Já aconteceu de verdade em staging (reproduzido
+    // 04/08/2026). O botão já fica desabilitado nesse estado (ver JSX), este
+    // guard cobre qualquer outro caminho de chamada.
+    if (!settingsLoaded || !balloonsLoaded) {
+      toast.error(
+        "Configurações ainda carregando — aguarde um instante antes de salvar."
+      );
+      return;
+    }
+
     try {
       await Promise.all([
         setDoc(doc(db, "settings", "general"), settings),
@@ -372,9 +387,20 @@ function AdminPageContent() {
           <div className="flex gap-2 flex-wrap justify-center md:justify-end">
             <Button
               onClick={saveAllSettings}
-              className="bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 md:flex-none"
+              disabled={!settingsLoaded || !balloonsLoaded}
+              title={
+                !settingsLoaded || !balloonsLoaded
+                  ? "Carregando configurações atuais — aguarde antes de salvar"
+                  : undefined
+              }
+              className="bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save size={18} /> Salvar Configurações
+              {!settingsLoaded || !balloonsLoaded ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Save size={18} />
+              )}
+              Salvar Configurações
             </Button>
             <Link href="/" className="flex-1 md:flex-none">
               <Button variant="outline" className="w-full">
