@@ -435,7 +435,7 @@ export function CartSidebar() {
                             </div>
                           )}
                         </div>
-                        <div className="flex-1 min-w-0 pr-6">
+                        <div className="flex-1 min-w-0 pr-9">
                           <h4 className="font-medium text-slate-800 text-sm line-clamp-2">
                             {item.type === "CUSTOM_BALLOON" &&
                             item.balloonDetails
@@ -500,7 +500,7 @@ export function CartSidebar() {
                                         item.quantity - 1
                                       )
                                     }
-                                    className="px-2 hover:bg-slate-100"
+                                    className="flex h-9 w-9 items-center justify-center hover:bg-slate-100"
                                   >
                                     -
                                   </button>
@@ -514,7 +514,7 @@ export function CartSidebar() {
                                         item.quantity + 1
                                       )
                                     }
-                                    className="px-2 hover:bg-slate-100"
+                                    className="flex h-9 w-9 items-center justify-center hover:bg-slate-100"
                                   >
                                     +
                                   </button>
@@ -525,7 +525,7 @@ export function CartSidebar() {
                         </div>
                         <button
                           onClick={() => removeItem(item.cartId)}
-                          className="absolute top-2 right-2 text-slate-300 hover:text-red-500"
+                          className="absolute top-0 right-0 flex h-9 w-9 items-center justify-center text-slate-300 hover:text-red-500"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -657,7 +657,7 @@ export function CartSidebar() {
                                 onBlur={handleCepBlur}
                                 placeholder="00000-000"
                                 className={cn(
-                                  "bg-white h-9",
+                                  "bg-white h-11",
                                   isInvalidLocation &&
                                     "border-red-300 ring-offset-red-100"
                                 )}
@@ -665,7 +665,7 @@ export function CartSidebar() {
                                 inputMode="numeric"
                               />
                               {isLoadingCep && (
-                                <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-slate-400" />
+                                <Loader2 className="absolute right-2 top-3.5 h-4 w-4 animate-spin text-slate-400" />
                               )}
                             </div>
                           </div>
@@ -676,7 +676,7 @@ export function CartSidebar() {
                               onChange={(e) => setNumber(e.target.value)}
                               placeholder="Nº"
                               disabled={isInvalidLocation}
-                              className="bg-white h-9"
+                              className="bg-white h-11"
                               inputMode="numeric"
                             />
                           </div>
@@ -689,7 +689,7 @@ export function CartSidebar() {
                             onChange={(e) => setStreet(e.target.value)}
                             placeholder="Nome da rua"
                             disabled={isInvalidLocation}
-                            className="bg-white h-9"
+                            className="bg-white h-11"
                           />
                         </div>
 
@@ -700,7 +700,7 @@ export function CartSidebar() {
                             onChange={(e) => setNeighborhood(e.target.value)}
                             placeholder="Bairro"
                             disabled={isInvalidLocation}
-                            className="bg-white h-9"
+                            className="bg-white h-11"
                           />
                         </div>
                         <div>
@@ -709,7 +709,7 @@ export function CartSidebar() {
                             value={`${city} - ${uf}`}
                             readOnly
                             className={cn(
-                              "h-9 bg-slate-100 text-slate-500 cursor-not-allowed",
+                              "h-11 bg-slate-100 text-slate-500 cursor-not-allowed",
                               isInvalidLocation && "text-red-500 font-medium"
                             )}
                           />
@@ -725,7 +725,7 @@ export function CartSidebar() {
                             }
                             placeholder="Ex: Perto do mercado, portão azul..."
                             disabled={isInvalidLocation}
-                            className="bg-white h-9"
+                            className="bg-white h-11"
                           />
                         </div>
                       </div>
