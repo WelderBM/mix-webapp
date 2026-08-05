@@ -79,47 +79,49 @@ const StatusTimeline = ({
   }
 
   return (
-    <div className="relative flex justify-between w-full max-w-sm mx-auto mb-8">
-      {/* Barra de fundo */}
-      <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-200 -z-10 -translate-y-1/2 rounded-full" />
+    <div className="w-full overflow-x-auto mb-8">
+      <div className="relative flex justify-between w-full max-w-sm mx-auto min-w-[360px] px-1">
+        {/* Barra de fundo */}
+        <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-200 -z-10 -translate-y-1/2 rounded-full" />
 
-      {/* Barra de progresso preenchida */}
-      <div
-        className="absolute top-1/2 left-0 h-1 bg-green-500 -z-10 -translate-y-1/2 rounded-full transition-all duration-500"
-        style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
-      />
+        {/* Barra de progresso preenchida */}
+        <div
+          className="absolute top-1/2 left-0 h-1 bg-green-500 -z-10 -translate-y-1/2 rounded-full transition-all duration-500"
+          style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
+        />
 
-      {steps.map((step, index) => {
-        const isActive = index <= currentStepIndex;
-        const isCurrent = index === currentStepIndex;
-        const Icon = step.icon;
+        {steps.map((step, index) => {
+          const isActive = index <= currentStepIndex;
+          const isCurrent = index === currentStepIndex;
+          const Icon = step.icon;
 
-        return (
-          <div
-            key={step.id}
-            className="flex flex-col items-center gap-2 bg-white px-2"
-          >
+          return (
             <div
-              className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300",
-                isActive
-                  ? "bg-green-500 border-green-500 text-white shadow-md scale-110"
-                  : "bg-white border-slate-300 text-slate-300"
-              )}
+              key={step.id}
+              className="flex flex-col items-center gap-2 bg-white px-2 shrink-0"
             >
-              <Icon size={18} />
+              <div
+                className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300",
+                  isActive
+                    ? "bg-green-500 border-green-500 text-white shadow-md scale-110"
+                    : "bg-white border-slate-300 text-slate-300"
+                )}
+              >
+                <Icon size={18} />
+              </div>
+              <span
+                className={cn(
+                  "text-[10px] font-bold uppercase tracking-tight text-center whitespace-nowrap transition-colors",
+                  isActive ? "text-slate-800" : "text-slate-400"
+                )}
+              >
+                {step.label}
+              </span>
             </div>
-            <span
-              className={cn(
-                "text-[10px] font-bold uppercase tracking-tight transition-colors",
-                isActive ? "text-slate-800" : "text-slate-400"
-              )}
-            >
-              {step.label}
-            </span>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 };

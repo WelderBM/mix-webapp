@@ -87,47 +87,49 @@ export default function OrderTrackingPage() {
               🚫 Pedido Cancelado
             </div>
           ) : (
-            <div className="relative flex justify-between mb-10 px-2">
-              {/* Linha de Fundo */}
-              <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -z-10 -translate-y-1/2" />
-              {/* Linha de Progresso */}
-              <div
-                className="absolute top-1/2 left-0 h-1 bg-green-500 -z-10 -translate-y-1/2 transition-all duration-1000"
-                style={{
-                  width: `${(currentStepIndex / (steps.length - 1)) * 100}%`,
-                }}
-              />
+            <div className="w-full overflow-x-auto mb-10">
+              <div className="relative flex justify-between px-2 min-w-[360px]">
+                {/* Linha de Fundo */}
+                <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -z-10 -translate-y-1/2" />
+                {/* Linha de Progresso */}
+                <div
+                  className="absolute top-1/2 left-0 h-1 bg-green-500 -z-10 -translate-y-1/2 transition-all duration-1000"
+                  style={{
+                    width: `${(currentStepIndex / (steps.length - 1)) * 100}%`,
+                  }}
+                />
 
-              {steps.map((step, index) => {
-                const isActive = index <= currentStepIndex;
-                const isCurrent = index === currentStepIndex;
-                return (
-                  <div
-                    key={step.id}
-                    className="flex flex-col items-center gap-2 bg-white px-2"
-                  >
+                {steps.map((step, index) => {
+                  const isActive = index <= currentStepIndex;
+                  const isCurrent = index === currentStepIndex;
+                  return (
                     <div
-                      className={cn(
-                        "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500",
-                        isActive
-                          ? "bg-green-500 border-green-500 text-white"
-                          : "bg-white border-slate-200 text-slate-300",
-                        isCurrent && "ring-4 ring-green-100 scale-110"
-                      )}
+                      key={step.id}
+                      className="flex flex-col items-center gap-2 bg-white px-2 shrink-0"
                     >
-                      <step.icon size={18} />
+                      <div
+                        className={cn(
+                          "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500",
+                          isActive
+                            ? "bg-green-500 border-green-500 text-white"
+                            : "bg-white border-slate-200 text-slate-300",
+                          isCurrent && "ring-4 ring-green-100 scale-110"
+                        )}
+                      >
+                        <step.icon size={18} />
+                      </div>
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold uppercase tracking-wide text-center whitespace-nowrap",
+                          isActive ? "text-green-600" : "text-slate-300"
+                        )}
+                      >
+                        {step.label}
+                      </span>
                     </div>
-                    <span
-                      className={cn(
-                        "text-[10px] font-bold uppercase tracking-wide",
-                        isActive ? "text-green-600" : "text-slate-300"
-                      )}
-                    >
-                      {step.label}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
 
