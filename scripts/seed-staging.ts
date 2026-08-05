@@ -270,14 +270,27 @@ async function validate() {
     }
   }
 
-  // Invariante 2: todo StoreSection.productIds resolve pra um produto real.
+  // Invariante 2: todo StoreSection manual (`source.mode === "manual"`, ou
+  // dado legado só com `productIds` — issue #71) resolve pra um produto
+  // real. Normalização inline (sem importar src/lib/sections.ts aqui de
+  // propósito: aquele módulo puxa productTags.ts, que inicializa o SDK
+  // client do Firebase — indesejado neste script, que já usa
+  // firebase-admin). Modos `category`/`tag`/`auto` não têm `productIds`
+  // pra validar aqui — resolvem em runtime contra o catálogo carregado.
   const settingsData = settingsGeneralSnap.data();
   const homeSections = (settingsData?.homeSections ?? []) as {
     id: string;
-    productIds: string[];
+    source?: { mode: string; productIds?: string[] };
+    productIds?: string[];
   }[];
   for (const section of homeSections) {
-    for (const productId of section.productIds) {
+    const manualIds =
+      section.source?.mode === "manual"
+        ? section.source.productIds ?? []
+        : section.source == null
+        ? section.productIds ?? []
+        : [];
+    for (const productId of manualIds) {
       if (!productIds.has(productId)) {
         console.error(
           `  ❌ Invariante quebrada: StoreSection "${section.id}" referencia ` +
@@ -292,7 +305,7 @@ async function validate() {
     abort("uma ou mais invariantes de referência falharam (ver acima).");
   }
 
-  console.log(`\n✅ Invariantes OK: ASSEMBLED_KIT.recipeId e StoreSection.productIds resolvem.`);
+  console.log(`\n✅ Invariantes OK: ASSEMBLED_KIT.recipeId e StoreSection manual resolvem.`);
 }
 
 // ── main ────────────────────────────────────────────────────────────────

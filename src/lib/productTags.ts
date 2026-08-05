@@ -32,7 +32,10 @@ const NOVIDADES_THRESHOLD_MS = NOVIDADES_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
 // `number` (epoch ms, defensivo). Qualquer outro formato — incluindo
 // ausência total do campo (produto legado, confirmado em produção) — vira
 // `null` aqui, nunca um valor arbitrário tipo "agora".
-const toEpochMillis = (value: unknown): number | null => {
+// Exportado pra reuso em ordenação por data (ex: `sort: "newest"` de
+// StoreSection, ver src/lib/sections.ts) sem duplicar a lógica de parsing
+// de Timestamp/Date/number aqui documentada.
+export const toEpochMillis = (value: unknown): number | null => {
   if (value == null) return null;
   if (value instanceof Date) return value.getTime();
   if (typeof value === "number" && Number.isFinite(value)) return value;
