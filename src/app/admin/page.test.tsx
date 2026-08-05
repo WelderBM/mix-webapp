@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { setDoc } from "firebase/firestore";
 import AdminPage from "./page";
 
 // Mesmo padrão de src/app/meu-pedido/page.test.tsx e
@@ -84,11 +85,18 @@ vi.mock("@/lib/firebase", () => ({
   db: {},
 }));
 
+// Mutável de propósito (issue #166): a maioria dos testes deste arquivo
+// quer settings/general "ainda carregando" (null, comportamento default),
+// mas o describe de baixo sobre o guard de salvar precisa simular a
+// primeira leitura real chegando — sem isso não dá pra testar o botão
+// "Salvar Configurações" saindo do estado desabilitado.
+let mockGlobalSettings: import("@/types").StoreSettings | null = null;
+
 vi.mock("@/providers/ThemeProvider", async () => {
   const actual = await vi.importActual("@/providers/ThemeProvider");
   return {
     ...actual,
-    useGlobalSettings: () => null,
+    useGlobalSettings: () => mockGlobalSettings,
   };
 });
 
@@ -215,5 +223,104 @@ describe("AdminPage — navegação unificada (issue #76) preserva ?aba=/?view="
     await waitFor(() => expect(screen.getByTestId("orders-tab")).toBeTruthy());
     const lastCall = replaceMock.mock.calls.at(-1);
     expect(lastCall?.[0]).not.toMatch(/view=|aba=/);
+  });
+});
+
+describe("AdminPage — guard do botão 'Salvar Configurações' (issue #166)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    params.delete("view");
+    params.delete("aba");
+    mockGlobalSettings = null;
+  });
+
+  it("fica desabilitado enquanto settings/general ainda não chegou (useGlobalSettings null)", async () => {
+    render(<AdminPage />);
+    await waitFor(() => expect(screen.getByTestId("orders-tab")).toBeTruthy());
+
+    const saveButton = screen.getByRole("button", {
+      name: /salvar configurações/i,
+    });
+    expect(saveButton).toBeDisabled();
+  });
+
+  it("clicar desabilitado não chama setDoc — não sobrescreve o Firestore com o default vazio", async () => {
+    render(<AdminPage />);
+    await waitFor(() => expect(screen.getByTestId("orders-tab")).toBeTruthy());
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /salvar configurações/i })
+    );
+
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+
+  it("habilita depois que settings/general entrega a primeira leitura real", async () => {
+    mockGlobalSettings = {
+      id: "general",
+      storeName: "Mix Novidades",
+      whatsappNumber: "",
+      theme: { primaryColor: "#0f172a", activeTheme: "default" },
+      filters: { activeCategories: [], categoryOrder: [] },
+      homeSections: [
+        {
+          id: "sec-1",
+          title: "Destaques",
+          type: "product_shelf",
+          width: "full",
+          productIds: ["p1"],
+          isActive: true,
+        },
+      ],
+    };
+
+    render(<AdminPage />);
+    await waitFor(() => expect(screen.getByTestId("orders-tab")).toBeTruthy());
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /salvar configurações/i })
+      ).not.toBeDisabled()
+    );
+  });
+
+  it("clicar habilitado salva o settings/general REAL recebido, não o default hardcoded", async () => {
+    mockGlobalSettings = {
+      id: "general",
+      storeName: "Loja Real (do Firestore)",
+      whatsappNumber: "5595999999999",
+      theme: { primaryColor: "#0f172a", activeTheme: "default" },
+      filters: { activeCategories: [], categoryOrder: [] },
+      homeSections: [
+        {
+          id: "sec-1",
+          title: "Destaques",
+          type: "product_shelf",
+          width: "full",
+          productIds: ["p1"],
+          isActive: true,
+        },
+      ],
+    };
+
+    render(<AdminPage />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: /salvar configurações/i })
+      ).not.toBeDisabled()
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /salvar configurações/i })
+    );
+
+    await waitFor(() => expect(setDoc).toHaveBeenCalled());
+    const generalCallArgs = (setDoc as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call) => (call[1] as { homeSections?: unknown[] })?.homeSections
+    );
+    expect(generalCallArgs?.[1]).toMatchObject({
+      storeName: "Loja Real (do Firestore)",
+      homeSections: [expect.objectContaining({ id: "sec-1" })],
+    });
   });
 });
