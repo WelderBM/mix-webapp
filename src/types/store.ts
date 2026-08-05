@@ -59,7 +59,13 @@ export type SectionSource =
   | { mode: "tag"; tag: string }
   // Único modo "auto" com dado disponível hoje — ver isLowStock() em
   // src/lib/sections.ts.
-  | { mode: "auto"; rule: "low_stock" };
+  | { mode: "auto"; rule: "low_stock" }
+  // "Vistos recentemente" (issue #168, item 1) — depende do `localStorage`
+  // do visitante (só existe no client), não de `allProducts`/`categories`
+  // carregados globalmente. Por isso NÃO é resolvido em
+  // `resolveSectionProducts` (src/lib/sections.ts) como os outros modos —
+  // ver `resolveRecentlyViewedProducts` em src/lib/recentlyViewed.ts.
+  | { mode: "recently_viewed" };
 
 export interface StoreSection {
   id: string;

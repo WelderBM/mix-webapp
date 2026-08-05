@@ -1,16 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Product, ProductVariant, ProductImage, CartItem } from "@/types";
 import { useCartStore } from "@/store/cartStore";
+import { useProductStore } from "@/store/productStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, Check, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ProductImageGallery } from "@/components/features/ProductImageGallery";
+import { ProductCard } from "@/components/features/ProductCard";
 import { BackButton } from "@/components/ui/BackButton";
 import { cn } from "@/lib/utils";
 import { getEffectiveUnitPrice, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
+import { filterProductsByCategory } from "@/lib/categories";
+import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
+import { resolveRecentlyViewedProducts } from "@/lib/recentlyViewed";
+
+// Cap de exibição das duas vitrines novas (issue #168) — mesma ordem de
+// grandeza de MAX_RECENTLY_VIEWED (useRecentlyViewed.ts), o bastante pra
+// preencher 2 fileiras de grid sem virar uma lista longa abaixo do CTA
+// principal.
+const RELATED_PRODUCTS_LIMIT = 8;
 
 // Uma dimensão "casa" só quando o valor existe dos dois lados e é igual —
 // `variantAttrs?.[k] === selection[k]` sozinho deixaria `undefined ===
@@ -92,6 +103,59 @@ export default function ProductPageClient({ product }: ProductPageClientProps) {
   const [showError, setShowError] = useState(false);
   const [animateButton, setAnimateButton] = useState(false);
   const { addItem, openCart } = useCartStore();
+
+  // Catálogo completo pras duas vitrines novas (issue #168). Esta rota é
+  // Server Component desde a #111 e busca só o produto atual — não hidrata
+  // `useProductStore` (diferente de HomeClient, que recebe `initialProducts`
+  // via useStoreHydration). Mesmo padrão de /categoria/[slug]/page.tsx:
+  // busca sob demanda se a store ainda estiver vazia (visitante chegou
+  // direto por link, sem passar pela home antes).
+  const allProducts = useProductStore((state) => state.allProducts);
+  const productsLoading = useProductStore((state) => state.isLoading);
+  const fetchProducts = useProductStore((state) => state.fetchProducts);
+
+  useEffect(() => {
+    if (allProducts.length === 0 && productsLoading) {
+      fetchProducts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Item 1 — "vistos recentemente" (client-side puro, localStorage, sem
+  // conta/login — ver useRecentlyViewed.ts). Registra a visita ATUAL a cada
+  // troca de produto (navegação client-side entre duas páginas de produto
+  // reaproveita esta mesma instância do componente, então depende de
+  // `product.id`, não só do mount).
+  const { recentIds, recordVisit } = useRecentlyViewed();
+
+  useEffect(() => {
+    recordVisit(product.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id]);
+
+  // Exclui o produto atual da lista exibida — ele acabou de entrar em
+  // `recentIds` pela chamada acima, mas "vistos recentemente" aqui significa
+  // os OUTROS produtos que o visitante já viu, não o que ele está vendo
+  // agora.
+  const recentlyViewedProducts = useMemo(
+    () => resolveRecentlyViewedProducts(recentIds, allProducts, product.id),
+    [recentIds, allProducts, product.id]
+  );
+
+  // Item 2 — "relacionados" por categoria/subcategoria (independente do
+  // item 1, funciona pra visitante novo sem histórico nenhum). Reaproveita
+  // `filterProductsByCategory` (mesma função de /categoria/[slug]), exclui
+  // o próprio produto da lista.
+  const relatedProducts = useMemo(() => {
+    if (!product.category) return [];
+    return filterProductsByCategory(
+      allProducts,
+      product.category,
+      product.subcategory
+    )
+      .filter((p) => p.id !== product.id)
+      .slice(0, RELATED_PRODUCTS_LIMIT);
+  }, [allProducts, product]);
 
   // Deriva a seleção inicial a partir do produto já resolvido no servidor.
   // Mantém as dependências em `product.id` (equivalente ao antigo `[id]` do
@@ -549,6 +613,38 @@ export default function ProductPageClient({ product }: ProductPageClientProps) {
             </div>
           </div>
         </div>
+
+        {/* Item 2 (#168) — relacionados por categoria/subcategoria.
+            Independente do histórico de navegação: funciona pra visitante
+            novo (lista vazia -> seção não renderiza, sem erro). */}
+        {relatedProducts.length > 0 && (
+          <section className="mt-10">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">
+              Você também pode gostar
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {relatedProducts.map((related) => (
+                <ProductCard key={related.id} product={related} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Item 1 (#168) — "vistos recentemente" (localStorage, sem conta).
+            Lista vazia (primeira visita do navegador) -> seção não
+            renderiza, sem erro. */}
+        {recentlyViewedProducts.length > 0 && (
+          <section className="mt-10">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">
+              Vistos recentemente
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {recentlyViewedProducts.map((recent) => (
+                <ProductCard key={recent.id} product={recent} />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
