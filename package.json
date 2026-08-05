@@ -9,7 +9,8 @@
     "lint": "next lint",
     "test": "vitest",
     "seed:staging": "tsx scripts/seed-staging.ts",
-    "audit:ribbon-prices": "tsx scripts/audit-ribbon-prices.ts"
+    "audit:ribbon-prices": "tsx scripts/audit-ribbon-prices.ts",
+    "sprint:plan": "node scripts/sprint-plan.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
