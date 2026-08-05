@@ -14,7 +14,10 @@ import {
 } from "@/types/product";
 import { Category } from "@/types/category";
 import { Tag } from "@/types/tag";
-import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
+import {
+  PRODUCT_TYPE_META,
+  getVisibleProductTypes,
+} from "@/components/ui/status-badge";
 import { uniqueSlug } from "@/lib/migrateCategories";
 import { isSystemTag } from "@/lib/productTags";
 import { useDraftPersistence } from "@/hooks/useDraftPersistence";
@@ -104,6 +107,11 @@ interface ProductFormDialogProps {
   // existente pula pra "Detalhes" (não faz sentido escolher categoria/tipo
   // de novo só pra mudar um preço); produto novo começa em "Classificação".
   initialStep?: StepId;
+  // `StoreSettings.features.customKitEnabled` (issue #108) — enquanto
+  // desligada (padrão), esconde os 4 tipos exclusivos de kit do seletor de
+  // Tipo (issue #165). Produto EXISTENTE de um desses tipos continua
+  // editável normalmente (ver `typeIsOrphan` abaixo).
+  customKitEnabled: boolean;
 }
 
 const initialFormState: ProductFormData = {
@@ -131,6 +139,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   categories,
   tags,
   initialStep,
+  customKitEnabled,
 }) => {
   const [formData, setFormData] = useState<ProductFormData>(initialFormState);
   const [loading, setLoading] = useState(false);
@@ -236,6 +245,24 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       ...orphanTagNames.map((n) => ({ name: n, orphan: true })),
     ],
     [tags, orphanTagNames]
+  );
+
+  // Tipo — mesma lógica anti-drift/órfão de categoria (issue #69) e do
+  // helper `getVisibleProductTypes` (issue #165): a lista de OPÇÕES pra
+  // criação/edição respeita a flag `customKitEnabled`, mas um produto
+  // EXISTENTE de um tipo escondido (os 4 tipos exclusivos de kit, ou
+  // teoricamente ASSEMBLED_KIT) continua abrindo pra edição com o tipo
+  // atual visível e selecionado — só marcado como "fora da lista atual",
+  // nunca trocado/travado silenciosamente.
+  const visibleTypes = useMemo(
+    () => getVisibleProductTypes(customKitEnabled),
+    [customKitEnabled]
+  );
+  const typeIsOrphan =
+    !!formData.type && !visibleTypes.includes(formData.type);
+  const typeOptions = useMemo(
+    () => (typeIsOrphan ? [formData.type, ...visibleTypes] : visibleTypes),
+    [typeIsOrphan, formData.type, visibleTypes]
   );
 
   const toggleTag = (name: string) => {
@@ -703,21 +730,28 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     </SelectTrigger>
                     <SelectContent>
                       {/* ASSEMBLED_KIT fica de fora: kits nunca são criados
-                          por este formulário, só via kit_recipes/KitBuilderModal. */}
-                      {(
-                        Object.entries(PRODUCT_TYPE_META) as [
-                          ProductType,
-                          (typeof PRODUCT_TYPE_META)[ProductType]
-                        ][]
-                      )
-                        .filter(([value]) => value !== "ASSEMBLED_KIT")
-                        .map(([value, meta]) => (
-                          <SelectItem key={value} value={value}>
-                            {meta.filterLabel}
-                          </SelectItem>
-                        ))}
+                          por este formulário, só via kit_recipes/KitBuilderModal.
+                          Os 4 tipos exclusivos de componente de kit (Base/
+                          Preenchimento/Acessório/Saco) só aparecem com
+                          customKitEnabled ligado (issue #165) — ver
+                          getVisibleProductTypes em status-badge.tsx. */}
+                      {typeOptions.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {PRODUCT_TYPE_META[value].filterLabel}
+                          {typeIsOrphan && value === formData.type
+                            ? " (fora da lista atual)"
+                            : ""}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {typeIsOrphan && (
+                    <p className="text-xs text-amber-600">
+                      Esse produto usa um tipo que não aparece mais na lista
+                      atual. Ele continua selecionado até você trocar por um
+                      da lista.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2 border-t pt-4">
