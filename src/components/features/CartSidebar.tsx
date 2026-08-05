@@ -621,9 +621,19 @@ export function CartSidebar() {
                         )}
                       >
                         {isInvalidLocation && (
-                          <div className="p-2 mb-2 text-xs text-red-600 bg-red-100 rounded border border-red-200 font-medium text-center">
-                            ⚠️ Entregas indisponíveis para esta região. <br />{" "}
-                            Apenas Boa Vista - RR.
+                          <div className="p-3 mb-2 space-y-2 text-xs text-red-700 bg-red-100 rounded border border-red-200 text-center">
+                            <p className="font-medium">
+                              Não entregamos nesse CEP, mas você pode retirar
+                              na loja.
+                            </p>
+                            <Button
+                              type="button"
+                              onClick={() => setDeliveryMethod("pickup")}
+                              className="h-11 w-full bg-white text-red-700 border border-red-300 hover:bg-red-50 font-semibold shadow-none"
+                              variant="outline"
+                            >
+                              Retirar na loja
+                            </Button>
                           </div>
                         )}
 

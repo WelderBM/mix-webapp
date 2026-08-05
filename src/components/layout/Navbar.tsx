@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Scissors,
   Tag,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
@@ -180,6 +181,17 @@ const Navbar = () => {
 
   return (
     <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md shadow-sm border-b border-slate-100/50">
+      {/* Badge de área de atendimento (issue #159): faixa fina, própria,
+          visível em toda página (mobile e desktop) sem competir com os CTAs
+          principais da linha de baixo (Loja, carrinho, Kit Builder). Só
+          informativo — não é link, não precisa de alvo de toque. */}
+      <div className="bg-purple-50/80 border-b border-purple-100/60">
+        <div className="mx-auto flex max-w-7xl items-center justify-center gap-1 px-4 py-1 text-[11px] font-medium text-purple-700 whitespace-nowrap">
+          <MapPin size={12} className="shrink-0" aria-hidden="true" />
+          <span>Entregamos em Boa Vista - RR</span>
+        </div>
+      </div>
+
       <div className="mx-auto flex max-w-7xl items-center justify-between p-4">
         {/* Logo */}
         <Link

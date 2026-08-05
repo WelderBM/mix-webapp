@@ -68,3 +68,43 @@ export function ProductTypeBadge({ type }: { type: ProductType }) {
   if (!meta) return <Badge tone="neutral">{type}</Badge>
   return <Badge tone={meta.tone}>{meta.label}</Badge>
 }
+
+// Tipos que só existem pra montagem de kit (`kit_recipes`/`KitComponent`,
+// issue #98) — sem CRUD de receita implementado e com o builder desligado
+// por padrão (`StoreSettings.features.customKitEnabled`, issue #108), esses
+// 4 tipos não têm função nenhuma fora de uma receita que ainda não existe.
+// Confirmado em produção (issue #165, comentário) que o vendedor já criou 6
+// produtos reais desses tipos por engano, sem saber que eram exclusivos de
+// kit — ruído puro na lista de CRIAÇÃO/filtro enquanto a flag estiver off.
+//
+// `ASSEMBLED_KIT` fica de fora desta lista de propósito: cada consumidor já
+// trata esse tipo à parte (ex: `ProductFormDialog` nunca oferece
+// "Kit Montado" como opção de criação, kit nunca nasce por este form; em
+// `SectionsTab`, a visibilidade de `ASSEMBLED_KIT` no filtro "vitrinável"
+// segue a MESMA flag mas é decidida no próprio componente, não aqui) — não
+// existe hoje nenhum caminho no código que crie um `Product` desse tipo.
+const KIT_ONLY_PRODUCT_TYPES: readonly ProductType[] = [
+  "BASE_CONTAINER",
+  "FILLER",
+  "ACCESSORY",
+  "WRAPPER",
+]
+
+// Fonte única pros 3 seletores de tipo do admin (`ProductFormDialog`,
+// `ProductsTab`, `SectionsTab`) — antes cada um filtrava (ou não) o próprio
+// `Object.entries(PRODUCT_TYPE_META)`, e só o `SectionsTab` filtrava
+// parcialmente (issue #165). `customKitEnabled` desligado (padrão de
+// produção) esconde os 4 tipos exclusivos de kit da lista de opções; ligar
+// a flag devolve a lista completa (exceto `ASSEMBLED_KIT`, sempre tratado à
+// parte por quem consome). Produto EXISTENTE desses tipos nunca é afetado
+// por este helper — ele só define a lista de OPÇÕES pra criação/filtro
+// novo, nunca valida ou trava o valor já salvo de um produto.
+export function getVisibleProductTypes(
+  customKitEnabled: boolean
+): ProductType[] {
+  const allTypes = (Object.keys(PRODUCT_TYPE_META) as ProductType[]).filter(
+    (type) => type !== "ASSEMBLED_KIT"
+  )
+  if (customKitEnabled) return allTypes
+  return allTypes.filter((type) => !KIT_ONLY_PRODUCT_TYPES.includes(type))
+}

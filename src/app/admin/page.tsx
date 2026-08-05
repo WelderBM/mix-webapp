@@ -476,6 +476,7 @@ function AdminPageContent() {
                 categories={categories}
                 tags={tags}
                 onEditProduct={openProductModal}
+                customKitEnabled={settings.features?.customKitEnabled ?? false}
               />
             </TabsContent>
 
@@ -545,6 +546,7 @@ function AdminPageContent() {
           onSuccess={() => setIsModalOpen(false)}
           categories={categories}
           tags={tags}
+          customKitEnabled={settings.features?.customKitEnabled ?? false}
         />
 
         <ConfirmDialog

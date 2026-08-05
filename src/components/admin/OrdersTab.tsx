@@ -770,6 +770,15 @@ ${paymentInstruction}`;
                                 ? order.address
                                 : "Retirada na Loja"}
                             </p>
+                            {order.deliveryMethod === "delivery" &&
+                              order.addressDetails?.reference != null && (
+                                <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded border">
+                                  <span className="font-bold">
+                                    Ponto de referência:
+                                  </span>{" "}
+                                  {order.addressDetails.reference}
+                                </p>
+                              )}
                             <Button
                               variant="secondary"
                               className="w-full gap-2 text-xs"
@@ -811,6 +820,13 @@ ${paymentInstruction}`;
                           <div className="flex items-center gap-2 text-sm text-slate-700 bg-white p-3 rounded border">
                             <Wallet size={16} className="text-slate-500 shrink-0" />
                             {getPaymentInfo(order)}
+                            {order.paymentMethod === "cash" &&
+                              order.changeFor != null && (
+                                <span className="font-bold text-slate-800">
+                                  {" "}
+                                  · Troco para R$ {order.changeFor}
+                                </span>
+                              )}
                           </div>
                           {order.observation && (
                             <div className="flex items-start gap-2 text-sm text-amber-900 bg-amber-50 border border-amber-200 p-3 rounded">
@@ -955,12 +971,27 @@ ${paymentInstruction}`;
                       <div className="bg-slate-50 p-3 rounded border text-xs text-slate-600">
                         <p className="font-bold mb-1">📍 Endereço Entrega:</p>
                         {order.address}
+                        {order.addressDetails?.reference != null && (
+                          <p className="mt-1">
+                            <span className="font-bold">
+                              Ponto de referência:
+                            </span>{" "}
+                            {order.addressDetails.reference}
+                          </p>
+                        )}
                       </div>
                     )}
 
                     <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-3 rounded border">
                       <Wallet size={14} className="text-slate-500 shrink-0" />
                       {getPaymentInfo(order)}
+                      {order.paymentMethod === "cash" &&
+                        order.changeFor != null && (
+                          <span className="font-bold text-slate-800">
+                            {" "}
+                            · Troco para R$ {order.changeFor}
+                          </span>
+                        )}
                     </div>
 
                     {order.observation && (
