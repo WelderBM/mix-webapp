@@ -54,6 +54,45 @@ vi.mock("@/components/ui/BackButton", () => ({
   BackButton: () => <button>Voltar</button>,
 }));
 
+// Mock ProductCard — usado pelas duas vitrines novas (issue #168). Seu
+// próprio comportamento já é coberto por ProductCard.test.tsx; aqui só
+// precisa expor o nome do produto renderizado.
+vi.mock("@/components/features/ProductCard", () => ({
+  ProductCard: ({ product }: { product: Product }) => (
+    <div data-testid="product-card">{product.name}</div>
+  ),
+}));
+
+// productStore (issue #168) — catálogo completo pras vitrines de
+// relacionados/vistos recentemente. Estado controlado por
+// `setProductStoreState` em cada teste; default vazio não quebra nenhum
+// teste pré-existente (as duas seções novas simplesmente não renderizam).
+let productStoreState: { allProducts: Product[]; isLoading: boolean } = {
+  allProducts: [],
+  isLoading: false,
+};
+const fetchProductsMock = vi.fn();
+function setProductStoreState(state: Partial<typeof productStoreState>) {
+  productStoreState = { allProducts: [], isLoading: false, ...state };
+}
+vi.mock("@/store/productStore", () => ({
+  useProductStore: (selector: (state: any) => any) =>
+    selector({ ...productStoreState, fetchProducts: fetchProductsMock }),
+}));
+
+// useRecentlyViewed (issue #168) — controlado por `setRecentlyViewedState`.
+let recentlyViewedState: { recentIds: string[] } = { recentIds: [] };
+const recordVisitMock = vi.fn();
+function setRecentlyViewedState(recentIds: string[]) {
+  recentlyViewedState = { recentIds };
+}
+vi.mock("@/hooks/useRecentlyViewed", () => ({
+  useRecentlyViewed: () => ({
+    recentIds: recentlyViewedState.recentIds,
+    recordVisit: recordVisitMock,
+  }),
+}));
+
 const makeProduct = (overrides: Partial<Product> = {}): Product => ({
   id: "prod-1",
   name: "Cesta de Natal",
@@ -70,6 +109,8 @@ const makeProduct = (overrides: Partial<Product> = {}): Product => ({
 describe("ProductPageClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setProductStoreState({});
+    setRecentlyViewedState([]);
   });
 
   it("renders product name, price and description from the resolved prop", () => {
@@ -225,5 +266,96 @@ describe("ProductPageClient", () => {
       rerender(<ProductPageClient product={productB} />);
       expect(screen.getByText("Produto B")).toBeInTheDocument();
     });
+  });
+
+  describe("vitrine 'Você também pode gostar' (issue #168, item 2)", () => {
+    it("shows other products from the same category, excluding the current product", () => {
+      const current = makeProduct({ id: "prod-1", category: "Cestas" });
+      const related = makeProduct({
+        id: "prod-2",
+        name: "Cesta de Páscoa",
+        category: "Cestas",
+      });
+      const otherCategory = makeProduct({
+        id: "prod-3",
+        name: "Balão Metalizado",
+        category: "Balões",
+      });
+      setProductStoreState({ allProducts: [current, related, otherCategory] });
+
+      render(<ProductPageClient product={current} />);
+
+      expect(screen.getByText("Você também pode gostar")).toBeInTheDocument();
+      expect(screen.getByText("Cesta de Páscoa")).toBeInTheDocument();
+      expect(screen.queryByText("Balão Metalizado")).not.toBeInTheDocument();
+      expect(
+        screen.queryAllByTestId("product-card").map((el) => el.textContent)
+      ).not.toContain("Cesta de Natal");
+    });
+
+    it("does not render the section when no other product shares the category (no error)", () => {
+      const current = makeProduct({ id: "prod-1", category: "Cestas" });
+      setProductStoreState({ allProducts: [current] });
+
+      render(<ProductPageClient product={current} />);
+
+      expect(
+        screen.queryByText("Você também pode gostar")
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("vitrine 'Vistos recentemente' (issue #168, item 1)", () => {
+    it("shows previously viewed products resolved from recentIds, excluding the current one", () => {
+      const current = makeProduct({ id: "prod-1", category: "Cestas" });
+      const previouslyViewed = makeProduct({
+        id: "prod-9",
+        name: "Kit Aniversário",
+        category: "Kits",
+      });
+      setProductStoreState({ allProducts: [current, previouslyViewed] });
+      setRecentlyViewedState(["prod-9", "prod-1"]);
+
+      render(<ProductPageClient product={current} />);
+
+      expect(screen.getByText("Vistos recentemente")).toBeInTheDocument();
+      expect(screen.getByText("Kit Aniversário")).toBeInTheDocument();
+    });
+
+    it("records a visit to the current product on mount", () => {
+      const current = makeProduct({ id: "prod-1" });
+      setProductStoreState({ allProducts: [current] });
+
+      render(<ProductPageClient product={current} />);
+
+      expect(recordVisitMock).toHaveBeenCalledWith("prod-1");
+    });
+
+    it("a first-time visitor with no browsing history sees no error and no section", () => {
+      const current = makeProduct({ id: "prod-1" });
+      setProductStoreState({ allProducts: [current] });
+      setRecentlyViewedState([]);
+
+      render(<ProductPageClient product={current} />);
+
+      expect(
+        screen.queryByText("Vistos recentemente")
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("fetches products from the store when it is empty and still loading, without crashing either new section", () => {
+    const current = makeProduct({ id: "prod-1" });
+    setProductStoreState({ allProducts: [], isLoading: true });
+
+    render(<ProductPageClient product={current} />);
+
+    expect(fetchProductsMock).toHaveBeenCalled();
+    expect(
+      screen.queryByText("Você também pode gostar")
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Vistos recentemente")
+    ).not.toBeInTheDocument();
   });
 });
