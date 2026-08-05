@@ -23,6 +23,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Select,
   SelectContent,
@@ -94,6 +95,12 @@ export function SectionsTab({
   const [secCatFilter, setSecCatFilter] = useState("ALL");
   const [selectedTemplate, setSelectedTemplate] =
     useState<SectionType>("product_shelf");
+  // Confirmação de exclusão (issue #57) — excluir sem confirmar é a mesma
+  // classe de bug destrutivo encontrada na #166; nunca chamar `deleteSection`
+  // direto do onClick da lixeira.
+  const [sectionToDelete, setSectionToDelete] = useState<StoreSection | null>(
+    null
+  );
 
   const filteredSecProducts = useMemo(() => {
     return allProducts.filter((product) => {
@@ -251,22 +258,30 @@ export function SectionsTab({
               className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-slate-50 border rounded-lg group"
             >
               <div className="flex items-center gap-4 w-full sm:w-auto">
-                <div className="flex gap-1 text-slate-400">
+                {/* Alvo de toque >=44px (issue #57 / mobile-first-guide):
+                    reordenar é ação sequencial e repetida em mobile, então
+                    o botão precisa ser maior que o ícone que carrega —
+                    h-11 w-11 (44px) com o ArrowUp/ArrowDown de 18px dentro. */}
+                <div className="flex gap-2 text-slate-400">
                   <button
+                    type="button"
                     onClick={() => moveSection(index, "up")}
                     disabled={index === 0}
-                    className="hover:text-blue-600 disabled:opacity-30 p-1"
+                    aria-label="Mover seção para cima"
+                    className="h-11 w-11 flex items-center justify-center rounded-lg hover:text-blue-600 hover:bg-slate-100 disabled:opacity-30"
                   >
-                    <ArrowUp size={16} />
+                    <ArrowUp size={18} />
                   </button>
                   <button
+                    type="button"
                     onClick={() => moveSection(index, "down")}
                     disabled={
                       index === (settings.homeSections?.length || 0) - 1
                     }
-                    className="hover:text-blue-600 disabled:opacity-30 p-1"
+                    aria-label="Mover seção para baixo"
+                    className="h-11 w-11 flex items-center justify-center rounded-lg hover:text-blue-600 hover:bg-slate-100 disabled:opacity-30"
                   >
-                    <ArrowDown size={16} />
+                    <ArrowDown size={18} />
                   </button>
                 </div>
               </div>
@@ -340,7 +355,7 @@ export function SectionsTab({
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => deleteSection(section.id)}
+                  onClick={() => setSectionToDelete(section)}
                   className="text-red-400 hover:bg-red-50"
                 >
                   <Trash2 size={16} />
@@ -1009,6 +1024,19 @@ export function SectionsTab({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!sectionToDelete}
+        onOpenChange={(open) => !open && setSectionToDelete(null)}
+        title={`Apagar a seção "${sectionToDelete?.title}"?`}
+        description="Essa ação não pode ser desfeita. A seção some da Home assim que você salvar as configurações."
+        confirmLabel="Apagar"
+        onConfirm={() => {
+          if (!sectionToDelete) return;
+          deleteSection(sectionToDelete.id);
+          setSectionToDelete(null);
+        }}
+      />
     </div>
   );
 }
