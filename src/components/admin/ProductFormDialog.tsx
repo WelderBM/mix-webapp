@@ -13,8 +13,10 @@ import {
   RibbonInventory,
 } from "@/types/product";
 import { Category } from "@/types/category";
+import { Tag } from "@/types/tag";
 import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
 import { uniqueSlug } from "@/lib/migrateCategories";
+import { isSystemTag } from "@/lib/productTags";
 import { useDraftPersistence } from "@/hooks/useDraftPersistence";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,6 +98,7 @@ interface ProductFormDialogProps {
   onClose: () => void;
   onSuccess: () => void;
   categories: Category[];
+  tags: Tag[];
   // Permite pular direto pra um passo (ex: atalho "Nova Fita" já vem com
   // categoria/tipo definidos). Sem isso, o padrão é: edição de produto
   // existente pula pra "Detalhes" (não faz sentido escolher categoria/tipo
@@ -126,6 +129,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   onClose,
   onSuccess,
   categories,
+  tags,
   initialStep,
 }) => {
   const [formData, setFormData] = useState<ProductFormData>(initialFormState);
@@ -203,6 +207,46 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       ? [formData.subcategory as string, ...names]
       : names;
   }, [selectedCategory, subcategoryIsOrphan, formData.subcategory]);
+
+  // Tags manuais — mesma lógica anti-drift de categoria/subcategoria (issue
+  // #69, reaproveitada aqui): seleção só do catálogo (`tags/{id}`, gerido
+  // pelo botão "Tags e Coleções"), sem criação livre no wizard. Uma tag
+  // selecionada que não existe mais no catálogo (renomeada/apagada depois,
+  // ou produto legado) continua aparecendo como opção "órfã" até o admin
+  // desmarcá-la — nunca some silenciosamente do formulário. Tags de SISTEMA
+  // (`novidades`/`promocao`) nunca entram aqui: são calculadas, não
+  // selecionáveis (ver src/lib/productTags.ts).
+  const selectedTagNames = formData.tags ?? [];
+  const tagCatalogNames = useMemo(() => tags.map((t) => t.name), [tags]);
+  const orphanTagNames = useMemo(
+    () => selectedTagNames.filter((n) => !tagCatalogNames.includes(n)),
+    [selectedTagNames, tagCatalogNames]
+  );
+  const tagOptions = useMemo(
+    () => [
+      // Filtro defensivo: TagManager já bloqueia criar uma tag com nome de
+      // tag de sistema, mas um doc criado por fora (import manual, console)
+      // não passa por essa validação — nunca deixa uma tag de sistema virar
+      // opção selecionável aqui.
+      ...tags
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .filter((t) => !isSystemTag(t.name.toLowerCase()))
+        .map((t) => ({ name: t.name, orphan: false })),
+      ...orphanTagNames.map((n) => ({ name: n, orphan: true })),
+    ],
+    [tags, orphanTagNames]
+  );
+
+  const toggleTag = (name: string) => {
+    setFormData((prev) => {
+      const current = prev.tags ?? [];
+      const next = current.includes(name)
+        ? current.filter((t) => t !== name)
+        : [...current, name];
+      return { ...prev, tags: next };
+    });
+  };
 
   // Efeito abaixo depende só de `productToEdit`/`isOpen`/`initialStep`, nunca
   // de `categories` diretamente: `categories` vem de um onSnapshot ao vivo
@@ -437,6 +481,13 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         images,
         imageUrl: formData.imageUrl || defaultVariantImage || "",
         disabled: nameIsPlaceholder,
+        // Gravado só na CRIAÇÃO (sem `productToEdit`) — edição de produto
+        // existente nunca sobrescreve `createdAt`, seja ele um timestamp
+        // real (`formData.createdAt`, herdado de `productToEdit` pelo
+        // useEffect de carga) ou `undefined` (produto legado sem o campo,
+        // confirmado em produção — fica sem `createdAt` pra sempre, não
+        // ganha um valor "de agora" só por ter sido editado).
+        createdAt: productToEdit ? formData.createdAt : serverTimestamp(),
       };
 
       // Firestore rejeita `undefined` explícito em qualquer campo (diferente
@@ -635,8 +686,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
                 <p className="text-xs text-slate-400 italic border-t pt-3">
                   Ocasião (aniversário, casamento, chá revelação...) não é um
-                  campo deste passo — é vitrine/tag do produto, tratada em
-                  outro lugar do cadastro.
+                  campo de categoria — é tag/coleção, selecionada logo abaixo
+                  nesta mesma etapa.
                 </p>
 
                 <div className="space-y-2">
@@ -667,6 +718,59 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2 border-t pt-4">
+                  <Label>
+                    Tags / Coleções{" "}
+                    <span className="text-slate-400 font-normal">
+                      (opcional)
+                    </span>
+                  </Label>
+                  {tagOptions.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {tagOptions.map(({ name, orphan }) => {
+                        const selected = selectedTagNames.includes(name);
+                        return (
+                          <button
+                            key={name}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => toggleTag(name)}
+                            // min-h-11 + min-w-11 (44×44px) — alvo de toque
+                            // mínimo em AMBAS as dimensões (Apple HIG), não
+                            // só altura — um nome de tag curto com px-4 sem
+                            // min-w ficaria abaixo do alvo em telas
+                            // estreitas. focus-visible explícito pra
+                            // teclado/trackpad (dispositivo híbrido, sem
+                            // hover) — ver mobile-first-guide ch05.
+                            className={`min-h-11 min-w-11 px-4 rounded-full border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1 ${
+                              selected
+                                ? "bg-purple-600 border-purple-600 text-white"
+                                : "bg-white border-slate-300 text-slate-600 hover:border-purple-400"
+                            }`}
+                          >
+                            {name}
+                            {orphan ? " (fora do catálogo atual)" : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">
+                      Nenhuma tag cadastrada ainda. Crie a primeira no botão
+                      &quot;Tags e Coleções&quot; na lista de produtos.
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-500">
+                    Recortes temporais/comerciais (ex: &quot;Dia das
+                    Mães&quot;, &quot;Até R$50&quot;) — tag nova não se cria
+                    aqui: use o botão &quot;Tags e Coleções&quot; na lista de
+                    produtos. Tags de sistema (&quot;Novidade&quot;,
+                    &quot;Promoção&quot;) são calculadas automaticamente a
+                    partir da data de cadastro e do preço, e não aparecem
+                    neste seletor.
+                  </p>
                 </div>
               </div>
             )}

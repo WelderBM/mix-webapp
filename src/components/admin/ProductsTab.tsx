@@ -5,8 +5,10 @@ import { useSearchParams } from "next/navigation";
 import { useSearchParamsPatch } from "@/hooks/useSearchParamsPatch";
 import { Product } from "@/types";
 import { Category } from "@/types/category";
+import { Tag } from "@/types/tag";
 import { getEffectiveUnitPrice } from "@/lib/ribbon-pricing";
 import { CategoryManager } from "@/components/admin/CategoryManager";
+import { TagManager } from "@/components/admin/TagManager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -49,12 +51,14 @@ import {
 interface ProductsTabProps {
   allProducts: Product[];
   categories: Category[];
+  tags: Tag[];
   onEditProduct: (product: Product | null) => void;
 }
 
 export function ProductsTab({
   allProducts,
   categories,
+  tags,
   onEditProduct,
 }: ProductsTabProps) {
   const searchParams = useSearchParams();
@@ -70,6 +74,9 @@ export function ProductsTab({
   const [productToView, setProductToView] = useState<Product | null>(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(
     () => searchParams.get("categorias") === "1"
+  );
+  const [isTagModalOpen, setIsTagModalOpen] = useState(
+    () => searchParams.get("tags") === "1"
   );
 
   // Espera parar de digitar antes de gravar na URL, pra não disparar um
@@ -90,6 +97,11 @@ export function ProductsTab({
   const handleCategoryModalChange = (open: boolean) => {
     setIsCategoryModalOpen(open);
     patchParams({ categorias: open ? "1" : undefined });
+  };
+
+  const handleTagModalChange = (open: boolean) => {
+    setIsTagModalOpen(open);
+    patchParams({ tags: open ? "1" : undefined });
   };
 
   const filteredProducts = useMemo(() => {
@@ -147,6 +159,13 @@ export function ProductsTab({
             className="w-full md:w-auto"
           >
             <Tags size={16} className="mr-2" /> Categorias e Subcategorias
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleTagModalChange(true)}
+            className="w-full md:w-auto"
+          >
+            <Tags size={16} className="mr-2" /> Tags e Coleções
           </Button>
           <Button
             onClick={() => onEditProduct(null)}
@@ -253,6 +272,16 @@ export function ProductsTab({
             <DialogTitle>Categorias e Subcategorias</DialogTitle>
           </DialogHeader>
           <CategoryManager categories={categories} products={allProducts} />
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL TAGS E COLEÇÕES */}
+      <Dialog open={isTagModalOpen} onOpenChange={handleTagModalChange}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Tags e Coleções</DialogTitle>
+          </DialogHeader>
+          <TagManager tags={tags} products={allProducts} />
         </DialogContent>
       </Dialog>
     </div>

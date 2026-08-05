@@ -4,6 +4,7 @@ import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ProductFormDialog } from "./ProductFormDialog";
 import type { Category } from "@/types/category";
 import type { Product } from "@/types/product";
+import type { Tag } from "@/types/tag";
 
 // Radix Select depende de APIs de DOM que happy-dom não implementa
 // (hasPointerCapture/scrollIntoView) — sem esses stubs, abrir o dropdown
@@ -36,7 +37,15 @@ function makeCategories(): Category[] {
   ];
 }
 
-function baseProps(overrides: Partial<Product> = {}, productToEdit: Product | null = null) {
+// `tags` excluído de `overrides`: no `Product`, `tags` é `string[]` (nomes
+// gravados no produto); nas props do diálogo é `Tag[]` (catálogo gerenciado)
+// — mesmo nome, formatos diferentes de propósito. Nenhum teste aqui precisa
+// sobrescrever o catálogo de tags via este helper.
+function baseProps(
+  overrides: Omit<Partial<Product>, "tags"> = {},
+  productToEdit: Product | null = null,
+  tags: Tag[] = []
+) {
   const categories = makeCategories();
   return {
     productToEdit,
@@ -44,6 +53,7 @@ function baseProps(overrides: Partial<Product> = {}, productToEdit: Product | nu
     onClose: vi.fn(),
     onSuccess: vi.fn(),
     categories,
+    tags,
     ...overrides,
   };
 }
@@ -119,7 +129,7 @@ describe("ProductFormDialog — passo Classificação (issue #69, categoria/subc
       screen.getByText((text) => text.includes("a partir de ~6"))
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/ocasião.*não é um campo deste passo/i)
+      screen.getByText(/ocasião.*não é um campo de categoria/i)
     ).toBeInTheDocument();
   });
 
@@ -159,6 +169,80 @@ describe("ProductFormDialog — passo Classificação (issue #69, categoria/subc
     // O aviso explicativo também aparece pro admin.
     expect(
       screen.getByText(/não existe mais na lista atual/i)
+    ).toBeInTheDocument();
+  });
+});
+
+describe("ProductFormDialog — passo Classificação (issue #68, tags/coleções manuais)", () => {
+  function makeTags(): Tag[] {
+    return [
+      { id: "dia-das-maes", name: "Dia das Mães", order: 0, active: true },
+      { id: "ate-r50", name: "Até R$50", order: 1, active: true },
+    ];
+  }
+
+  it("mostra mensagem de catálogo vazio quando nenhuma tag foi cadastrada ainda", () => {
+    render(<ProductFormDialog {...baseProps()} />);
+    expect(
+      screen.getByText(/nenhuma tag cadastrada ainda/i)
+    ).toBeInTheDocument();
+  });
+
+  it("lista as tags do catálogo como chips e alterna a seleção ao clicar (persiste no estado do formulário)", () => {
+    render(<ProductFormDialog {...baseProps({}, null, makeTags())} />);
+
+    const chip = screen.getByRole("button", { name: "Dia das Mães" });
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(chip);
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(chip);
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("produto existente com tag 'órfã' (fora do catálogo atual) mostra a tag antiga marcada e sinalizada", () => {
+    const product: Product = {
+      id: "p4",
+      name: "Kit Festa Junina",
+      type: "STANDARD_ITEM",
+      category: "Balões",
+      unit: "un",
+      inStock: true,
+      disabled: false,
+      price: 20,
+      tags: ["Festa Junina"], // não existe em `makeTags()`
+    };
+    render(
+      <ProductFormDialog
+        {...baseProps({}, product, makeTags())}
+        initialStep="classificacao"
+      />
+    );
+
+    const orphanChip = screen.getByRole("button", {
+      name: /Festa Junina \(fora do catálogo atual\)/,
+    });
+    expect(orphanChip).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("nunca renderiza uma tag de sistema ('novidades'/'promocao') como opção selecionável, mesmo se existir um doc com esse nome no catálogo", () => {
+    const tagsWithSystemNameLeak: Tag[] = [
+      ...makeTags(),
+      { id: "novidades", name: "novidades", order: 2, active: true },
+      { id: "promocao", name: "promocao", order: 3, active: true },
+    ];
+    render(<ProductFormDialog {...baseProps({}, null, tagsWithSystemNameLeak)} />);
+
+    expect(
+      screen.queryByRole("button", { name: "novidades" })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "promocao" })
+    ).not.toBeInTheDocument();
+    // As tags manuais normais continuam disponíveis.
+    expect(
+      screen.getByRole("button", { name: "Dia das Mães" })
     ).toBeInTheDocument();
   });
 });
