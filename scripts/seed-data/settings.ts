@@ -36,8 +36,14 @@ export const generalSettings: StoreSettings = {
       type: "product_shelf",
       width: "full",
       // productIds resolvendo pra produtos REAIS seedados em products.ts —
-      // o runner valida essa invariante depois de inserir tudo.
-      productIds: [stdComPreco.id, stdComPromo.id, assembledKit.id],
+      // o runner valida essa invariante depois de inserir tudo. Seção
+      // manual com `source` (formato pós-#71) — o caso legado (só
+      // `productIds`, sem `source`) é coberto por teste unitário de
+      // normalizeSectionSource, não precisa de fixture de staging pra isso.
+      source: {
+        mode: "manual",
+        productIds: [stdComPreco.id, stdComPromo.id, assembledKit.id],
+      },
       isActive: true,
     },
   ],

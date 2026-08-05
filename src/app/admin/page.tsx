@@ -489,6 +489,8 @@ function AdminPageContent() {
                 setSettings={setSettings}
                 allProducts={allProducts}
                 uniqueCategories={uniqueCategories}
+                categories={categories}
+                tags={tags}
               />
             </TabsContent>
 

@@ -1,7 +1,17 @@
 "use client";
 
 import { Dispatch, SetStateAction, useMemo, useState } from "react";
-import { Product, StoreSettings, StoreSection, SectionType } from "@/types";
+import {
+  Product,
+  StoreSettings,
+  StoreSection,
+  SectionType,
+  SectionSource,
+  Category,
+  Tag,
+} from "@/types";
+import { normalizeSectionSource, LOW_STOCK_RIBBON_RATIO } from "@/lib/sections";
+import { SYSTEM_TAG_NOVIDADES, SYSTEM_TAG_PROMOCAO } from "@/lib/productTags";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,13 +52,38 @@ interface SectionsTabProps {
   setSettings: Dispatch<SetStateAction<StoreSettings>>;
   allProducts: Product[];
   uniqueCategories: string[];
+  // Categoria/tag por ID (issue #71) — mesma fonte que ProductsTab/
+  // ProductFormDialog já usam pra cadastro, reaproveitada aqui pro
+  // seletor de vitrine "por categoria"/"por tag".
+  categories: Category[];
+  tags: Tag[];
 }
+
+// Tags de sistema com rótulo amigável pro seletor — nunca cadastradas em
+// `tags/{id}` (ver TagManager.tsx), então precisam de nome fixo aqui em vez
+// de vir de `Tag.name`.
+const SYSTEM_TAG_LABELS: Record<string, string> = {
+  [SYSTEM_TAG_NOVIDADES]: "Novidades (automática)",
+  [SYSTEM_TAG_PROMOCAO]: "Promoção (automática)",
+};
+
+const emptySource: SectionSource = { mode: "manual", productIds: [] };
+
+// Abre uma seção pra edição (nova ou existente) sempre com `source`
+// presente — normaliza dado legado (só `productIds`, sem `source`) na
+// hora de entrar no formulário, nunca ao salvar/ler em outro lugar.
+const withNormalizedSource = (section: StoreSection): StoreSection => ({
+  ...section,
+  source: normalizeSectionSource(section),
+});
 
 export function SectionsTab({
   settings,
   setSettings,
   allProducts,
   uniqueCategories,
+  categories,
+  tags,
 }: SectionsTabProps) {
   const [editingSection, setEditingSection] = useState<StoreSection | null>(
     null
@@ -113,20 +148,72 @@ export function SectionsTab({
     }));
   };
 
+  // Só faz sentido pro modo "manual" — os outros modos não têm uma lista de
+  // ids editável à mão (resolvem contra categoria/tag/regra).
   const addProductToSection = (productId: string) => {
-    if (editingSection && !editingSection.productIds.includes(productId))
-      setEditingSection({
-        ...editingSection,
-        productIds: [...editingSection.productIds, productId],
-      });
+    if (!editingSection || editingSection.source.mode !== "manual") return;
+    if (editingSection.source.productIds.includes(productId)) return;
+    setEditingSection({
+      ...editingSection,
+      source: {
+        mode: "manual",
+        productIds: [...editingSection.source.productIds, productId],
+      },
+    });
   };
   const removeProductFromSection = (productId: string) => {
-    if (editingSection)
-      setEditingSection({
-        ...editingSection,
-        productIds: editingSection.productIds.filter((id) => id !== productId),
-      });
+    if (!editingSection || editingSection.source.mode !== "manual") return;
+    setEditingSection({
+      ...editingSection,
+      source: {
+        mode: "manual",
+        productIds: editingSection.source.productIds.filter(
+          (id) => id !== productId
+        ),
+      },
+    });
   };
+
+  // Rótulo curto do badge de fonte na listagem (não usado no formulário —
+  // ali cada modo já tem seus próprios campos visíveis).
+  const sourceBadgeLabel = (section: StoreSection): string => {
+    const source = normalizeSectionSource(section);
+    switch (source.mode) {
+      case "manual":
+        return `Manual · ${source.productIds.length} produto${
+          source.productIds.length === 1 ? "" : "s"
+        }`;
+      case "category": {
+        const category = categories.find((c) => c.id === source.categoryId);
+        const sub = source.subcategoryId
+          ? category?.subcategories.find(
+              (s) => s.id === source.subcategoryId
+            )
+          : undefined;
+        return `Categoria · ${category?.name ?? "(apagada)"}${
+          sub ? ` / ${sub.name}` : ""
+        }`;
+      }
+      case "tag": {
+        const label =
+          SYSTEM_TAG_LABELS[source.tag] ??
+          tags.find((t) => t.name === source.tag)?.name ??
+          source.tag;
+        return `Tag · ${label}`;
+      }
+      case "auto":
+        return "Automático · Estoque baixo";
+      default:
+        return "";
+    }
+  };
+
+  // Variável isolada (em vez de reler `editingSection.source.mode` dentro de
+  // cada closure abaixo) pra manter o TS estreitando `source` pra
+  // `{ mode: "manual"; productIds }` de forma estável, sem depender de
+  // narrowing através de fronteira de função.
+  const manualSource =
+    editingSection?.source.mode === "manual" ? editingSection.source : null;
 
   return (
     <div className="space-y-4">
@@ -147,7 +234,7 @@ export function SectionsTab({
                 title: "Nova Seção",
                 type: "product_shelf",
                 width: "full",
-                productIds: [],
+                source: emptySource,
                 isActive: true,
               });
               setSelectedTemplate("product_shelf");
@@ -198,7 +285,15 @@ export function SectionsTab({
                     </Badge>
                   )}
                 </div>
-                <p className="text-xs text-slate-500">{section.type}</p>
+                <p className="text-xs text-slate-500 flex flex-wrap items-center gap-x-2">
+                  <span>{section.type}</span>
+                  {section.type === "product_shelf" && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>{sourceBadgeLabel(section)}</span>
+                    </>
+                  )}
+                </p>
               </div>
 
               <div className="flex items-center justify-end w-full sm:w-auto gap-2 border-t sm:border-t-0 pt-2 sm:pt-0 mt-2 sm:mt-0">
@@ -234,7 +329,7 @@ export function SectionsTab({
                   variant="ghost"
                   size="icon"
                   onClick={() => {
-                    setEditingSection(section);
+                    setEditingSection(withNormalizedSource(section));
                     setSelectedTemplate(section.type);
                     setIsSectionModalOpen(true);
                   }}
@@ -498,8 +593,239 @@ export function SectionsTab({
                 </div>
               )}
 
-              {/* Seletor simplificado de produtos para exemplo */}
-              {selectedTemplate === "product_shelf" && (
+              {/* CONFIGURAÇÃO DE FONTE DA VITRINE (issue #71) */}
+              {selectedTemplate === "product_shelf" && editingSection && (
+                <div className="flex flex-col gap-4">
+                  <div className="space-y-2">
+                    <Label className="font-bold text-slate-700">
+                      Como esta vitrine escolhe produtos
+                    </Label>
+                    <Select
+                      value={editingSection.source.mode}
+                      onValueChange={(mode: SectionSource["mode"]) => {
+                        const nextSource: SectionSource =
+                          mode === "manual"
+                            ? { mode: "manual", productIds: [] }
+                            : mode === "category"
+                            ? {
+                                mode: "category",
+                                categoryId: categories[0]?.id ?? "",
+                              }
+                            : mode === "tag"
+                            ? { mode: "tag", tag: "" }
+                            : { mode: "auto", rule: "low_stock" };
+                        setEditingSection({
+                          ...editingSection,
+                          source: nextSource,
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="w-full h-10 border-slate-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manual">
+                          Manual — escolho os produtos
+                        </SelectItem>
+                        <SelectItem value="category">
+                          Por categoria — se preenche sozinha
+                        </SelectItem>
+                        <SelectItem value="tag">
+                          Por tag — se preenche sozinha
+                        </SelectItem>
+                        <SelectItem value="auto">
+                          Automático — estoque baixo
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {editingSection.source.mode === "category" && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <div className="space-y-2">
+                        <Label className="text-xs text-slate-600">
+                          Categoria
+                        </Label>
+                        <Select
+                          value={editingSection.source.categoryId}
+                          onValueChange={(categoryId) =>
+                            editingSection.source.mode === "category" &&
+                            setEditingSection({
+                              ...editingSection,
+                              source: { mode: "category", categoryId },
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-full h-10 border-slate-200">
+                            <SelectValue placeholder="Selecione a categoria" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-slate-600">
+                          Subcategoria (opcional)
+                        </Label>
+                        <Select
+                          value={editingSection.source.subcategoryId ?? "ALL"}
+                          onValueChange={(subcategoryId) =>
+                            editingSection.source.mode === "category" &&
+                            setEditingSection({
+                              ...editingSection,
+                              source: {
+                                mode: "category",
+                                categoryId: editingSection.source.categoryId,
+                                subcategoryId:
+                                  subcategoryId === "ALL"
+                                    ? undefined
+                                    : subcategoryId,
+                              },
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-full h-10 border-slate-200">
+                            <SelectValue placeholder="Todas" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ALL">
+                              Todas as subcategorias
+                            </SelectItem>
+                            {categories
+                              .find(
+                                (c) =>
+                                  editingSection.source.mode === "category" &&
+                                  c.id === editingSection.source.categoryId
+                              )
+                              ?.subcategories.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  {editingSection.source.mode === "tag" && (
+                    <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <Label className="text-xs text-slate-600">Tag</Label>
+                      <Select
+                        value={editingSection.source.tag}
+                        onValueChange={(tag) =>
+                          setEditingSection({
+                            ...editingSection,
+                            source: { mode: "tag", tag },
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-full h-10 border-slate-200">
+                          <SelectValue placeholder="Selecione a tag" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={SYSTEM_TAG_NOVIDADES}>
+                            {SYSTEM_TAG_LABELS[SYSTEM_TAG_NOVIDADES]}
+                          </SelectItem>
+                          <SelectItem value={SYSTEM_TAG_PROMOCAO}>
+                            {SYSTEM_TAG_LABELS[SYSTEM_TAG_PROMOCAO]}
+                          </SelectItem>
+                          {tags
+                            .filter((t) => t.active)
+                            .map((t) => (
+                              <SelectItem key={t.id} value={t.name}>
+                                {t.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {editingSection.source.mode === "auto" && (
+                    <p className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      Mostra produtos do tipo Fita com o rolo aberto e pouca
+                      sobra ({Math.round(LOW_STOCK_RIBBON_RATIO * 100)}% ou
+                      menos do rolo restante). Sem campo extra — a regra é
+                      fixa.
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-600">
+                        Limite de produtos (opcional)
+                      </Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        inputMode="numeric"
+                        placeholder="Sem limite"
+                        className="h-10 border-slate-200"
+                        value={editingSection.limit ?? ""}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw === "") {
+                            setEditingSection({
+                              ...editingSection,
+                              limit: undefined,
+                            });
+                            return;
+                          }
+                          const parsed = Number(raw);
+                          // Guard explícito: entrada inválida/negativa/zero
+                          // nunca vira `limit` gravado (NaN silencioso
+                          // quebraria `slice(0, limit)` em resolveSectionProducts).
+                          if (!Number.isFinite(parsed) || parsed < 1) return;
+                          setEditingSection({
+                            ...editingSection,
+                            limit: parsed,
+                          });
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-slate-600">
+                        Ordenar por
+                      </Label>
+                      <Select
+                        value={editingSection.sort ?? "NONE"}
+                        onValueChange={(sort) =>
+                          setEditingSection({
+                            ...editingSection,
+                            sort:
+                              sort === "NONE"
+                                ? undefined
+                                : (sort as StoreSection["sort"]),
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-full h-10 border-slate-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="NONE">Padrão</SelectItem>
+                          <SelectItem value="newest">Mais novos</SelectItem>
+                          <SelectItem value="price_asc">
+                            Menor preço
+                          </SelectItem>
+                          <SelectItem value="price_desc">
+                            Maior preço
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Seletor de produtos — só existe pro modo manual */}
+              {selectedTemplate === "product_shelf" && manualSource && (
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col gap-2">
                     <Label className="font-bold text-slate-700">
@@ -567,8 +893,9 @@ export function SectionsTab({
                     <ScrollArea className="h-[350px]">
                       <div className="p-2 space-y-1">
                         {filteredSecProducts.map((p) => {
-                          const isSelected =
-                            editingSection?.productIds.includes(p.id);
+                          const isSelected = manualSource.productIds.includes(
+                            p.id
+                          );
                           return (
                             <div
                               key={p.id}
@@ -651,17 +978,19 @@ export function SectionsTab({
                     <div className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
                       Produtos na vitrine:{" "}
                       <span className="text-purple-600">
-                        {editingSection?.productIds?.length || 0}
+                        {manualSource.productIds.length}
                       </span>
                     </div>
-                    {(editingSection?.productIds?.length || 0) > 0 && (
+                    {manualSource.productIds.length > 0 && (
                       <Button
                         variant="ghost"
                         size="sm"
                         className="text-[10px] text-red-500 font-black uppercase hover:bg-red-50"
                         onClick={() =>
                           setEditingSection((prev) =>
-                            prev ? { ...prev, productIds: [] } : null
+                            prev
+                              ? { ...prev, source: { mode: "manual", productIds: [] } }
+                              : null
                           )
                         }
                       >

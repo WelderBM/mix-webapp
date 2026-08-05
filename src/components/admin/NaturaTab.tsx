@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Product, StoreSection, SectionType } from "@/types";
+import { normalizeSectionSource } from "@/lib/sections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -148,17 +149,24 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
     );
   };
 
-  // Helper for Product Selection in Modal
+  // Helper for Product Selection in Modal — NaturaTab só cria/edita seções
+  // manuais (sem UI de modo aqui, ver SectionsTab.tsx pra vitrines
+  // autodidatas por categoria/tag/estoque baixo). `normalizeSectionSource`
+  // cobre seção legada (só `productIds`, sem `source`) sem exigir migração.
   const toggleProduct = (productId: string) => {
     if (!editingSection) return;
-    const current = editingSection.productIds || [];
+    const source = normalizeSectionSource(editingSection);
+    const current = source.mode === "manual" ? source.productIds : [];
     const exists = current.includes(productId);
 
     setEditingSection({
       ...editingSection,
-      productIds: exists
-        ? current.filter((id) => id !== productId)
-        : [...current, productId],
+      source: {
+        mode: "manual",
+        productIds: exists
+          ? current.filter((id) => id !== productId)
+          : [...current, productId],
+      },
     });
   };
 
@@ -204,6 +212,15 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // NaturaTab só edita seções manuais — normaliza uma vez por render pra
+  // evitar reler `normalizeSectionSource` (e checar `mode`) em cada closure
+  // do grid de produtos abaixo.
+  const editingManualIds = (() => {
+    if (!editingSection) return [];
+    const source = normalizeSectionSource(editingSection);
+    return source.mode === "manual" ? source.productIds : [];
+  })();
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="bg-white p-6 rounded-xl shadow-sm border border-green-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -223,7 +240,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                 title: "Nova Vitrine Natura",
                 type: "product_shelf",
                 width: "full",
-                productIds: [],
+                source: { mode: "manual", productIds: [] },
                 isActive: true,
               });
               setSelectedTemplate("product_shelf");
@@ -287,7 +304,15 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                   <Badge variant="secondary" className="text-[10px]">
                     {section.type}
                   </Badge>
-                  <span>{section.productIds.length} produtos</span>
+                  <span>
+                    {(() => {
+                      const source = normalizeSectionSource(section);
+                      return source.mode === "manual"
+                        ? source.productIds.length
+                        : 0;
+                    })()}{" "}
+                    produtos
+                  </span>
                 </div>
               </div>
 
@@ -307,7 +332,10 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                   variant="ghost"
                   size="icon"
                   onClick={() => {
-                    setEditingSection(section);
+                    setEditingSection({
+                      ...section,
+                      source: normalizeSectionSource(section),
+                    });
                     setSelectedTemplate(section.type); // Sync template selection
                     setIsModalOpen(true);
                   }}
@@ -483,7 +511,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                 <div className="space-y-4 border rounded-lg p-4 bg-slate-50">
                   <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                     <Label>
-                      Selecionar Produtos ({editingSection.productIds.length})
+                      Selecionar Produtos ({editingManualIds.length})
                     </Label>
                     <div className="relative w-full sm:w-48">
                       <Search
@@ -501,7 +529,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-60 overflow-y-auto p-1">
                     {filteredProducts.slice(0, 50).map((product) => {
-                      const isSelected = editingSection.productIds.includes(
+                      const isSelected = editingManualIds.includes(
                         product.id
                       );
                       return (
