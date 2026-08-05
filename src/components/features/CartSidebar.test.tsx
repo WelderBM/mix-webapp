@@ -262,3 +262,134 @@ describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
     expect(payload.observation).toBeNull();
   });
 });
+
+describe("CartSidebar — sugestão de Retirada em CEP fora de Boa Vista (#161)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    (window as any).open = vi.fn();
+  });
+
+  async function digitarCep(cepValue: string) {
+    const cepInput = screen.getByPlaceholderText("00000-000");
+    fireEvent.change(cepInput, { target: { value: cepValue } });
+    fireEvent.blur(cepInput);
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+  }
+
+  it("CEP fora de Boa Vista mostra o botão 'Retirar na loja', além do aviso", async () => {
+    global.fetch = vi.fn(async () => ({
+      json: async () => ({
+        erro: false,
+        logradouro: "Av. Getúlio Vargas",
+        bairro: "Centro",
+        localidade: "Manaus",
+        uf: "AM",
+      }),
+    })) as any;
+
+    render(<CartSidebar />);
+    fireEvent.click(screen.getByRole("radio", { name: "Entrega" }));
+
+    await digitarCep("69000-000");
+
+    expect(
+      await screen.findByText(/Não entregamos nesse CEP/i)
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Retirar na loja" })
+    ).toBeTruthy();
+  });
+
+  it("CEP válido de Boa Vista NÃO mostra o botão de trocar pra Retirada", async () => {
+    global.fetch = vi.fn(async () => ({
+      json: async () => ({
+        erro: false,
+        logradouro: "Rua Floriano Peixoto",
+        bairro: "Centro",
+        localidade: "Boa Vista",
+        uf: "RR",
+      }),
+    })) as any;
+
+    render(<CartSidebar />);
+    fireEvent.click(screen.getByRole("radio", { name: "Entrega" }));
+
+    await digitarCep("69301-000");
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText("Nome da rua")).toHaveValue(
+        "Rua Floriano Peixoto"
+      )
+    );
+    expect(
+      screen.queryByRole("button", { name: "Retirar na loja" })
+    ).toBeNull();
+  });
+
+  it("clicar em 'Retirar na loja' muda deliveryMethod pra pickup e oculta os campos de endereço", async () => {
+    global.fetch = vi.fn(async () => ({
+      json: async () => ({
+        erro: false,
+        logradouro: "",
+        bairro: "",
+        localidade: "Manaus",
+        uf: "AM",
+      }),
+    })) as any;
+
+    render(<CartSidebar />);
+    fireEvent.click(screen.getByRole("radio", { name: "Entrega" }));
+    await digitarCep("69000-000");
+
+    const pickupButton = await screen.findByRole("button", {
+      name: "Retirar na loja",
+    });
+    fireEvent.click(pickupButton);
+
+    expect(screen.getByRole("radio", { name: "Retirar" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByRole("radio", { name: "Entrega" })).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+    // Bloco condicional de Entrega inteiro (CEP, Rua, Bairro, botão) some —
+    // é o mesmo bloco que hospedava o próprio CTA (#161).
+    expect(screen.queryByPlaceholderText("00000-000")).toBeNull();
+    expect(screen.queryByPlaceholderText("Nome da rua")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Retirar na loja" })
+    ).toBeNull();
+  });
+
+  it("nome e telefone já preenchidos sobrevivem à troca pra Retirada via CTA", async () => {
+    global.fetch = vi.fn(async () => ({
+      json: async () => ({
+        erro: false,
+        logradouro: "",
+        bairro: "",
+        localidade: "Manaus",
+        uf: "AM",
+      }),
+    })) as any;
+
+    render(<CartSidebar />);
+    fillContact();
+    fireEvent.click(screen.getByRole("radio", { name: "Entrega" }));
+    await digitarCep("69000-000");
+
+    const pickupButton = await screen.findByRole("button", {
+      name: "Retirar na loja",
+    });
+    fireEvent.click(pickupButton);
+
+    expect(screen.getByPlaceholderText("Digite seu nome")).toHaveValue(
+      "Maria Silva"
+    );
+    expect(screen.getByPlaceholderText("(99) 99999-9999")).toHaveValue(
+      "(95) 99999-8888"
+    );
+  });
+});
