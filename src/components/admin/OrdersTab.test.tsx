@@ -237,3 +237,100 @@ describe("OrdersTab — área de pedidos mais descritiva (#54)", () => {
     });
   });
 });
+
+describe("OrdersTab — ponto de referência e troco pedido (#160)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    params.delete("pedido");
+  });
+
+  function emitAndExpand(order: Order) {
+    params.set("pedido", order.id);
+    (firestore.onSnapshot as any).mockImplementation(
+      (_q: any, callback: any) => {
+        callback({
+          docChanges: () => [],
+          docs: [order].map((o) => ({ id: o.id, data: () => o })),
+        });
+        return () => {};
+      }
+    );
+    render(<OrdersTab />);
+  }
+
+  it("pedido de entrega com ponto de referência preenchido mostra o texto sem precisar abrir o WhatsApp", async () => {
+    emitAndExpand(
+      makeOrder({
+        deliveryMethod: "delivery",
+        address: "Rua das Flores, 123, Centro - Boa Vista",
+        addressDetails: {
+          street: "Rua das Flores",
+          number: "123",
+          neighborhood: "Centro",
+          city: "Boa Vista",
+          reference: "Portão azul, ao lado da padaria",
+        },
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/Portão azul, ao lado da padaria/).length
+      ).toBeGreaterThan(0);
+    });
+  });
+
+  it("pedido pago em dinheiro com troco pedido mostra o valor", async () => {
+    emitAndExpand(
+      makeOrder({
+        paymentMethod: "cash",
+        changeFor: "50",
+      })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText((_, node) =>
+          Boolean(node?.textContent?.includes("Troco para R$ 50"))
+        ).length
+      ).toBeGreaterThan(0);
+    });
+  });
+
+  it("pedido legado sem addressDetails/changeFor não quebra nem mostra lixo", async () => {
+    emitAndExpand(
+      makeOrder({
+        deliveryMethod: "delivery",
+        address: "Rua Antiga, 10 - Centro",
+        paymentMethod: "cash",
+        // addressDetails e changeFor ausentes, como pedidos gravados
+        // antes da #72 — não devem aparecer no objeto.
+      })
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Maria Silva").length).toBeGreaterThan(0);
+    });
+
+    expect(screen.queryAllByText(/Ponto de referência/).length).toBe(0);
+    expect(screen.queryAllByText(/Troco para/).length).toBe(0);
+    expect(screen.queryAllByText(/undefined/).length).toBe(0);
+  });
+
+  it("pedido de retirada não mostra bloco de ponto de referência mesmo se addressDetails vier populado por engano", async () => {
+    emitAndExpand(
+      makeOrder({
+        deliveryMethod: "pickup",
+        addressDetails: {
+          reference: "Não deveria aparecer",
+        },
+      })
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Maria Silva").length).toBeGreaterThan(0);
+    });
+
+    expect(screen.queryAllByText(/Não deveria aparecer/).length).toBe(0);
+  });
+});

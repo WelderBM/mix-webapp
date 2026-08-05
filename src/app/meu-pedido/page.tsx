@@ -389,7 +389,25 @@ export function TrackOrderContent() {
                   ? order.address
                   : "Retirada na Loja Mix Novidades - Dr. Silvio Botelho."}
               </p>
+              {order.deliveryMethod === "delivery" &&
+                order.addressDetails?.reference != null && (
+                  <p className="text-xs text-slate-500 mt-2">
+                    <span className="font-bold">Ponto de referência:</span>{" "}
+                    {order.addressDetails.reference}
+                  </p>
+                )}
             </div>
+
+            {order.paymentMethod === "cash" && order.changeFor != null && (
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                  Troco
+                </h3>
+                <p className="text-sm text-slate-600">
+                  Troco para R$ {order.changeFor}
+                </p>
+              </div>
+            )}
 
             <Button
               variant="outline"
