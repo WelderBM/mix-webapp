@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import Navbar from "./Navbar";
 
 // Mock next/navigation
@@ -265,6 +265,120 @@ describe("Navbar", () => {
       expect(screen.getByTestId("loja-menu-trigger")).toBeInTheDocument();
       expect(screen.getAllByText("Fitas").length).toBeGreaterThan(0);
       expect(screen.queryByText("Organza")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("fallback de toque nos menus hover-only (issue #163)", () => {
+    it("opens 'Fitas & Laços' via click, not just hover", () => {
+      render(<Navbar />);
+      const trigger = screen.getByTestId("nav-group-trigger-Fitas & Laços");
+      const dropdown = screen.getByTestId(
+        "nav-group-dropdown-Fitas & Laços"
+      );
+
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      // Base classes always include the CSS hover variants
+      // (`group-hover:opacity-100`); the click-driven state must add the
+      // *plain* utility class, not just a substring match on those variants.
+      expect(dropdown.classList.contains("opacity-100")).toBe(false);
+
+      fireEvent.click(trigger);
+
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(dropdown.classList.contains("opacity-100")).toBe(true);
+      expect(dropdown.classList.contains("visible")).toBe(true);
+    });
+
+    it("toggles 'Fitas & Laços' closed on a second click", () => {
+      render(<Navbar />);
+      const trigger = screen.getByTestId("nav-group-trigger-Fitas & Laços");
+
+      fireEvent.click(trigger);
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+      fireEvent.click(trigger);
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("opens 'Balões & Presentes' via click", () => {
+      render(<Navbar />);
+      const trigger = screen.getByTestId(
+        "nav-group-trigger-Balões & Presentes"
+      );
+      const dropdown = screen.getByTestId(
+        "nav-group-dropdown-Balões & Presentes"
+      );
+
+      fireEvent.click(trigger);
+
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(dropdown.classList.contains("opacity-100")).toBe(true);
+    });
+
+    it("opens the 'Loja' mega-menu via click", () => {
+      mockCategoryState.categories = [
+        { id: "fitas", name: "Fitas", order: 0, active: true, subcategories: [] },
+      ];
+      mockProductState.allProducts = [
+        { id: "p1", name: "Fita A", category: "Fitas", inStock: true, disabled: false, type: "STANDARD_ITEM", unit: "un" },
+      ];
+      render(<Navbar />);
+
+      const trigger = screen.getByTestId("loja-menu-trigger");
+      const dropdown = screen.getByTestId("loja-menu-dropdown");
+
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+      fireEvent.click(trigger);
+
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+      expect(dropdown.classList.contains("opacity-100")).toBe(true);
+    });
+
+    it("closes an open group when clicking a child item inside it", () => {
+      render(<Navbar />);
+      const trigger = screen.getByTestId("nav-group-trigger-Fitas & Laços");
+      fireEvent.click(trigger);
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+      const centralDeFitasLinks = screen.getAllByText("Central de Fitas");
+      // Desktop dropdown instance is the first match rendered in the DOM.
+      fireEvent.click(centralDeFitasLinks[0].closest("a")!);
+
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("closes an open group when clicking outside the desktop nav", () => {
+      render(<Navbar />);
+      const trigger = screen.getByTestId("nav-group-trigger-Fitas & Laços");
+      fireEvent.click(trigger);
+      expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+      fireEvent.mouseDown(document.body);
+
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("only one group is open at a time (opening 'Loja' closes 'Fitas & Laços')", () => {
+      mockCategoryState.categories = [
+        { id: "fitas", name: "Fitas", order: 0, active: true, subcategories: [] },
+      ];
+      mockProductState.allProducts = [
+        { id: "p1", name: "Fita A", category: "Fitas", inStock: true, disabled: false, type: "STANDARD_ITEM", unit: "un" },
+      ];
+      render(<Navbar />);
+
+      const fitasTrigger = screen.getByTestId(
+        "nav-group-trigger-Fitas & Laços"
+      );
+      const lojaTrigger = screen.getByTestId("loja-menu-trigger");
+
+      fireEvent.click(fitasTrigger);
+      expect(fitasTrigger).toHaveAttribute("aria-expanded", "true");
+
+      fireEvent.click(lojaTrigger);
+      expect(lojaTrigger).toHaveAttribute("aria-expanded", "true");
+      expect(fitasTrigger).toHaveAttribute("aria-expanded", "false");
     });
   });
 });

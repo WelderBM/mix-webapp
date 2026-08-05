@@ -3,7 +3,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useEffect, useState, ElementType } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Sparkles,
   Gift,
@@ -33,63 +33,41 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { useCategoryStore } from "@/store/categoryStore";
 import { useProductStore } from "@/store/productStore";
 import { getVisibleCategories } from "@/lib/categories";
-
-// Links da navegação principal (Estrutura de dados unificada)
-// Links da navegação principal (Estrutura de dados unificada)
-interface NavLinkItem {
-  href?: string;
-  label: string;
-  Icon?: ElementType;
-  isModal: boolean;
-  image?: string; // NOVO: Imagem para o menu visual móvel
-  description?: string; // NOVO: Descrição curta
-}
-
-const navLinks: NavLinkItem[] = [
-  {
-    href: "/",
-    label: "Início",
-    isModal: false,
-    image: "/nav-home.webp", // Placeholder, use SafeImage/placeholders in logic if file missing layout
-    description: "Voltar para a loja principal",
-  },
-  {
-    href: "/fitas",
-    label: "Central de Fitas",
-    isModal: false,
-    image: "/nav-fitas.webp",
-    description: "Rolos fechados e fitas por metro",
-  },
-  {
-    href: "/fitas?aba=service", // Ajustado para ir direto para o criador
-    label: "Personalizar Laço",
-    Icon: Sparkles,
-    isModal: false,
-    image: "/nav-laco.webp",
-    description: "Crie laços perfeitos para presentes",
-  },
-  {
-    href: "/baloes",
-    label: "Orçamento de Balões",
-    Icon: PartyPopper, // Importar PartyPopper
-    isModal: false,
-    image: "/nav-baloes.webp",
-    description: "Montar kit de balões personalizados",
-  },
-  {
-    label: "Monte Sua Cesta",
-    Icon: Gift,
-    isModal: true,
-    image: "/nav-cesta.webp",
-    description: "Crie presentes únicos passo a passo",
-  },
-];
+import { cn } from "@/lib/utils";
 
 const Navbar = () => {
   const openKitBuilder = useKitBuilderStore((state) => state.openKitBuilder);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const storeName = useSettingsStore((state) => state.settings.storeName);
+
+  // Fallback de toque pros 3 menus hover-only do desktop (issue #163):
+  // tablets com touch não têm `:hover`, então o CSS puro (group-hover)
+  // nunca abre esses dropdowns. `openGroup` guarda o label do menu aberto
+  // por clique/toque; o hover em desktop com mouse continua funcionando
+  // via CSS em paralelo (ver classes `group-hover:*` abaixo).
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const desktopNavRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!openGroup) return;
+
+    // Fecha ao tocar/clicar fora do menu desktop aberto.
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      if (
+        desktopNavRef.current &&
+        !desktopNavRef.current.contains(event.target as Node)
+      ) {
+        setOpenGroup(null);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [openGroup]);
 
   // Categorias (menu "Loja", issue #70): listener em tempo real, reflete
   // criar/renomear/reordenar categoria no admin sem precisar de deploy.
@@ -202,7 +180,10 @@ const Navbar = () => {
         </Link>
 
         {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center space-x-6">
+        <div
+          ref={desktopNavRef}
+          className="hidden md:flex items-center space-x-6"
+        >
           {navCategories.map((cat) => (
             <div key={cat.label} className="relative group">
               {cat.type === "link" ? (
@@ -214,16 +195,37 @@ const Navbar = () => {
                 </Link>
               ) : (
                 <>
-                  <button className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-purple-600 transition-colors group-hover:text-purple-600 py-2">
+                  <button
+                    type="button"
+                    data-testid={`nav-group-trigger-${cat.label}`}
+                    aria-expanded={openGroup === cat.label}
+                    onClick={() =>
+                      setOpenGroup((current) =>
+                        current === cat.label ? null : cat.label
+                      )
+                    }
+                    className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-purple-600 transition-colors group-hover:text-purple-600 py-2"
+                  >
                     {cat.label}
                     <ChevronDown
                       size={14}
-                      className="group-hover:rotate-180 transition-transform"
+                      className={cn(
+                        "group-hover:rotate-180 transition-transform",
+                        openGroup === cat.label && "rotate-180"
+                      )}
                     />
                   </button>
 
-                  {/* Dropdown Menu (Hover CSS) */}
-                  <div className="absolute top-full left-0 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 w-64 z-50">
+                  {/* Dropdown Menu: hover CSS pro mouse (desktop) + estado
+                      `openGroup` pro clique/toque (tablet, issue #163). */}
+                  <div
+                    data-testid={`nav-group-dropdown-${cat.label}`}
+                    className={cn(
+                      "absolute top-full left-0 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 w-64 z-50",
+                      openGroup === cat.label &&
+                        "opacity-100 visible translate-y-0"
+                    )}
+                  >
                     <div className="bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden p-2">
                       {cat.children?.map((child) => {
                         const ItemIcon = child.Icon!;
@@ -247,7 +249,10 @@ const Navbar = () => {
                           return (
                             <button
                               key={child.label}
-                              onClick={openKitBuilder}
+                              onClick={() => {
+                                openKitBuilder();
+                                setOpenGroup(null);
+                              }}
                               className="w-full text-left"
                             >
                               {content}
@@ -258,6 +263,7 @@ const Navbar = () => {
                           <Link
                             key={child.label}
                             href={child.href!}
+                            onClick={() => setOpenGroup(null)}
                             className="block"
                           >
                             {content}
@@ -277,23 +283,39 @@ const Navbar = () => {
           {visibleCategories.length > 0 && (
             <div className="relative group">
               <button
+                type="button"
                 data-testid="loja-menu-trigger"
+                aria-expanded={openGroup === "Loja"}
+                onClick={() =>
+                  setOpenGroup((current) => (current === "Loja" ? null : "Loja"))
+                }
                 className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-purple-600 transition-colors group-hover:text-purple-600 py-2"
               >
                 Loja
                 <ChevronDown
                   size={14}
-                  className="group-hover:rotate-180 transition-transform"
+                  className={cn(
+                    "group-hover:rotate-180 transition-transform",
+                    openGroup === "Loja" && "rotate-180"
+                  )}
                 />
               </button>
 
-              {/* Dropdown Mega-Menu (Hover CSS) */}
-              <div className="absolute top-full right-0 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 w-80 z-50">
+              {/* Dropdown Mega-Menu: hover CSS pro mouse (desktop) + estado
+                  `openGroup` pro clique/toque (tablet, issue #163). */}
+              <div
+                data-testid="loja-menu-dropdown"
+                className={cn(
+                  "absolute top-full right-0 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 w-80 z-50",
+                  openGroup === "Loja" && "opacity-100 visible translate-y-0"
+                )}
+              >
                 <div className="bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden p-2 max-h-[70vh] overflow-y-auto">
                   {visibleCategories.map((category) => (
                     <div key={category.id} className="p-1">
                       <Link
                         href={`/categoria/${category.id}`}
+                        onClick={() => setOpenGroup(null)}
                         className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors"
                       >
                         <div className="bg-purple-50 text-purple-600 p-2 rounded-md shrink-0">
@@ -318,6 +340,7 @@ const Navbar = () => {
                             <Link
                               key={sub.id}
                               href={`/categoria/${category.id}?sub=${sub.id}`}
+                              onClick={() => setOpenGroup(null)}
                               className="text-xs font-medium text-slate-500 hover:text-purple-600 bg-slate-50 hover:bg-purple-50 rounded-full px-2.5 py-1 transition-colors"
                             >
                               {sub.name}
