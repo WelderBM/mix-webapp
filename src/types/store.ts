@@ -96,7 +96,6 @@ export interface StoreSettings {
   theme: {
     primaryColor: string;
     secondaryColor?: string;
-    accentColor?: string;
     backgroundColor?: string;
     activeTheme: "default" | "christmas" | "mothers_day" | "valentines";
   };
