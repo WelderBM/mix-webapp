@@ -34,7 +34,10 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
 import { SafeImage } from "@/components/ui/SafeImage";
-import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
+import {
+  PRODUCT_TYPE_META,
+  getVisibleProductTypes,
+} from "@/components/ui/status-badge";
 import {
   Plus,
   ArrowUp,
@@ -101,6 +104,26 @@ export function SectionsTab({
   const [sectionToDelete, setSectionToDelete] = useState<StoreSection | null>(
     null
   );
+
+  // `StoreSettings.features.customKitEnabled` (issue #108) — enquanto
+  // desligada (padrão), some com BASE_CONTAINER/ASSEMBLED_KIT do filtro de
+  // tipo "vitrinável" abaixo, sobrando só STANDARD_ITEM (issue #165).
+  // WRAPPER/FILLER/ACCESSORY/RIBBON continuam de fora independente da flag
+  // — são componentes de kit, nunca aparecem como seção própria da home
+  // (ver comentário original no <SelectContent> mais abaixo).
+  const customKitEnabled = settings.features?.customKitEnabled ?? false;
+  const secTypeOptions = useMemo(() => {
+    const visible = getVisibleProductTypes(customKitEnabled);
+    return [
+      ...visible.filter(
+        (t) => t === "BASE_CONTAINER" || t === "STANDARD_ITEM"
+      ),
+      // ASSEMBLED_KIT nunca vem de getVisibleProductTypes (excluído sempre,
+      // tratado à parte por cada consumidor) — aqui, especificamente, ele
+      // segue a MESMA flag que os tipos-componente de kit.
+      ...(customKitEnabled ? (["ASSEMBLED_KIT"] as const) : []),
+    ];
+  }, [customKitEnabled]);
 
   const filteredSecProducts = useMemo(() => {
     return allProducts.filter((product) => {
@@ -891,10 +914,10 @@ export function SectionsTab({
                           {/* Só tipos "vitrináveis" como produto
                               independente — WRAPPER/FILLER/ACCESSORY/RIBBON
                               são componentes de kit, não aparecem como
-                              seção própria da home. */}
-                          {(
-                            ["BASE_CONTAINER", "STANDARD_ITEM", "ASSEMBLED_KIT"] as const
-                          ).map((value) => (
+                              seção própria da home. BASE_CONTAINER e
+                              ASSEMBLED_KIT também somem daqui com
+                              customKitEnabled desligado (issue #165). */}
+                          {secTypeOptions.map((value) => (
                             <SelectItem key={value} value={value}>
                               {PRODUCT_TYPE_META[value].filterLabel}
                             </SelectItem>

@@ -54,6 +54,7 @@ function baseProps(
     onSuccess: vi.fn(),
     categories,
     tags,
+    customKitEnabled: false,
     ...overrides,
   };
 }
@@ -169,6 +170,76 @@ describe("ProductFormDialog — passo Classificação (issue #69, categoria/subc
     // O aviso explicativo também aparece pro admin.
     expect(
       screen.getByText(/não existe mais na lista atual/i)
+    ).toBeInTheDocument();
+  });
+});
+
+describe("ProductFormDialog — passo Classificação (issue #165, esconder tipos exclusivos de kit)", () => {
+  // Categoria sem subcategoria (Fitas) mantém o Select de Tipo sempre no
+  // índice 1 dos comboboxes (Categoria=0, sem Subcategoria renderizada,
+  // Tipo=1) — evita acoplar o teste à quantidade de subcategorias.
+  function openTypeSelect() {
+    const trigger = screen.getAllByRole("combobox")[1];
+    fireEvent.click(trigger);
+    return trigger;
+  }
+
+  it("com customKitEnabled desligado (padrão), só oferece Item e Fita no Select de Tipo", () => {
+    render(<ProductFormDialog {...baseProps()} />);
+    openTypeSelect();
+
+    expect(screen.getByRole("option", { name: "Recheio/Item" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Fita" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Base/Cesta" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Preenchimento" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Acessório" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Saco/Embalagem" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Kit Montado" })).not.toBeInTheDocument();
+  });
+
+  it("com customKitEnabled ligado, os 4 tipos exclusivos de kit reaparecem no Select de Tipo", () => {
+    render(<ProductFormDialog {...baseProps()} customKitEnabled />);
+    openTypeSelect();
+
+    expect(screen.getByRole("option", { name: "Recheio/Item" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Fita" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Base/Cesta" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Preenchimento" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Acessório" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Saco/Embalagem" })).toBeInTheDocument();
+    // ASSEMBLED_KIT continua de fora mesmo com a flag ligada — kit nunca é
+    // criado por este formulário, só via kit_recipes/KitBuilderModal.
+    expect(screen.queryByRole("option", { name: "Kit Montado" })).not.toBeInTheDocument();
+  });
+
+  it("produto existente de tipo exclusivo de kit (FILLER) continua editável com a flag desligada, tipo antigo visível e sinalizado como fora da lista", () => {
+    const product: Product = {
+      id: "p5",
+      name: "Papel Seda",
+      type: "FILLER",
+      category: "Fitas",
+      unit: "un",
+      inStock: true,
+      disabled: false,
+      price: 5,
+    };
+    render(<ProductFormDialog {...baseProps({}, product)} initialStep="classificacao" />);
+
+    // O formulário abre normalmente, sem travar a edição do produto legado.
+    expect(screen.getByText("Editar Produto")).toBeInTheDocument();
+
+    const typeTrigger = screen.getAllByRole("combobox")[1];
+    expect(within(typeTrigger).getByText(/Preenchimento/)).toBeInTheDocument();
+
+    // O botão "Avançar" não fica desabilitado por causa do tipo órfão.
+    expect(screen.getByRole("button", { name: /Avançar/i })).not.toBeDisabled();
+
+    fireEvent.click(typeTrigger);
+    expect(
+      screen.getAllByText(/Preenchimento \(fora da lista atual\)/).length
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/tipo que não aparece mais na lista atual/i)
     ).toBeInTheDocument();
   });
 });

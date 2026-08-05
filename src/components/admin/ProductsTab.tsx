@@ -38,6 +38,7 @@ import { SafeImage } from "@/components/ui/SafeImage";
 import {
   ProductTypeBadge,
   PRODUCT_TYPE_META,
+  getVisibleProductTypes,
 } from "@/components/ui/status-badge";
 import {
   Plus,
@@ -53,6 +54,11 @@ interface ProductsTabProps {
   categories: Category[];
   tags: Tag[];
   onEditProduct: (product: Product | null) => void;
+  // `StoreSettings.features.customKitEnabled` (issue #108) — enquanto
+  // desligada (padrão), esconde os 4 tipos exclusivos de kit do filtro de
+  // Tipo (issue #165). Produto existente desses tipos continua listado
+  // normalmente, só não é uma opção de filtro nova.
+  customKitEnabled: boolean;
 }
 
 export function ProductsTab({
@@ -60,6 +66,7 @@ export function ProductsTab({
   categories,
   tags,
   onEditProduct,
+  customKitEnabled,
 }: ProductsTabProps) {
   const searchParams = useSearchParams();
   const patchParams = useSearchParamsPatch();
@@ -116,6 +123,11 @@ export function ProductsTab({
     });
   }, [allProducts, searchTerm, typeFilter, categoryFilter]);
 
+  const visibleTypeFilterOptions = useMemo(
+    () => getVisibleProductTypes(customKitEnabled),
+    [customKitEnabled]
+  );
+
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
       {/* BARRA DE FERRAMENTAS */}
@@ -143,9 +155,9 @@ export function ProductsTab({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">Todos os Tipos</SelectItem>
-                {Object.entries(PRODUCT_TYPE_META).map(([value, meta]) => (
+                {visibleTypeFilterOptions.map((value) => (
                   <SelectItem key={value} value={value}>
-                    {meta.filterLabel}
+                    {PRODUCT_TYPE_META[value].filterLabel}
                   </SelectItem>
                 ))}
               </SelectContent>
