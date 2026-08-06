@@ -1,4 +1,4 @@
-// GERADO por scripts/export-production-catalog.ts em 2026-08-04T00:11:20.336Z
+// GERADO por scripts/export-production-catalog.ts em 2026-08-06T15:42:35.618Z
 // Projeto de origem: mix-webapp
 // Não editar à mão — rode o script de novo pra atualizar. Coleção: products.
 
@@ -223,7 +223,7 @@ export const products: Product[] = [
       }
     ],
     "isAvailableForCustomBow": false,
-    "rollPrice": 0
+    "rollPrice": 40
   },
   {
     "id": "KMt39QeCkhEAFXC0WEcR",
@@ -498,11 +498,11 @@ export const products: Product[] = [
     "name": "Fita Maxi Albano 03D AZUL",
     "unit": "m",
     "isAvailableForCustomBow": true,
-    "rollPrice": 0,
     "imageUrl": "https://firebasestorage.googleapis.com/v0/b/mix-webapp.firebasestorage.app/o/products%2F1768620417580-download%20(3).jpg?alt=media&token=9058e050-a732-43ac-808a-194c73b3fe29",
     "description": "",
     "inStock": true,
-    "category": "Fitas"
+    "category": "Fitas",
+    "rollPrice": 40
   },
   {
     "id": "rQVlDMWRUEBCcsUmjhnh",
@@ -520,7 +520,6 @@ export const products: Product[] = [
       "remainingMeters": 100,
       "totalRollMeters": 100
     },
-    "rollPrice": 0,
     "isAvailableForCustomBow": false,
     "images": [
       {
@@ -529,7 +528,8 @@ export const products: Product[] = [
         "url": "https://firebasestorage.googleapis.com/v0/b/mix-webapp.firebasestorage.app/o/products%2F1768619852261-images.jpg?alt=media&token=2ab6f29b-593a-4993-8ff0-2eba20be643c",
         "label": ""
       }
-    ]
+    ],
+    "rollPrice": 40
   },
   {
     "id": "vEbdK34e4LiNxz3gk7OA",
@@ -572,7 +572,6 @@ export const products: Product[] = [
       "remainingMeters": 100,
       "totalRollMeters": 100
     },
-    "rollPrice": 0,
     "images": [
       {
         "label": "",
@@ -581,7 +580,8 @@ export const products: Product[] = [
         "id": "ef17f118-673d-4dce-b288-139984d665b0"
       }
     ],
-    "isAvailableForCustomBow": false
+    "isAvailableForCustomBow": false,
+    "rollPrice": 40
   },
   {
     "id": "yLZ2easGiMYPYmbsxhiH",
