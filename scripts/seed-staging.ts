@@ -3,8 +3,13 @@
 // montado, pedido sem paymentTiming legado) sem depender de dado que "já
 // esteja lá por acaso" ou de recriar tudo na mão pela UI do admin.
 //
-// Rodar: npm run seed:staging          (upsert — seguro rodar de novo)
-//        npm run seed:staging -- --wipe (apaga o que é seed antes de inserir)
+// Rodar: npm run seed:staging                     (upsert — seguro rodar de novo)
+//        npm run seed:staging -- --wipe            (apaga o que é seed antes de inserir)
+//        npm run seed:staging -- --from-production (usa o esqueleto REAL de
+//          categories/products/kit_recipes/settings exportado de produção
+//          via scripts/export-production-catalog.ts, em vez do dado
+//          sintético abaixo — orders continua SEMPRE sintético, mesmo com
+//          este flag; PII de cliente nunca sai de produção)
 //
 // MANUTENÇÃO — 3 formas de este script quebrar/ficar cego, de propósito:
 //   1. Tipo alterado em src/types/* → tsc acusa aqui (o seed importa os
@@ -40,18 +45,29 @@ import { initializeApp, cert, getApps } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
 import { env } from "../src/lib/env";
-import type { ProductType } from "../src/types/product";
+import type { Category } from "../src/types/category";
+import type { Product, ProductType } from "../src/types/product";
+import type { KitRecipe } from "../src/types/kit";
+import type { StoreSettings } from "../src/types/store";
+import type { BalloonConfig } from "../src/types/balloon";
 import type { OrderStatus } from "../src/types/order";
 
-import { categories } from "./seed-data/categories";
-import { generalSettings, balloonConfig } from "./seed-data/settings";
-import { products } from "./seed-data/products";
-import { kitRecipes } from "./seed-data/kitRecipes";
 import { orders } from "./seed-data/orders";
 import { assertFidelityRegistryValid } from "./seed-data/fidelity";
 
 const SEED_PREFIX = "seed-";
 const WIPE = process.argv.includes("--wipe");
+// `orders` continua SEMPRE sintético (ver export-production-catalog.ts —
+// PII de cliente não sai de produção). Este flag só troca a fonte de
+// categories/products/kit_recipes/settings pelo esqueleto real exportado
+// de produção em scripts/seed-data/from-production/.
+const FROM_PRODUCTION = process.argv.includes("--from-production");
+
+let categories: Category[];
+let products: Product[];
+let kitRecipes: KitRecipe[];
+let generalSettings: StoreSettings;
+let balloonConfig: BalloonConfig;
 
 // ── Guard de segurança (inegociável) ────────────────────────────────────
 
@@ -308,6 +324,65 @@ async function validate() {
   console.log(`\n✅ Invariantes OK: ASSEMBLED_KIT.recipeId e StoreSection manual resolvem.`);
 }
 
+// ── Fonte do dataset: sintético (default) ou esqueleto real de produção ────
+// (scripts/export-production-catalog.ts) — `orders` fica de fora dos dois
+// jeitos aqui embaixo, sempre sintético, importado uma vez lá em cima.
+
+async function loadSeedSource() {
+  if (FROM_PRODUCTION) {
+    let fromProd: {
+      categories: typeof import("./seed-data/from-production/categories");
+      products: typeof import("./seed-data/from-production/products");
+      kitRecipes: typeof import("./seed-data/from-production/kitRecipes");
+      settings: typeof import("./seed-data/from-production/settings");
+    };
+    try {
+      fromProd = {
+        categories: await import("./seed-data/from-production/categories"),
+        products: await import("./seed-data/from-production/products"),
+        kitRecipes: await import("./seed-data/from-production/kitRecipes"),
+        settings: await import("./seed-data/from-production/settings"),
+      };
+    } catch (err) {
+      abort(
+        `Não consegui importar scripts/seed-data/from-production/* (${
+          (err as Error).message
+        }). Rode "npm run export:production-catalog" primeiro (precisa da ` +
+          `service account de PRODUÇÃO em FIREBASE_SERVICE_ACCOUNT_KEY_PATH).`
+      );
+    }
+    categories = fromProd.categories.categories;
+    products = fromProd.products.products;
+    kitRecipes = fromProd.kitRecipes.kitRecipes;
+    if (!fromProd.settings.generalSettings || !fromProd.settings.balloonConfig) {
+      abort(
+        `O esqueleto exportado não tem settings/general e/ou settings/balloons ` +
+          `(algum dos dois não existe em produção, ou o export está desatualizado ` +
+          `— rode "npm run export:production-catalog" de novo).`
+      );
+    }
+    generalSettings = fromProd.settings.generalSettings;
+    balloonConfig = fromProd.settings.balloonConfig;
+    console.log(
+      "📦 Fonte: esqueleto REAL exportado de produção (scripts/seed-data/from-production/). " +
+        "orders continua sintético (scripts/seed-data/orders.ts) — PII de cliente não sai de produção."
+    );
+  } else {
+    const [cat, prod, kits, settings] = await Promise.all([
+      import("./seed-data/categories"),
+      import("./seed-data/products"),
+      import("./seed-data/kitRecipes"),
+      import("./seed-data/settings"),
+    ]);
+    categories = cat.categories;
+    products = prod.products;
+    kitRecipes = kits.kitRecipes;
+    generalSettings = settings.generalSettings;
+    balloonConfig = settings.balloonConfig;
+    console.log("📦 Fonte: dado sintético de teste (scripts/seed-data/).");
+  }
+}
+
 // ── main ────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -316,6 +391,8 @@ async function main() {
       WIPE ? " (com --wipe)" : ""
     }\n`
   );
+
+  await loadSeedSource();
 
   if (WIPE) {
     console.log("🗑️  Limpando docs seed-* existentes...");
