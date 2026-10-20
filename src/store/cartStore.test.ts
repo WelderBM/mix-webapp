@@ -801,4 +801,39 @@ describe("useCartStore", () => {
       expect(items).toHaveLength(0);
     });
   });
+
+  describe("reidratação do localStorage", () => {
+    it("descarta item salvo por versão antiga sem preço efetivo, sem lançar", async () => {
+      mockStorage["cart-storage"] = JSON.stringify({
+        state: {
+          items: [
+            {
+              cartId: "legacy",
+              type: "SIMPLE",
+              quantity: 1,
+              product: { id: "p2", name: "Fita", type: "RIBBON", category: "Fitas", unit: "rolo", inStock: true },
+            },
+            {
+              cartId: "ok",
+              type: "SIMPLE",
+              quantity: 2,
+              product: { id: "p1", name: "Com preço", price: 10, type: "STANDARD_ITEM", category: "x", unit: "un", inStock: true },
+            },
+          ],
+        },
+        version: 0,
+      });
+
+      // Instância nova do módulo: o store de cima foi criado antes do
+      // stub de localStorage existir (imports sobem), então não persiste.
+      vi.resetModules();
+      const { useCartStore: freshStore } = await import("./cartStore");
+      await freshStore.persist.rehydrate();
+
+      const { items, getCartTotal } = freshStore.getState();
+      expect(items.map((i) => i.cartId)).toEqual(["ok"]);
+      expect(getCartTotal()).toBe(20);
+      delete mockStorage["cart-storage"];
+    });
+  });
 });
