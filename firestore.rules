@@ -47,11 +47,14 @@ service cloud.firestore {
     //     request.resource.data.customerPhone, mas request.resource só
     //     existe em escritas — em leitura, a condição sempre falhava e
     //     bloqueava o rastreamento anônimo do próprio cliente.)
+    //     Só `get` é público: `list` fica restrito ao admin, senão qualquer
+    //     um consegue listar a coleção inteira (nome/telefone/endereço).
     //   - Atualizar/Deletar: somente admin
     // ─────────────────────────────────────────────────────────────────────
     match /orders/{orderId} {
       allow create: if true;
-      allow read:   if true;
+      allow get:    if true;
+      allow list:   if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
