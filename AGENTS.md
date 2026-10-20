@@ -39,6 +39,8 @@ As skills do repositório estão centralizadas no ambiente global (`~/.agents/sk
 | Check da Vercel vermelho / falha de deploy | `deploy-vercel` |
 | Início de sessão de planejamento ou backlog extenso | `varredura-de-saude` |
 | Alteração em rendering, imagens, cache ou bundle | `next-performance-guide` |
+| Despachar várias issues em paralelo como agent master | `orquestracao-multi-branch` |
+| Auditar PRs fechados contra o estado atual do código | `engenharia-reversa-pr` |
 
 ---
 

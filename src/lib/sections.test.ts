@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   normalizeSectionSource,
   resolveSectionProducts,
@@ -123,6 +123,16 @@ describe("isLowStock", () => {
 });
 
 describe("resolveSectionProducts", () => {
+  // resolveSectionProducts usa a data real (new Date()) pra janela de
+  // "novidades" — congela o relógio em NOW pra fixture não envelhecer.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("modo manual preserva a ordem de curadoria de `productIds`", () => {
     const p1 = makeProduct({ id: "1" });
     const p2 = makeProduct({ id: "2" });
