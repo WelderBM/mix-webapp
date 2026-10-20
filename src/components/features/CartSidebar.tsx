@@ -22,7 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trash2, ShoppingCart, MessageCircle, Loader2 } from "lucide-react";
+import {
+  Trash2,
+  ShoppingCart,
+  MessageCircle,
+  Loader2,
+  AlertTriangle,
+} from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -30,6 +36,12 @@ import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { getProductImage } from "@/lib/image-utils";
+import {
+  getCartItemTotal,
+  getCartItemUnavailableReason,
+  sumCartItemTotals,
+} from "@/lib/cart-pricing";
+import { isSealedRibbonRoll, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 import { SafeImage } from "../ui/SafeImage";
 import { OrderSuccessModal } from "@/components/features/OrderSuccessModal";
 
@@ -69,7 +81,8 @@ export function CartSidebar() {
     getCartTotal,
     clearCart,
   } = useCartStore();
-  const { getProductById } = useProductStore();
+  const { getProductById, allProducts, isLoading: isLoadingProducts } =
+    useProductStore();
 
   const [isMounted, setIsMounted] = useState(false);
 
@@ -85,6 +98,7 @@ export function CartSidebar() {
   const [street, setStreet] = useState("");
   const [number, setNumber] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
+  const [addressReference, setAddressReference] = useState("");
   const [city, setCity] = useState("Boa Vista");
   const [uf, setUf] = useState("RR");
   const [isInvalidLocation, setIsInvalidLocation] = useState(false);
@@ -94,6 +108,7 @@ export function CartSidebar() {
     useState<DeliveryMethod>("pickup");
   const [paymentTiming, setPaymentTiming] = useState<PaymentTiming>("prepaid");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
+  const [cashChangeFor, setCashChangeFor] = useState("");
 
   const [pixPaymentDestination, setPixPaymentDestination] = useState<
     "store" | "carrier"
@@ -102,6 +117,24 @@ export function CartSidebar() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [observation, setObservation] = useState("");
+
+  // "Para quem paga" só faz sentido em Entrega (moto-táxi). Na Retirada
+  // esse valor fica oculto na UI e precisa ficar travado em "store" pra não
+  // vazar um "carrier" residual (selecionado antes de voltar pra Retirar)
+  // nem na validação nem na mensagem de WhatsApp (#72).
+  useEffect(() => {
+    if (deliveryMethod === "pickup" && pixPaymentDestination !== "store") {
+      setPixPaymentDestination("store");
+    }
+  }, [deliveryMethod, pixPaymentDestination]);
+
+  // "Troco para quanto?" só existe quando o método é Dinheiro — limpa o
+  // valor ao trocar de método pra não sobrar residual escondido no payload.
+  useEffect(() => {
+    if (paymentMethod !== "cash" && cashChangeFor !== "") {
+      setCashChangeFor("");
+    }
+  }, [paymentMethod, cashChangeFor]);
 
   const handleCepBlur = async () => {
     const cleanCep = cep.replace(/\D/g, "");
@@ -143,6 +176,20 @@ export function CartSidebar() {
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
+
+    // Carrinho pode ter sobrevivido de uma sessão anterior (persiste em
+    // localStorage) com um item que ficou indisponível nesse meio tempo —
+    // barra aqui, antes de gravar o pedido, em vez de deixar estourar depois
+    // do addDoc (pedido já criado, mensagem de WhatsApp que quebra no meio).
+    if (!isLoadingProducts) {
+      const reason = items
+        .map((item) => getCartItemUnavailableReason(item, allProducts))
+        .find((r) => r != null);
+      if (reason) {
+        toast.error(`${reason} Remova esse item para continuar.`);
+        return;
+      }
+    }
 
     if (!customerName.trim()) {
       toast.warning("Por favor, digite seu nome.");
@@ -194,13 +241,24 @@ export function CartSidebar() {
             ? {
                 cep,
                 street,
+                number,
+                neighborhood,
                 city,
+                reference: addressReference.trim() || null,
               }
             : null,
         paymentMethod,
         paymentTiming,
+        // "Para quem paga" só existe em Entrega — na Retirada o estado já
+        // fica travado em "store" pelo effect acima, mas o guard aqui é
+        // explícito pra não depender só disso.
         pixPaymentDestination:
-          paymentMethod === "pix" ? pixPaymentDestination : null,
+          paymentMethod === "pix" && deliveryMethod === "delivery"
+            ? pixPaymentDestination
+            : null,
+        // "Troco para quanto" só existe quando o método é Dinheiro.
+        changeFor:
+          paymentMethod === "cash" ? cashChangeFor.trim() || null : null,
         observation: observation.trim() || null,
       };
 
@@ -231,14 +289,13 @@ export function CartSidebar() {
         }
 
         let variation = "";
-        if (item.selectedImageLabel) {
+        if (item.selectedVariant) {
+          variation = ` (${item.selectedVariant.type}: ${item.selectedVariant.name})`;
+        } else if (item.selectedImageLabel) {
           variation = ` (${item.selectedImageLabel})`;
         }
 
-        const itemPrice =
-          item.kitTotalAmount && item.kitTotalAmount > 0
-            ? item.kitTotalAmount
-            : (item.product?.price || 0) * item.quantity;
+        const itemPrice = getCartItemTotal(item);
 
         // Formato: 1x Nome (Variação) - R$ 10,00
         message += `${item.quantity}x ${name}${variation} - ${formatCurrency(
@@ -256,10 +313,16 @@ export function CartSidebar() {
           : "Dinheiro"
       }`;
 
-      if (paymentMethod === "pix") {
+      // Destino do PIX só é relevante em Entrega (loja x moto-táxi); na
+      // Retirada é sempre a loja e não precisa aparecer na mensagem.
+      if (paymentMethod === "pix" && deliveryMethod === "delivery") {
         message += ` (Destino: ${
           pixPaymentDestination === "store" ? "Loja" : "Moto Táxi"
         })`;
+      }
+
+      if (paymentMethod === "cash" && cashChangeFor.trim()) {
+        message += ` (Troco para R$ ${cashChangeFor.trim()})`;
       }
 
       message += `\nEntrega: ${
@@ -268,6 +331,9 @@ export function CartSidebar() {
 
       if (deliveryMethod === "delivery") {
         message += `Endereço: ${street}, ${number} - ${neighborhood}\n`;
+        if (addressReference.trim()) {
+          message += `Referência: ${addressReference.trim()}\n`;
+        }
       }
 
       if (observation.trim()) {
@@ -326,13 +392,21 @@ export function CartSidebar() {
                 <div className="p-6 space-y-4 pb-28">
                   {items.map((item) => {
                     const imageUrl = getProductImage(
-                      item.product?.imageUrl,
+                      item.selectedVariant?.imageUrl ||
+                        item.selectedImageUrl ||
+                        item.product?.imageUrl,
                       item.product?.type || "DEFAULT"
                     );
-                    const itemPrice =
-                      item.kitTotalAmount && item.kitTotalAmount > 0
-                        ? item.kitTotalAmount
-                        : (item.product?.price || 0) * item.quantity;
+                    const unavailableReason = isLoadingProducts
+                      ? null
+                      : getCartItemUnavailableReason(item, allProducts);
+                    const itemPrice = unavailableReason
+                      ? 0
+                      : getCartItemTotal(item);
+
+                    const isRibbon = item.product?.type === "RIBBON";
+                    const isSealed = isSealedRibbonRoll(item.product);
+                    const unitLabel = item.product ? getEffectiveUnitLabel(item.product) : "un";
 
                     return (
                       <div
@@ -345,10 +419,23 @@ export function CartSidebar() {
                             name={item.product?.name}
                             alt=""
                             fill
+                            sizes="64px"
                             className="object-cover"
                           />
+                          {isRibbon && (
+                            <div
+                              className={cn(
+                                "absolute bottom-0 inset-x-0 py-0.5 text-[9px] font-bold text-center backdrop-blur-xs truncate leading-none z-10",
+                                isSealed
+                                  ? "bg-amber-950/80 text-amber-200"
+                                  : "bg-emerald-950/80 text-emerald-200"
+                              )}
+                            >
+                              {isSealed ? "Rolo Fechado" : "Fita Aberta"}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex-1 min-w-0 pr-6">
+                        <div className="flex-1 min-w-0 pr-9">
                           <h4 className="font-medium text-slate-800 text-sm line-clamp-2">
                             {item.type === "CUSTOM_BALLOON" &&
                             item.balloonDetails
@@ -357,10 +444,31 @@ export function CartSidebar() {
                               ? `Kit: ${item.kitName}`
                               : item.product?.name}
                           </h4>
-                          {item.selectedImageLabel && (
-                            <p className="text-xs font-medium text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
-                              Opção: {item.selectedImageLabel}
+                          {isRibbon && (
+                            <p
+                              className={cn(
+                                "text-xs font-semibold px-1.5 py-0.5 rounded-md inline-block mt-0.5",
+                                isSealed
+                                  ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                  : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                              )}
+                            >
+                              {isSealed
+                                ? `Rolo fechado (${item.product?.ribbonInventory?.totalRollMeters || 0}m)`
+                                : "Fita aberta (por metro)"}
                             </p>
+                          )}
+                          {item.selectedVariant ? (
+                            <p className="text-xs font-medium text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
+                              {item.selectedVariant.type}:{" "}
+                              {item.selectedVariant.name}
+                            </p>
+                          ) : (
+                            item.selectedImageLabel && (
+                              <p className="text-xs font-medium text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
+                                Opção: {item.selectedImageLabel}
+                              </p>
+                            )
                           )}
                           {item.type === "CUSTOM_BALLOON" &&
                             item.balloonDetails && (
@@ -369,9 +477,17 @@ export function CartSidebar() {
                                 {item.balloonDetails.unitsPerPackage} un/pac
                               </p>
                             )}
+                          {unavailableReason && (
+                            <p className="flex items-center gap-1 text-xs font-medium text-red-600 mt-2">
+                              <AlertTriangle size={13} className="shrink-0" />
+                              {unavailableReason} Remova pra continuar.
+                            </p>
+                          )}
                           <div className="flex items-center justify-between mt-2">
                             <p className="font-bold text-sm text-primary">
-                              {formatCurrency(itemPrice)}
+                              {unavailableReason
+                                ? "—"
+                                : formatCurrency(itemPrice)}
                             </p>
                             <div className="flex items-center gap-2">
                               {(item.type === "SIMPLE" ||
@@ -384,7 +500,7 @@ export function CartSidebar() {
                                         item.quantity - 1
                                       )
                                     }
-                                    className="px-2 hover:bg-slate-100"
+                                    className="flex h-9 w-9 items-center justify-center hover:bg-slate-100"
                                   >
                                     -
                                   </button>
@@ -398,7 +514,7 @@ export function CartSidebar() {
                                         item.quantity + 1
                                       )
                                     }
-                                    className="px-2 hover:bg-slate-100"
+                                    className="flex h-9 w-9 items-center justify-center hover:bg-slate-100"
                                   >
                                     +
                                   </button>
@@ -409,7 +525,7 @@ export function CartSidebar() {
                         </div>
                         <button
                           onClick={() => removeItem(item.cartId)}
-                          className="absolute top-2 right-2 text-slate-300 hover:text-red-500"
+                          className="absolute top-0 right-0 flex h-9 w-9 items-center justify-center text-slate-300 hover:text-red-500"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -449,54 +565,230 @@ export function CartSidebar() {
                       placeholder="(99) 99999-9999"
                       className="bg-white"
                       maxLength={15}
+                      type="tel"
+                      inputMode="numeric"
                     />
                   </div>
-                  <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                    <Label className="text-blue-800">
-                      Para quem você vai realizar o pagamento?
-                    </Label>
-                    <RadioGroup
-                      value={pixPaymentDestination}
-                      onValueChange={(v: "store" | "carrier") => {
-                        setPixPaymentDestination(v);
-                        if (
-                          v === "carrier" &&
-                          paymentMethod !== "cash" &&
-                          paymentMethod !== "pix"
-                        ) {
-                          setPaymentMethod("pix");
-                        }
-                      }}
-                      className="flex flex-col gap-2 mt-1"
+
+                  {/* Decisão-mãe: Retirar x Entrega decide se endereço e
+                      "para quem paga" existem na tela. Sobe pra logo após
+                      o contato e vira toggle segmentado (pill) — é a escolha
+                      binária mais tocada da tela, alvo de toque grande (#72). */}
+                  <div className="space-y-2">
+                    <Label>Entrega</Label>
+                    <div
+                      role="radiogroup"
+                      aria-label="Forma de entrega"
+                      className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-lg"
                     >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="store"
-                          id="pay-store"
-                          className="text-blue-600 border-blue-400"
-                        />
-                        <Label
-                          htmlFor="pay-store"
-                          className="font-normal cursor-pointer"
-                        >
-                          Pagar para a <b>Loja</b> (Chave da Loja)
-                        </Label>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={deliveryMethod === "pickup"}
+                        onClick={() => setDeliveryMethod("pickup")}
+                        className={cn(
+                          "h-11 rounded-md text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1",
+                          deliveryMethod === "pickup"
+                            ? "bg-white text-purple-700 shadow-sm"
+                            : "text-slate-500 hover:text-slate-700"
+                        )}
+                      >
+                        Retirar
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={deliveryMethod === "delivery"}
+                        onClick={() => setDeliveryMethod("delivery")}
+                        className={cn(
+                          "h-11 rounded-md text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1",
+                          deliveryMethod === "delivery"
+                            ? "bg-white text-purple-700 shadow-sm"
+                            : "text-slate-500 hover:text-slate-700"
+                        )}
+                      >
+                        Entrega
+                      </button>
+                    </div>
+
+                    {deliveryMethod === "delivery" && (
+                      <div
+                        className={cn(
+                          "space-y-3 mt-3 p-3 rounded-lg border transition-colors",
+                          isInvalidLocation
+                            ? "bg-red-50 border-red-200"
+                            : "bg-slate-50 border-slate-200"
+                        )}
+                      >
+                        {isInvalidLocation && (
+                          <div className="p-3 mb-2 space-y-2 text-xs text-red-700 bg-red-100 rounded border border-red-200 text-center">
+                            <p className="font-medium">
+                              Não entregamos nesse CEP, mas você pode retirar
+                              na loja.
+                            </p>
+                            <Button
+                              type="button"
+                              onClick={() => setDeliveryMethod("pickup")}
+                              className="h-11 w-full bg-white text-red-700 border border-red-300 hover:bg-red-50 font-semibold shadow-none"
+                              variant="outline"
+                            >
+                              Retirar na loja
+                            </Button>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="col-span-1">
+                            <Label className="text-xs">CEP</Label>
+                            <div className="relative">
+                              <Input
+                                value={cep}
+                                onChange={(e) => {
+                                  let value = e.target.value.replace(/\D/g, "");
+                                  if (value.length > 8)
+                                    value = value.slice(0, 8);
+                                  if (value.length > 5) {
+                                    value = `${value.slice(0, 5)}-${value.slice(
+                                      5
+                                    )}`;
+                                  }
+                                  setCep(value);
+                                }}
+                                onBlur={handleCepBlur}
+                                placeholder="00000-000"
+                                className={cn(
+                                  "bg-white h-11",
+                                  isInvalidLocation &&
+                                    "border-red-300 ring-offset-red-100"
+                                )}
+                                maxLength={9}
+                                inputMode="numeric"
+                              />
+                              {isLoadingCep && (
+                                <Loader2 className="absolute right-2 top-3.5 h-4 w-4 animate-spin text-slate-400" />
+                              )}
+                            </div>
+                          </div>
+                          <div className="col-span-1">
+                            <Label className="text-xs">Número</Label>
+                            <Input
+                              value={number}
+                              onChange={(e) => setNumber(e.target.value)}
+                              placeholder="Nº"
+                              disabled={isInvalidLocation}
+                              className="bg-white h-11"
+                              inputMode="numeric"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-xs">Rua</Label>
+                          <Input
+                            value={street}
+                            onChange={(e) => setStreet(e.target.value)}
+                            placeholder="Nome da rua"
+                            disabled={isInvalidLocation}
+                            className="bg-white h-11"
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-xs">Bairro</Label>
+                          <Input
+                            value={neighborhood}
+                            onChange={(e) => setNeighborhood(e.target.value)}
+                            placeholder="Bairro"
+                            disabled={isInvalidLocation}
+                            className="bg-white h-11"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Cidade (Fixo)</Label>
+                          <Input
+                            value={`${city} - ${uf}`}
+                            readOnly
+                            className={cn(
+                              "h-11 bg-slate-100 text-slate-500 cursor-not-allowed",
+                              isInvalidLocation && "text-red-500 font-medium"
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">
+                            Ponto de referência (Opcional)
+                          </Label>
+                          <Input
+                            value={addressReference}
+                            onChange={(e) =>
+                              setAddressReference(e.target.value)
+                            }
+                            placeholder="Ex: Perto do mercado, portão azul..."
+                            disabled={isInvalidLocation}
+                            className="bg-white h-11"
+                          />
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="carrier"
-                          id="pay-carrier"
-                          className="text-blue-600 border-blue-400"
-                        />
-                        <Label
-                          htmlFor="pay-carrier"
-                          className="font-normal cursor-pointer"
-                        >
-                          Pagar para o <b>Moto Táxi</b> (Na entrega)
-                        </Label>
-                      </div>
-                    </RadioGroup>
+                    )}
                   </div>
+
+                  {/* Só existe em Entrega — na Retirada não há moto-táxi,
+                      então a pergunta é ruído puro e o valor fica travado
+                      internamente em "store" (ver effect acima, #72).
+                      Vem ANTES de "Forma de Pagamento" porque é a decisão
+                      que restringe a outra: Moto Táxi só aceita PIX ou
+                      Dinheiro, então quem paga precisa ser escolhido
+                      primeiro pra essa restrição fazer sentido na tela
+                      (feedback de revisão do PR #148). */}
+                  {deliveryMethod === "delivery" && (
+                    <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                      <Label className="text-blue-800">
+                        Para quem você vai realizar o pagamento?
+                      </Label>
+                      <RadioGroup
+                        value={pixPaymentDestination}
+                        onValueChange={(v: "store" | "carrier") => {
+                          setPixPaymentDestination(v);
+                          if (
+                            v === "carrier" &&
+                            paymentMethod !== "cash" &&
+                            paymentMethod !== "pix"
+                          ) {
+                            setPaymentMethod("pix");
+                          }
+                        }}
+                        className="flex flex-col gap-2 mt-1"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="store"
+                            id="pay-store"
+                            className="text-blue-600 border-blue-400"
+                          />
+                          <Label
+                            htmlFor="pay-store"
+                            className="font-normal cursor-pointer"
+                          >
+                            Pagar para a <b>Loja</b> (Chave da Loja)
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="carrier"
+                            id="pay-carrier"
+                            className="text-blue-600 border-blue-400"
+                          />
+                          <Label
+                            htmlFor="pay-carrier"
+                            className="font-normal cursor-pointer"
+                          >
+                            Pagar para o <b>Moto Táxi</b> (Na entrega)
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label>Forma de Pagamento</Label>
                     <Select
@@ -528,123 +820,26 @@ export function CartSidebar() {
                         * Moto Táxi aceita apenas <b>PIX</b> ou <b>Dinheiro</b>.
                       </p>
                     )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Entrega</Label>
-                    <RadioGroup
-                      value={deliveryMethod}
-                      onValueChange={(v: DeliveryMethod) =>
-                        setDeliveryMethod(v)
-                      }
-                      className="flex gap-4"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="pickup" id="pickup" />
-                        <Label htmlFor="pickup">Retirar</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="delivery" id="delivery" />
-                        <Label htmlFor="delivery">Entrega</Label>
-                      </div>
-                    </RadioGroup>
-                    {deliveryMethod === "delivery" && (
-                      <div
-                        className={cn(
-                          "space-y-3 mt-3 p-3 rounded-lg border transition-colors",
-                          isInvalidLocation
-                            ? "bg-red-50 border-red-200"
-                            : "bg-slate-50 border-slate-200"
-                        )}
-                      >
-                        {isInvalidLocation && (
-                          <div className="p-2 mb-2 text-xs text-red-600 bg-red-100 rounded border border-red-200 font-medium text-center">
-                            ⚠️ Entregas indisponíveis para esta região. <br />{" "}
-                            Apenas Boa Vista - RR.
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="col-span-1">
-                            <Label className="text-xs">CEP</Label>
-                            <div className="relative">
-                              <Input
-                                value={cep}
-                                onChange={(e) => {
-                                  let value = e.target.value.replace(/\D/g, "");
-                                  if (value.length > 8)
-                                    value = value.slice(0, 8);
-                                  if (value.length > 5) {
-                                    value = `${value.slice(0, 5)}-${value.slice(
-                                      5
-                                    )}`;
-                                  }
-                                  setCep(value);
-                                }}
-                                onBlur={handleCepBlur}
-                                placeholder="00000-000"
-                                className={cn(
-                                  "bg-white h-9",
-                                  isInvalidLocation &&
-                                    "border-red-300 ring-offset-red-100"
-                                )}
-                                maxLength={9}
-                              />
-                              {isLoadingCep && (
-                                <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-slate-400" />
-                              )}
-                            </div>
-                          </div>
-                          <div className="col-span-1">
-                            <Label className="text-xs">Número</Label>
-                            <Input
-                              value={number}
-                              onChange={(e) => setNumber(e.target.value)}
-                              placeholder="Nº"
-                              disabled={isInvalidLocation}
-                              className="bg-white h-9"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <Label className="text-xs">Rua</Label>
-                          <Input
-                            value={street}
-                            onChange={(e) => setStreet(e.target.value)}
-                            placeholder="Nome da rua"
-                            disabled={isInvalidLocation}
-                            className="bg-white h-9"
-                          />
-                        </div>
-
-                        <div>
-                          <Label className="text-xs">Bairro</Label>
-                          <Input
-                            value={neighborhood}
-                            onChange={(e) => setNeighborhood(e.target.value)}
-                            placeholder="Bairro"
-                            disabled={isInvalidLocation}
-                            className="bg-white h-9"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Cidade (Fixo)</Label>
-                          <Input
-                            value={`${city} - ${uf}`}
-                            readOnly
-                            className={cn(
-                              "h-9 bg-slate-100 text-slate-500 cursor-not-allowed",
-                              isInvalidLocation && "text-red-500 font-medium"
-                            )}
-                          />
-                        </div>
+                    {paymentMethod === "cash" && (
+                      <div className="space-y-1 mt-2">
+                        <Label className="text-xs">
+                          Troco para quanto? (Opcional)
+                        </Label>
+                        <Input
+                          value={cashChangeFor}
+                          onChange={(e) => setCashChangeFor(e.target.value)}
+                          placeholder="Ex: R$ 50"
+                          className="bg-white h-9"
+                          inputMode="numeric"
+                        />
                       </div>
                     )}
                   </div>
+
                   <div className="space-y-2">
                     <Label>Observação (Opcional)</Label>
                     <Textarea
-                      placeholder="Ex: Ponto de referência, troco para R$ 50, deixar na portaria..."
+                      placeholder="Ex: Deixar na portaria, embrulhar pra presente..."
                       value={observation}
                       onChange={(e) => setObservation(e.target.value)}
                       className="bg-white min-h-[80px]"
@@ -657,7 +852,7 @@ export function CartSidebar() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-slate-500">Total</span>
                   <span className="text-2xl font-bold text-slate-900">
-                    {formatCurrency(getCartTotal())}
+                    {formatCurrency(sumCartItemTotals(items))}
                   </span>
                 </div>
                 <Button

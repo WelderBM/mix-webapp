@@ -40,14 +40,21 @@ service cloud.firestore {
     // ─────────────────────────────────────────────────────────────────────
     // /orders/{orderId}
     //   - Criar:   público (qualquer pessoa pode fazer pedido)
-    //   - Ler:     admin OU o próprio dono (via customerPhone)
+    //   - Ler:     público — o ID do documento (gerado pelo Firestore,
+    //     não-adivinhável) funciona como token de acesso, o mesmo modelo
+    //     de confiança do link de rastreamento enviado por WhatsApp.
+    //     (A regra anterior comparava resource.data.customerPhone ==
+    //     request.resource.data.customerPhone, mas request.resource só
+    //     existe em escritas — em leitura, a condição sempre falhava e
+    //     bloqueava o rastreamento anônimo do próprio cliente.)
+    //     Só `get` é público: `list` fica restrito ao admin, senão qualquer
+    //     um consegue listar a coleção inteira (nome/telefone/endereço).
     //   - Atualizar/Deletar: somente admin
     // ─────────────────────────────────────────────────────────────────────
     match /orders/{orderId} {
       allow create: if true;
-      allow read:   if isAdmin() ||
-                       (request.auth == null &&
-                        resource.data.customerPhone == request.resource.data.customerPhone);
+      allow get:    if true;
+      allow list:   if isAdmin();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
@@ -63,11 +70,24 @@ service cloud.firestore {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // /kitRecipes/{recipeId}
+    // /kit_recipes/{recipeId}
     //   - Leitura: pública (usada pelo Kit Builder)
     //   - Escrita:  somente admin
+    //   (nome da coleção corrigido: código sempre leu/escreveu "kit_recipes",
+    //   a regra protegia "kitRecipes" - nunca bateu, caía no deny-all)
     // ─────────────────────────────────────────────────────────────────────
-    match /kitRecipes/{recipeId} {
+    match /kit_recipes/{recipeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // /categories/{categoryId}
+    //   - Leitura: pública (usada pelo wizard de produto e, futuramente,
+    //     pela navegação da loja)
+    //   - Escrita:  somente admin
+    // ─────────────────────────────────────────────────────────────────────
+    match /categories/{categoryId} {
       allow read: if true;
       allow write: if isAdmin();
     }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState, useMemo, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useProductStore } from "@/store/productStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { StoreHeader } from "@/components/layout/StoreHeader";
@@ -24,16 +24,26 @@ import { hexToRgb, getContrastColor } from "@/lib/utils";
 import { LacoBuilder } from "@/components/features/LacoBuilder";
 import { getProductImage } from "@/lib/image-utils";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { getEffectiveUnitPrice } from "@/lib/ribbon-pricing";
 
 function FitasContent() {
   const { allProducts, fetchProducts } = useProductStore();
   const { addItem } = useCartStore();
   const { settings, fetchSettings } = useSettingsStore();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [activeTab, setActiveTab] = useState("rolls");
   const [selectedRibbonId, setSelectedRibbonId] = useState<string>("");
   const [meterAmount, setMeterAmount] = useState<number>(1);
+  // Fita chegando via link da vitrine (ProductCard, issue #117): destacamos e
+  // damos scroll até ela ao montar. Some depois do primeiro highlight pra não
+  // ficar reaplicando ao trocar de aba manualmente.
+  const [highlightedRibbonId, setHighlightedRibbonId] = useState<string>("");
+  // Garante que o auto-scroll rode uma única vez para o deep-link inicial,
+  // mesmo que o usuário troque de aba manualmente depois (o que também
+  // dispara o mesmo efeito, já que ele depende de `activeTab`).
+  const hasAutoScrolledRef = useRef(false);
 
   useEffect(() => {
     fetchProducts();
@@ -48,8 +58,45 @@ function FitasContent() {
       tabParam === "service"
     ) {
       setActiveTab("service");
+    } else if (tabParam === "abertas" || tabParam === "meter") {
+      setActiveTab("meter");
+    } else if (tabParam === "fechados" || tabParam === "rolls") {
+      setActiveTab("rolls");
     }
-  }, [searchParams]);
+
+    const fitaParam = searchParams.get("fita");
+    if (fitaParam) {
+      setHighlightedRibbonId(fitaParam);
+      if (tabParam === "abertas" || tabParam === "meter") {
+        setSelectedRibbonId(fitaParam);
+      }
+    }
+    // Só precisa rodar na montagem — não queremos reagir a mudanças
+    // subsequentes de searchParams causadas por interação do usuário na página.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Scroll até a fita destacada assim que a lista correspondente estiver
+  // disponível (produtos carregam async, então esperamos allProducts também).
+  // Depois do scroll inicial limpamos `fita` da URL (mantendo `aba`) pra o
+  // destaque ser transitório — clicar em outros cards não deve reacender o
+  // ring nem re-disparar scroll (issue #140).
+  useEffect(() => {
+    if (!highlightedRibbonId || hasAutoScrolledRef.current) return;
+    const el = document.getElementById(`ribbon-${highlightedRibbonId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      hasAutoScrolledRef.current = true;
+
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("fita");
+      const query = params.toString();
+      router.replace(query ? `/fitas?${query}` : "/fitas", { scroll: false });
+    }
+    // Só depende dos gatilhos que fazem a fita ficar disponível pra scroll —
+    // searchParams/router mudam a cada replace e não devem re-rodar isto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightedRibbonId, activeTab, allProducts]);
 
   const themeStyles = useMemo(() => {
     const primary = settings.theme?.primaryColor || "#7c3aed";
@@ -79,18 +126,18 @@ function FitasContent() {
   );
 
   const handleAddRoll = (product: any) => {
-    const productToAdd = {
-      ...product,
-      price: product.rollPrice || product.price,
-      name: `${product.name} (Rolo Fechado)`,
-    };
+    const rollPrice = getEffectiveUnitPrice(product);
+    if (rollPrice == null) {
+      toast.error("Esse rolo ainda não tem preço configurado.");
+      return;
+    }
 
     addItem({
       cartId: crypto.randomUUID(),
       type: "SIMPLE",
-      product: productToAdd,
+      product: { ...product, name: `${product.name} (Rolo Fechado)` },
       quantity: 1,
-      kitTotalAmount: product.rollPrice || product.price,
+      kitTotalAmount: rollPrice,
     });
     toast.success("Rolo fechado adicionado ao carrinho!");
   };
@@ -98,7 +145,12 @@ function FitasContent() {
   const handleAddMeter = () => {
     const product = openRibbons.find((p) => p.id === selectedRibbonId);
     if (!product) return;
-    const totalPrice = product.price * meterAmount;
+    const meterPrice = getEffectiveUnitPrice(product);
+    if (meterPrice == null) {
+      toast.error("Essa fita ainda não tem preço por metro configurado.");
+      return;
+    }
+    const totalPrice = meterPrice * meterAmount;
     addItem({
       cartId: crypto.randomUUID(),
       type: "SIMPLE",
@@ -126,9 +178,11 @@ function FitasContent() {
   const selectedMeterProduct = openRibbons.find(
     (p) => p.id === selectedRibbonId
   );
-  const meterTotalPrice = selectedMeterProduct
-    ? selectedMeterProduct.price * meterAmount
-    : 0;
+  const selectedMeterPrice = selectedMeterProduct
+    ? getEffectiveUnitPrice(selectedMeterProduct)
+    : null;
+  const meterTotalPrice =
+    selectedMeterPrice != null ? selectedMeterPrice * meterAmount : null;
 
   return (
     <main
@@ -206,25 +260,27 @@ function FitasContent() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-                  {closedRolls.map((product) => {
-                    const displayProduct = {
-                      ...product,
-                      price: product.rollPrice || product.price,
-                    };
-
-                    return (
-                      <div key={product.id} className="relative">
-                        <ProductCard
-                          product={displayProduct}
-                          onSelect={() => handleAddRoll(product)}
-                          actionLabel="Comprar"
-                        />
-                        <div className="absolute top-2 right-2 bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm z-10">
-                          <Lock size={10} /> LACRADO
-                        </div>
+                  {closedRolls.map((product) => (
+                    <div
+                      key={product.id}
+                      id={`ribbon-${product.id}`}
+                      className={`relative rounded-xl transition-all ${
+                        highlightedRibbonId === product.id
+                          ? "ring-2 ring-primary ring-offset-2 animate-in zoom-in duration-300"
+                          : ""
+                      }`}
+                    >
+                      <ProductCard
+                        product={product}
+                        onSelect={() => handleAddRoll(product)}
+                        actionLabel="Comprar"
+                        disableRibbonRedirect
+                      />
+                      <div className="absolute top-2 right-2 bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm z-10">
+                        <Lock size={10} /> LACRADO
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
             </TabsContent>
@@ -262,14 +318,23 @@ function FitasContent() {
                             ribbon.imageUrl,
                             ribbon.type
                           );
+                          const ribbonPrice = getEffectiveUnitPrice(ribbon);
+                          const unavailable = ribbonPrice == null;
                           return (
                             <div
                               key={ribbon.id}
-                              onClick={() => setSelectedRibbonId(ribbon.id)}
-                              className={`cursor-pointer rounded-lg border p-2 flex flex-col items-center gap-2 transition-all hover:shadow-md relative group ${
-                                selectedRibbonId === ribbon.id
-                                  ? "border-primary ring-2 ring-primary ring-opacity-20 bg-purple-50"
-                                  : "border-slate-200 bg-white hover:border-(--primary)/50"
+                              id={`ribbon-${ribbon.id}`}
+                              onClick={() =>
+                                !unavailable && setSelectedRibbonId(ribbon.id)
+                              }
+                              className={`rounded-lg border p-2 flex flex-col items-center gap-2 transition-all relative group ${
+                                unavailable
+                                  ? "opacity-50 grayscale cursor-not-allowed border-slate-200 bg-white"
+                                  : `cursor-pointer hover:shadow-md ${
+                                      selectedRibbonId === ribbon.id
+                                        ? "border-primary ring-2 ring-primary ring-opacity-20 bg-purple-50"
+                                        : "border-slate-200 bg-white hover:border-(--primary)/50"
+                                    }`
                               }`}
                             >
                               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-slate-100 relative overflow-hidden shrink-0">
@@ -278,6 +343,7 @@ function FitasContent() {
                                   alt={ribbon.name}
                                   name={ribbon.name}
                                   fill
+                                  sizes="(min-width: 640px) 48px, 40px"
                                   className="object-cover"
                                 />
                               </div>
@@ -285,7 +351,9 @@ function FitasContent() {
                                 {ribbon.name}
                               </span>
                               <span className="text-[10px] font-bold text-slate-500 mt-auto">
-                                R$ {ribbon.price.toFixed(2)}/m
+                                {unavailable
+                                  ? "Indisponível"
+                                  : `R$ ${ribbonPrice.toFixed(2)}/m`}
                               </span>
                               {selectedRibbonId === ribbon.id && (
                                 <div className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow-sm">
@@ -366,6 +434,7 @@ function FitasContent() {
                                 alt={selectedMeterProduct?.name || ""}
                                 name={selectedMeterProduct?.name || ""}
                                 fill
+                                sizes="96px"
                                 className="object-cover"
                               />
                             </div>
@@ -388,8 +457,9 @@ function FitasContent() {
                         <div className="flex justify-between py-2 border-b border-slate-100">
                           <span className="text-slate-500">Valor Unit.</span>
                           <span className="font-medium text-slate-800">
-                            R${" "}
-                            {selectedMeterProduct?.price.toFixed(2) || "0.00"}/m
+                            {selectedMeterPrice != null
+                              ? `R$ ${selectedMeterPrice.toFixed(2)}/m`
+                              : "Indisponível"}
                           </span>
                         </div>
                         <div className="flex justify-between py-2 border-b border-slate-100">
@@ -406,12 +476,14 @@ function FitasContent() {
                             Total
                           </span>
                           <span className="text-3xl font-bold text-primary">
-                            R$ {meterTotalPrice.toFixed(2)}
+                            {meterTotalPrice != null
+                              ? `R$ ${meterTotalPrice.toFixed(2)}`
+                              : "—"}
                           </span>
                         </div>
                         <Button
                           onClick={handleAddMeter}
-                          disabled={!selectedRibbonId}
+                          disabled={!selectedRibbonId || meterTotalPrice == null}
                           className="w-full h-12 text-lg font-bold shadow-md transition-transform hover:scale-[1.02]"
                           style={{
                             backgroundColor: selectedRibbonId
@@ -434,12 +506,14 @@ function FitasContent() {
                       Total ({meterAmount}m)
                     </span>
                     <span className="text-xl font-bold text-primary">
-                      R$ {meterTotalPrice.toFixed(2)}
+                      {meterTotalPrice != null
+                        ? `R$ ${meterTotalPrice.toFixed(2)}`
+                        : "—"}
                     </span>
                   </div>
                   <Button
                     onClick={handleAddMeter}
-                    disabled={!selectedRibbonId}
+                    disabled={!selectedRibbonId || meterTotalPrice == null}
                     className="flex-1 h-12 text-base font-bold rounded-xl shadow-sm"
                     style={{
                       backgroundColor: selectedRibbonId
@@ -447,12 +521,14 @@ function FitasContent() {
                         : undefined,
                     }}
                   >
-                    {selectedRibbonId ? (
+                    {!selectedRibbonId ? (
+                      "Selecione..."
+                    ) : meterTotalPrice == null ? (
+                      "Indisponível"
+                    ) : (
                       <>
                         <ShoppingCart className="mr-2 h-5 w-5" /> Adicionar
                       </>
-                    ) : (
-                      "Selecione..."
                     )}
                   </Button>
                 </div>

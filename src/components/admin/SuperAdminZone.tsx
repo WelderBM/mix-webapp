@@ -8,6 +8,7 @@ import {
   Globe,
   UserPlus,
   ShieldCheck,
+  FolderTree,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
@@ -21,6 +22,8 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { migrateCategories } from "@/lib/migrateCategories";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface StaffMember {
   id: string; // email
@@ -34,6 +37,7 @@ export function SuperAdminZone() {
   const [isLoading, setIsLoading] = useState(false);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [allowedDomain, setAllowedDomain] = useState("");
+  const [staffToDelete, setStaffToDelete] = useState<string | null>(null);
   const { user } = useAuthStore();
 
   // Buscar lista de staff e configurações de domínio
@@ -97,17 +101,43 @@ export function SuperAdminZone() {
     }
   };
 
-  const handleDeleteStaff = async (email: string) => {
+  const handleMigrateCategories = async () => {
+    setIsLoading(true);
+    try {
+      const { created, skipped } = await migrateCategories();
+      if (created.length === 0) {
+        toast.info("Nenhuma categoria nova — todas já existem em /categories.");
+      } else {
+        toast.success(
+          `${created.length} categoria(s) criada(s): ${created.join(", ")}`
+        );
+      }
+      if (skipped.length > 0) {
+        toast.info(`${skipped.length} já existiam, ignoradas.`);
+      }
+    } catch (error) {
+      toast.error("Erro ao migrar categorias.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const requestDeleteStaff = (email: string) => {
     if (email === user?.email) {
       toast.error("Você não pode remover seu próprio acesso por aqui.");
       return;
     }
-    if (!confirm(`Remover acesso de ${email}?`)) return;
+    setStaffToDelete(email);
+  };
+
+  const handleDeleteStaff = async (email: string) => {
     try {
       await deleteDoc(doc(db, "whitelisted_staff", email));
       toast.success("Acesso removido.");
     } catch (error) {
       toast.error("Erro ao remover.");
+    } finally {
+      setStaffToDelete(null);
     }
   };
 
@@ -179,6 +209,25 @@ export function SuperAdminZone() {
           </form>
         </div>
 
+        {/* Migração de Categorias (Fatia A do wizard de categoria/subcategoria) */}
+        <div className="space-y-4 p-6 bg-slate-800/50 rounded-lg border border-slate-700">
+          <div className="flex items-center gap-2">
+            <FolderTree className="text-green-400" size={20} />
+            <h3 className="font-bold text-white">Migrar Categorias</h3>
+          </div>
+          <p className="text-xs text-slate-400">
+            Cria um documento em /categories pra cada valor de categoria já
+            usado em produtos existentes, que ainda não tenha um. Seguro
+            rodar mais de uma vez — categorias já existentes são ignoradas.
+          </p>
+          <Button
+            onClick={handleMigrateCategories}
+            disabled={isLoading}
+            variant="secondary"
+          >
+            Rodar Migração
+          </Button>
+        </div>
 
         {/* Staff List & Audit */}
         <div className="md:col-span-2 space-y-4">
@@ -189,8 +238,8 @@ export function SuperAdminZone() {
             </h3>
           </div>
 
-          <div className="bg-slate-900 rounded-lg border border-slate-700 overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-slate-900 rounded-lg border border-slate-700 overflow-x-auto">
+            <table className="w-full text-sm min-w-[480px]">
               <thead className="bg-slate-800 text-slate-400 text-left">
                 <tr>
                   <th className="p-3 font-medium">Funcionário</th>
@@ -218,7 +267,7 @@ export function SuperAdminZone() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDeleteStaff(staff.id)}
+                        onClick={() => requestDeleteStaff(staff.id)}
                         className="text-slate-500 hover:text-red-400 hover:bg-red-400/10 h-8 w-8"
                       >
                         <Trash2 size={14} />
@@ -242,6 +291,14 @@ export function SuperAdminZone() {
         </div>
 
       </div>
+
+      <ConfirmDialog
+        open={!!staffToDelete}
+        onOpenChange={(open) => !open && setStaffToDelete(null)}
+        title={`Remover acesso de ${staffToDelete}?`}
+        confirmLabel="Remover"
+        onConfirm={() => staffToDelete && handleDeleteStaff(staffToDelete)}
+      />
     </div>
   );
 }

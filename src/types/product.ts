@@ -20,10 +20,17 @@ export interface RibbonInventory {
 
 export interface ProductVariant {
   id: string;
-  name: string;
-  price: number;
+  type: string; // ex: "Tamanho", "Cor" — texto livre, catálogo sugerido na UI
+  name: string; // ex: "G", "Azul"
+  price?: number; // sem valor, cai pro Product.price
   inStock: boolean;
-  imageUrl?: string;
+  imageId?: string; // referencia ProductImage.id de uma imagem já enviada do produto
+  imageUrl?: string; // preenchido a partir da imagem escolhida (imageId)
+  // Presente só em variações geradas por combinação de dimensões (ex: Tamanho ×
+  // Cor) — { Tamanho: "GG", Cor: "Vermelho" }. `type`/`name` continuam sendo
+  // preenchidos automaticamente a partir daqui, então qualquer consumidor que já
+  // lê `type`/`name` (carrinho, pedidos, WhatsApp) não precisa saber que isso existe.
+  attributes?: Record<string, string>;
 }
 
 export interface ProductImage {
@@ -37,11 +44,16 @@ export interface Product {
   id: string;
   name: string;
   description?: string;
-  price: number;
+  // Opcional de propósito — não existe valor numérico que signifique
+  // "ainda não precificado" sem virar sentinela ambíguo (ver #52/#53 em
+  // docs/claude-lessons.md). Nunca leia `.price`/`.rollPrice` direto fora de
+  // src/lib/ribbon-pricing.ts; passe pelos predicados/funções de lá.
+  price?: number;
   rollPrice?: number;
   originalPrice?: number;
   type: ProductType;
   category: string;
+  subcategory?: string;
   images?: ProductImage[]; // New support for multiple images
   imageUrl?: string; // Legacy support (computed from Cover)
   unit: Unit;
@@ -56,11 +68,6 @@ export interface Product {
   isKitBase?: boolean;
   laçoType?: LacoModelType;
   variants?: ProductVariant[];
-  defaultComponents?: string[];
-  wrapperConstraints?: {
-    minSlots: number;
-    maxSlots: number;
-  };
   width?: number;
   height?: number;
   depth?: number;
@@ -71,6 +78,25 @@ export interface Product {
   wrapperSize?: string;
   recipeId?: string;
   kitBasePrice?: number;
+
+  // Eixo many-to-many pra recortes temporais/comerciais (issue #68) — "Dia
+  // das Mães", "Até R$50", etc. Separado de `category`/`type`: se muda com
+  // estação ou promoção, não é categoria. Guarda NOMES de `tags/{id}` (mesmo
+  // padrão de `category`, que guarda o nome, não o id), selecionados de um
+  // catálogo gerenciado (TagManager) — nunca texto livre no wizard. NUNCA
+  // inclui as tags de sistema (`novidades`/`promocao`, ver
+  // src/lib/productTags.ts) — essas são calculadas em memória, não
+  // persistidas como texto no produto.
+  tags?: string[];
+
+  // Timestamp de criação, gravado só uma vez (na criação, nunca
+  // sobrescrito em edição). Tipado como `any` seguindo o mesmo padrão já
+  // usado em `Order.timestamp` (src/types/order.ts) pro Firebase Server
+  // Timestamp — chega como `Timestamp` do Firestore em leitura real, nunca
+  // como number/Date direto. Produto legado (dado real de produção
+  // confirmado sem este campo) não tem `createdAt` — todo consumidor deve
+  // tratar a ausência com guard explícito, nunca `||`/comparação implícita.
+  createdAt?: any;
 }
 export interface AssembledKitProduct extends Product {
   type: "ASSEMBLED_KIT";

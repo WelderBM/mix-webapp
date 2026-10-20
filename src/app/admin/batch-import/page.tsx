@@ -26,7 +26,13 @@ import {
   Loader2,
   Eye,
   EyeOff,
+  Lock,
 } from "lucide-react";
+import {
+  useSystemToolsUnlocked,
+  SystemPasswordPrompt,
+} from "@/components/admin/SystemPasswordGate";
+import { toOptionalPositiveNumber } from "@/lib/ribbon-pricing";
 
 // ──────────────────────────────────────
 // TIPOS
@@ -64,8 +70,22 @@ interface ItemPreview {
 // ──────────────────────────────────────
 export default function BatchImportPage() {
   const router = useRouter();
+  const handleBack = () => {
+    if (typeof window === "undefined") return;
+    if (window.opener) {
+      window.close();
+      return;
+    }
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/admin");
+    }
+  };
   const [user, setUser] = useState<User | null>(null);
   const [authChecking, setAuthChecking] = useState(true);
+  const { unlocked, unlock } = useSystemToolsUnlocked();
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
 
   // Estado do arquivo
   const [batchFile, setBatchFile] = useState<BatchFile | null>(null);
@@ -111,6 +131,23 @@ export default function BatchImportPage() {
       const classified: ItemPreview[] = data.items.map((item) => {
         if (!item.id || !item.name) {
           return { item, status: "error", reason: "ID ou nome ausente" };
+        }
+        // Mesma exigência do ProductFormDialog pra RIBBON: rollPrice é
+        // obrigatório. O #52 aconteceu justamente porque esse import em
+        // lote era o único jeito de gravar rollPrice sem passar por
+        // validação nenhuma — se o form exige e o CSV não, a assimetria
+        // volta pela porta dos fundos.
+        const resolvedType = item.type || "RIBBON";
+        if (
+          resolvedType === "RIBBON" &&
+          toOptionalPositiveNumber(item.rollPrice) === undefined
+        ) {
+          return {
+            item,
+            status: "error",
+            reason:
+              "rollPrice ausente ou inválido — obrigatório para fitas (RIBBON)",
+          };
         }
         if (existingSet.has(item.id)) {
           return { item, status: "update", reason: "Produto já existe (será atualizado)" };
@@ -197,8 +234,8 @@ export default function BatchImportPage() {
               id: item.id,
               name: item.name,
               description: item.description || "",
-              price: item.price ?? 0,
-              rollPrice: item.rollPrice ?? undefined,
+              price: toOptionalPositiveNumber(item.price),
+              rollPrice: toOptionalPositiveNumber(item.rollPrice),
               originalPrice: item.originalPrice ?? undefined,
               type: item.type || "RIBBON",
               category: item.category || "Fitas",
@@ -216,6 +253,14 @@ export default function BatchImportPage() {
                 totalRollMeters: 100,
               },
             };
+
+            // Firestore rejeita `undefined` explícito em qualquer campo —
+            // price/rollPrice/originalPrice/width viram `undefined` de
+            // propósito quando ausentes no CSV (sem sentinela 0), então
+            // precisam sair do objeto antes do setDoc.
+            (Object.keys(product) as (keyof Product)[]).forEach((key) => {
+              if (product[key] === undefined) delete product[key];
+            });
 
             const ref = doc(db, "products", item.id);
             await setDoc(ref, product, { merge: status === "update" });
@@ -263,13 +308,42 @@ export default function BatchImportPage() {
 
   if (!user) return null;
 
+  // ── Gate de senha de sistema (extra além do login de admin)
+  if (!unlocked) {
+    return (
+      <>
+        <div className="flex flex-col items-center justify-center min-h-screen gap-4 px-4 text-center">
+          <Lock className="text-slate-300" size={40} />
+          <div>
+            <h1 className="font-bold text-slate-700">Área restrita</h1>
+            <p className="text-sm text-slate-500 max-w-xs">
+              A importação em lote exige a senha de sistema, separada do seu
+              login de admin.
+            </p>
+          </div>
+          <Button onClick={() => setShowPasswordPrompt(true)}>
+            Desbloquear
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleBack}>
+            Voltar
+          </Button>
+        </div>
+        <SystemPasswordPrompt
+          open={showPasswordPrompt}
+          onOpenChange={setShowPasswordPrompt}
+          onUnlocked={unlock}
+        />
+      </>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 pb-20">
       {/* Header */}
       <div className="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-30">
         <div className="max-w-5xl mx-auto flex items-center gap-4">
           <button
-            onClick={() => router.push("/admin")}
+            onClick={handleBack}
             className="text-slate-500 hover:text-slate-800 transition-colors p-1"
           >
             <ArrowLeft size={20} />
@@ -312,8 +386,8 @@ export default function BatchImportPage() {
               >
                 Nova importação
               </Button>
-              <Button size="sm" onClick={() => router.push("/admin")}>
-                Voltar ao Admin
+              <Button size="sm" onClick={handleBack}>
+                Voltar
               </Button>
             </div>
           </div>
@@ -437,7 +511,7 @@ export default function BatchImportPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                 <Stat label="Novos produtos" value={counts.new} color="green" />
                 <Stat label="Atualizações" value={counts.update} color="blue" />
                 <Stat label="Erros" value={counts.error} color="red" />
@@ -447,8 +521,9 @@ export default function BatchImportPage() {
                 <div className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-xl p-4 mb-4 text-sm text-red-700">
                   <AlertTriangle size={18} className="shrink-0 mt-0.5" />
                   <div>
-                    <strong>{counts.error} item(s) com erro</strong> — verifique
-                    se todos têm id e name válidos. Estes serão ignorados na
+                    <strong>{counts.error} item(s) com erro</strong> — confira
+                    o motivo de cada um na lista abaixo (id/nome ausente ou
+                    rollPrice inválido pra fitas). Estes serão ignorados na
                     importação.
                   </div>
                 </div>

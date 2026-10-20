@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useProductStore } from "@/store/productStore";
 import { useCartStore } from "@/store/cartStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { getModelSizeIds } from "@/types";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, ShoppingCart, AlertCircle, Package } from "lucide-react";
 import { toast } from "sonner";
@@ -16,12 +17,14 @@ const DEFAULT_BOW_STYLES = [
     name: "Bola",
     imageUrl: "https://placehold.co/400x400/png?text=Laco+Bola",
     subtitle: "Clássico e elegante, plano.",
+    sizeIds: ["M"],
   },
   {
     id: "borboleta",
     name: "Borboleta",
     imageUrl: "https://placehold.co/400x400/png?text=Laco+Borboleta",
     subtitle: "Simples e versátil.",
+    sizeIds: ["P"],
   },
 ];
 
@@ -30,6 +33,16 @@ const DEFAULT_SIZES = [
   { id: "M", name: "Médio", price: 4 },
   { id: "G", name: "Grande", price: 5 },
 ];
+
+// Defensivo: alguns modelos legados foram salvos já com a palavra "Laço" no
+// nome (ex.: "Laço Bola"). O nome do item no carrinho já adiciona o prefixo
+// "Laço " na montagem (ver handleAddToCart abaixo), então sem isso o cliente
+// veria "Laço Laço Bola". Remove qualquer prefixo "laço" (case-insensitive,
+// com ou sem espaço) já presente no nome do modelo antes de compor.
+function stripLacoPrefix(styleName: string) {
+  const stripped = styleName.replace(/^\s*laço\s*/i, "").trim();
+  return stripped.length > 0 ? stripped : styleName.trim();
+}
 
 export function LacoBuilder() {
   const { allProducts } = useProductStore();
@@ -58,7 +71,24 @@ export function LacoBuilder() {
 
   const selectedRibbon = ribbons.find((r) => r.id === selectedRibbonId);
   const selectedStyle = BOW_STYLES.find((s) => s.id === selectedStyleId);
-  const selectedSize = SIZES.find((s) => s.id === selectedSizeId);
+  // Um modelo pode aceitar vários tamanhos (ver #144/getModelSizeIds) — o
+  // cliente escolhe entre os tamanhos que o modelo realmente oferece, nunca
+  // um tamanho fora do que a loja produz pra esse modelo.
+  const availableSizeIds = selectedStyle ? getModelSizeIds(selectedStyle) : [];
+  const availableSizes = SIZES.filter((s) => availableSizeIds.includes(s.id));
+
+  // Modelo com um único tamanho não exige escolha extra do cliente — troca
+  // de modelo sempre reseta o tamanho antes de auto-selecionar de novo.
+  useEffect(() => {
+    if (availableSizeIds.length === 1) {
+      setSelectedSizeId(availableSizeIds[0]);
+    } else {
+      setSelectedSizeId("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStyleId]);
+
+  const selectedSize = availableSizes.find((s) => s.id === selectedSizeId);
 
   const finalPrice = useMemo(() => {
     if (!selectedSize) return 0;
@@ -81,7 +111,7 @@ export function LacoBuilder() {
       type: "CUSTOM_RIBBON",
       product: {
         ...selectedRibbon,
-        name: `Laço ${selectedStyle.name} - ${selectedRibbon.name}`,
+        name: `Laço ${stripLacoPrefix(selectedStyle.name)} - ${selectedRibbon.name}`,
       },
       quantity: 1,
       kitTotalAmount: finalPrice,
@@ -94,7 +124,6 @@ export function LacoBuilder() {
     // Opcional: Resetar campos após adicionar
     setSelectedRibbonId("");
     setSelectedStyleId("");
-    setSelectedSizeId("");
 
     // Scroll para o topo em mobile pode ser útil
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -143,6 +172,7 @@ export function LacoBuilder() {
                           alt={ribbon.name}
                           name={ribbon.name}
                           fill
+                          sizes="(min-width: 640px) 56px, 48px"
                           className="object-cover"
                         />
                       </div>
@@ -193,6 +223,7 @@ export function LacoBuilder() {
                       alt={style.name}
                       name={style.name}
                       fill
+                      sizes="(min-width: 640px) 80px, 64px"
                       className="object-cover"
                     />
                   </div>
@@ -214,7 +245,11 @@ export function LacoBuilder() {
             </div>
           </section>
 
-          {/* SEÇÃO 3: TAMANHO */}
+          {/* SEÇÃO 3: TAMANHO — um modelo pode aceitar vários tamanhos (ver
+              #144/getModelSizeIds). Com um único tamanho disponível, o
+              useEffect acima já auto-seleciona e aqui só exibe o resultado;
+              com mais de um, o cliente escolhe entre os oferecidos por esse
+              modelo (nunca um tamanho fora do que o modelo produz). */}
           <section
             className={`transition-opacity duration-300 ${
               !selectedStyleId ? "opacity-40 pointer-events-none grayscale" : ""
@@ -226,24 +261,44 @@ export function LacoBuilder() {
               </span>{" "}
               Tamanho
             </h3>
-            <div className="flex flex-wrap gap-3">
-              {SIZES.map((size) => (
-                <button
-                  key={size.id}
-                  onClick={() => setSelectedSizeId(size.id)}
-                  className={`flex-1 sm:flex-none px-4 py-3 sm:px-8 rounded-full border text-sm font-medium transition-all ${
-                    selectedSizeId === size.id
-                      ? "bg-slate-800 text-white border-slate-800 shadow-lg scale-105"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="block text-base">{size.name}</span>
-                  <span className="block text-xs opacity-80 font-normal">
-                    R$ {size.price.toFixed(2)}
-                  </span>
-                </button>
-              ))}
-            </div>
+            {selectedStyleId && availableSizes.length === 0 ? (
+              <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-xl flex items-center gap-3 text-yellow-800 text-sm">
+                <AlertCircle className="shrink-0" size={18} />
+                Este modelo ainda não tem um tamanho configurado. Fale com a
+                loja ou escolha outro modelo.
+              </div>
+            ) : availableSizes.length === 1 ? (
+              <div className="px-6 py-3 rounded-full border bg-slate-800 text-white border-slate-800 inline-block shadow-lg">
+                <span className="block text-base font-medium">
+                  {selectedSize?.name || "—"}
+                </span>
+                <span className="block text-xs opacity-80 font-normal">
+                  {selectedSize ? `R$ ${selectedSize.price.toFixed(2)}` : ""}
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {availableSizes.map((size) => (
+                  <button
+                    key={size.id}
+                    type="button"
+                    onClick={() => setSelectedSizeId(size.id)}
+                    className={`px-6 py-3 rounded-full border shadow-sm transition-all ${
+                      selectedSizeId === size.id
+                        ? "bg-slate-800 text-white border-slate-800 shadow-lg"
+                        : "bg-white text-slate-700 border-slate-200 hover:border-slate-400"
+                    }`}
+                  >
+                    <span className="block text-base font-medium">
+                      {size.name}
+                    </span>
+                    <span className="block text-xs opacity-80 font-normal">
+                      R$ {size.price.toFixed(2)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
         </div>
 
@@ -266,6 +321,7 @@ export function LacoBuilder() {
                         alt={selectedRibbon.name}
                         name={selectedRibbon.name}
                         fill
+                        sizes="(min-width: 640px) 160px, 128px"
                         className="object-cover"
                       />
                       {/* Overlay simulando o estilo - visualmente interessante */}

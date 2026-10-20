@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
@@ -19,5 +19,8 @@ export default defineConfig({
     // @ts-expect-error — singleFork é uma opção válida em runtime no vitest v4
     singleFork: true,
     setupFiles: ["./src/test/setup.ts"],
+    // Evita que worktrees aninhados de sessões de agente (scripts/wt-new.mjs, AGENTS.md §3)
+    // sejam escaneados pela suíte do worktree principal (issue #164).
+    exclude: [...configDefaults.exclude, "**/.claude/worktrees/**"],
   },
 });

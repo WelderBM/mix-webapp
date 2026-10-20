@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { CartItem } from "@/types/cart";
 import { toast } from "sonner";
+import { getCartItemTotal, getCartItemUnitPrice } from "@/lib/cart-pricing";
 
 interface CartStore {
   items: CartItem[];
@@ -25,6 +26,31 @@ export const useCartStore = create<CartStore>()(
       isCartOpen: false,
 
       addItem: (item) => {
+        // Portão único: nenhum item SIMPLE entra no carrinho sem preço
+        // efetivo. Antes de existir isso, cada tela que chama addItem
+        // (ProductCard, /fitas, /produto/[id], ...) precisaria checar por
+        // conta própria — padrão que já falhou uma vez (#52) e falharia de
+        // novo na próxima tela nova que esquecesse de checar. Botão
+        // desabilitado nos componentes continua existindo como UX (evita o
+        // usuário nem tentar), mas a garantia de verdade é aqui.
+        if (item.type === "SIMPLE" && getCartItemUnitPrice(item) == null) {
+          toast.error(
+            `${item.product?.name || "Este item"} está sem preço configurado no momento.`
+          );
+          return;
+        }
+
+        // Mesmo portão: produto desativado (ex: cadastro incompleto, nome
+        // placeholder nunca editado — ver ProductFormDialog) não pode entrar
+        // no carrinho mesmo se alguém chegar direto pela URL /produto/[id],
+        // que busca o doc por id e não passa pelo filtro de `allProducts`.
+        if (item.type === "SIMPLE" && item.product?.disabled) {
+          toast.error(
+            `${item.product?.name || "Este item"} não está disponível para venda no momento.`
+          );
+          return;
+        }
+
         set((state) => {
           let existingItem = null;
 
@@ -45,12 +71,22 @@ export const useCartStore = create<CartStore>()(
                 i.balloonDetails?.color === item.balloonDetails?.color
             );
           } else if (item.type === "CUSTOM_RIBBON") {
-            // Para laços, comparamos o nome/detalhes que definem o laço
+            // Dois laços são "o mesmo item" quando usam a mesma fita E o
+            // mesmo estilo/tamanho — comparar só por `kitName` mesclava
+            // qualquer par de laços da mesma fita num item só (LacoBuilder
+            // nunca preenche `kitName`, então `undefined === undefined`
+            // sempre batia, perdendo o estilo/tamanho do segundo laço). O
+            // guard em `style !== undefined` evita cair na mesma armadilha
+            // aqui: só considera duplicata quando os dois lados realmente
+            // têm customização preenchida e igual, não quando ambos estão
+            // vazios.
             existingItem = state.items.find(
               (i) =>
                 i.type === "CUSTOM_RIBBON" &&
                 i.product?.id === item.product?.id &&
-                i.kitName === item.kitName
+                i.customizations?.style !== undefined &&
+                i.customizations?.style === item.customizations?.style &&
+                i.customizations?.size === item.customizations?.size
             );
           } else if (item.type === "CUSTOM_KIT") {
             // Kits são mais complexos, mas se tiverem o mesmo kitName e kitTotalAmount, tratamos como igual
@@ -115,22 +151,10 @@ export const useCartStore = create<CartStore>()(
 
       getCartTotal: () => {
         const state = get();
-        return state.items.reduce((total, item) => {
-          let itemPrice = 0;
-
-          if (item.type === "SIMPLE" && item.product) {
-            const unitPrice = item.selectedVariant?.price || item.product.price;
-            itemPrice = unitPrice * item.quantity;
-          } else if (
-            item.type === "CUSTOM_KIT" ||
-            item.type === "CUSTOM_RIBBON" ||
-            item.type === "CUSTOM_BALLOON"
-          ) {
-            itemPrice = (item.kitTotalAmount || 0) * item.quantity;
-          }
-
-          return total + itemPrice;
-        }, 0);
+        return state.items.reduce(
+          (total, item) => total + getCartItemTotal(item),
+          0
+        );
       },
     }),
     {

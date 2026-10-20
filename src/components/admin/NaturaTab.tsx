@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Product, StoreSection, SectionType } from "@/types";
+import { normalizeSectionSource } from "@/lib/sections";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +41,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface NaturaTabProps {
   allProducts: Product[];
@@ -75,6 +77,10 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
   // SEO Block Editing State
   const [isSeoModalOpen, setIsSeoModalOpen] = useState(false);
   const [editingSeoBlock, setEditingSeoBlock] = useState<SeoBlock | null>(null);
+  const [sectionToDelete, setSectionToDelete] = useState<string | null>(null);
+  const [seoBlockToDelete, setSeoBlockToDelete] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "settings", "natura"), (s) => {
@@ -133,9 +139,8 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
   };
 
   const deleteSection = (id: string) => {
-    if (confirm("Tem certeza que deseja excluir esta seção?")) {
-      setSections((prev) => prev.filter((s) => s.id !== id));
-    }
+    setSections((prev) => prev.filter((s) => s.id !== id));
+    setSectionToDelete(null);
   };
 
   const toggleVisibility = (id: string) => {
@@ -144,17 +149,24 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
     );
   };
 
-  // Helper for Product Selection in Modal
+  // Helper for Product Selection in Modal — NaturaTab só cria/edita seções
+  // manuais (sem UI de modo aqui, ver SectionsTab.tsx pra vitrines
+  // autodidatas por categoria/tag/estoque baixo). `normalizeSectionSource`
+  // cobre seção legada (só `productIds`, sem `source`) sem exigir migração.
   const toggleProduct = (productId: string) => {
     if (!editingSection) return;
-    const current = editingSection.productIds || [];
+    const source = normalizeSectionSource(editingSection);
+    const current = source.mode === "manual" ? source.productIds : [];
     const exists = current.includes(productId);
 
     setEditingSection({
       ...editingSection,
-      productIds: exists
-        ? current.filter((id) => id !== productId)
-        : [...current, productId],
+      source: {
+        mode: "manual",
+        productIds: exists
+          ? current.filter((id) => id !== productId)
+          : [...current, productId],
+      },
     });
   };
 
@@ -183,9 +195,8 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
   };
 
   const deleteSeoBlock = (id: string) => {
-    if (confirm("Tem certeza que deseja excluir este bloco SEO?")) {
-      setSeoBlocks((prev) => prev.filter((b) => b.id !== id));
-    }
+    setSeoBlocks((prev) => prev.filter((b) => b.id !== id));
+    setSeoBlockToDelete(null);
   };
 
   if (loading) {
@@ -200,6 +211,15 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
   const filteredProducts = allProducts.filter((p) =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // NaturaTab só edita seções manuais — normaliza uma vez por render pra
+  // evitar reler `normalizeSectionSource` (e checar `mode`) em cada closure
+  // do grid de produtos abaixo.
+  const editingManualIds = (() => {
+    if (!editingSection) return [];
+    const source = normalizeSectionSource(editingSection);
+    return source.mode === "manual" ? source.productIds : [];
+  })();
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -220,7 +240,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                 title: "Nova Vitrine Natura",
                 type: "product_shelf",
                 width: "full",
-                productIds: [],
+                source: { mode: "manual", productIds: [] },
                 isActive: true,
               });
               setSelectedTemplate("product_shelf");
@@ -284,7 +304,15 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                   <Badge variant="secondary" className="text-[10px]">
                     {section.type}
                   </Badge>
-                  <span>{section.productIds.length} produtos</span>
+                  <span>
+                    {(() => {
+                      const source = normalizeSectionSource(section);
+                      return source.mode === "manual"
+                        ? source.productIds.length
+                        : 0;
+                    })()}{" "}
+                    produtos
+                  </span>
                 </div>
               </div>
 
@@ -304,7 +332,10 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                   variant="ghost"
                   size="icon"
                   onClick={() => {
-                    setEditingSection(section);
+                    setEditingSection({
+                      ...section,
+                      source: normalizeSectionSource(section),
+                    });
                     setSelectedTemplate(section.type); // Sync template selection
                     setIsModalOpen(true);
                   }}
@@ -314,7 +345,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => deleteSection(section.id)}
+                  onClick={() => setSectionToDelete(section.id)}
                 >
                   <Trash2 size={16} className="text-red-400" />
                 </Button>
@@ -370,13 +401,13 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                   !block.isActive && "opacity-50"
                 )}
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-semibold text-sm text-slate-800">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h4 className="font-semibold text-sm text-slate-800 truncate">
                       {block.title}
                     </h4>
                     {!block.isActive && (
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="text-[10px] shrink-0">
                         Inativo
                       </Badge>
                     )}
@@ -389,7 +420,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -417,7 +448,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    onClick={() => deleteSeoBlock(block.id)}
+                    onClick={() => setSeoBlockToDelete(block.id)}
                   >
                     <Trash2 size={14} className="text-red-400" />
                   </Button>
@@ -430,7 +461,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
 
       {/* MODAL DE EDIÇÃO DE SEÇÃO */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl sm:max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Seção Natura</DialogTitle>
           </DialogHeader>
@@ -478,11 +509,11 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
               {/* CONFIGURAÇÃO DE PRODUTOS (APENAS PARA SHELF) */}
               {selectedTemplate === "product_shelf" && (
                 <div className="space-y-4 border rounded-lg p-4 bg-slate-50">
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                     <Label>
-                      Selecionar Produtos ({editingSection.productIds.length})
+                      Selecionar Produtos ({editingManualIds.length})
                     </Label>
-                    <div className="relative w-48">
+                    <div className="relative w-full sm:w-48">
                       <Search
                         size={14}
                         className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400"
@@ -498,7 +529,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-60 overflow-y-auto p-1">
                     {filteredProducts.slice(0, 50).map((product) => {
-                      const isSelected = editingSection.productIds.includes(
+                      const isSelected = editingManualIds.includes(
                         product.id
                       );
                       return (
@@ -525,6 +556,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
                             <SafeImage
                               src={product.imageUrl}
                               fill
+                              sizes="48px"
                               className="object-cover"
                               alt={product.name}
                             />
@@ -594,7 +626,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
 
       {/* MODAL DE EDIÇÃO DE BLOCO SEO */}
       <Dialog open={isSeoModalOpen} onOpenChange={setIsSeoModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Bloco de Texto SEO</DialogTitle>
           </DialogHeader>
@@ -691,6 +723,24 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!sectionToDelete}
+        onOpenChange={(open) => !open && setSectionToDelete(null)}
+        title="Excluir esta seção?"
+        description="Essa ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        onConfirm={() => sectionToDelete && deleteSection(sectionToDelete)}
+      />
+
+      <ConfirmDialog
+        open={!!seoBlockToDelete}
+        onOpenChange={(open) => !open && setSeoBlockToDelete(null)}
+        title="Excluir este bloco SEO?"
+        description="Essa ação não pode ser desfeita."
+        confirmLabel="Excluir"
+        onConfirm={() => seoBlockToDelete && deleteSeoBlock(seoBlockToDelete)}
+      />
     </div>
   );
 }

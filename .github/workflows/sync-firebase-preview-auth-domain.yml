@@ -1,0 +1,99 @@
+name: Sync Firebase preview Auth domain
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  authorize-preview-domain:
+    # Vercel emits a GitHub deployment status after a Preview deployment is ready.
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Preview' &&
+      github.event.deployment_status.environment_url != ''
+    runs-on: ubuntu-latest
+    concurrency:
+      # Reading and then updating authorizedDomains must be serialized, otherwise
+      # simultaneous preview deploys could overwrite each other's domain.
+      group: firebase-staging-preview-auth-domains
+      cancel-in-progress: false
+    steps:
+      - name: Obtain Google Cloud credentials
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.FIREBASE_STAGING_AUTH_SYNC_SERVICE_ACCOUNT }}
+
+      - name: Resolve the stable Vercel branch alias
+        id: vercel
+        env:
+          PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_AUTOMATION_TOKEN }}
+          VERCEL_TEAM_ID: team_cRzaCFr7HTvHlgL7whEvK5KE
+        run: |
+          node <<'NODE'
+          (async () => {
+            const previewHostname = new URL(process.env.PREVIEW_URL).hostname;
+            const response = await fetch(
+              `https://api.vercel.com/v13/deployments/${previewHostname}?teamId=${process.env.VERCEL_TEAM_ID}`,
+              { headers: { Authorization: `Bearer ${process.env.VERCEL_TOKEN}` } },
+            );
+            if (!response.ok) throw new Error(`Vercel API returned ${response.status}`);
+
+            const deployment = await response.json();
+            const alias = (deployment.alias ?? []).find(
+              (hostname) => hostname.startsWith("mix-webapp-git-") && hostname.endsWith(".vercel.app"),
+            );
+            if (!alias) throw new Error("The Vercel deployment has no stable branch alias");
+
+            await require("fs").promises.appendFile(
+              process.env.GITHUB_OUTPUT,
+              `hostname=${alias}\n`,
+            );
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Add branch alias to Firebase Auth authorized domains
+        env:
+          FIREBASE_PROJECT_ID: mix-webapp-staging
+          PREVIEW_HOSTNAME: ${{ steps.vercel.outputs.hostname }}
+        run: |
+          node <<'NODE'
+          (async () => {
+            const { execFileSync } = require("child_process");
+            const projectId = process.env.FIREBASE_PROJECT_ID;
+            const hostname = process.env.PREVIEW_HOSTNAME;
+            const token = execFileSync("gcloud", ["auth", "print-access-token"], { encoding: "utf8" }).trim();
+            const endpoint = `https://identitytoolkit.googleapis.com/admin/v2/projects/${projectId}/config`;
+            const headers = {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            };
+
+            const current = await fetch(endpoint, { headers });
+            if (!current.ok) throw new Error(`Could not read Firebase Auth config (${current.status})`);
+            const config = await current.json();
+            const domains = config.authorizedDomains ?? [];
+            if (domains.includes(hostname)) {
+              console.log(`Firebase Auth already authorizes ${hostname}`);
+              return;
+            }
+
+            const updated = await fetch(`${endpoint}?updateMask=authorizedDomains`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify({ authorizedDomains: [...domains, hostname] }),
+            });
+            if (!updated.ok) throw new Error(`Could not update Firebase Auth config (${updated.status})`);
+            console.log(`Firebase Auth now authorizes ${hostname}`);
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE

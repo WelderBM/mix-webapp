@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParamsPatch } from "@/hooks/useSearchParamsPatch";
 import {
   collection,
   onSnapshot,
@@ -11,6 +13,9 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Order, OrderStatus } from "@/types/order";
+import { CartItem } from "@/types/cart";
+import { ProductInfoModal } from "@/components/admin/ProductInfoModal";
+import { SafeImage } from "@/components/ui/SafeImage";
 import {
   Table,
   TableBody,
@@ -33,6 +38,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -53,10 +59,92 @@ import {
   XCircle,
   Package,
   MessageCircle,
+  StickyNote,
+  Wallet,
+  ImageOff,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 
+const ITEMS_PER_PAGE = 10;
+
+/**
+ * Item de pedido clicável (issue #73). Com `product`, abre o
+ * `ProductInfoModal` destacando a variante/imagem que o cliente escolheu;
+ * sem `product` (kit/fita/balão personalizados), o handler do chamador
+ * (`onOpen`) decide o fallback — nunca tenta abrir um produto que não
+ * existe. Altura mínima de 44px (`min-h-11`) — alvo de toque recomendado
+ * pra mobile (guia "Mobile First"), já que este é um item dentro de um
+ * card que também é clicável (expand/collapse), então precisa de
+ * `stopPropagation` e de uma área de toque clara e maior que o texto.
+ */
+function OrderItemRow({
+  item,
+  onOpen,
+}: {
+  item: CartItem;
+  onOpen: (item: CartItem) => void;
+}) {
+  const thumbUrl = item.selectedImageUrl || item.product?.imageUrl;
+  const name = item.product?.name || item.kitName || "Produto";
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpen(item);
+      }}
+      className="flex w-full items-start gap-2 text-left text-sm border-b border-slate-100 pb-2 last:border-0 text-slate-700 rounded-md -mx-1 px-1 min-h-11 hover:bg-slate-100 active:bg-slate-200 transition-colors"
+    >
+      <div className="w-9 h-9 shrink-0 rounded bg-slate-100 overflow-hidden relative border flex items-center justify-center mt-0.5">
+        {thumbUrl ? (
+          <SafeImage
+            src={thumbUrl}
+            alt={name}
+            name={name}
+            fill
+            sizes="36px"
+            className="object-cover"
+          />
+        ) : (
+          <ImageOff size={14} className="text-slate-300" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0 py-1">
+        <span className="font-medium text-slate-800">
+          {item.quantity}x {name}
+        </span>
+        {item.selectedVariant ? (
+          <Badge
+            variant="outline"
+            className="ml-2 text-[10px] h-5 px-1.5 py-0"
+          >
+            {item.selectedVariant.type}: {item.selectedVariant.name}
+          </Badge>
+        ) : (
+          item.selectedImageLabel && (
+            <Badge
+              variant="outline"
+              className="ml-2 text-[10px] h-5 px-1.5 py-0"
+            >
+              {item.selectedImageLabel}
+            </Badge>
+          )
+        )}
+        {item.type === "CUSTOM_BALLOON" && item.balloonDetails && (
+          <p className="text-xs text-slate-500">
+            {item.balloonDetails.typeName} - {item.balloonDetails.size}"
+          </p>
+        )}
+      </div>
+    </button>
+  );
+}
+
 export function OrdersTab() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const patchParams = useSearchParamsPatch();
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>(
@@ -67,10 +155,45 @@ export function OrdersTab() {
   const isFirstLoad = useRef(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  // Refs pros cards/linhas de pedido (desktop e mobile escrevem na mesma
+  // chave — só um dos dois está visível por vez via CSS, então o último a
+  // montar "ganha", sem problema) — usados pra rolar até o pedido do
+  // deep-link `?pedido=` depois que ele expande (issue #73).
+  const orderRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const setOrderRef = (orderId: string) => (el: HTMLElement | null) => {
+    if (el) orderRefs.current.set(orderId, el);
+    else orderRefs.current.delete(orderId);
+  };
+  // Evita re-rolar a cada re-render enquanto o `?pedido=` deep-linkado
+  // continuar o mesmo; reseta quando o param muda pra outro pedido (ou some).
+  const scrolledForPedidoRef = useRef<string | null>(null);
+  const lastPedidoRef = useRef<string | null>(null);
+
+  // Verdadeiro só quando O PRÓPRIO OrdersTab empurrou a entrada de histórico
+  // pro `?produto=` (clique num item nesta sessão) — nesse caso "fechar" o
+  // modal usa router.back() pra desfazer exatamente essa navegação. Se o
+  // modal está aberto porque a página já carregou com `?produto=` na URL
+  // (link direto/compartilhado), não há entrada própria pra desfazer:
+  // fechar precisa só remover o param (replace), senão o back sairia do
+  // admin inteiro.
+  const pushedProdutoRef = useRef(false);
+
   // Filtros e Paginação
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const [statusFilter, setStatusFilter] = useState<string>(
+    () => searchParams.get("status") || "all"
+  );
+  // `page` vive na URL (não em estado local) — decisão da issue #73: assim
+  // a paginação sobrevive a refresh/compartilhamento/voltar do navegador da
+  // mesma forma que `status`/`pedido`, e o gotcha de "pedido deep-linkado
+  // numa página > 1" vira só "calcular a página certa e empurrar pra URL"
+  // (efeito mais abaixo), sem precisar de um mecanismo de "pular página"
+  // separado. Ver docs/ADMIN-URL-STATE.md.
+  const pageParam = parseInt(searchParams.get("page") || "1", 10);
+  const currentPage =
+    Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+  const goToPage = (page: number) => {
+    patchParams({ page: page > 1 ? String(page) : undefined });
+  };
 
   useEffect(() => {
     // Inicializar áudio de notificação
@@ -113,7 +236,7 @@ export function OrdersTab() {
               typeof Notification !== "undefined" &&
               Notification.permission === "granted"
             ) {
-              new Notification("Novo Pedido Natura App", {
+              new Notification("Novo Pedido - Mix Novidades", {
                 body: `Cliente: ${
                   newOrder.customerName
                 } - Total: ${formatCurrency(newOrder.total)}`,
@@ -136,8 +259,46 @@ export function OrdersTab() {
     return () => unsubscribe();
   }, []);
 
+  // Auto-expande o pedido do deep-link (?pedido=) num efeito, não no corpo
+  // do componente: chamar patchParams (Router) durante o render de OrdersTab
+  // é o que disparava "Cannot update a component (Router) while rendering a
+  // different component (OrdersTab)". Roda de novo quando o param muda (ex:
+  // usuário navega para outro link com ?pedido= diferente) ou quando a lista
+  // termina de carregar — cobre o deep-link chegando antes do onSnapshot
+  // popular `orders`, quando o pedido ainda não existe na lista pra expandir.
+  useEffect(() => {
+    const pedido = searchParams.get("pedido");
+    if (!pedido) return;
+    if (!orders.some((o) => o.id === pedido)) return;
+    setExpandedOrders((prev) =>
+      prev[pedido] ? prev : { ...prev, [pedido]: true }
+    );
+  }, [searchParams, orders]);
+
   const toggleExpand = (orderId: string) => {
+    // patchParams fica fora do updater de propósito: updaters funcionais
+    // rodam de novo durante a fase de render sempre que o React precisa
+    // recalcular o estado (ex: replay ao processar a fila de updates) — um
+    // efeito colateral lá dentro (aqui, mexer no Router) é um
+    // setState-durante-render latente. A decisão pelo closure é segura
+    // aqui porque isto é um handler de clique: o estado no closure já é o
+    // do render corrente.
+    const willExpand = !expandedOrders[orderId];
     setExpandedOrders((prev) => ({ ...prev, [orderId]: !prev[orderId] }));
+    patchParams({ pedido: willExpand ? orderId : undefined });
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+    // `page` não reseta sozinho ao trocar o filtro (deixou de ser
+    // `useState` local com um `useEffect` de reset — agora é URL pura),
+    // então precisa ser limpo explicitamente aqui, senão trocar de filtro
+    // estando na página 3 deixa a URL apontando pra uma página que pode
+    // nem existir mais no filtro novo.
+    patchParams({
+      status: value === "all" ? undefined : value,
+      page: undefined,
+    });
   };
 
   const updateStatus = async (orderId: string, newStatus: OrderStatus) => {
@@ -156,8 +317,7 @@ export function OrdersTab() {
 
     if (order.paymentMethod === "pix") {
       // Se tiver a info save no pedido, usa ela, senão infere (assumindo Loja se não especificado ou se tiver pago)
-      // Como o Order type local pode não ter 'pixPaymentDestination', checamos se existe no objeto (any cast se precisar ou apenas lógica)
-      const isCarrier = (order as any).pixPaymentDestination === "carrier";
+      const isCarrier = order.pixPaymentDestination === "carrier";
 
       if (isCarrier) {
         paymentInstruction =
@@ -192,6 +352,22 @@ ${paymentInstruction}`;
 
     navigator.clipboard.writeText(text);
     toast.success("Texto copiado! Pronto para enviar.");
+  };
+
+  // Pagamento e PIX são gravados no checkout desde sempre, mas nunca
+  // apareciam aqui — equipe não sabia se já tinha sido pago, nem pra quem
+  // mandar o PIX (loja ou motoboy). Ver types/order.ts (#54).
+  const getPaymentInfo = (order: Order) => {
+    const timingText =
+      order.paymentTiming === "on_delivery"
+        ? "Pagamento na entrega/retirada"
+        : "Pago antecipado";
+    if (order.paymentMethod !== "pix") return timingText;
+    const destText =
+      order.pixPaymentDestination === "carrier"
+        ? "PIX para o motoboy"
+        : "PIX para a loja";
+    return `${timingText} · ${destText}`;
   };
 
   const getStatusColor = (status: string) => {
@@ -250,16 +426,102 @@ ${paymentInstruction}`;
     return order.status === statusFilter;
   });
 
-  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / ITEMS_PER_PAGE));
+  // `currentPage` vem da URL e pode apontar pra além do fim (ex: filtro
+  // mudou e encolheu a lista) — usa a versão presa aos limites só pra
+  // renderizar, sem reescrever a URL por baixo do usuário.
+  const safePage = Math.min(currentPage, totalPages);
   const paginatedOrders = filteredOrders.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (safePage - 1) * ITEMS_PER_PAGE,
+    safePage * ITEMS_PER_PAGE
   );
 
-  // Resetar página quando mudar filtro
+  // Gotcha da paginação (issue #73): se o pedido do `?pedido=` está numa
+  // página diferente da atual, ele não é renderizado e o expand/scroll do
+  // efeito abaixo falha em silêncio. Calcula a página que contém aquele
+  // pedido dentro da lista já filtrada e empurra pra URL antes de expandir.
   useEffect(() => {
-    setCurrentPage(1);
-  }, [statusFilter]);
+    const pedido = searchParams.get("pedido");
+    if (!pedido) return;
+    const idx = filteredOrders.findIndex((o) => o.id === pedido);
+    if (idx === -1) return; // não está no filtro atual (ou ainda não carregou) — nada a fazer aqui
+    const targetPage = Math.floor(idx / ITEMS_PER_PAGE) + 1;
+    if (targetPage !== currentPage) {
+      goToPage(targetPage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, filteredOrders]);
+
+  // Reseta a marca de "já rolei pra este pedido" sempre que o `?pedido=` da
+  // URL mudar (inclusive pra vazio) — permite rolar de novo se o usuário
+  // navegar pra outro deep-link.
+  const pedidoParam = searchParams.get("pedido");
+  if (pedidoParam !== lastPedidoRef.current) {
+    lastPedidoRef.current = pedidoParam;
+    scrolledForPedidoRef.current = null;
+  }
+
+  // Rola até o card/linha do pedido deep-linkado depois que ele expande e
+  // está de fato montado na página atual (issue #73, item 2). Roda de novo
+  // a cada render relevante mas só executa o scroll uma vez por pedido
+  // (scrolledForPedidoRef), pra não brigar com o scroll manual do usuário.
+  useEffect(() => {
+    const pedido = searchParams.get("pedido");
+    if (!pedido) return;
+    if (!expandedOrders[pedido]) return;
+    if (scrolledForPedidoRef.current === pedido) return;
+    const el = orderRefs.current.get(pedido);
+    if (!el) return; // ainda não montado (ex: página errada — efeito acima corrige)
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrolledForPedidoRef.current = pedido;
+  }, [searchParams, expandedOrders, paginatedOrders]);
+
+  // --- MODAL DE PRODUTO DO ITEM (issue #73) ---
+  // Deriva o item/pedido selecionado inteiramente da URL (`?produto=`),
+  // igual ao `?pedido=` — cobre abrir via clique, refresh e "voltar" do
+  // navegador (que reescreve a URL sem passar pelo handler de clique).
+  const produtoParam = searchParams.get("produto");
+  let productModalOrderItem: { orderId: string; item: CartItem } | null =
+    null;
+  if (produtoParam) {
+    // Prioriza o pedido já aberto (`?pedido=`) pra evitar pegar o item
+    // errado quando o mesmo produto aparece em mais de um pedido.
+    const scopedOrders = pedidoParam
+      ? filteredOrders.filter((o) => o.id === pedidoParam)
+      : filteredOrders;
+    const pool = scopedOrders.length ? scopedOrders : filteredOrders;
+    for (const order of pool) {
+      const item = order.items.find((i) => i.product?.id === produtoParam);
+      if (item) {
+        productModalOrderItem = { orderId: order.id, item };
+        break;
+      }
+    }
+  }
+
+  // Item composto (kit/fita/balão personalizados) sem `product` único —
+  // nunca tenta abrir o ProductInfoModal pra ele, mostra um fallback à
+  // parte. Estado local só (não precisa sobreviver a "voltar": é conteúdo
+  // que já está todo na tela do pedido, só reapresentado maior).
+  const [fallbackItem, setFallbackItem] = useState<CartItem | null>(null);
+
+  const openItemProduct = (item: CartItem) => {
+    if (!item.product) {
+      setFallbackItem(item);
+      return;
+    }
+    pushedProdutoRef.current = true;
+    patchParams({ produto: item.product.id }, { push: true });
+  };
+
+  const closeItemProduct = () => {
+    if (pushedProdutoRef.current) {
+      pushedProdutoRef.current = false;
+      router.back();
+    } else {
+      patchParams({ produto: undefined });
+    }
+  };
 
   if (loading) {
     return (
@@ -279,7 +541,7 @@ ${paymentInstruction}`;
     count?: number;
   }) => (
     <button
-      onClick={() => setStatusFilter(value)}
+      onClick={() => handleStatusFilterChange(value)}
       className={cn(
         "px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border",
         statusFilter === value
@@ -356,6 +618,7 @@ ${paymentInstruction}`;
             {paginatedOrders.map((order) => (
               <React.Fragment key={order.id}>
                 <TableRow
+                  ref={setOrderRef(order.id) as any}
                   className="cursor-pointer hover:bg-slate-50 transition-colors"
                   onClick={() => toggleExpand(order.id)}
                 >
@@ -386,8 +649,16 @@ ${paymentInstruction}`;
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-bold text-slate-800">
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5">
                         {order.customerName}
+                        {order.observation && (
+                          <StickyNote
+                            size={12}
+                            className="text-amber-500 shrink-0"
+                          >
+                            <title>Tem observação do cliente</title>
+                          </StickyNote>
+                        )}
                       </span>
                       <div className="flex items-center gap-1 text-[10px] text-slate-500">
                         <Phone size={10} />
@@ -481,35 +752,12 @@ ${paymentInstruction}`;
                               <Package size={16} /> Itens
                             </h4>
                             <div className="space-y-2">
-                              {order.items.map((item: any, idx) => (
-                                <div
-                                  key={idx}
-                                  className="flex justify-between items-start text-sm border-b border-slate-100 pb-2 last:border-0 text-slate-700"
-                                >
-                                  <div>
-                                    <span className="font-medium text-slate-800">
-                                      {item.quantity}x{" "}
-                                      {item.product?.name ||
-                                        item.kitName ||
-                                        "Produto"}
-                                    </span>
-                                    {item.selectedImageLabel && (
-                                      <Badge
-                                        variant="outline"
-                                        className="ml-2 text-[10px] h-5 px-1.5 py-0"
-                                      >
-                                        {item.selectedImageLabel}
-                                      </Badge>
-                                    )}
-                                    {item.type === "CUSTOM_BALLOON" &&
-                                      item.balloonDetails && (
-                                        <p className="text-xs text-slate-500">
-                                          {item.balloonDetails.typeName} -{" "}
-                                          {item.balloonDetails.size}"
-                                        </p>
-                                      )}
-                                  </div>
-                                </div>
+                              {order.items.map((item, idx) => (
+                                <OrderItemRow
+                                  key={item.cartId || idx}
+                                  item={item}
+                                  onOpen={openItemProduct}
+                                />
                               ))}
                             </div>
                           </div>
@@ -522,6 +770,15 @@ ${paymentInstruction}`;
                                 ? order.address
                                 : "Retirada na Loja"}
                             </p>
+                            {order.deliveryMethod === "delivery" &&
+                              order.addressDetails?.reference != null && (
+                                <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded border">
+                                  <span className="font-bold">
+                                    Ponto de referência:
+                                  </span>{" "}
+                                  {order.addressDetails.reference}
+                                </p>
+                              )}
                             <Button
                               variant="secondary"
                               className="w-full gap-2 text-xs"
@@ -559,6 +816,33 @@ ${paymentInstruction}`;
                             </Button>
                           </div>
                         </div>
+                        <div className="mt-4 space-y-3">
+                          <div className="flex items-center gap-2 text-sm text-slate-700 bg-white p-3 rounded border">
+                            <Wallet size={16} className="text-slate-500 shrink-0" />
+                            {getPaymentInfo(order)}
+                            {order.paymentMethod === "cash" &&
+                              order.changeFor != null && (
+                                <span className="font-bold text-slate-800">
+                                  {" "}
+                                  · Troco para R$ {order.changeFor}
+                                </span>
+                              )}
+                          </div>
+                          {order.observation && (
+                            <div className="flex items-start gap-2 text-sm text-amber-900 bg-amber-50 border border-amber-200 p-3 rounded">
+                              <StickyNote
+                                size={16}
+                                className="text-amber-600 shrink-0 mt-0.5"
+                              />
+                              <div>
+                                <p className="font-bold text-xs uppercase tracking-wide text-amber-700">
+                                  Observação do cliente
+                                </p>
+                                {order.observation}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -574,12 +858,20 @@ ${paymentInstruction}`;
         {paginatedOrders.map((order) => (
           <div
             key={order.id}
+            ref={setOrderRef(order.id)}
             className="bg-white border rounded-xl shadow-sm overflow-hidden"
           >
             {/* Header do Card */}
             <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
               <div className="flex flex-col">
-                <span className="font-bold text-sm">{order.customerName}</span>
+                <span className="font-bold text-sm flex items-center gap-1.5">
+                  {order.customerName}
+                  {order.observation && (
+                    <StickyNote size={12} className="text-amber-500 shrink-0">
+                      <title>Tem observação do cliente</title>
+                    </StickyNote>
+                  )}
+                </span>
                 <span
                   className="text-xs text-slate-500 flex items-center gap-1"
                   suppressHydrationWarning
@@ -666,21 +958,12 @@ ${paymentInstruction}`;
                       <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">
                         Itens
                       </h4>
-                      {order.items.map((item: any, idx) => (
-                        <div
-                          key={idx}
-                          className="flex justify-between text-sm py-1 border-b border-dashed border-slate-100 last:border-0"
-                        >
-                          <span className="text-slate-700">
-                            {item.quantity}x{" "}
-                            {item.product?.name || item.kitName}
-                            {item.selectedImageLabel && (
-                              <span className="ml-1 font-bold text-slate-900">
-                                ({item.selectedImageLabel})
-                              </span>
-                            )}
-                          </span>
-                        </div>
+                      {order.items.map((item, idx) => (
+                        <OrderItemRow
+                          key={item.cartId || idx}
+                          item={item}
+                          onOpen={openItemProduct}
+                        />
                       ))}
                     </div>
 
@@ -688,6 +971,41 @@ ${paymentInstruction}`;
                       <div className="bg-slate-50 p-3 rounded border text-xs text-slate-600">
                         <p className="font-bold mb-1">📍 Endereço Entrega:</p>
                         {order.address}
+                        {order.addressDetails?.reference != null && (
+                          <p className="mt-1">
+                            <span className="font-bold">
+                              Ponto de referência:
+                            </span>{" "}
+                            {order.addressDetails.reference}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 p-3 rounded border">
+                      <Wallet size={14} className="text-slate-500 shrink-0" />
+                      {getPaymentInfo(order)}
+                      {order.paymentMethod === "cash" &&
+                        order.changeFor != null && (
+                          <span className="font-bold text-slate-800">
+                            {" "}
+                            · Troco para R$ {order.changeFor}
+                          </span>
+                        )}
+                    </div>
+
+                    {order.observation && (
+                      <div className="flex items-start gap-2 text-xs text-amber-900 bg-amber-50 border border-amber-200 p-3 rounded">
+                        <StickyNote
+                          size={14}
+                          className="text-amber-600 shrink-0 mt-0.5"
+                        />
+                        <div>
+                          <p className="font-bold uppercase tracking-wide text-amber-700">
+                            Observação do cliente
+                          </p>
+                          {order.observation}
+                        </div>
                       </div>
                     )}
 
@@ -777,23 +1095,131 @@ ${paymentInstruction}`;
         <div className="flex justify-center items-center gap-4 py-6">
           <Button
             variant="outline"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={safePage === 1}
+            onClick={() => goToPage(Math.max(1, safePage - 1))}
           >
             Anterior
           </Button>
           <span className="text-sm font-medium text-slate-600">
-            Pág {currentPage} de {totalPages}
+            Pág {safePage} de {totalPages}
           </span>
           <Button
             variant="outline"
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={safePage === totalPages}
+            onClick={() => goToPage(Math.min(totalPages, safePage + 1))}
           >
             Próximo
           </Button>
         </div>
       )}
+
+      {/* MODAL DE PRODUTO DO ITEM (issue #73) — abre via `?produto=`, com
+          history push: "voltar" do navegador fecha o modal e reencontre o
+          pedido aberto, sem perder scroll/filtro. */}
+      <ProductInfoModal
+        product={productModalOrderItem?.item.product ?? null}
+        open={!!productModalOrderItem}
+        onOpenChange={(o) => !o && closeItemProduct()}
+        onEdit={() => {
+          // Editar produto a partir do pedido sai do escopo desta issue
+          // (o admin de Produtos já cobre edição); fecha o modal aqui.
+          closeItemProduct();
+        }}
+        onDeleted={closeItemProduct}
+        highlightVariant={
+          productModalOrderItem?.item.selectedVariant
+            ? {
+                type: productModalOrderItem.item.selectedVariant.type,
+                name: productModalOrderItem.item.selectedVariant.name,
+              }
+            : null
+        }
+        highlightImageLabel={productModalOrderItem?.item.selectedImageLabel}
+        highlightImageUrl={productModalOrderItem?.item.selectedImageUrl}
+      />
+
+      {/* FALLBACK PARA ITEM COMPOSTO (kit/fita/balão personalizados) — sem
+          `product` único, então nunca abre o ProductInfoModal; mostra os
+          detalhes que já existem no próprio item. */}
+      <Dialog
+        open={!!fallbackItem}
+        onOpenChange={(o) => !o && setFallbackItem(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {fallbackItem?.quantity}x{" "}
+              {fallbackItem?.kitName || "Item personalizado"}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Detalhes do item personalizado do pedido — sem um produto único
+              pra abrir na ficha de produto.
+            </DialogDescription>
+          </DialogHeader>
+          {fallbackItem && (
+            <div className="space-y-3 text-sm text-slate-700">
+              {fallbackItem.kitComponents &&
+                fallbackItem.kitComponents.length > 0 && (
+                  <div>
+                    <p className="text-xs text-slate-400 font-bold uppercase mb-1">
+                      Componentes do kit
+                    </p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      {fallbackItem.kitComponents.map((c, i) => (
+                        <li key={c.id || i}>{c.name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              {fallbackItem.balloonDetails && (
+                <div>
+                  <p className="text-xs text-slate-400 font-bold uppercase mb-1">
+                    Balão
+                  </p>
+                  <p>
+                    {fallbackItem.balloonDetails.typeName} —{" "}
+                    {fallbackItem.balloonDetails.size}" —{" "}
+                    {fallbackItem.balloonDetails.color}
+                  </p>
+                </div>
+              )}
+              {fallbackItem.ribbonDetails && (
+                <div>
+                  <p className="text-xs text-slate-400 font-bold uppercase mb-1">
+                    Laço/fita personalizada
+                  </p>
+                  <p>
+                    Modelo: {fallbackItem.ribbonDetails.modelo} · Tamanho:{" "}
+                    {fallbackItem.ribbonDetails.tamanho}
+                    {fallbackItem.ribbonDetails.cor
+                      ? ` · Cor: ${fallbackItem.ribbonDetails.cor}`
+                      : ""}
+                  </p>
+                </div>
+              )}
+              {fallbackItem.customizations && (
+                <div>
+                  <p className="text-xs text-slate-400 font-bold uppercase mb-1">
+                    Personalização
+                  </p>
+                  <p>
+                    {fallbackItem.customizations.style} —{" "}
+                    {fallbackItem.customizations.size}
+                  </p>
+                </div>
+              )}
+              {!fallbackItem.kitComponents?.length &&
+                !fallbackItem.balloonDetails &&
+                !fallbackItem.ribbonDetails &&
+                !fallbackItem.customizations && (
+                  <p className="text-slate-500">
+                    Sem detalhes adicionais registrados pra este item.
+                  </p>
+                )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

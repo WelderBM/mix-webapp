@@ -3,8 +3,10 @@
 import { MapPin } from "lucide-react";
 import { StoreStatusBadge } from "./StoreStatusBadge";
 import { SafeImage } from "../ui/SafeImage";
+import { useSettingsStore } from "@/store/settingsStore";
 
 export function StoreHeader() {
+  const storeName = useSettingsStore((state) => state.settings.storeName);
   return (
     <div className="max-w-6xl mx-auto px-4 mt-6 mb-8">
       {/* VOLTOU PARA O FUNDO NEUTRO (bg-slate-900) */}
@@ -16,6 +18,7 @@ export function StoreHeader() {
             alt="Fachada da loja de presentes Mix Novidades"
             name="Fachada da loja de presentes Mix Novidades"
             fill
+            sizes="(min-width: 1024px) 1024px, 100vw"
             className="object-contain opacity-90 hover:scale-105 transition-transform duration-700"
             priority
           />
@@ -25,7 +28,7 @@ export function StoreHeader() {
 
         <div className="absolute bottom-0 left-0 w-full p-6 md:p-8 z-20 text-white">
           <h1 className="text-3xl md:text-5xl font-extrabold mb-3 tracking-tight drop-shadow-md">
-            Mix Novidades
+            {storeName}
           </h1>
 
           <div className="flex flex-col sm:flex-row gap-3 text-sm font-medium text-slate-100">

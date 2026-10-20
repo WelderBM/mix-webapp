@@ -164,7 +164,7 @@ export function KitBuilderModal() {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeKitBuilder()}>
       <DialogContent
-        className="max-w-4xl p-0 h-[90vh] flex flex-col overflow-hidden bg-white"
+        className="sm:max-w-4xl p-0 sm:h-[90vh] flex flex-col overflow-hidden bg-white"
         onInteractOutside={(e) => e.preventDefault()}
       >
         {/* HEADER */}
@@ -247,6 +247,7 @@ export function KitBuilderModal() {
                                             name={p.type}
                                             alt={p.name}
                                             fill
+                                            sizes="(min-width: 640px) 33vw, 50vw"
                                             className="object-cover group-hover:scale-105 transition-transform"
                                           />
                                           {qty > 0 && (
@@ -262,7 +263,7 @@ export function KitBuilderModal() {
                                           {p.name}
                                         </p>
                                         <p className="text-xs text-primary font-bold">
-                                          {formatCurrency(p.price)}
+                                          {formatCurrency(p.price ?? 0)}
                                         </p>
                                         <div className="mt-auto pt-1">
                                           {qty === 0 ? (
@@ -413,6 +414,7 @@ export function KitBuilderModal() {
                                 name={base.type}
                                 alt={base.name}
                                 fill
+                                sizes="50vw"
                                 className="object-contain"
                               />
                             </div>
@@ -445,6 +447,7 @@ export function KitBuilderModal() {
                               name={w.type}
                               alt={w.name}
                               fill
+                              sizes="40px"
                               className="object-cover"
                             />
                           </div>
@@ -510,6 +513,7 @@ export function KitBuilderModal() {
                               name={item.product.type}
                               alt={item.product.name}
                               fill
+                              sizes="48px"
                               className="object-cover"
                             />
                           </div>
@@ -553,6 +557,7 @@ export function KitBuilderModal() {
                         name={item.product.type}
                         alt={item.product.name}
                         fill
+                        sizes="40px"
                         className="object-cover"
                       />
                     </div>

@@ -1,8 +1,11 @@
 "use client";
 
-import { Product, StoreSection, AssembledKitProduct } from "@/types";
+import { useEffect } from "react";
+import { Product, StoreSection } from "@/types";
 import { ProductCard } from "@/components/features/ProductCard";
 import { useCartStore } from "@/store/cartStore";
+import { useCategoryStore } from "@/store/categoryStore";
+import { resolveSectionProducts } from "@/lib/sections";
 
 interface SectionProductShelfProps {
   section: StoreSection;
@@ -14,11 +17,24 @@ export const SectionProductShelf = ({
   allProducts,
 }: SectionProductShelfProps) => {
   const { openCart, addItem } = useCartStore();
+  // `source: { mode: "category" }` precisa resolver categoryId -> nome
+  // (mesma convenção de nome-vs-id das issues #69/#70) — mesma fonte já
+  // compartilhada com a Navbar/página de categoria, subscribe() é
+  // idempotente.
+  const categories = useCategoryStore((state) => state.categories);
+  const subscribeToCategories = useCategoryStore((state) => state.subscribe);
 
-  // Filtra os produtos desta seção
-  const sectionProducts = section.productIds
-    .map((id) => allProducts.find((p) => p.id === id))
-    .filter((p): p is Product => p !== undefined);
+  useEffect(() => {
+    subscribeToCategories();
+  }, [subscribeToCategories]);
+
+  // Resolve os produtos desta seção a partir de `source` (curadoria manual
+  // OU vitrine autodidata por categoria/tag/estoque baixo — issue #71).
+  const sectionProducts = resolveSectionProducts(
+    section,
+    allProducts,
+    categories
+  );
 
   if (sectionProducts.length === 0) return null;
 

@@ -1,7 +1,7 @@
-// src/components/admin/ProductFormDialog.tsx (VERSÃO CONSOLIDADA COM CONTROLE DE FITA)
+// src/components/admin/ProductFormDialog.tsx (WIZARD POR PASSOS)
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
@@ -9,18 +9,28 @@ import {
   Product,
   ProductType,
   ProductImage,
+  ProductVariant,
   RibbonInventory,
-  RibbonRollStatus,
 } from "@/types/product";
+import { Category } from "@/types/category";
+import { Tag } from "@/types/tag";
+import {
+  PRODUCT_TYPE_META,
+  getVisibleProductTypes,
+} from "@/components/ui/status-badge";
+import { uniqueSlug } from "@/lib/migrateCategories";
+import { isSystemTag } from "@/lib/productTags";
+import { useDraftPersistence } from "@/hooks/useDraftPersistence";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -32,33 +42,81 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
-  Check,
   Ruler,
   Save,
   Loader2,
-  X,
-  Image as ImageIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { ProductImageManager } from "./ProductImageManager";
+import { ProductVariationManager } from "./ProductVariationManager";
+import { ProductVariationImageManager } from "./ProductVariationImageManager";
+import { toOptionalPositiveNumber } from "@/lib/ribbon-pricing";
 
 // Definindo o tipo base de dados do formulário (simplificado)
 interface ProductFormData extends Product {
   ribbonInventory?: RibbonInventory;
 }
 
+interface ProductDraft {
+  formData: ProductFormData;
+  stepIndex: number;
+}
+
+// Passos do wizard. "classificacao" junta categoria + subcategoria (só
+// aparece como campo se a categoria escolhida tiver alguma) + tipo numa
+// tela só — eram 3 passos de um campo cada, virou 1 (feedback: passos com
+// "input solitário" deixavam o fluxo burocrático demais). RIBBON não tem
+// mais um passo à parte: metragem, preços e disponibilidade pro laço
+// custom vivem dentro de "detalhes" mesmo, na mesma ordem que aparecem
+// pro lojista pensar (nome → metragem → preço do rolo → preço por metro).
+// A imagem de cada variação é escolhida dentro do próprio passo "revisao",
+// junto da galeria geral do produto — não é um passo à parte (feedback:
+// ter a imagem da variação num passo e a capa/galeria do produto em outro
+// deixava a escolha de imagem espalhada em dois lugares diferentes pro
+// mesmo produto).
+// Pré-preenchido no campo "Nome do Produto" de todo produto novo. Se o
+// admin salvar sem trocar esse valor, o produto nasce `disabled: true` (ver
+// handleSubmit) — guarda contra um cadastro incompleto (ex: alguém montando
+// preço/imagens/categoria e deixando o nome pra outra pessoa terminar
+// depois) ir pro ar vendável com um nome sem sentido pro cliente.
+export const PLACEHOLDER_PRODUCT_NAME = "Novo Produto";
+
+type StepId = "classificacao" | "detalhes" | "variacoes" | "revisao";
+
+const STEPS: StepId[] = ["classificacao", "detalhes", "variacoes", "revisao"];
+
+const STEP_LABELS: Record<StepId, string> = {
+  classificacao: "Classificação",
+  detalhes: "Detalhes",
+  variacoes: "Variações",
+  revisao: "Revisão",
+};
+
 interface ProductFormDialogProps {
   productToEdit: Product | null;
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  existingCategories: string[];
+  categories: Category[];
+  tags: Tag[];
+  // Permite pular direto pra um passo (ex: atalho "Nova Fita" já vem com
+  // categoria/tipo definidos). Sem isso, o padrão é: edição de produto
+  // existente pula pra "Detalhes" (não faz sentido escolher categoria/tipo
+  // de novo só pra mudar um preço); produto novo começa em "Classificação".
+  initialStep?: StepId;
+  // `StoreSettings.features.customKitEnabled` (issue #108) — enquanto
+  // desligada (padrão), esconde os 4 tipos exclusivos de kit do seletor de
+  // Tipo (issue #165). Produto EXISTENTE de um desses tipos continua
+  // editável normalmente (ver `typeIsOrphan` abaixo).
+  customKitEnabled: boolean;
 }
 
 const initialFormState: ProductFormData = {
   id: "",
-  name: "",
-  price: 0,
+  name: PLACEHOLDER_PRODUCT_NAME,
   type: "STANDARD_ITEM",
   category: "Geral",
   unit: "un",
@@ -78,38 +136,226 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   isOpen,
   onClose,
   onSuccess,
-  existingCategories,
+  categories,
+  tags,
+  initialStep,
+  customKitEnabled,
 }) => {
   const [formData, setFormData] = useState<ProductFormData>(initialFormState);
   const [loading, setLoading] = useState(false);
-  const [customCategory, setCustomCategory] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
 
+  // Rascunho local (Addendum 4, Parte B): sobrevive a reload/fechamento
+  // acidental da aba. `enabled` começa falso e só liga depois de checar um
+  // rascunho existente — senão o auto-save grava o formulário em branco por
+  // cima do rascunho antes do usuário conseguir responder ao prompt.
+  const draftKey = productToEdit?.id
+    ? `product-${productToEdit.id}`
+    : "product-new";
+  const [draftPersistenceEnabled, setDraftPersistenceEnabled] =
+    useState(false);
+  const [pendingDraft, setPendingDraft] = useState<ProductDraft | null>(null);
+  // Memoizado pra só trocar de referência quando `formData`/`stepIndex` de
+  // fato mudam — sem isso, qualquer re-render do wizard recriava o objeto
+  // e o hook achava que era uma edição nova (mesmo bug corrigido em
+  // admin/page.tsx pro rascunho de Configurações/Balões).
+  const draftValue = useMemo(
+    () => ({ formData, stepIndex }),
+    [formData, stepIndex]
+  );
+  const { restoreDraft, clearDraft } = useDraftPersistence<ProductDraft>(
+    draftKey,
+    draftValue,
+    { enabled: draftPersistenceEnabled }
+  );
+
+  const handleClose = () => {
+    clearDraft();
+    onClose();
+  };
+
+  const categoryNames = useMemo(
+    () => categories.map((c) => c.name),
+    [categories]
+  );
+  const selectedCategory = useMemo(
+    () => categories.find((c) => c.name === formData.category),
+    [categories, formData.category]
+  );
+
+  // Categoria/subcategoria são seleção travada (issue #69) — o único lugar
+  // que cria categoria/subcategoria nova é o CategoryManager (atrás do botão
+  // "Categorias e Subcategorias" na aba de produtos). Esses dois `useMemo`
+  // existem só pra não travar a edição de um produto ANTIGO cujo valor de
+  // categoria/subcategoria não bate com nenhum doc de `categories` hoje
+  // (texto livre de antes desta issue, categoria renomeada/apagada depois,
+  // etc) — o valor "órfão" some da lista se o campo mudar, sem opção de
+  // recriá-lo por aqui.
+  const categoryIsOrphan =
+    !!formData.category && !categories.some((c) => c.name === formData.category);
+  const categoryOptions = useMemo(
+    () =>
+      categoryIsOrphan
+        ? [formData.category, ...categoryNames]
+        : categoryNames,
+    [categoryIsOrphan, formData.category, categoryNames]
+  );
+  const subcategoryIsOrphan =
+    !!formData.subcategory &&
+    !!selectedCategory &&
+    !selectedCategory.subcategories.some(
+      (s) => s.name === formData.subcategory
+    );
+  const subcategoryOptions = useMemo(() => {
+    if (!selectedCategory) return [];
+    const names = selectedCategory.subcategories
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((s) => s.name);
+    return subcategoryIsOrphan
+      ? [formData.subcategory as string, ...names]
+      : names;
+  }, [selectedCategory, subcategoryIsOrphan, formData.subcategory]);
+
+  // Tags manuais — mesma lógica anti-drift de categoria/subcategoria (issue
+  // #69, reaproveitada aqui): seleção só do catálogo (`tags/{id}`, gerido
+  // pelo botão "Tags e Coleções"), sem criação livre no wizard. Uma tag
+  // selecionada que não existe mais no catálogo (renomeada/apagada depois,
+  // ou produto legado) continua aparecendo como opção "órfã" até o admin
+  // desmarcá-la — nunca some silenciosamente do formulário. Tags de SISTEMA
+  // (`novidades`/`promocao`) nunca entram aqui: são calculadas, não
+  // selecionáveis (ver src/lib/productTags.ts).
+  const selectedTagNames = formData.tags ?? [];
+  const tagCatalogNames = useMemo(() => tags.map((t) => t.name), [tags]);
+  const orphanTagNames = useMemo(
+    () => selectedTagNames.filter((n) => !tagCatalogNames.includes(n)),
+    [selectedTagNames, tagCatalogNames]
+  );
+  const tagOptions = useMemo(
+    () => [
+      // Filtro defensivo: TagManager já bloqueia criar uma tag com nome de
+      // tag de sistema, mas um doc criado por fora (import manual, console)
+      // não passa por essa validação — nunca deixa uma tag de sistema virar
+      // opção selecionável aqui.
+      ...tags
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .filter((t) => !isSystemTag(t.name.toLowerCase()))
+        .map((t) => ({ name: t.name, orphan: false })),
+      ...orphanTagNames.map((n) => ({ name: n, orphan: true })),
+    ],
+    [tags, orphanTagNames]
+  );
+
+  // Tipo — mesma lógica anti-drift/órfão de categoria (issue #69) e do
+  // helper `getVisibleProductTypes` (issue #165): a lista de OPÇÕES pra
+  // criação/edição respeita a flag `customKitEnabled`, mas um produto
+  // EXISTENTE de um tipo escondido (os 4 tipos exclusivos de kit, ou
+  // teoricamente ASSEMBLED_KIT) continua abrindo pra edição com o tipo
+  // atual visível e selecionado — só marcado como "fora da lista atual",
+  // nunca trocado/travado silenciosamente.
+  const visibleTypes = useMemo(
+    () => getVisibleProductTypes(customKitEnabled),
+    [customKitEnabled]
+  );
+  const typeIsOrphan =
+    !!formData.type && !visibleTypes.includes(formData.type);
+  const typeOptions = useMemo(
+    () => (typeIsOrphan ? [formData.type, ...visibleTypes] : visibleTypes),
+    [typeIsOrphan, formData.type, visibleTypes]
+  );
+
+  const toggleTag = (name: string) => {
+    setFormData((prev) => {
+      const current = prev.tags ?? [];
+      const next = current.includes(name)
+        ? current.filter((t) => t !== name)
+        : [...current, name];
+      return { ...prev, tags: next };
+    });
+  };
+
+  // Efeito abaixo depende só de `productToEdit`/`isOpen`/`initialStep`, nunca
+  // de `categories` diretamente: `categories` vem de um onSnapshot ao vivo
+  // (admin/page.tsx) e ganha uma referência nova a cada disparo, mesmo sem
+  // mudança real (reconexão de rede, sync entre abas, etc). Se o efeito
+  // dependesse dela, qualquer disparo desses no meio da edição resetava
+  // `formData` de volta pro que já estava salvo, apagando edição não salva
+  // (ex: imagem de variação recém vinculada) — mesma categoria de bug já
+  // documentada em docs/claude-lessons.md ("objeto recriado a cada render
+  // engana useEffect por referência").
   useEffect(() => {
+    let nextFormData: ProductFormData;
     if (productToEdit) {
-      setFormData({
+      nextFormData = {
         ...initialFormState,
         ...productToEdit,
         ribbonInventory:
           productToEdit.ribbonInventory || initialFormState.ribbonInventory,
-      });
-      // Verifica se a categoria é personalizada
-      if (
-        productToEdit.category &&
-        !existingCategories.includes(productToEdit.category) &&
-        productToEdit.category !== "Geral"
-      ) {
-        setCustomCategory(true);
-      } else {
-        setCustomCategory(false);
-      }
+      };
     } else {
-      setFormData(initialFormState);
-      setCustomCategory(false);
+      nextFormData = initialFormState;
     }
-  }, [productToEdit, isOpen, existingCategories]);
+    setFormData(nextFormData);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    // Passo inicial: calculado a partir do tipo que está prestes a ser
+    // carregado (não do estado antigo, que ainda não foi atualizado).
+    const startStepId: StepId =
+      initialStep ?? (productToEdit?.id ? "detalhes" : "classificacao");
+    const startIndex = STEPS.indexOf(startStepId);
+    setStepIndex(startIndex >= 0 ? startIndex : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productToEdit, isOpen, initialStep]);
+
+  // Checa rascunho salvo toda vez que o wizard abre (depois do reset acima,
+  // pra um "sim" de restaurar sobrescrever os dados recém-carregados do
+  // productToEdit, e um "não"/sem rascunho deixar esses dados como estão).
+  useEffect(() => {
+    if (!isOpen) {
+      setDraftPersistenceEnabled(false);
+      return;
+    }
+    const draft = restoreDraft();
+    if (draft) {
+      setPendingDraft(draft);
+    } else {
+      setDraftPersistenceEnabled(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, draftKey]);
+
+  const handleRestoreDraft = () => {
+    if (pendingDraft) {
+      setFormData(pendingDraft.formData);
+      setStepIndex(pendingDraft.stepIndex);
+    }
+    setPendingDraft(null);
+    setDraftPersistenceEnabled(true);
+  };
+
+  const handleDiscardDraft = () => {
+    clearDraft();
+    setPendingDraft(null);
+    setDraftPersistenceEnabled(true);
+  };
+
+  const currentStepIndex = Math.min(stepIndex, STEPS.length - 1);
+  const currentStepId = STEPS[currentStepIndex];
+  const isFirstStep = currentStepIndex === 0;
+  const isLastStep = currentStepIndex === STEPS.length - 1;
+
+  const goNext = () =>
+    setStepIndex((i) => Math.min(i + 1, STEPS.length - 1));
+  const goBack = () => setStepIndex((i) => Math.max(i - 1, 0));
+
+  const isNextDisabled =
+    currentStepId === "classificacao" && !formData.category?.trim();
+
+  // Sem `e` quando chamado direto pelo onClick do botão final do wizard
+  // (não é mais um handler de onSubmit nativo — ver comentário na tag
+  // <form> abaixo sobre por que isso importa num wizard de vários passos).
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
 
     // VALIDATIONS
     if (!formData.name.trim()) {
@@ -117,7 +363,27 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       return;
     }
 
-    if (Number(formData.price) <= 0) {
+    if (formData.type === "RIBBON") {
+      // Rolo primeiro (ordem em que os campos aparecem no passo "Detalhes"):
+      // metragem → preço do rolo (obrigatório) → preço por metro (opcional).
+      if (!((formData.ribbonInventory?.totalRollMeters || 0) > 0)) {
+        toast.error("A metragem do rolo deve ser maior que zero.");
+        return;
+      }
+      if (!(Number(formData.rollPrice) > 0)) {
+        toast.error("O preço do rolo fechado é obrigatório e deve ser maior que zero.");
+        return;
+      }
+      const rawMeterPrice = formData.price;
+      const meterPriceFilled =
+        rawMeterPrice !== undefined &&
+        rawMeterPrice !== null &&
+        String(rawMeterPrice).trim() !== "";
+      if (meterPriceFilled && !(Number(rawMeterPrice) > 0)) {
+        toast.error("O preço por metro, se preenchido, deve ser maior que zero.");
+        return;
+      }
+    } else if (!(Number(formData.price) > 0)) {
       toast.error("O preço deve ser maior que zero.");
       return;
     }
@@ -132,28 +398,144 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       return;
     }
 
-    if (!formData.unit || formData.unit.trim() === "") {
+    if (
+      formData.type !== "RIBBON" &&
+      (!formData.unit || formData.unit.trim() === "")
+    ) {
       toast.error("A unidade de venda (un, m, kg) é obrigatória.");
+      return;
+    }
+
+    if (formData.variants?.some((v) => !v.imageUrl)) {
+      toast.error("Toda variação precisa de uma imagem.");
+      return;
+    }
+
+    // Sem variações, a galeria é a única fonte de imagem do produto — sem
+    // pelo menos uma capa definida, o card na vitrine e outras telas que
+    // não sabem de variações ficam sem nenhuma imagem pra mostrar (feedback:
+    // a imagem padrão precisa ser garantida já na criação, não só corrigida
+    // depois na página do produto).
+    if (!formData.variants?.length && !formData.images?.length) {
+      toast.error("Adicione ao menos uma imagem para o produto.");
       return;
     }
 
     setLoading(true);
 
     try {
+      // Rede de segurança pra dado LEGADO (categoria/subcategoria "órfã" —
+      // texto livre de antes da issue #69, ou nome apagado/renomeado depois
+      // da seleção). O wizard não oferece mais criação de categoria/
+      // subcategoria (só seleção da lista); se ainda assim `formData.category`
+      // não bate com nenhum doc de `categories` (produto antigo mantido como
+      // está na edição), cria o doc agora pra não deixar o produto
+      // referenciando algo que não existe na taxonomia.
+      const categoryName = formData.category.trim();
+      let category = categories.find((c) => c.name === categoryName);
+      if (!category) {
+        const id = uniqueSlug(
+          categoryName,
+          categories.map((c) => c.id)
+        );
+        category = {
+          id,
+          name: categoryName,
+          order: categories.length,
+          active: true,
+          subcategories: [],
+        };
+        await setDoc(doc(db, "categories", id), category);
+      }
+      const subcategoryName = formData.subcategory?.trim();
+      if (
+        subcategoryName &&
+        !category.subcategories.some((s) => s.name === subcategoryName)
+      ) {
+        const subId = uniqueSlug(
+          subcategoryName,
+          category.subcategories.map((s) => s.id)
+        );
+        await setDoc(
+          doc(db, "categories", category.id),
+          {
+            subcategories: [
+              ...category.subcategories,
+              {
+                id: subId,
+                name: subcategoryName,
+                order: category.subcategories.length,
+              },
+            ],
+          },
+          { merge: true }
+        );
+      }
+
       // Gera ID se for novo
       const productId = formData.id || doc(collection(db, "products")).id;
+
+      // Com variações e sem galeria própria, a imagem da primeira variação
+      // (a padrão) também vira a capa do produto — telas que não sabem de
+      // variações (card na vitrine, tabela do admin, carrinho) leem
+      // `images`/`imageUrl`, não `variants`.
+      const defaultVariantImage = formData.variants?.[0]?.imageUrl;
+      const images =
+        !formData.images?.length && defaultVariantImage
+          ? [{ id: crypto.randomUUID(), url: defaultVariantImage, isCover: true }]
+          : formData.images;
+
+      const isRibbon = formData.type === "RIBBON";
+      // `price` opcional de propósito (ver types/product.ts) — nunca grava
+      // 0 como sentinela de "sem preço por metro ainda". `""`/undefined
+      // viram `undefined` de verdade, não `0`.
+      const meterPrice = toOptionalPositiveNumber(formData.price);
+
+      // Guarda de nome placeholder: não há toggle manual de `disabled` neste
+      // form (nunca existiu), então o campo é 100% computado aqui — sai
+      // `true` enquanto o nome for o padrão nunca editado, e volta a `false`
+      // sozinho assim que o nome for trocado num salvamento seguinte.
+      const nameIsPlaceholder =
+        formData.name.trim() === PLACEHOLDER_PRODUCT_NAME;
 
       const productData: Product = {
         ...formData,
         id: productId,
-        price: Number(formData.price),
+        price: isRibbon ? meterPrice : Number(formData.price),
+        rollPrice: isRibbon ? Number(formData.rollPrice) : formData.rollPrice,
         category: formData.category.trim(),
-        unit: formData.unit.trim() as any,
+        unit: isRibbon ? "m" : (formData.unit.trim() as any),
+        images,
+        imageUrl: formData.imageUrl || defaultVariantImage || "",
+        disabled: nameIsPlaceholder,
+        // Gravado só na CRIAÇÃO (sem `productToEdit`) — edição de produto
+        // existente nunca sobrescreve `createdAt`, seja ele um timestamp
+        // real (`formData.createdAt`, herdado de `productToEdit` pelo
+        // useEffect de carga) ou `undefined` (produto legado sem o campo,
+        // confirmado em produção — fica sem `createdAt` pra sempre, não
+        // ganha um valor "de agora" só por ter sido editado).
+        createdAt: productToEdit ? formData.createdAt : serverTimestamp(),
       };
+
+      // Firestore rejeita `undefined` explícito em qualquer campo (diferente
+      // de campo ausente) — `price`/`rollPrice` viram `undefined` de
+      // propósito quando não preenchidos (opcionais, sem sentinela 0), então
+      // precisam sair do objeto antes do setDoc, não só ficar com esse
+      // valor. Mesmo idioma já usado no merge de variantPatch acima.
+      (Object.keys(productData) as (keyof Product)[]).forEach((key) => {
+        if (productData[key] === undefined) delete productData[key];
+      });
 
       await setDoc(doc(db, "products", productId), productData);
 
-      toast.success(productToEdit ? "Produto atualizado!" : "Produto criado!");
+      if (nameIsPlaceholder) {
+        toast.warning(
+          `Produto salvo como inativo — ainda está com o nome padrão "${PLACEHOLDER_PRODUCT_NAME}". Edite o nome para colocar à venda.`
+        );
+      } else {
+        toast.success(productToEdit ? "Produto atualizado!" : "Produto criado!");
+      }
+      clearDraft();
       onSuccess();
       onClose();
     } catch (error) {
@@ -171,28 +553,14 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     }));
   };
 
+  // `status` não é mais alterável aqui — vira transição de estado só pelas
+  // ações "Abrir Rolo"/"Fechar Manual" em RibbonsTab, nunca campo de form
+  // (nem em criação, nem em edição).
   const handleRibbonInventoryChange = (
     key: keyof RibbonInventory,
     value: any
   ) => {
     setFormData((prev) => {
-      const totalMeters = prev.ribbonInventory?.totalRollMeters || 0;
-
-      if (key === "status") {
-        const newStatus = value as RibbonRollStatus;
-        return {
-          ...prev,
-          ribbonInventory: {
-            ...prev.ribbonInventory,
-            status: newStatus,
-            remainingMeters:
-              newStatus === "FECHADO"
-                ? totalMeters
-                : prev.ribbonInventory?.remainingMeters || 0,
-          } as RibbonInventory,
-        };
-      }
-
       if (key === "totalRollMeters") {
         const newTotal = parseFloat(value) || 0;
         return {
@@ -219,95 +587,135 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !loading && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !loading && handleClose()}>
       <DialogContent
-        className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto"
+        className="sm:max-w-[700px] sm:max-h-[90vh] overflow-y-auto"
         onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle>
             {productToEdit ? "Editar Produto" : "Novo Produto"}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Formulário em etapas para {productToEdit ? "editar" : "criar"} um
+            produto: classificação, detalhes e imagens.
+          </DialogDescription>
+          <div className="flex items-center justify-between text-xs text-slate-500 font-bold uppercase tracking-wide">
+            <span>
+              Passo {currentStepIndex + 1} de {STEPS.length} —{" "}
+              {STEP_LABELS[currentStepId]}
+            </span>
+          </div>
+          <Progress
+            value={((currentStepIndex + 1) / STEPS.length) * 100}
+            className="h-1.5"
+          />
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <Tabs defaultValue="Detalhes" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="Detalhes">Detalhes Básicos</TabsTrigger>
-              <TabsTrigger value="Inventario">Inventário e Estoque</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="Detalhes" className="py-4 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome do Produto</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/*
+          Sem onSubmit real de propósito. Um wizard de vários passos dentro
+          de um único <form> é frágil com submit nativo do HTML: (1) Enter
+          num <Input> de texto em QUALQUER passo aciona o botão de submit
+          do form inteiro, não importa qual passo está visível; (2) o botão
+          final troca de type="button" (Avançar) pra type="submit" (Criar
+          Produto) só na renderização do último passo, e no exato clique
+          que causa essa troca o navegador às vezes ainda processa o clique
+          como submit. O preventDefault abaixo neutraliza qualquer submit
+          nativo que escape por essas frestas; a criação/edição de verdade
+          só acontece pelo onClick explícito do botão "Criar Produto" no
+          rodapé, nunca pelo evento submit do form.
+        */}
+        <form onSubmit={(e) => e.preventDefault()}>
+          <div className="py-4 space-y-4 min-h-[260px]">
+            {currentStepId === "classificacao" && (
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Categoria</Label>
-                  {!customCategory ? (
-                    <div className="flex gap-2">
+                  <Select
+                    value={formData.category || ""}
+                    onValueChange={(v) => {
+                      handleInputChange("category", v);
+                      handleInputChange("subcategory", "");
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryOptions.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                          {categoryIsOrphan && c === formData.category
+                            ? " (fora da lista atual)"
+                            : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500">
+                    O tipo de produto (ex: Balões, Perfumaria, Fitas) — o
+                    catálogo todo costuma ter entre 5 e 12 categorias.
+                    Categoria nova não se cria aqui: use o botão
+                    &quot;Categorias e Subcategorias&quot; na lista de
+                    produtos.
+                  </p>
+                  {categoryIsOrphan && (
+                    <p className="text-xs text-amber-600">
+                      Esse produto usa uma categoria que não existe mais na
+                      lista atual. Ela continua selecionada até você trocar
+                      por uma da lista.
+                    </p>
+                  )}
+                </div>
+
+                {selectedCategory && (
+                  <div className="space-y-2">
+                    <Label>
+                      Subcategoria{" "}
+                      <span className="text-slate-400 font-normal">
+                        (opcional)
+                      </span>
+                    </Label>
+                    {subcategoryOptions.length > 0 ? (
                       <Select
-                        value={
-                          existingCategories.includes(formData.category)
-                            ? formData.category
-                            : "Geral"
+                        value={formData.subcategory || ""}
+                        onValueChange={(v) =>
+                          handleInputChange("subcategory", v)
                         }
-                        onValueChange={(v) => {
-                          if (v === "custom_new") {
-                            setCustomCategory(true);
-                            handleInputChange("category", "");
-                          } else {
-                            handleInputChange("category", v);
-                          }
-                        }}
                       >
-                        <SelectTrigger className="flex-1">
+                        <SelectTrigger>
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>
-                          {existingCategories.map((c) => (
-                            <SelectItem key={c} value={c}>
-                              {c}
+                          {subcategoryOptions.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {s}
+                              {subcategoryIsOrphan && s === formData.subcategory
+                                ? " (fora da lista atual)"
+                                : ""}
                             </SelectItem>
                           ))}
-                          <SelectItem
-                            value="custom_new"
-                            className="text-purple-600 font-bold"
-                          >
-                            + Nova Categoria
-                          </SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Nome da nova categoria"
-                        value={formData.category}
-                        onChange={(e) =>
-                          handleInputChange("category", e.target.value)
-                        }
-                        className="flex-1"
-                        autoFocus
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setCustomCategory(false)}
-                        title="Voltar para lista"
-                      >
-                        <X size={16} />
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">
+                        Essa categoria ainda não tem subcategorias.
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-500">
+                      Só faz sentido se a categoria tiver muitos produtos
+                      (referência: a partir de ~6) e precisar ser dividida por
+                      tipo. Subcategoria nova também se cria só no botão
+                      &quot;Categorias e Subcategorias&quot;.
+                    </p>
+                  </div>
+                )}
+
+                <p className="text-xs text-slate-400 italic border-t pt-3">
+                  Ocasião (aniversário, casamento, chá revelação...) não é um
+                  campo de categoria — é tag/coleção, selecionada logo abaixo
+                  nesta mesma etapa.
+                </p>
 
                 <div className="space-y-2">
                   <Label>Tipo</Label>
@@ -321,208 +729,388 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                       <SelectValue placeholder="Selecione o Tipo" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="RIBBON">FITA (ROLO)</SelectItem>
-                      <SelectItem value="BASE_CONTAINER">
-                        CESTA/CAIXA
-                      </SelectItem>
-                      <SelectItem value="STANDARD_ITEM">ITEM PADRÃO</SelectItem>
-                      <SelectItem value="ACCESSORY">ACESSÓRIO</SelectItem>
-                      <SelectItem value="WRAPPER">EMBALAGEM</SelectItem>
-                      <SelectItem value="FILLER">PREENCHIMENTO</SelectItem>
+                      {/* ASSEMBLED_KIT fica de fora: kits nunca são criados
+                          por este formulário, só via kit_recipes/KitBuilderModal.
+                          Os 4 tipos exclusivos de componente de kit (Base/
+                          Preenchimento/Acessório/Saco) só aparecem com
+                          customKitEnabled ligado (issue #165) — ver
+                          getVisibleProductTypes em status-badge.tsx. */}
+                      {typeOptions.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {PRODUCT_TYPE_META[value].filterLabel}
+                          {typeIsOrphan && value === formData.type
+                            ? " (fora da lista atual)"
+                            : ""}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {typeIsOrphan && (
+                    <p className="text-xs text-amber-600">
+                      Esse produto usa um tipo que não aparece mais na lista
+                      atual. Ele continua selecionado até você trocar por um
+                      da lista.
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2 border-t pt-4">
+                  <Label>
+                    Tags / Coleções{" "}
+                    <span className="text-slate-400 font-normal">
+                      (opcional)
+                    </span>
+                  </Label>
+                  {tagOptions.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {tagOptions.map(({ name, orphan }) => {
+                        const selected = selectedTagNames.includes(name);
+                        return (
+                          <button
+                            key={name}
+                            type="button"
+                            aria-pressed={selected}
+                            onClick={() => toggleTag(name)}
+                            // min-h-11 + min-w-11 (44×44px) — alvo de toque
+                            // mínimo em AMBAS as dimensões (Apple HIG), não
+                            // só altura — um nome de tag curto com px-4 sem
+                            // min-w ficaria abaixo do alvo em telas
+                            // estreitas. focus-visible explícito pra
+                            // teclado/trackpad (dispositivo híbrido, sem
+                            // hover) — ver mobile-first-guide ch05.
+                            className={`min-h-11 min-w-11 px-4 rounded-full border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-1 ${
+                              selected
+                                ? "bg-purple-600 border-purple-600 text-white"
+                                : "bg-white border-slate-300 text-slate-600 hover:border-purple-400"
+                            }`}
+                          >
+                            {name}
+                            {orphan ? " (fora do catálogo atual)" : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">
+                      Nenhuma tag cadastrada ainda. Crie a primeira no botão
+                      &quot;Tags e Coleções&quot; na lista de produtos.
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-500">
+                    Recortes temporais/comerciais (ex: &quot;Dia das
+                    Mães&quot;, &quot;Até R$50&quot;) — tag nova não se cria
+                    aqui: use o botão &quot;Tags e Coleções&quot; na lista de
+                    produtos. Tags de sistema (&quot;Novidade&quot;,
+                    &quot;Promoção&quot;) são calculadas automaticamente a
+                    partir da data de cadastro e do preço, e não aparecem
+                    neste seletor.
+                  </p>
                 </div>
               </div>
+            )}
 
-              <div className="grid grid-cols-2 gap-4">
+            {currentStepId === "detalhes" && (
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="price">Preço</Label>
+                  <Label htmlFor="name">Nome do Produto</Label>
                   <Input
-                    id="price"
-                    type="number"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={(e) => handleInputChange("price", e.target.value)}
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
                     required
                   />
+                  <p className="text-xs text-slate-500">
+                    Ex: &quot;Balão Metalizado Coração Vermelho 18&quot;. Enquanto o
+                    nome ficar como &quot;{PLACEHOLDER_PRODUCT_NAME}&quot;, o produto
+                    é salvo inativo e não aparece pro cliente.
+                  </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Unidade de Venda</Label>
-                  <Select
-                    value={formData.unit}
-                    onValueChange={(v) => handleInputChange("unit", v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione Unidade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="un">UNIDADE (un)</SelectItem>
-                      <SelectItem value="m">METRO (m)</SelectItem>
-                      <SelectItem value="pct">PACOTE (pct)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+                {formData.type === "RIBBON" ? (
+                  <div className="space-y-4 rounded-lg border p-4 bg-yellow-50/50">
+                    <h4 className="font-bold text-sm text-yellow-800 flex items-center gap-2 uppercase tracking-wide">
+                      <Ruler size={16} /> Metragem e Preços do Rolo
+                    </h4>
 
-              <div className="space-y-2">
-                <Label htmlFor="description">Descrição</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description || ""}
-                  onChange={(e) =>
-                    handleInputChange("description", e.target.value)
-                  }
-                />
-              </div>
-            </TabsContent>
-
-            <TabsContent value="Inventario" className="py-4 space-y-4">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="inStock"
-                  checked={formData.inStock}
-                  onCheckedChange={(checked) =>
-                    handleInputChange("inStock", checked)
-                  }
-                />
-                <Label htmlFor="inStock">Em Estoque</Label>
-              </div>
-
-              <div className="space-y-4">
-                <ProductImageManager
-                  images={formData.images || []}
-                  onChange={(newImages: ProductImage[]) => {
-                    // Sync images list
-                    const cover =
-                      newImages.find((img) => img.isCover) || newImages[0];
-                    handleInputChange("images", newImages);
-                    // Sync legacy imageUrl for backward compat
-                    if (cover) {
-                      handleInputChange("imageUrl", cover.url);
-                    } else {
-                      handleInputChange("imageUrl", "");
-                    }
-                  }}
-                  disabled={loading}
-                />
-              </div>
-
-              {formData.type === "RIBBON" && (
-                <div className="space-y-4 rounded-lg border p-4 bg-yellow-50/50">
-                  <h4 className="font-bold text-lg text-yellow-800 flex items-center gap-2">
-                    <Ruler size={20} /> Controle de Estoque da Fita
-                  </h4>
-
-                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="totalMeters">
-                        Metragem Total do Rolo (m)
-                      </Label>
+                      <Label htmlFor="totalMeters">Metragem do Rolo (m)</Label>
                       <Input
                         id="totalMeters"
                         type="number"
-                        value={formData.ribbonInventory?.totalRollMeters || 0}
+                        value={formData.ribbonInventory?.totalRollMeters || ""}
                         onChange={(e) =>
                           handleRibbonInventoryChange(
                             "totalRollMeters",
                             e.target.value
                           )
                         }
-                        placeholder="Ex: 500"
+                        placeholder="Ex: 100"
+                        required
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Status do Rolo</Label>
+                      <Label htmlFor="rollPrice">Preço do Rolo Fechado</Label>
+                      <Input
+                        id="rollPrice"
+                        type="number"
+                        step="0.01"
+                        value={formData.rollPrice ?? ""}
+                        onChange={(e) =>
+                          handleInputChange("rollPrice", e.target.value)
+                        }
+                        placeholder="Ex: 40.00"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="meterPrice">
+                        Preço por Metro{" "}
+                        <span className="text-slate-400 font-normal">
+                          (opcional)
+                        </span>
+                      </Label>
+                      <Input
+                        id="meterPrice"
+                        type="number"
+                        step="0.01"
+                        value={formData.price ?? ""}
+                        onChange={(e) =>
+                          handleInputChange("price", e.target.value)
+                        }
+                        placeholder="Pode confirmar depois, ao abrir o rolo"
+                      />
+                    </div>
+
+                    {formData.ribbonInventory?.status === "ABERTO" && (
+                      <div className="space-y-2 animate-in fade-in">
+                        <Label
+                          htmlFor="remainingMeters"
+                          className="flex justify-between"
+                        >
+                          Metragem Restante (m)
+                          <span className="text-sm text-slate-500">
+                            Total: {formData.ribbonInventory.totalRollMeters}m
+                          </span>
+                        </Label>
+                        <Input
+                          id="remainingMeters"
+                          type="number"
+                          value={formData.ribbonInventory.remainingMeters}
+                          onChange={(e) =>
+                            handleRibbonInventoryChange(
+                              "remainingMeters",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Ex: 25.5"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-yellow-100">
+                      <Label htmlFor="customBow" className="text-sm font-normal">
+                        Disponível para Laço Customizado/Venda ao Metro?
+                      </Label>
+                      <Switch
+                        id="customBow"
+                        checked={formData.isAvailableForCustomBow}
+                        onCheckedChange={(checked) =>
+                          handleInputChange("isAvailableForCustomBow", checked)
+                        }
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="price">Preço</Label>
+                      <Input
+                        id="price"
+                        type="number"
+                        step="0.01"
+                        value={formData.price ?? ""}
+                        onChange={(e) =>
+                          handleInputChange("price", e.target.value)
+                        }
+                        placeholder="Ex: 25.90"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Unidade de Venda</Label>
                       <Select
-                        value={formData.ribbonInventory?.status || "FECHADO"}
-                        onValueChange={(status: RibbonRollStatus) => {
-                          handleRibbonInventoryChange("status", status);
-                        }}
+                        value={formData.unit}
+                        onValueChange={(v) => handleInputChange("unit", v)}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecione o Status" />
+                          <SelectValue placeholder="Selecione Unidade" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="FECHADO">
-                            🔴 Fechado (Venda Rolo Inteiro)
-                          </SelectItem>
-                          <SelectItem value="ABERTO">
-                            🟢 Aberto (Venda por Metro/Laço)
-                          </SelectItem>
+                          <SelectItem value="un">UNIDADE (un)</SelectItem>
+                          <SelectItem value="m">METRO (m)</SelectItem>
+                          <SelectItem value="pct">PACOTE (pct)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
+                )}
 
-                  {formData.ribbonInventory?.status === "ABERTO" && (
-                    <div className="space-y-2 animate-in fade-in">
-                      <Label
-                        htmlFor="remainingMeters"
-                        className="flex justify-between"
-                      >
-                        Metragem Restante (m)
-                        <span className="text-sm text-slate-500">
-                          Total: {formData.ribbonInventory.totalRollMeters}m
-                        </span>
-                      </Label>
-                      <Input
-                        id="remainingMeters"
-                        type="number"
-                        value={formData.ribbonInventory.remainingMeters}
-                        onChange={(e) =>
-                          handleRibbonInventoryChange(
-                            "remainingMeters",
-                            e.target.value
-                          )
-                        }
-                        placeholder="Ex: 25.5"
-                      />
-                    </div>
-                  )}
+                <div className="space-y-2">
+                  <Label htmlFor="description">Descrição</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description || ""}
+                    onChange={(e) =>
+                      handleInputChange("description", e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+            )}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="customBow">
-                      Disponível para Laço Customizado/Venda ao Metro?
-                    </Label>
-                    <Switch
-                      id="customBow"
-                      checked={formData.isAvailableForCustomBow}
-                      onCheckedChange={(checked) =>
-                        handleInputChange("isAvailableForCustomBow", checked)
-                      }
+            {currentStepId === "variacoes" && (
+              <ProductVariationManager
+                variants={formData.variants || []}
+                onChange={(newVariants: ProductVariant[]) =>
+                  handleInputChange("variants", newVariants)
+                }
+                disabled={loading}
+              />
+            )}
+
+            {currentStepId === "revisao" && (
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="inStock"
+                    checked={formData.inStock}
+                    onCheckedChange={(checked) =>
+                      handleInputChange("inStock", checked)
+                    }
+                  />
+                  <Label htmlFor="inStock">Em Estoque</Label>
+                </div>
+
+                <div className="space-y-2 border-t pt-4">
+                  <ProductImageManager
+                    images={formData.images || []}
+                    onChange={(newImages: ProductImage[]) => {
+                      const cover =
+                        newImages.find((img) => img.isCover) || newImages[0];
+                      const validImageIds = new Set(
+                        newImages.map((img) => img.id)
+                      );
+                      setFormData((prev) => ({
+                        ...prev,
+                        images: newImages,
+                        // Sync legacy imageUrl for backward compat
+                        imageUrl: cover ? cover.url : "",
+                        // Variação vinculada a uma imagem removida da
+                        // galeria (ex: apagada aqui) fica com referência
+                        // morta — limpa o vínculo pra voltar a pedir
+                        // "Imagem obrigatória" em vez de continuar
+                        // mostrando/selecionando uma foto que não existe
+                        // mais na lista.
+                        variants: (prev.variants || []).map((v) => {
+                          if (!v.imageId || validImageIds.has(v.imageId))
+                            return v;
+                          const { imageId, imageUrl, ...rest } = v;
+                          return rest as ProductVariant;
+                        }),
+                      }));
+                    }}
+                    disabled={loading}
+                  />
+                </div>
+
+                {!!formData.variants?.length && (
+                  <div className="space-y-2 border-t pt-4">
+                    <ProductVariationImageManager
+                      images={formData.images || []}
+                      variants={formData.variants || []}
+                      onChange={(patch) => {
+                        // Merge feito aqui, contra `prev` — não contra o que
+                        // o ProductVariationImageManager tinha em mãos quando
+                        // o clique aconteceu. O updater funcional garante que
+                        // a intenção ("variação X, campo Y") é aplicada sobre
+                        // o estado mais recente de verdade.
+                        setFormData((prev) => {
+                          const nextVariants = (prev.variants || []).map(
+                            (v) => {
+                              if (v.id !== patch.variantId) return v;
+                              const merged = { ...v, ...patch.variantPatch };
+                              (
+                                Object.keys(merged) as (keyof ProductVariant)[]
+                              ).forEach((key) => {
+                                if (merged[key] === undefined)
+                                  delete merged[key];
+                              });
+                              return merged;
+                            }
+                          );
+                          return { ...prev, variants: nextVariants };
+                        });
+                      }}
+                      disabled={loading}
                     />
                   </div>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+                )}
+              </div>
+            )}
+          </div>
 
-          <DialogFooter className="mt-4">
+          <DialogFooter className="mt-4 sm:justify-between">
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={isFirstStep ? handleClose : goBack}
               disabled={loading}
+              className="gap-2"
             >
-              Cancelar
+              {!isFirstStep && <ChevronLeft size={16} />}
+              {isFirstStep ? "Cancelar" : "Voltar"}
             </Button>
-            <Button
-              type="submit"
-              className="bg-green-600 hover:bg-green-700"
-              disabled={loading}
-            >
-              {loading ? (
-                <Loader2 className="animate-spin mr-2" size={16} />
-              ) : (
-                <Save size={16} className="mr-2" />
-              )}
-              {productToEdit ? "Atualizar" : "Criar Produto"}
-            </Button>
+            {!isLastStep ? (
+              <Button
+                type="button"
+                onClick={goNext}
+                disabled={isNextDisabled}
+                className="gap-2"
+              >
+                Avançar <ChevronRight size={16} />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => handleSubmit()}
+                className="bg-green-600 hover:bg-green-700"
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="animate-spin mr-2" size={16} />
+                ) : (
+                  <Save size={16} className="mr-2" />
+                )}
+                {productToEdit ? "Atualizar" : "Criar Produto"}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <ConfirmDialog
+        open={!!pendingDraft}
+        onOpenChange={(open) => !open && handleDiscardDraft()}
+        title="Rascunho não salvo encontrado"
+        description="Você tem um rascunho não salvo desse produto. Deseja continuar de onde parou?"
+        confirmLabel="Continuar rascunho"
+        cancelLabel="Descartar"
+        destructive={false}
+        onConfirm={handleRestoreDraft}
+      />
     </Dialog>
   );
 };

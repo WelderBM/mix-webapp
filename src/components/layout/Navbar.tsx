@@ -3,7 +3,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useState, ElementType } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Sparkles,
   Gift,
@@ -13,6 +13,8 @@ import {
   ChevronRight,
   ChevronDown,
   Scissors,
+  Tag,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
@@ -27,62 +29,82 @@ import {
   SheetClose,
 } from "@/components/ui/sheet";
 import { usePathname } from "next/navigation";
-
-// Links da navegação principal (Estrutura de dados unificada)
-// Links da navegação principal (Estrutura de dados unificada)
-interface NavLinkItem {
-  href?: string;
-  label: string;
-  Icon?: ElementType;
-  isModal: boolean;
-  image?: string; // NOVO: Imagem para o menu visual móvel
-  description?: string; // NOVO: Descrição curta
-}
-
-const navLinks: NavLinkItem[] = [
-  {
-    href: "/",
-    label: "Início",
-    isModal: false,
-    image: "/nav-home.webp", // Placeholder, use SafeImage/placeholders in logic if file missing layout
-    description: "Voltar para a loja principal",
-  },
-  {
-    href: "/fitas",
-    label: "Central de Fitas",
-    isModal: false,
-    image: "/nav-fitas.webp",
-    description: "Rolos fechados e fitas por metro",
-  },
-  {
-    href: "/fitas?aba=service", // Ajustado para ir direto para o criador
-    label: "Personalizar Laço",
-    Icon: Sparkles,
-    isModal: false,
-    image: "/nav-laco.webp",
-    description: "Crie laços perfeitos para presentes",
-  },
-  {
-    href: "/baloes",
-    label: "Orçamento de Balões",
-    Icon: PartyPopper, // Importar PartyPopper
-    isModal: false,
-    image: "/nav-baloes.webp",
-    description: "Montar kit de balões personalizados",
-  },
-  {
-    label: "Monte Sua Cesta",
-    Icon: Gift,
-    isModal: true,
-    image: "/nav-cesta.webp",
-    description: "Crie presentes únicos passo a passo",
-  },
-];
+import { useSettingsStore } from "@/store/settingsStore";
+import { useCategoryStore } from "@/store/categoryStore";
+import { useProductStore } from "@/store/productStore";
+import { getVisibleCategories } from "@/lib/categories";
+import { cn } from "@/lib/utils";
 
 const Navbar = () => {
   const openKitBuilder = useKitBuilderStore((state) => state.openKitBuilder);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
+  const storeName = useSettingsStore((state) => state.settings.storeName);
+
+  // Fallback de toque pros 3 menus hover-only do desktop (issue #163):
+  // tablets com touch não têm `:hover`, então o CSS puro (group-hover)
+  // nunca abre esses dropdowns. `openGroup` guarda o label do menu aberto
+  // por clique/toque; o hover em desktop com mouse continua funcionando
+  // via CSS em paralelo (ver classes `group-hover:*` abaixo).
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const desktopNavRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!openGroup) return;
+
+    // Fecha ao tocar/clicar fora do menu desktop aberto.
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      if (
+        desktopNavRef.current &&
+        !desktopNavRef.current.contains(event.target as Node)
+      ) {
+        setOpenGroup(null);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [openGroup]);
+
+  // Categorias (menu "Loja", issue #70): listener em tempo real, reflete
+  // criar/renomear/reordenar categoria no admin sem precisar de deploy.
+  const categories = useCategoryStore((state) => state.categories);
+  const subscribeToCategories = useCategoryStore((state) => state.subscribe);
+  // Produtos: a Navbar fica montada no layout raiz (persiste entre
+  // navegações), então só dispara fetchProducts se nenhuma outra página já
+  // tiver carregado o catálogo — evita duplicar a query em toda troca de
+  // rota (não é por-categoria, é a mesma coleção que as páginas já buscam).
+  const allProducts = useProductStore((state) => state.allProducts);
+
+  useEffect(() => {
+    subscribeToCategories();
+  }, [subscribeToCategories]);
+
+  useEffect(() => {
+    // Adiado pra um microtask: a Navbar fica no layout raiz e roda ANTES de
+    // `children` no mesmo commit (ex: HomeClient/useStoreHydration, que
+    // hidrata o catálogo via SSR de forma síncrona). `fetchProducts()` só
+    // marca `isLoading: true` depois de um `await` interno (fetchRecipes),
+    // então checar `allProducts`/`isLoading` de forma síncrona aqui correria
+    // na frente da hidratação da página e disparava uma 2ª leitura
+    // redundante do Firestore (a store acabava sendo populada duas vezes na
+    // Home). Um microtask roda só depois que todos os effects deste commit
+    // (incluindo o da página) já terminaram de rodar de forma síncrona.
+    queueMicrotask(() => {
+      const state = useProductStore.getState();
+      if (state.allProducts.length === 0 && state.isLoading) {
+        state.fetchProducts();
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Guarda-corpo: só categoria ativa com >=1 produto vendável entra no
+  // mega-menu (ver src/lib/categories.ts).
+  const visibleCategories = getVisibleCategories(categories, allProducts);
 
   // Se a rota começar com "/admin", não renderiza nada
   if (pathname && pathname.startsWith("/admin")) {
@@ -137,17 +159,31 @@ const Navbar = () => {
 
   return (
     <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md shadow-sm border-b border-slate-100/50">
+      {/* Badge de área de atendimento (issue #159): faixa fina, própria,
+          visível em toda página (mobile e desktop) sem competir com os CTAs
+          principais da linha de baixo (Loja, carrinho, Kit Builder). Só
+          informativo — não é link, não precisa de alvo de toque. */}
+      <div className="bg-purple-50/80 border-b border-purple-100/60">
+        <div className="mx-auto flex max-w-7xl items-center justify-center gap-1 px-4 py-1 text-[11px] font-medium text-purple-700 whitespace-nowrap">
+          <MapPin size={12} className="shrink-0" aria-hidden="true" />
+          <span>Entregamos em Boa Vista - RR</span>
+        </div>
+      </div>
+
       <div className="mx-auto flex max-w-7xl items-center justify-between p-4">
         {/* Logo */}
         <Link
           href="/"
           className="text-xl font-bold bg-linear-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
         >
-          Mix WebApp
+          {storeName}
         </Link>
 
         {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center space-x-6">
+        <div
+          ref={desktopNavRef}
+          className="hidden md:flex items-center space-x-6"
+        >
           {navCategories.map((cat) => (
             <div key={cat.label} className="relative group">
               {cat.type === "link" ? (
@@ -159,16 +195,37 @@ const Navbar = () => {
                 </Link>
               ) : (
                 <>
-                  <button className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-purple-600 transition-colors group-hover:text-purple-600 py-2">
+                  <button
+                    type="button"
+                    data-testid={`nav-group-trigger-${cat.label}`}
+                    aria-expanded={openGroup === cat.label}
+                    onClick={() =>
+                      setOpenGroup((current) =>
+                        current === cat.label ? null : cat.label
+                      )
+                    }
+                    className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-purple-600 transition-colors group-hover:text-purple-600 py-2"
+                  >
                     {cat.label}
                     <ChevronDown
                       size={14}
-                      className="group-hover:rotate-180 transition-transform"
+                      className={cn(
+                        "group-hover:rotate-180 transition-transform",
+                        openGroup === cat.label && "rotate-180"
+                      )}
                     />
                   </button>
 
-                  {/* Dropdown Menu (Hover CSS) */}
-                  <div className="absolute top-full left-0 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 w-64 z-50">
+                  {/* Dropdown Menu: hover CSS pro mouse (desktop) + estado
+                      `openGroup` pro clique/toque (tablet, issue #163). */}
+                  <div
+                    data-testid={`nav-group-dropdown-${cat.label}`}
+                    className={cn(
+                      "absolute top-full left-0 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 w-64 z-50",
+                      openGroup === cat.label &&
+                        "opacity-100 visible translate-y-0"
+                    )}
+                  >
                     <div className="bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden p-2">
                       {cat.children?.map((child) => {
                         const ItemIcon = child.Icon!;
@@ -192,7 +249,10 @@ const Navbar = () => {
                           return (
                             <button
                               key={child.label}
-                              onClick={openKitBuilder}
+                              onClick={() => {
+                                openKitBuilder();
+                                setOpenGroup(null);
+                              }}
                               className="w-full text-left"
                             >
                               {content}
@@ -203,6 +263,7 @@ const Navbar = () => {
                           <Link
                             key={child.label}
                             href={child.href!}
+                            onClick={() => setOpenGroup(null)}
                             className="block"
                           >
                             {content}
@@ -215,6 +276,84 @@ const Navbar = () => {
               )}
             </div>
           ))}
+
+          {/* Loja: mega-menu dinâmico de categorias (issue #70) — só
+              renderiza se houver pelo menos 1 categoria ativa com produto
+              em estoque (guarda-corpo em getVisibleCategories). */}
+          {visibleCategories.length > 0 && (
+            <div className="relative group">
+              <button
+                type="button"
+                data-testid="loja-menu-trigger"
+                aria-expanded={openGroup === "Loja"}
+                onClick={() =>
+                  setOpenGroup((current) => (current === "Loja" ? null : "Loja"))
+                }
+                className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-purple-600 transition-colors group-hover:text-purple-600 py-2"
+              >
+                Loja
+                <ChevronDown
+                  size={14}
+                  className={cn(
+                    "group-hover:rotate-180 transition-transform",
+                    openGroup === "Loja" && "rotate-180"
+                  )}
+                />
+              </button>
+
+              {/* Dropdown Mega-Menu: hover CSS pro mouse (desktop) + estado
+                  `openGroup` pro clique/toque (tablet, issue #163). */}
+              <div
+                data-testid="loja-menu-dropdown"
+                className={cn(
+                  "absolute top-full right-0 pt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 w-80 z-50",
+                  openGroup === "Loja" && "opacity-100 visible translate-y-0"
+                )}
+              >
+                <div className="bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden p-2 max-h-[70vh] overflow-y-auto">
+                  {visibleCategories.map((category) => (
+                    <div key={category.id} className="p-1">
+                      <Link
+                        href={`/categoria/${category.id}`}
+                        onClick={() => setOpenGroup(null)}
+                        className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="bg-purple-50 text-purple-600 p-2 rounded-md shrink-0">
+                          <Tag size={18} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-700">
+                            {category.name}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {category.productCount}{" "}
+                            {category.productCount === 1
+                              ? "produto"
+                              : "produtos"}
+                          </p>
+                        </div>
+                      </Link>
+
+                      {category.visibleSubcategories.length > 0 && (
+                        <div className="ml-11 mt-1 mb-2 flex flex-wrap gap-1.5">
+                          {category.visibleSubcategories.map((sub) => (
+                            <Link
+                              key={sub.id}
+                              href={`/categoria/${category.id}?sub=${sub.id}`}
+                              onClick={() => setOpenGroup(null)}
+                              className="text-xs font-medium text-slate-500 hover:text-purple-600 bg-slate-50 hover:bg-purple-50 rounded-full px-2.5 py-1 transition-colors"
+                            >
+                              {sub.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -224,7 +363,7 @@ const Navbar = () => {
             variant="ghost"
             size="icon"
             onClick={() => setIsMobileMenuOpen(true)}
-            className="md:hidden text-slate-700"
+            className="md:hidden h-11 w-11 text-slate-700"
           >
             <Menu className="h-6 w-6" />
           </Button>
@@ -312,6 +451,57 @@ const Navbar = () => {
                 )}
               </div>
             ))}
+
+            {/* Loja: mesmo dado dinâmico do mega-menu desktop (issue #70) */}
+            {visibleCategories.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Loja
+                </h4>
+                <div className="space-y-3">
+                  {visibleCategories.map((category) => (
+                    <div key={category.id} className="space-y-2">
+                      <Link
+                        href={`/categoria/${category.id}`}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center gap-3 p-3 min-h-11 bg-white rounded-xl border border-slate-100 shadow-sm active:scale-95 transition-transform"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-white border border-slate-100 flex items-center justify-center text-purple-600 shrink-0">
+                          <Tag size={20} />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <h5 className="font-bold text-slate-800">
+                            {category.name}
+                          </h5>
+                          <p className="text-xs text-slate-500">
+                            {category.productCount}{" "}
+                            {category.productCount === 1
+                              ? "produto"
+                              : "produtos"}
+                          </p>
+                        </div>
+                        <ChevronRight size={16} className="text-slate-300" />
+                      </Link>
+
+                      {category.visibleSubcategories.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pl-2">
+                          {category.visibleSubcategories.map((sub) => (
+                            <Link
+                              key={sub.id}
+                              href={`/categoria/${category.id}?sub=${sub.id}`}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                              className="min-h-11 min-w-11 flex items-center justify-center text-xs font-medium text-slate-600 bg-white border border-slate-100 rounded-full px-3 py-2 active:scale-95 transition-transform"
+                            >
+                              {sub.name}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="p-6 bg-white border-t text-center text-xs text-slate-400">

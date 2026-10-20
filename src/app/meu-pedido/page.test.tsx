@@ -162,4 +162,180 @@ describe("TrackOrderContent", () => {
     expect(replaceMock).toHaveBeenCalled();
     expect(replaceMock.mock.calls[0][0]).toContain("id=manual123");
   });
+
+  it("should show a distinct 'Pronto p/ Entrega' step (not 'Saiu p/ Entrega') when a delivery order is ready", async () => {
+    const mockOrder = {
+      id: "order-ready",
+      customerName: "Ana",
+      status: "ready",
+      total: 80,
+      items: [],
+      deliveryMethod: "delivery",
+      address: "Rua B",
+    };
+
+    (firestore.onSnapshot as any).mockImplementation(
+      (_ref: any, callback: any) => {
+        callback({
+          exists: () => true,
+          data: () => mockOrder,
+          id: "order-ready",
+        });
+        return () => {};
+      }
+    );
+
+    render(<TrackOrderContent />);
+
+    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    fireEvent.change(input, { target: { value: "order-ready" } });
+    fireEvent.submit(input.closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Olá, Ana/)).toBeTruthy();
+    });
+
+    // Both steps must be present and distinct for delivery orders
+    expect(screen.getByText("Pronto p/ Entrega")).toBeTruthy();
+    expect(screen.getByText("Saiu p/ Entrega")).toBeTruthy();
+  });
+
+  it("should keep the 4-step pickup timeline without a 'Saiu p/ Entrega' step", async () => {
+    const mockOrder = {
+      id: "order-pickup",
+      customerName: "Bruno",
+      status: "ready",
+      total: 40,
+      items: [],
+      deliveryMethod: "pickup",
+    };
+
+    (firestore.onSnapshot as any).mockImplementation(
+      (_ref: any, callback: any) => {
+        callback({
+          exists: () => true,
+          data: () => mockOrder,
+          id: "order-pickup",
+        });
+        return () => {};
+      }
+    );
+
+    render(<TrackOrderContent />);
+
+    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    fireEvent.change(input, { target: { value: "order-pickup" } });
+    fireEvent.submit(input.closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Olá, Bruno/)).toBeTruthy();
+    });
+
+    expect(screen.getByText("Pronto")).toBeTruthy();
+    expect(screen.queryByText("Saiu p/ Entrega")).toBeNull();
+    expect(screen.queryByText("Pronto p/ Entrega")).toBeNull();
+  });
+
+  it("mostra o ponto de referência quando o pedido de entrega tem addressDetails.reference", async () => {
+    const mockOrder = {
+      id: "order-reference",
+      customerName: "Carla",
+      status: "pending",
+      total: 60,
+      items: [],
+      deliveryMethod: "delivery",
+      address: "Rua das Palmeiras, 45",
+      addressDetails: {
+        street: "Rua das Palmeiras",
+        number: "45",
+        reference: "Casa com portão verde",
+      },
+    };
+
+    (firestore.onSnapshot as any).mockImplementation(
+      (_ref: any, callback: any) => {
+        callback({ exists: () => true, data: () => mockOrder, id: mockOrder.id });
+        return () => {};
+      }
+    );
+
+    render(<TrackOrderContent />);
+
+    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    fireEvent.change(input, { target: { value: mockOrder.id } });
+    fireEvent.submit(input.closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Olá, Carla/)).toBeTruthy();
+    });
+
+    expect(screen.getByText(/Casa com portão verde/)).toBeTruthy();
+  });
+
+  it("mostra o troco pedido quando o pedido é pago em dinheiro e tem changeFor", async () => {
+    const mockOrder = {
+      id: "order-change",
+      customerName: "Diego",
+      status: "pending",
+      total: 30,
+      items: [],
+      deliveryMethod: "pickup",
+      paymentMethod: "cash",
+      changeFor: "100",
+    };
+
+    (firestore.onSnapshot as any).mockImplementation(
+      (_ref: any, callback: any) => {
+        callback({ exists: () => true, data: () => mockOrder, id: mockOrder.id });
+        return () => {};
+      }
+    );
+
+    render(<TrackOrderContent />);
+
+    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    fireEvent.change(input, { target: { value: mockOrder.id } });
+    fireEvent.submit(input.closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Olá, Diego/)).toBeTruthy();
+    });
+
+    expect(screen.getByText(/Troco para R\$ 100/)).toBeTruthy();
+  });
+
+  it("pedido legado sem addressDetails/changeFor não quebra e não mostra blocos vazios", async () => {
+    const mockOrder = {
+      id: "order-legacy",
+      customerName: "Elaine",
+      status: "pending",
+      total: 45,
+      items: [],
+      deliveryMethod: "delivery",
+      address: "Rua Antiga, 5",
+      paymentMethod: "cash",
+      // addressDetails e changeFor ausentes, como pedido gravado antes da #72.
+    };
+
+    (firestore.onSnapshot as any).mockImplementation(
+      (_ref: any, callback: any) => {
+        callback({ exists: () => true, data: () => mockOrder, id: mockOrder.id });
+        return () => {};
+      }
+    );
+
+    render(<TrackOrderContent />);
+
+    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    fireEvent.change(input, { target: { value: mockOrder.id } });
+    fireEvent.submit(input.closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Olá, Elaine/)).toBeTruthy();
+    });
+
+    expect(screen.queryByText(/Ponto de referência/)).toBeNull();
+    expect(screen.queryByText(/Troco para/)).toBeNull();
+    expect(screen.queryByText(/undefined/)).toBeNull();
+  });
 });

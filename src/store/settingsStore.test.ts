@@ -20,7 +20,6 @@ describe("SettingsStore", () => {
         theme: {
           primaryColor: "#7c3aed",
           secondaryColor: "#16a34a",
-          accentColor: "#f97316",
           backgroundColor: "#f8fafc",
           activeTheme: "default",
         },
@@ -58,7 +57,6 @@ describe("SettingsStore", () => {
       const store = useSettingsStore.getState();
       expect(store.settings.theme.primaryColor).toBe("#7c3aed");
       expect(store.settings.theme.secondaryColor).toBe("#16a34a");
-      expect(store.settings.theme.accentColor).toBe("#f97316");
       expect(store.settings.theme.backgroundColor).toBe("#f8fafc");
     });
 

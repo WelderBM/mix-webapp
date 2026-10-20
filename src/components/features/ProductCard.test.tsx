@@ -129,4 +129,44 @@ describe("ProductCard", () => {
     render(<ProductCard product={product} />);
     expect(screen.getByText("Uma cesta bonita")).toBeInTheDocument();
   });
+
+  describe("RIBBON — disableRibbonRedirect (issue #140)", () => {
+    const makeRibbon = (overrides: Partial<Product> = {}): Product =>
+      makeProduct({
+        id: "ribbon-1",
+        type: "RIBBON",
+        rollPrice: 30,
+        ribbonInventory: { status: "FECHADO" } as any,
+        ...overrides,
+      });
+
+    it("links to /fitas by default (vitrine behavior)", () => {
+      const product = makeRibbon();
+      render(<ProductCard product={product} />);
+      const links = screen.getAllByRole("link");
+      expect(
+        links.some((link) => link.getAttribute("href")?.startsWith("/fitas?fita=ribbon-1"))
+      ).toBe(true);
+    });
+
+    it("renders no links and an action button when disableRibbonRedirect is true", () => {
+      const product = makeRibbon();
+      const onSelect = vi.fn();
+      render(
+        <ProductCard product={product} onSelect={onSelect} disableRibbonRedirect />
+      );
+      expect(screen.queryAllByRole("link")).toHaveLength(0);
+      expect(screen.getByText("Adicionar")).toBeInTheDocument();
+    });
+
+    it("clicking the action button calls onSelect instead of navigating", () => {
+      const product = makeRibbon();
+      const onSelect = vi.fn();
+      render(
+        <ProductCard product={product} onSelect={onSelect} disableRibbonRedirect />
+      );
+      screen.getByText("Adicionar").click();
+      expect(onSelect).toHaveBeenCalledWith(product);
+    });
+  });
 });

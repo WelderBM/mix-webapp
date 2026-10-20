@@ -22,6 +22,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { getProductImage } from "@/lib/image-utils";
+import { getCartItemTotal } from "@/lib/cart-pricing";
 
 // Componente para a barra de progresso do status
 const StatusTimeline = ({
@@ -31,27 +32,40 @@ const StatusTimeline = ({
   status: OrderStatus;
   isDelivery: boolean;
 }) => {
-  const steps = [
-    { id: "pending", label: "Recebido", icon: Clock },
-    { id: "preparing", label: "Preparando", icon: Package },
-    {
-      id: isDelivery ? "out_for_delivery" : "ready",
-      label: isDelivery ? "Saiu p/ Entrega" : "Pronto",
-      icon: isDelivery ? Bike : MapPin,
-    },
-    { id: "delivered", label: "Entregue", icon: CheckCircle2 },
-  ];
+  const steps = isDelivery
+    ? [
+        { id: "pending", label: "Recebido", icon: Clock },
+        { id: "preparing", label: "Preparando", icon: Package },
+        { id: "ready", label: "Pronto p/ Entrega", icon: MapPin },
+        { id: "out_for_delivery", label: "Saiu p/ Entrega", icon: Bike },
+        { id: "delivered", label: "Entregue", icon: CheckCircle2 },
+      ]
+    : [
+        { id: "pending", label: "Recebido", icon: Clock },
+        { id: "preparing", label: "Preparando", icon: Package },
+        { id: "ready", label: "Pronto", icon: MapPin },
+        { id: "delivered", label: "Entregue", icon: CheckCircle2 },
+      ];
 
   // Mapa de progresso: qual índice de 'steps' o status atual representa?
   // Se cancelado, não vamos mostrar nessa timeline ou trataremos diferente.
-  const statusMap: Record<string, number> = {
-    pending: 0,
-    preparing: 1,
-    ready: 2,
-    out_for_delivery: 2,
-    delivered: 3,
-    cancelled: -1,
-  };
+  const statusMap: Record<string, number> = isDelivery
+    ? {
+        pending: 0,
+        preparing: 1,
+        ready: 2,
+        out_for_delivery: 3,
+        delivered: 4,
+        cancelled: -1,
+      }
+    : {
+        pending: 0,
+        preparing: 1,
+        ready: 2,
+        out_for_delivery: 2,
+        delivered: 3,
+        cancelled: -1,
+      };
 
   const currentStepIndex = statusMap[status] ?? 0;
   const isCancelled = status === "cancelled";
@@ -65,47 +79,49 @@ const StatusTimeline = ({
   }
 
   return (
-    <div className="relative flex justify-between w-full max-w-sm mx-auto mb-8">
-      {/* Barra de fundo */}
-      <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-200 -z-10 -translate-y-1/2 rounded-full" />
+    <div className="w-full overflow-x-auto mb-8">
+      <div className="relative flex justify-between w-full max-w-sm mx-auto min-w-[360px] px-1">
+        {/* Barra de fundo */}
+        <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-200 -z-10 -translate-y-1/2 rounded-full" />
 
-      {/* Barra de progresso preenchida */}
-      <div
-        className="absolute top-1/2 left-0 h-1 bg-green-500 -z-10 -translate-y-1/2 rounded-full transition-all duration-500"
-        style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
-      />
+        {/* Barra de progresso preenchida */}
+        <div
+          className="absolute top-1/2 left-0 h-1 bg-green-500 -z-10 -translate-y-1/2 rounded-full transition-all duration-500"
+          style={{ width: `${(currentStepIndex / (steps.length - 1)) * 100}%` }}
+        />
 
-      {steps.map((step, index) => {
-        const isActive = index <= currentStepIndex;
-        const isCurrent = index === currentStepIndex;
-        const Icon = step.icon;
+        {steps.map((step, index) => {
+          const isActive = index <= currentStepIndex;
+          const isCurrent = index === currentStepIndex;
+          const Icon = step.icon;
 
-        return (
-          <div
-            key={step.id}
-            className="flex flex-col items-center gap-2 bg-white px-2"
-          >
+          return (
             <div
-              className={cn(
-                "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300",
-                isActive
-                  ? "bg-green-500 border-green-500 text-white shadow-md scale-110"
-                  : "bg-white border-slate-300 text-slate-300"
-              )}
+              key={step.id}
+              className="flex flex-col items-center gap-2 bg-white px-2 shrink-0"
             >
-              <Icon size={18} />
+              <div
+                className={cn(
+                  "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-300",
+                  isActive
+                    ? "bg-green-500 border-green-500 text-white shadow-md scale-110"
+                    : "bg-white border-slate-300 text-slate-300"
+                )}
+              >
+                <Icon size={18} />
+              </div>
+              <span
+                className={cn(
+                  "text-[10px] font-bold uppercase tracking-tight text-center whitespace-nowrap transition-colors",
+                  isActive ? "text-slate-800" : "text-slate-400"
+                )}
+              >
+                {step.label}
+              </span>
             </div>
-            <span
-              className={cn(
-                "text-[10px] font-bold uppercase tracking-tight transition-colors",
-                isActive ? "text-slate-800" : "text-slate-400"
-              )}
-            >
-              {step.label}
-            </span>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -317,7 +333,9 @@ export function TrackOrderContent() {
               <div className="space-y-4">
                 {order.items.map((item, idx) => {
                   const imageUrl = getProductImage(
-                    item.product?.imageUrl,
+                    item.selectedVariant?.imageUrl ||
+                      item.selectedImageUrl ||
+                      item.product?.imageUrl,
                     item.product?.type || "DEFAULT"
                   );
                   return (
@@ -331,6 +349,7 @@ export function TrackOrderContent() {
                           name={item.product?.name || "Item"}
                           alt=""
                           fill
+                          sizes="48px"
                           className="object-cover"
                         />
                       </div>
@@ -347,11 +366,7 @@ export function TrackOrderContent() {
                             Qtd: {item.quantity}
                           </p>
                           <p className="text-xs font-bold text-slate-700">
-                            {formatCurrency(
-                              (item.kitTotalAmount ||
-                                item.product?.price ||
-                                0) * item.quantity
-                            )}
+                            {formatCurrency(getCartItemTotal(item))}
                           </p>
                         </div>
                       </div>
@@ -376,7 +391,25 @@ export function TrackOrderContent() {
                   ? order.address
                   : "Retirada na Loja Mix Novidades - Dr. Silvio Botelho."}
               </p>
+              {order.deliveryMethod === "delivery" &&
+                order.addressDetails?.reference != null && (
+                  <p className="text-xs text-slate-500 mt-2">
+                    <span className="font-bold">Ponto de referência:</span>{" "}
+                    {order.addressDetails.reference}
+                  </p>
+                )}
             </div>
+
+            {order.paymentMethod === "cash" && order.changeFor != null && (
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                  Troco
+                </h3>
+                <p className="text-sm text-slate-600">
+                  Troco para R$ {order.changeFor}
+                </p>
+              </div>
+            )}
 
             <Button
               variant="outline"
