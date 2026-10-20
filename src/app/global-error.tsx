@@ -2,6 +2,7 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import { shouldAutoReload } from "@/lib/staleDeploy";
 
 /**
  * Error boundary de topo do App Router. Substitui o layout raiz inteiro
@@ -18,6 +19,10 @@ export default function GlobalError({
   error: Error & { digest?: string };
 }) {
   useEffect(() => {
+    if (shouldAutoReload(error)) {
+      window.location.reload();
+      return;
+    }
     Sentry.captureException(error);
   }, [error]);
 
