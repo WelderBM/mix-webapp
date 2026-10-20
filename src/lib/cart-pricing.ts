@@ -44,6 +44,33 @@ export function getCartItemTotal(item: CartItem): number {
   return unitPrice * item.quantity;
 }
 
+// Variante pra EXIBIÇÃO de item já gravado (ex: pedido antigo em
+// /meu-pedido, salvo antes do portão de preço existir): `null` em vez de
+// lançar, pra uma linha sem preço não derrubar a página de rastreio.
+// Nunca usar pra montar pedido/total cobrado — aí o certo é lançar.
+export function getCartItemTotalOrNull(item: CartItem): number | null {
+  try {
+    return getCartItemTotal(item);
+  } catch {
+    return null;
+  }
+}
+
+// Carrinho persistido por uma versão antiga do site pode conter item SIMPLE
+// cujo snapshot de produto não tem preço efetivo (ex: fita RIBBON sem
+// rollPrice antes do #65). getCartItemTotal lança nesse caso, e isso
+// derrubava a página inteira na renderização. Descartar esses itens ao
+// reidratar o carrinho mantém o portão de addItem como garantia: nenhum
+// item sem preço chega a tela nenhuma, e o cliente só readiciona o produto.
+export function dropUnpricedCartItems(items: unknown): CartItem[] {
+  if (!Array.isArray(items)) return [];
+  return items.filter(
+    (item: CartItem) =>
+      item != null &&
+      (item.type !== "SIMPLE" || getCartItemUnitPrice(item) != null)
+  );
+}
+
 // Carrinho persiste em localStorage entre sessões — um item SIMPLE pode ter
 // entrado válido e o produto ter ficado indisponível depois (desativado por
 // nome placeholder nunca editado, ver ProductFormDialog, ou removido/sem

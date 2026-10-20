@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  dropUnpricedCartItems,
+  getCartItemTotalOrNull,
   getCartItemTotal,
   getCartItemUnitPrice,
   getCartItemUnavailableReason,
@@ -212,5 +214,56 @@ describe("sumCartItemTotals", () => {
 
   it("returns 0 for an empty cart", () => {
     expect(sumCartItemTotals([])).toBe(0);
+  });
+});
+
+describe("dropUnpricedCartItems", () => {
+  const priced = {
+    cartId: "ok",
+    type: "SIMPLE",
+    quantity: 1,
+    product: { id: "p1", name: "Com preço", price: 10, type: "STANDARD_ITEM", category: "x", unit: "un", inStock: true },
+  } as CartItem;
+  // Fita RIBBON de rolo fechado sem rollPrice — formato salvo antes do #65.
+  const legacyUnpriced = {
+    cartId: "legacy",
+    type: "SIMPLE",
+    quantity: 1,
+    product: { id: "p2", name: "Fita", type: "RIBBON", category: "Fitas", unit: "rolo", inStock: true },
+  } as unknown as CartItem;
+  const kit = { cartId: "kit", type: "CUSTOM_KIT", quantity: 1, kitTotalAmount: 50 } as CartItem;
+
+  it("remove item SIMPLE sem preço efetivo e mantém o resto", () => {
+    const result = dropUnpricedCartItems([priced, legacyUnpriced, kit]);
+    expect(result.map((i) => i.cartId)).toEqual(["ok", "kit"]);
+  });
+
+  it("o que sobra nunca faz getCartItemTotal lançar", () => {
+    for (const item of dropUnpricedCartItems([priced, legacyUnpriced, kit])) {
+      expect(() => getCartItemTotal(item)).not.toThrow();
+    }
+  });
+
+  it("tolera storage corrompido (não-array ou entradas nulas)", () => {
+    expect(dropUnpricedCartItems(undefined)).toEqual([]);
+    expect(dropUnpricedCartItems("lixo")).toEqual([]);
+    expect(dropUnpricedCartItems([null, priced])).toEqual([priced]);
+  });
+});
+
+describe("getCartItemTotalOrNull", () => {
+  it("devolve null em vez de lançar para item gravado sem preço", () => {
+    const legacy = {
+      cartId: "legacy",
+      type: "SIMPLE",
+      quantity: 1,
+      product: { id: "p2", name: "Fita", type: "RIBBON", category: "Fitas", unit: "rolo", inStock: true },
+    } as unknown as CartItem;
+    expect(getCartItemTotalOrNull(legacy)).toBeNull();
+  });
+
+  it("devolve o total normal quando há preço", () => {
+    const kit = { cartId: "kit", type: "CUSTOM_KIT", quantity: 2, kitTotalAmount: 50 } as CartItem;
+    expect(getCartItemTotalOrNull(kit)).toBe(100);
   });
 });
