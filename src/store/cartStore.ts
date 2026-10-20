@@ -2,7 +2,11 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { CartItem } from "@/types/cart";
 import { toast } from "sonner";
-import { getCartItemTotal, getCartItemUnitPrice } from "@/lib/cart-pricing";
+import {
+  dropUnpricedCartItems,
+  getCartItemTotal,
+  getCartItemUnitPrice,
+} from "@/lib/cart-pricing";
 
 interface CartStore {
   items: CartItem[];
@@ -161,6 +165,12 @@ export const useCartStore = create<CartStore>()(
       name: "cart-storage",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ items: state.items }),
+      merge: (persisted, current) => ({
+        ...current,
+        items: dropUnpricedCartItems(
+          (persisted as Partial<CartStore> | undefined)?.items
+        ),
+      }),
     }
   )
 );
