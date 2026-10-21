@@ -416,6 +416,10 @@ function AdminPageContent() {
                 <ClipboardList size={18} /> Lançar produtos
               </Button>
             </Link>
+            {/* Salvar só onde há o que salvar (#242): em Pedidos/Produtos
+                ele não grava nada e confundia as atendentes. */}
+            {viewMode === "inventory" &&
+              ["config", "sections", "balloons", "ribbons"].includes(inventoryTab) && (
             <Button
               onClick={saveAllSettings}
               disabled={!settingsLoaded || !balloonsLoaded}
@@ -433,6 +437,7 @@ function AdminPageContent() {
               )}
               Salvar Configurações
             </Button>
+            )}
             <Link href="/" className="flex-1 md:flex-none">
               <Button variant="outline" className="w-full">
                 <Eye size={18} className="mr-2" /> Ver Loja

@@ -368,7 +368,7 @@ export default function IntakeQueuePage() {
           </label>
         </div>
 
-        <div className="mx-auto flex max-w-3xl gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
+        <div className="mx-auto flex max-w-3xl flex-wrap gap-2 pb-1">
           {(Object.keys(STATUS_LABEL) as StatusFilter[]).map((s) => (
             <Chip key={s} active={status === s} onClick={() => setStatus(s)}>
               {STATUS_LABEL[s]}
@@ -691,10 +691,10 @@ function AreaGrid({
         <button
           type="button"
           onClick={() => onPick(NO_AREA)}
-          className="flex min-h-14 w-full items-center justify-between gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 text-left text-sm active:bg-slate-50"
+          className="flex min-h-16 w-full items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-3 text-left text-sm active:bg-slate-50"
         >
-          <span>
-            <span className="font-medium text-slate-700">Sem área definida</span>
+          <span className="min-w-0 space-y-1">
+            <span className="block font-medium text-slate-700">Sem área definida</span>
             <span className="block text-xs text-slate-500">
               Diga uma vez em que área fica cada família
             </span>
