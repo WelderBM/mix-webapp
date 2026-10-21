@@ -1,0 +1,72 @@
+name: Revisão automática de PR
+
+# Claude revisa cada PR para dev/master num runner do GitHub, isolado de
+# qualquer sessão local. As instruções de revisão moram em
+# .claude/agents/revisor-pr.md — o mesmo arquivo do agente local.
+#
+# Quando roda: PR aberto, reaberto, saindo de rascunho, ou quando alguém
+# põe a label "revisar" (para pedir nova revisão depois de mudanças).
+# Não roda a cada push, para não gastar uso do plano à toa.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, labeled]
+    branches: [dev, master]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write
+
+jobs:
+  review:
+    if: >-
+      github.event.pull_request.draft == false &&
+      (github.event.action != 'labeled' || github.event.label.name == 'revisar')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAS_OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+      HAS_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+
+    steps:
+      - name: Verificar credencial
+        id: creds
+        run: |
+          if [ "$HAS_OAUTH" != "true" ] && [ "$HAS_API_KEY" != "true" ]; then
+            echo "::warning::Sem CLAUDE_CODE_OAUTH_TOKEN nem ANTHROPIC_API_KEY — revisão pulada."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.creds.outputs.ok == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Revisar com Claude
+        if: steps.creds.outputs.ok == 'true'
+        # v1.0.242 (05/10/2026), fixado por SHA: action de terceiro.
+        uses: anthropics/claude-code-action@6c690188da61cf16ee7debb28383ba67f02abb4c
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          use_sticky_comment: true
+          prompt: |
+            Repositório: ${{ github.repository }}
+            PR: #${{ github.event.pull_request.number }}
+            Base: ${{ github.event.pull_request.base.ref }}
+
+            Leia o arquivo .claude/agents/revisor-pr.md (ignore o bloco de
+            metadados entre os "---" do topo) e siga essas instruções para
+            revisar este PR. Publique a revisão como um único comentário no PR.
+          claude_args: >-
+            --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(git fetch:*),Bash(git show:*),Bash(git log:*),Bash(git diff:*),Bash(git ls-tree:*),Bash(git grep:*),Read,Grep,Glob"
