@@ -103,6 +103,7 @@ function AdminPageContent() {
   const patchParams = useSearchParamsPatch();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const [isAdminUser, setIsAdminUser] = useState(false);
   // Defaults to orders since user emphasized it — `?view=estoque` abre direto em Gerenciar Estoque.
   const [viewMode, setViewMode] = useState<"orders" | "inventory">(() =>
@@ -397,6 +398,12 @@ function AdminPageContent() {
             <p className="text-xs text-slate-500">Gestão simplificada</p>
           </div>
           <div className="flex gap-2 flex-wrap justify-center md:justify-end">
+            {/* Tarefa principal das atendentes (#235): à vista, não no menu ⋯. */}
+            <Link href="/admin/lancamento" className="w-full md:w-auto">
+              <Button className="h-12 w-full gap-2 bg-purple-600 text-base hover:bg-purple-700 md:h-10 md:text-sm">
+                <ClipboardList size={18} /> Lançar produtos
+              </Button>
+            </Link>
             <Button
               onClick={saveAllSettings}
               disabled={!settingsLoaded || !balloonsLoaded}
@@ -420,26 +427,25 @@ function AdminPageContent() {
               </Button>
             </Link>
             <Button
-              onClick={() => {
-                signOut(auth);
-              }}
+              onClick={() => setConfirmLogout(true)}
               variant="ghost"
+              className="gap-2"
             >
-              <LogOut size={16} />
+              <LogOut size={16} /> Sair
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-slate-400">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Mais opções"
+                  className="text-slate-400"
+                >
                   <MoreHorizontal size={18} />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link href="/admin/lancamento" className="gap-2 cursor-pointer">
-                    <ClipboardList size={14} /> Lançamento de produtos
-                  </Link>
-                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/admin/batch-import" className="gap-2 cursor-pointer">
                     <Package size={14} /> Importação em Lote (Fitas)
@@ -557,6 +563,18 @@ function AdminPageContent() {
           categories={categories}
           tags={tags}
           customKitEnabled={settings.features?.customKitEnabled ?? false}
+        />
+
+        <ConfirmDialog
+          open={confirmLogout}
+          onOpenChange={setConfirmLogout}
+          title="Sair do sistema?"
+          description="Você vai precisar entrar de novo com e-mail e senha."
+          confirmLabel="Sair"
+          onConfirm={() => {
+            setConfirmLogout(false);
+            signOut(auth);
+          }}
         />
 
         <ConfirmDialog
