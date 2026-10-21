@@ -71,6 +71,13 @@ describe("analyzeNoturnoRows", () => {
     expect(a.isCoreFamily).toBe(false);
   });
 
+  it("fita de embalagem/larga/microporosa não é fita de laço", () => {
+    for (const d of ["FITA LARGA MARROM 48X40", "FITA MICROPOROSA P/ CILIOS", "FITA 48MMX40MM DE EMP. TRANSPARENTE"]) {
+      expect(analyzeNoturnoRows([row({ description: d })])[0].suggestedType).toBe("STANDARD_ITEM");
+    }
+    expect(analyzeNoturnoRows([row({ description: "FITA CETIM LARGA ROXO" })])[0].suggestedType).toBe("RIBBON");
+  });
+
   it("fita de laço conta como núcleo da loja", () => {
     const [a] = analyzeNoturnoRows([row({ description: "FITA MAXI TRUE LOVE 32MMX100M VERMELHO" })]);
     expect(a.isCoreFamily).toBe(true);
