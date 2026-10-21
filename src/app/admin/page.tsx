@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
+import { useAuthStore } from "@/store/authStore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Product, StoreSettings } from "@/types";
 import { BalloonConfig } from "@/types/balloon";
@@ -215,13 +216,9 @@ function AdminPageContent() {
       }
 
       try {
-        const { doc: firestoreDoc, getDoc: firestoreGetDoc } = await import(
-          "firebase/firestore"
-        );
-        const staffDoc = await firestoreGetDoc(
-          firestoreDoc(db, "whitelisted_staff", user.email)
-        );
-        const isActive = staffDoc.exists() && staffDoc.data()?.active === true;
+        // Mesma regra do firestore.rules: whitelist individual OU domínio
+        // corporativo (settings/general.allowedStaffDomain).
+        const isActive = await useAuthStore.getState().checkAdminRole(user);
 
         if (!isActive) {
           toast.error("Seu e-mail não consta na lista de funcionários autorizados.");
@@ -234,6 +231,7 @@ function AdminPageContent() {
         setIsAdminUser(true);
       } catch (err) {
         console.error("Erro ao verificar permissões:", err);
+        toast.error("Não foi possível verificar seu acesso. Tente novamente.");
         await signOut(auth);
         router.replace("/");
       } finally {

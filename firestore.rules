@@ -11,7 +11,8 @@ service cloud.firestore {
     // 3. Email presente na coleção /whitelisted_staff/{email}
     // ─────────────────────────────────────────────────────────────────────
     function isAdmin() {
-      let email = request.auth.token.email;
+      // IDs em /whitelisted_staff são gravados em minúsculas (SuperAdminZone)
+      let email = request.auth.token.email.lower();
       let isVerified = request.auth != null && request.auth.token.email_verified == true;
       
       // 1. Check individual whitelist
@@ -135,9 +136,15 @@ service cloud.firestore {
 
     // ─────────────────────────────────────────────────────────────────────
     // /whitelisted_staff/{email}
-    //   - Somente admin pode ler/escrever
+    //   - Somente admin pode escrever / listar
+    //   - Qualquer usuário verificado pode ler o PRÓPRIO doc — sem isso, quem
+    //     não está na whitelist recebe "permission-denied" no lugar de
+    //     "não existe" e o /admin não consegue mostrar a mensagem certa.
     // ─────────────────────────────────────────────────────────────────────
     match /whitelisted_staff/{email} {
+      allow get: if request.auth != null &&
+                    request.auth.token.email_verified == true &&
+                    request.auth.token.email.lower() == email;
       allow read, write: if isAdmin();
     }
 
