@@ -11,6 +11,8 @@ export interface LaunchInput {
   name: string;
   price: number | null;
   categoryName: string;
+  // Subcategoria real da categoria (#232); null/"" = sem subcategoria.
+  subcategoryName?: string | null;
   // null = atendente ainda não escolheu "Vende como" (escolha obrigatória:
   // o nome do Noturno nem sempre diz a verdade sobre pacote × unidade).
   unit: Unit | null;
@@ -110,6 +112,8 @@ export function buildProductFromIntake(
   const base = {
     name: input.name.trim(),
     category: input.categoryName,
+    // undefined some no clean() antes de gravar.
+    subcategory: input.subcategoryName || undefined,
     images,
     imageUrl: input.photoUrl ?? "",
     inStock: item.stock > 0,

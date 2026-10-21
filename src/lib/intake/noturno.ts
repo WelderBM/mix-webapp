@@ -1,6 +1,7 @@
 import type { Cell } from "./xlsx";
 import { normalizeText, searchTokensFor } from "./search";
 import { detectPack, isPackHint } from "./pack";
+import { classifySubcategory } from "./subcategories";
 import type {
   IntakeFlag,
   IntakeSourceFields,
@@ -96,7 +97,7 @@ const RE_NAO_COMIDA =
 
 // Fita que NÃO é fita de laço (vendida por unidade, não por metro).
 const RE_FITA_NAO_LACO =
-  /^FITA (ADESIVA|CREPE|DUPLA FACE|ISOLANTE|CORRETIVA|METRICA|MEDIDA|K7|DUREX|VEDA|DEMARCA|ANTIDERRAPANTE|HELLERMANN|TEFLON|MAGNETICA|DE IMPRESSORA|PARA IMPRESSORA|MULTIUSO|SILVER TAPE|EMPACOTAMENTO|TRANSPARENTE|KRAFT|MICROPOROSA|DE VIDEO|LARGA (MARROM|TRANSPARENTE))|^FITA .*(\bDE EMP\b|\b4[58](MM)?X\d)/;
+  /^FITA (ADESIVA|CREPE|DUPLA FACE|ISOLANTE|CORRETIVA|METRICA|MEDIDA|K7|DUREX|VEDA|DEMARCA|ANTIDERRAPANTE|HELLERMANN|TEFLON|MAGNETICA|DE IMPRESSORA|PARA IMPRESSORA|MULTIUSO|SILVER TAPE|EMPACOTAMENTO|TRANSPARENTE|KRAFT|GOMADA|MICROPOROSA|DE VIDEO|LARGA (MARROM|TRANSPARENTE))|^FITA .*(\bDE EMP\b|\b4[58](MM)?X\d)/;
 
 // Foco atual da loja online (decisão de 21/10): material para REVENDA —
 // pacotes de sacos, caixas para kits, laços e fita para fazer laço. Pesa
@@ -208,8 +209,15 @@ export function analyzeNoturnoRows(rows: NoturnoRow[]): IntakeSourceFields[] {
     const pack = isRibbon ? null : detectPack(name);
     const suggestedUnit: Unit =
       isRibbon || fractional ? "m" : isPackHint(pack) ? "pct" : "un";
-    const suggestedCategoryKey =
-      family === "FITA" && !isRibbon ? null : CATEGORY_BY_FAMILY[family ?? ""] ?? null;
+    // Subcategoria semântica (#232) manda também na categoria quando existe
+    // (ex.: cesta → Caixas, papel → Papéis, fita adesiva → Material Escolar).
+    const taxonomy = classifySubcategory({ family, name, suggestedType });
+    const suggestedCategoryKey = taxonomy
+      ? normalizeText(taxonomy.category)
+      : family === "FITA" && !isRibbon
+        ? null
+        : CATEGORY_BY_FAMILY[family ?? ""] ?? null;
+    const suggestedSubcategory = taxonomy?.subcategory ?? null;
 
     const brand = brandRaw ? BRAND_CANON[brandKey] ?? brandRaw : null;
     const searchText = normalizeText([name, r.code, r.ref ?? "", brand ?? ""].join(" "));
@@ -231,6 +239,7 @@ export function analyzeNoturnoRows(rows: NoturnoRow[]): IntakeSourceFields[] {
       priority: priorityScore({ isCoreFamily, isGiftFamily, flags, stock: r.stock, unitCost: r.unitCost }),
       isCoreFamily,
       suggestedCategoryKey,
+      suggestedSubcategory,
       suggestedType,
       suggestedUnit,
       packQty: pack?.qty ?? null,

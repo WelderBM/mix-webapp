@@ -11,6 +11,8 @@ export interface LaunchDraftFields {
   name: string;
   priceText: string;
   categoryName: string;
+  // #232. Pode faltar em rascunho gravado antes (fica "").
+  subcategoryName?: string;
   unit: Unit | null;
   packText: string;
   metersText: string;

@@ -61,13 +61,16 @@ describe("analyzeNoturnoRows", () => {
     expect(a.suggestedType).toBe("RIBBON");
     expect(a.suggestedUnit).toBe("m");
     expect(a.suggestedCategoryKey).toBe("fitas");
+    expect(a.suggestedSubcategory).toBe("Cetim e tecido");
   });
 
   it("fita adesiva NÃO é fita de laço", () => {
     const [a] = analyzeNoturnoRows([row({ description: "FITA ADESIVA 38MIC 48X100" })]);
     expect(a.suggestedType).toBe("STANDARD_ITEM");
     expect(a.suggestedUnit).toBe("un");
-    expect(a.suggestedCategoryKey).toBeNull();
+    // #232: fita adesiva vai para Material Escolar › Fitas adesivas.
+    expect(a.suggestedCategoryKey).toBe("material escolar");
+    expect(a.suggestedSubcategory).toBe("Fitas adesivas");
     expect(a.isCoreFamily).toBe(false);
   });
 

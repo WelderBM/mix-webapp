@@ -21,6 +21,7 @@ import {
   validateLaunch,
 } from "@/lib/intake/publish";
 import { pricePerUnit } from "@/lib/intake/pack";
+import { matchSubcategory } from "@/lib/intake/subcategories";
 import {
   DRAFT_VERSION,
   deleteDraft,
@@ -69,6 +70,7 @@ export function LaunchSheet({
   const [name, setName] = useState("");
   const [priceText, setPriceText] = useState("");
   const [categoryName, setCategoryName] = useState("");
+  const [subcategoryName, setSubcategoryName] = useState("");
   const [unit, setUnit] = useState<Unit | null>(null);
   const [packText, setPackText] = useState("");
   const [metersText, setMetersText] = useState("");
@@ -96,6 +98,7 @@ export function LaunchSheet({
     setName(f.name);
     setPriceText(f.priceText);
     setCategoryName(f.categoryName);
+    setSubcategoryName(f.subcategoryName ?? "");
     setUnit(f.unit);
     setPackText(f.packText);
     setMetersText(f.metersText);
@@ -105,10 +108,14 @@ export function LaunchSheet({
   useEffect(() => {
     if (!item) return;
     const meters = extractRollMeters(item.name);
+    const suggestedCategory =
+      matchCategory(item.suggestedCategoryKey, categories) ?? "";
     const defaults: LaunchDraftFields = {
       name: item.name,
       priceText: "",
-      categoryName: matchCategory(item.suggestedCategoryKey, categories) ?? "",
+      categoryName: suggestedCategory,
+      subcategoryName:
+        matchSubcategory(item.suggestedSubcategory, suggestedCategory, categories) ?? "",
       unit: null,
       packText: item.packQty && item.packQty > 1 ? String(item.packQty) : "",
       metersText: meters ? String(meters) : "",
@@ -146,7 +153,7 @@ export function LaunchSheet({
     if (!item || hydratedRef.current !== item.id || !defaultsRef.current) return;
     const id = item.id;
     const fields: LaunchDraftFields = {
-      name, priceText, categoryName, unit, packText, metersText,
+      name, priceText, categoryName, subcategoryName, unit, packText, metersText,
     };
     if (skipNextSaveRef.current) {
       skipNextSaveRef.current = false;
@@ -171,7 +178,7 @@ export function LaunchSheet({
     pendingSaveRef.current = flush;
     const t = setTimeout(flush, 400);
     return () => clearTimeout(t);
-  }, [item, name, priceText, categoryName, unit, packText, metersText, photo]);
+  }, [item, name, priceText, categoryName, subcategoryName, unit, packText, metersText, photo]);
 
   // Celular bloqueando / aba indo pro fundo: grava o pendente já.
   // (Publicar/pular zeram hydratedRef antes, então não ressuscita
@@ -223,6 +230,7 @@ export function LaunchSheet({
       name,
       price: parsePrice(priceText),
       categoryName,
+      subcategoryName: subcategoryName || null,
       unit: ribbon ? ("m" as Unit) : unit,
       packQty: unit === "pct" ? Number(packText) || null : null,
       photoUrl: photo ? "pending" : null,
@@ -504,7 +512,14 @@ export function LaunchSheet({
               <Field label="Categoria">
                 <select
                   value={categoryName}
-                  onChange={(e) => setCategoryName(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setCategoryName(next);
+                    // Troca de categoria: reaplica a sugestão na nova (ou limpa).
+                    setSubcategoryName(
+                      matchSubcategory(item.suggestedSubcategory, next, categories) ?? "",
+                    );
+                  }}
                   className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base"
                 >
                   <option value="">Escolha…</option>
@@ -515,6 +530,29 @@ export function LaunchSheet({
                   ))}
                 </select>
               </Field>
+              {(() => {
+                const subs =
+                  categories.find((c) => c.name === categoryName)?.subcategories ?? [];
+                if (subs.length === 0) return null;
+                return (
+                  <Field label="Subcategoria">
+                    <select
+                      value={subcategoryName}
+                      onChange={(e) => setSubcategoryName(e.target.value)}
+                      className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base"
+                    >
+                      <option value="">Nenhuma</option>
+                      {[...subs]
+                        .sort((a, b) => a.order - b.order)
+                        .map((s) => (
+                          <option key={s.id} value={s.name}>
+                            {s.name}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                );
+              })()}
             </div>
 
             <div className="space-y-2 pb-[env(safe-area-inset-bottom)] pt-2">
