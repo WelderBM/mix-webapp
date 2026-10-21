@@ -98,6 +98,15 @@ service cloud.firestore {
     //   - Ler qualquer perfil: somente admin (para verificação de roles)
     //   - Escrever role: somente admin (evita auto-promoção)
     // ─────────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────
+    // /intake_items/{sourceCode}
+    //   Fila de lançamento (#198): cadastro importado do Noturno, com custo
+    //   de compra — nunca público. Leitura e escrita só admin.
+    // ─────────────────────────────────────────────────────────────────────
+    match /intake_items/{itemId} {
+      allow read, write: if isAdmin();
+    }
+
     match /users/{userId} {
       allow read:   if request.auth != null &&
                        (request.auth.uid == userId || isAdmin());

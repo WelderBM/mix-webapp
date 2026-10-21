@@ -37,6 +37,7 @@ import { toast } from "sonner";
 import {
   LogOut,
   Package,
+  FileSpreadsheet,
   Save,
   Eye,
   Database,
@@ -438,6 +439,11 @@ function AdminPageContent() {
                 <DropdownMenuItem asChild>
                   <Link href="/admin/batch-import" className="gap-2 cursor-pointer">
                     <Package size={14} /> Importação em Lote (Fitas)
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/lancamento/importar" className="gap-2 cursor-pointer">
+                    <FileSpreadsheet size={14} /> Importar do Noturno
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem
