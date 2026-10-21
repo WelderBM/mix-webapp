@@ -1,0 +1,72 @@
+name: Deploy Firestore Rules
+
+# Publica firestore.rules automaticamente (issue #211): a regra que está
+# no código é sempre a que vale no banco.
+#   push em dev    → staging   (mix-webapp-staging)
+#   push em master → produção  (mix-webapp)
+# Antes disto a publicação era manual, e publicar a partir de uma branch
+# desatualizada já apagou regras do staging.
+
+on:
+  push:
+    branches: [dev, master]
+    paths:
+      - firestore.rules
+      - firebase.json
+  workflow_dispatch:
+
+# Uma publicação por ambiente de cada vez; a mais nova vence.
+concurrency:
+  group: firestore-rules-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Publicar regras (${{ github.ref_name == 'master' && 'produção' || 'staging' }})
+    if: github.ref_name == 'dev' || github.ref_name == 'master'
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ github.ref_name == 'master' && 'mix-webapp' || 'mix-webapp-staging' }}
+      SERVICE_ACCOUNT: ${{ github.ref_name == 'master' && secrets.FIREBASE_RULES_SA_PRODUCTION || secrets.FIREBASE_RULES_SA_STAGING }}
+
+    steps:
+      - name: Verificar credencial
+        id: creds
+        run: |
+          if [ -z "$SERVICE_ACCOUNT" ]; then
+            echo "::warning::Secret da conta de serviço não configurado para $PROJECT_ID — publicação pulada. Ver issue #211."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.creds.outputs.ok == 'true'
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        if: steps.creds.outputs.ok == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Publicar firestore.rules
+        if: steps.creds.outputs.ok == 'true'
+        run: |
+          KEY_FILE="$RUNNER_TEMP/firebase-sa.json"
+          printf '%s' "$SERVICE_ACCOUNT" > "$KEY_FILE"
+          # Recusa chave de um projeto diferente do alvo (secret trocado).
+          KEY_PROJECT=$(node -e "console.log(require(process.argv[1]).project_id)" "$KEY_FILE")
+          if [ "$KEY_PROJECT" != "$PROJECT_ID" ]; then
+            echo "::error::A chave é do projeto '$KEY_PROJECT', mas o alvo é '$PROJECT_ID'."
+            exit 1
+          fi
+          export GOOGLE_APPLICATION_CREDENTIALS="$KEY_FILE"
+          npx --yes firebase-tools@15.32.1 deploy \
+            --only firestore:rules \
+            --project "$PROJECT_ID" \
+            --non-interactive
+          rm -f "$KEY_FILE"
