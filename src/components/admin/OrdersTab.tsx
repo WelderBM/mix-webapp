@@ -345,8 +345,14 @@ export function OrdersTab() {
       }
     } else if (order.paymentMethod === "cash") {
       paymentInstruction = "Dinheiro (Cobrar Valor do Pedido + Entrega)";
-    } else {
+    } else if (
+      order.paymentMethod === "credit_card" ||
+      order.paymentMethod === "debit_card"
+    ) {
       paymentInstruction = "Cartão (Levar Maquininha)";
+    } else {
+      // Forma desconhecida: não mandar o motoboy levar maquininha à toa.
+      paymentInstruction = "Confirmar a forma de pagamento com a loja";
     }
 
     const text = `Local de Retirada (Nossa Loja):
