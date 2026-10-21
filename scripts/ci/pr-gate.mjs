@@ -5,7 +5,7 @@
 //   - revisor 2 publicou veredito com zero bloqueantes e zero importantes
 //   - CI ("Run Tests & Build") verde
 //   - base `dev` (produção/master é sempre manual)
-//   - até MAX_CHANGED_LINES linhas alteradas (fora lockfile)
+//   - até MAX_CHANGED_LINES linhas alteradas (fora lockfile e testes)
 //   - nenhum arquivo de alto risco
 //
 // Uso no workflow: node scripts/ci/pr-gate.mjs <arquivo-de-entrada.json>
@@ -29,12 +29,17 @@ export const HIGH_RISK = [
   /^src\/lib\/(ribbon-pricing|cart-pricing|firebase|env)\.ts$/,
   /^src\/store\/(cartStore|authStore)\.ts$/,
   /^src\/components\/features\/CartSidebar\.tsx$/,
-  /^src\/components\/admin\/(AdminLogin|SystemPasswordGate|SuperAdminZone)\.tsx$/,
-  /^src\/app\/admin\/page\.tsx$/,
+  // Controle de ACESSO do admin — não a tela do admin, que é área comum de
+  // trabalho (decisão de 21/10: o login saiu de app/admin/page.tsx para o
+  // AdminAuthGate justamente para a tela não travar o merge automático).
+  /^src\/components\/admin\/(AdminAuthGate|AdminLogin|SystemPasswordGate|SuperAdminZone)\.tsx$/,
   /^src\/app\/api\//,
 ];
 
 const LOCKFILE = /(^|\/)package-lock\.json$/;
+// Teste não vai para produção e é o que mais infla PR bom: fica fora da
+// conta de tamanho (continua revisado normalmente).
+const TEST_FILE = /\.test\.[cm]?[jt]sx?$/;
 
 // Última linha do comentário do revisor 2:
 //   <!-- veredito: {"bloqueantes":0,"importantes":1,"menores":2} -->
@@ -84,7 +89,7 @@ export function evaluateGate({ verdict, base, ciConclusion, files }) {
   }
 
   const changed = files
-    .filter((f) => !LOCKFILE.test(f.path))
+    .filter((f) => !LOCKFILE.test(f.path) && !TEST_FILE.test(f.path))
     .reduce((n, f) => n + f.additions + f.deletions, 0);
   if (changed > MAX_CHANGED_LINES) {
     reasons.push(`${changed} linhas alteradas (limite ${MAX_CHANGED_LINES})`);

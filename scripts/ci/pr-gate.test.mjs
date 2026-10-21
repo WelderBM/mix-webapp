@@ -54,6 +54,15 @@ describe("evaluateGate", () => {
     expect(evaluateGate(ok({ files: lock })).reasons.join()).not.toMatch(/linhas alteradas/);
   });
 
+  it("teste não conta no tamanho", () => {
+    const withTests = [
+      { path: "src/lib/intake/draft.ts", additions: 100, deletions: 0 },
+      { path: "src/lib/intake/draft.test.ts", additions: 200, deletions: 0 },
+      { path: "scripts/ux/vistoria.test.mjs", additions: 200, deletions: 0 },
+    ];
+    expect(evaluateGate(ok({ files: withTests })).autoMerge).toBe(true);
+  });
+
   it.each([
     "firestore.rules",
     "package.json",
@@ -63,7 +72,8 @@ describe("evaluateGate", () => {
     "src/lib/ribbon-pricing.ts",
     "src/store/cartStore.ts",
     "src/store/authStore.ts",
-    "src/app/admin/page.tsx",
+    "src/components/admin/AdminAuthGate.tsx",
+    "src/components/admin/AdminLogin.tsx",
     "src/app/api/admin/verify-system-password/route.ts",
   ])("arquivo de alto risco %s sempre precisa do dono", (path) => {
     const r = evaluateGate(ok({ files: [{ path, additions: 1, deletions: 0 }] }));
@@ -72,7 +82,8 @@ describe("evaluateGate", () => {
   });
 
   it("arquivos comuns de tela e docs não são alto risco", () => {
-    for (const path of ["src/app/admin/lancamento/page.tsx", "docs/claude-lessons.md", "src/lib/intake/pack.ts"]) {
+    // A tela do admin é área comum (o login fica no AdminAuthGate).
+    for (const path of ["src/app/admin/page.tsx", "src/app/admin/lancamento/page.tsx", "docs/claude-lessons.md", "src/lib/intake/pack.ts"]) {
       expect(evaluateGate(ok({ files: [{ path, additions: 3, deletions: 1 }] })).autoMerge).toBe(true);
     }
   });
