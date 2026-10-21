@@ -118,14 +118,22 @@ jobs:
           echo "importantes=$(jq -r .importantes "$RUNNER_TEMP/summary.json")" >> "$GITHUB_OUTPUT"
 
       - name: Claude olha os prints
+        # CLI direto, não a claude-code-action: a action recusa o evento
+        # deployment_status ("Unsupported event type"). Falha aqui não
+        # impede a escalada das medições (continue-on-error).
         if: steps.pr.outputs.run == 'true' && env.HAS_CLAUDE == 'true'
-        # v1.0.242 (05/10/2026), fixado por SHA: action de terceiro.
-        uses: anthropics/claude-code-action@6c690188da61cf16ee7debb28383ba67f02abb4c
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          prompt: |
+        continue-on-error: true
+        timeout-minutes: 10
+        working-directory: ${{ runner.temp }}/ux-out
+        run: |
+          [ -n "${ANTHROPIC_API_KEY:-}" ] || unset ANTHROPIC_API_KEY
+          [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || unset CLAUDE_CODE_OAUTH_TOKEN
+          npm i -g --no-audit --no-fund @anthropic-ai/claude-code@2.1.293 >/dev/null
+          claude -p "$PROMPT" --allowedTools "Read,Glob,Bash(gh pr comment:*)" --max-turns 40
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PROMPT: |
             Você é o revisor VISUAL de UX do PR #${{ steps.pr.outputs.number }} (${{ github.repository }}).
             Público da tela: clientes no celular (loja) e atendentes com pouca
             familiaridade com sistemas (telas /admin) — clareza vale mais que estética.
@@ -147,8 +155,6 @@ jobs:
             lista de achados (🟡/⚪, com o print), e termina com a linha
             <!-- veredito-ux-visual: {"importantes":N} -->.
             Nunca escreva "revisao:1" nem "revisao:2" no comentário.
-          claude_args: >-
-            --allowedTools "Read,Glob,Bash(gh pr comment:*)"
 
       - name: Escalar achados (não bloqueante)
         if: steps.pr.outputs.run == 'true'

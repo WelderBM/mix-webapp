@@ -43,9 +43,26 @@ async function login(page) {
   await pass.fill(process.env.UX_ADMIN_PASSWORD ?? "");
   // Enter envia o formulário mesmo quando o botão não declara type="submit".
   await pass.press("Enter");
-  await page.waitForFunction(() => !document.querySelector('input[type="password"]'), null, {
-    timeout: 20_000,
-  });
+  try {
+    await page.waitForFunction(() => !document.querySelector('input[type="password"]'), null, {
+      timeout: 20_000,
+    });
+  } catch {
+    // Diz POR QUE não entrou (toast de erro, URL), com print — senão o
+    // relatório só mostra "Timeout" e ninguém sabe o que corrigir.
+    await page.screenshot({ path: join(outDir, "login-falhou.png"), fullPage: true }).catch(() => {});
+    const msg = await page
+      .evaluate(() =>
+        [...document.querySelectorAll("[data-sonner-toast], [role=alert], [role=status]")]
+          .map((e) => e.textContent?.trim())
+          .filter(Boolean)
+          .join(" | "),
+      )
+      .catch(() => "");
+    throw new Error(
+      `login do robô não completou (${page.url()}): ${msg || "nenhuma mensagem na tela"} — ver login-falhou.png`,
+    );
+  }
   return true;
 }
 
@@ -100,10 +117,25 @@ try {
       isMobile: vp.isMobile,
       hasTouch: vp.hasTouch,
       locale: "pt-BR",
-      extraHTTPHeaders: process.env.VERCEL_BYPASS
-        ? { "x-vercel-protection-bypass": process.env.VERCEL_BYPASS, "x-vercel-set-bypass-cookie": "true" }
-        : {},
     });
+    // Passe da Vercel SÓ para o domínio do preview. Em extraHTTPHeaders ele
+    // ia também para o Firebase (googleapis.com): cabeçalho desconhecido em
+    // requisição de outra origem dispara preflight de CORS, o Google
+    // recusa e o login do robô nunca completava.
+    if (process.env.VERCEL_BYPASS) {
+      const host = new URL(baseUrl).host;
+      await ctx.route("**/*", (route) => {
+        const r = route.request();
+        if (new URL(r.url()).host !== host) return route.continue();
+        return route.continue({
+          headers: {
+            ...r.headers(),
+            "x-vercel-protection-bypass": process.env.VERCEL_BYPASS,
+            "x-vercel-set-bypass-cookie": "true",
+          },
+        });
+      });
+    }
     const page = await ctx.newPage();
     let loggedIn = false;
 
