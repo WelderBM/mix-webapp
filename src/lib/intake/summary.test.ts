@@ -22,6 +22,22 @@ describe("buildIntakeSummary", () => {
   });
 });
 
+describe("FITA por área (#231)", () => {
+  it("divide a fita em adesiva (5), em uso (6) e fechada (10)", () => {
+    const s = buildIntakeSummary([
+      item({ id: "a", name: "FITA MAXI 32MMX100M", suggestedType: "RIBBON" }),
+      item({ id: "b", name: "FITA CETIM 37M", suggestedType: "RIBBON" }),
+      item({ id: "c", name: "FITA ADESIVA 48X50", suggestedType: "STANDARD_ITEM", status: "pulado" }),
+      item({ id: "d", family: "CANETA", name: "CANETA" }),
+    ]);
+    expect(s.ribbonAreas).toEqual({
+      "10": { total: 1, pending: 1 },
+      "6": { total: 1, pending: 1 },
+      "5": { total: 1, pending: 0 },
+    });
+  });
+});
+
 describe("applyWrites", () => {
   it("aplica criação e atualização parcial sem mutar o mapa original", () => {
     const existing = new Map([["1", item({ id: "1", status: "publicado" })]]);

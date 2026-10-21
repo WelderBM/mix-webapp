@@ -16,6 +16,7 @@ import {
   type LaunchInput,
 } from "./publish";
 import { NO_FAMILY, stockValue } from "./summary";
+import { areaForItem, RIBBON_FAMILY } from "./areas";
 
 // Gravações do card de lançamento (#200). Produto, item da fila e placar
 // vão no MESMO batch: ou tudo acontece, ou nada (sem produto publicado com
@@ -37,6 +38,12 @@ function addSummaryDeltas(
       new FieldPath("families", item.family ?? NO_FAMILY, "pending"),
       increment(familyPending),
     );
+    if (item.family === RIBBON_FAMILY) {
+      updates.push(
+        new FieldPath("ribbonAreas", String(areaForItem(item)), "pending"),
+        increment(familyPending),
+      );
+    }
   }
   // Placar (#202): valor em estoque publicado e contagem por atendente.
   if (to === "publicado" && item.status !== "publicado") {
