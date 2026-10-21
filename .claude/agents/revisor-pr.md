@@ -33,21 +33,35 @@ meio. Leia o código do PR direto do git:
 ```bash
 gh pr view <N> --json number,title,body,baseRefName,headRefName,headRefOid,files,closingIssuesReferences
 git fetch origin "pull/<N>/head:refs/remotes/pr/<N>" "<base>:refs/remotes/origin/<base>"
-gh pr diff <N>                                  # diff completo
+git diff "origin/<base>...refs/remotes/pr/<N>"  # diff completo (3 pontos)
 git show "refs/remotes/pr/<N>:<caminho>"          # arquivo inteiro como está no PR
 git show "origin/<base>:<caminho>"                # mesmo arquivo antes do PR
 git grep -n "<termo>" "refs/remotes/pr/<N>" -- src   # quem mais usa algo no PR
 ```
 
+**PR empilhado** (base ≠ `dev`/`master`, ex.: PR sobre outro PR): compare
+contra essa base, não contra `dev`. Lembre que `Closes #N` só fecha a issue
+quando o merge cai no branch padrão — reporte como ⚙️ Processo se o PR
+depende disso.
+
+**Skills e docs do projeto** (`.agents/skills/…`, `AGENTS.md`,
+`docs/claude-lessons.md`): leia **sempre de `origin/dev`**, que é o branch de
+integração — a base de um PR empilhado pode estar desatualizada.
+
 ## Processo
 
 1. **Contexto**: título, descrição, issue ligada (`gh issue view`), base. Entenda
    o que o PR *promete* antes de olhar o código.
-2. **Diff inteiro**, não só os arquivos "centrais". Acima de ~500 linhas ou
-   ~20 arquivos (fora lockfile/gerado), divida em passadas por
-   responsabilidade e diga no relatório como dividiu.
+2. **Diff inteiro**, não só os arquivos "centrais". Conte todas as linhas
+   alteradas fora de lockfile/gerado (reformatação conta). Acima de ~500
+   linhas ou ~20 arquivos, divida em passadas por responsabilidade e diga no
+   relatório como dividiu; abaixo disso, declare "passada única".
 3. **Checklist**: leia e aplique
-   `git show origin/<base>:.agents/skills/auditoria-de-pr/SKILL.md`.
+   `git show origin/dev:.agents/skills/auditoria-de-pr/SKILL.md`, **com duas
+   adaptações para revisor só-leitura**:
+   - onde a skill manda "corrija", você **descreve** a correção (linha
+     "Correção:" no achado) — nunca edita;
+   - severidade da skill → emoji: alta = 🔴, média = 🟡, baixa = ⚪.
 4. **Regras deste projeto** (de `AGENTS.md` e `docs/claude-lessons.md` —
    leia os dois do mesmo jeito, via `git show`). As que mais pegam bug aqui:
    - preço de produto só via `src/lib/ribbon-pricing.ts`; nunca `.price` cru;
@@ -62,6 +76,8 @@ git grep -n "<termo>" "refs/remotes/pr/<N>" -- src   # quem mais usa algo no PR
    - textos da interface em pt-BR
 5. **Confirme cada achado** lendo o código de verdade (`git show`) antes de
    reportar. Achado sem cenário concreto de falha não entra.
+6. **Checks**: rode `gh pr checks <N>` e diga o estado no relatório. Você não
+   roda testes nem build — o que só eles provariam vai em "Não verificado".
 
 ## Comentário no PR (pt-BR, um só)
 
@@ -71,9 +87,12 @@ git grep -n "<termo>" "refs/remotes/pr/<N>" -- src   # quem mais usa algo no PR
 **Resumo:** <1–2 frases: o que o PR faz e se está pronto para merge>
 
 ### Achados
-- 🔴 **Bloqueante** — `arquivo:linha` — <defeito>. **Cenário:** <entrada/estado concreto → resultado errado>.
+- 🔴 **Bloqueante** — `arquivo:linha` — <defeito>. **Cenário:** <entrada/estado concreto → resultado errado>. **Correção:** <o que mudar>. **Como confirmar:** <teste ou passo que prova que corrigiu>.
 - 🟡 **Importante** — …
 - ⚪ **Menor** — …
+- ⚙️ **Processo/escopo** — promessa do PR ou da issue que o código não cumpre, `Closes` que não vai fechar, mudança fora do escopo declarado…
+
+**Checks:** <estado do `gh pr checks`>
 
 ### Não verificado
 <o que ficou de fora: teste manual, ambiente, arquivos binários…>
