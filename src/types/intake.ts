@@ -60,6 +60,11 @@ export interface IntakeSourceFields {
   suggestedCategoryKey: string | null;
   suggestedType: ProductType;
   suggestedUnit: Unit;
+  // Quantidade por pacote LIDA DO NOME ("PT C/100" → 100) e o trecho que a
+  // gerou. Só sugestão: o nome do Noturno nem sempre diz a verdade sobre
+  // pacote × unidade — a atendente confirma na embalagem (ver pack.ts).
+  packQty: number | null;
+  packEvidence: string | null;
   duplicateGroup: number | null;
   // Texto pré-normalizado pra busca tolerante (#199): nome + códigos +
   // marca, sem acento, minúsculo.

@@ -102,6 +102,11 @@ export interface Product {
   // produto nasce da fila de lançamento (#200). Vincula reimportações do
   // Noturno ao produto publicado (estoque, #202).
   sourceCode?: string;
+
+  // Unidades dentro do pacote quando `unit === "pct"` (ex.: saco "PT C/100"
+  // → 100). Sem isto a loja só mostra "pct", e o revendedor não sabe quanto
+  // vem. Ausente = pacote de quantidade não informada (produto legado).
+  packQty?: number;
 }
 export interface AssembledKitProduct extends Product {
   type: "ASSEMBLED_KIT";

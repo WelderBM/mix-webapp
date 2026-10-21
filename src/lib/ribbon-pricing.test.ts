@@ -168,6 +168,13 @@ describe("getEffectiveUnitLabel", () => {
     });
     expect(getEffectiveUnitLabel(product)).toBe("m");
   });
+
+  it("pacote com quantidade mostra quantas unidades vêm", () => {
+    const pack = { id: "s", name: "Saco", type: "STANDARD_ITEM", category: "sacos", unit: "pct", packQty: 100, inStock: true, disabled: false } as Product;
+    expect(getEffectiveUnitLabel(pack)).toBe("pct c/ 100");
+    expect(getEffectiveUnitLabel({ ...pack, packQty: undefined })).toBe("pct");
+    expect(getEffectiveUnitLabel({ ...pack, unit: "un" })).toBe("un");
+  });
 });
 
 describe("isSealedRibbonRoll", () => {
