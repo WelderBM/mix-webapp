@@ -104,6 +104,18 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
   const searchParams = useSearchParams();
   const patchParams = useSearchParamsPatch();
   const [confirmLogout, setConfirmLogout] = useState(false);
+  // Lançamentos com rascunho NESTE aparelho (#233): avisados antes de sair.
+  const [draftsOnDevice, setDraftsOnDevice] = useState(0);
+
+  async function askLogout() {
+    try {
+      const { draftIds } = await import("@/lib/intake/draft");
+      setDraftsOnDevice((await draftIds()).length);
+    } catch {
+      setDraftsOnDevice(0);
+    }
+    setConfirmLogout(true);
+  }
   // Defaults to orders since user emphasized it — `?view=estoque` abre direto em Gerenciar Estoque.
   const [viewMode, setViewMode] = useState<"orders" | "inventory">(() =>
     searchParams.get("view") === "estoque" ? "inventory" : "orders"
@@ -338,6 +350,10 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
                 <ClipboardList size={18} /> Lançar produtos
               </Button>
             </Link>
+            {/* Salvar só onde há o que salvar (#242): em Pedidos/Produtos
+                ele não grava nada e confundia as atendentes. */}
+            {viewMode === "inventory" &&
+              ["config", "sections", "balloons", "ribbons"].includes(inventoryTab) && (
             <Button
               onClick={saveAllSettings}
               disabled={!settingsLoaded || !balloonsLoaded}
@@ -355,13 +371,14 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
               )}
               Salvar Configurações
             </Button>
+            )}
             <Link href="/" className="flex-1 md:flex-none">
               <Button variant="outline" className="w-full">
                 <Eye size={18} className="mr-2" /> Ver Loja
               </Button>
             </Link>
             <Button
-              onClick={() => setConfirmLogout(true)}
+              onClick={askLogout}
               variant="ghost"
               className="gap-2"
             >
@@ -503,7 +520,11 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
           open={confirmLogout}
           onOpenChange={setConfirmLogout}
           title="Sair do sistema?"
-          description="Você vai precisar entrar de novo com e-mail e senha."
+          description={
+            draftsOnDevice > 0
+              ? `Você tem ${draftsOnDevice} lançamento(s) começado(s) neste aparelho. Eles continuam guardados aqui e voltam quando você entrar de novo.`
+              : "Você vai precisar entrar de novo com e-mail e senha."
+          }
           confirmLabel="Sair"
           onConfirm={() => {
             setConfirmLogout(false);

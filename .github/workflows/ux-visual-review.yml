@@ -168,12 +168,24 @@ jobs:
           TOTAL=$(( MEASURED + ${VISUAL:-0} ))
           [ "$TOTAL" -eq 0 ] && { echo "Sem achados de UX."; exit 0; }
 
+          # Marca o PR para o dono: etiqueta (o lembrete diário depende dela)
+          # e responsável, em chamadas REST separadas e com novas tentativas —
+          # um erro temporário do GraphQL (PR #242) deixava o PR sem etiqueta.
+          flag_owner() {
+            local ok=""
+            for _ in 1 2 3; do
+              gh api -X POST "repos/$GH_REPO/issues/$PR/labels" -f "labels[]=precisa-de-voce" >/dev/null && { ok=1; break; }
+              sleep 5
+            done
+            [ -n "$ok" ] || echo "::error::Não consegui pôr a label precisa-de-voce no PR #$PR."
+            gh api -X POST "repos/$GH_REPO/issues/$PR/assignees" -f "assignees[]=$OWNER" >/dev/null || true
+          }
           STATE=$(gh pr view "$PR" --json state --jq .state)
           if [ "$STATE" = "MERGED" ]; then
             TITLE=$(gh pr view "$PR" --json title --jq .title)
             gh issue create --title "UX: ajustes do PR #$PR — $TITLE" --label precisa-de-voce --assignee "$OWNER" \
               --body "@$OWNER a revisão visual do PR #$PR (já em \`dev\`) encontrou $TOTAL achado(s) de UX. Detalhes nos comentários do PR #$PR (medições + olhar da IA) e prints no artefato **ux-visual-pr-$PR**."
           else
-            gh pr edit "$PR" --add-label precisa-de-voce --add-assignee "$OWNER" || true
+            flag_owner
             gh pr comment "$PR" --body "@$OWNER a revisão visual encontrou **$TOTAL achado(s) de UX** (medições: $MEASURED, olhar da IA: ${VISUAL:-0}). Não bloqueia o merge em \`dev\`, mas vale ver antes de promover para produção."
           fi
