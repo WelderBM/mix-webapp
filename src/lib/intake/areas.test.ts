@@ -102,7 +102,9 @@ describe("claims e próxima área", () => {
   });
 });
 
-it("áreas numeradas de 1 a 15 e nomes curtos", () => {
-  expect(STORE_AREAS.map((a) => a.id)).toEqual([...Array(15)].map((_, i) => i + 1));
+it("áreas numeradas de 1 a 16 e nomes curtos", () => {
+  expect(STORE_AREAS.map((a) => a.id)).toEqual([...Array(16)].map((_, i) => i + 1));
+  expect(areaForItem(item("CARREGADOR"))).toBe(16);
+  expect(areaForItem(item("FONE"))).toBe(16);
   expect(firstName("maria.silva@gmail.com")).toBe("Maria");
 });

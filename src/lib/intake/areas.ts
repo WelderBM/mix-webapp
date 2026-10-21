@@ -29,6 +29,7 @@ export const STORE_AREAS: StoreArea[] = [
   { id: 13, name: "Cabelo", hint: "piranhas, xuxas, tiaras, presilhas" },
   { id: 14, name: "Barbantes", hint: "barbantes, linhas, lã, agulhas" },
   { id: 15, name: "Maquiagens", hint: "batons, gloss, cílios, paletas" },
+  { id: 16, name: "Eletrônicos", hint: "cabos, fones, carregadores, pilhas" },
 ];
 
 // 0 = ainda sem área: a atendente escolhe uma vez para a família inteira.
@@ -59,6 +60,11 @@ const AREA_FAMILIES: Record<number, string[]> = {
   13: ["PIRANHA", "XUXA", "TIARA", "PRESILHA", "ELASTICO", "TOUCA", "FIVELA"],
   14: ["BARBANTE", "LINHA", "LA", "AGULHA"],
   15: ["BATOM", "LIP", "GLOSS", "CILIOS", "PO", "SOMBRA", "RIMEL", "DELINEADOR", "BLUSH", "PALETA"],
+  16: [
+    "CABO", "FONE", "HEADSET", "CARREGADOR", "FONTE", "ADAPTADOR", "CONTROLE", "PILHA",
+    "BATERIA", "LANTERNA", "MOUSE", "TECLADO", "PEN", "EXTENSAO", "PLUG", "ANTENA",
+    "MICROFONE", "PELICULA",
+  ],
 };
 
 const AREA_BY_FAMILY: Record<string, number> = Object.fromEntries(
