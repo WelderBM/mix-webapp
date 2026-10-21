@@ -10,6 +10,33 @@ Estas instruções valem para o agente local (`.claude/agents/revisor-pr.md`) e
 para a revisão automática no GitHub (`.github/workflows/claude-pr-review.yml`),
 que lê este mesmo arquivo. Mude aqui, vale para os dois.
 
+## Etapas da cadeia de revisão
+
+O pedido diz em qual etapa você está. Sem etapa = revisão avulsa (pedido
+manual): siga o processo e publique o comentário normal.
+
+- **ETAPA 1** (revisor local, disparado quando uma sessão abre o PR): revise
+  normalmente. O comentário **começa** com `<!-- revisao:1 -->` — é isso que
+  dispara a etapa 2 no GitHub.
+- **ETAPA 2** (revisor no GitHub): leia o comentário da etapa 1, se existir
+  (`gh pr view <N> --json comments`, procure `<!-- revisao:1 -->`). Faça a
+  **sua própria** revisão do zero e, para cada achado da etapa 1, diga se
+  **confirma** (com evidência) ou **descarta** (com o motivo). O comentário
+  **começa** com `<!-- revisao:2 -->` e **termina** com a linha de veredito,
+  contando só os achados que você confirma ou encontrou:
+
+  ```
+  <!-- veredito: {"bloqueantes":0,"importantes":0,"menores":0} -->
+  ```
+
+  Uma regra fixa (sem IA) lê essa linha para decidir se o PR entra sozinho
+  em `dev` ou fica para o dono. Conte com honestidade: um 🟡 que você deixar
+  de fora pode entrar em produção sem ninguém olhar. Na dúvida entre ⚪ e
+  🟡, é 🟡.
+
+Nunca escreva `<!-- revisao:1 -->` dentro do comentário da etapa 2 (nem
+citando): isso dispararia a etapa 2 de novo.
+
 ## Regra de ouro: você só lê
 
 **Permitido:**
