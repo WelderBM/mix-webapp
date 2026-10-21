@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { BookOpenCheck, Camera, Loader2, RotateCcw } from "lucide-react";
+import { BookOpenCheck, Camera, History, Loader2, RotateCcw } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -21,6 +21,14 @@ import {
   validateLaunch,
 } from "@/lib/intake/publish";
 import { pricePerUnit } from "@/lib/intake/pack";
+import {
+  DRAFT_VERSION,
+  deleteDraft,
+  isWorthSaving,
+  loadDraft,
+  saveDraft,
+  type LaunchDraftFields,
+} from "@/lib/intake/draft";
 
 // Card de lançamento (#200): tudo que veio do Noturno já preenchido; a
 // atendente só digita o preço da etiqueta, tira a foto e publica.
@@ -70,22 +78,120 @@ export function LaunchSheet({
   const [processingPhoto, setProcessingPhoto] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Rascunho (#233): valores com que o card abriu, e de qual item o
+  // rascunho já foi carregado — antes disso não salva (senão gravaria o
+  // card vazio por cima do rascunho que ainda está sendo lido).
+  const defaultsRef = useRef<LaunchDraftFields | null>(null);
+  const hydratedRef = useRef<string | null>(null);
+  // A primeira passada depois de carregar o rascunho só repete o que já
+  // está gravado — não regrava (nem renova o prazo) por só ter aberto.
+  const skipNextSaveRef = useRef(false);
+  // Gravação pendente (dentro da folga de 400 ms): executada ao fechar o
+  // card, trocar de item ou a tela ir pro fundo — nunca se perde.
+  const pendingSaveRef = useRef<(() => void) | null>(null);
+  const flushPending = () => pendingSaveRef.current?.();
+  const [restored, setRestored] = useState(false);
 
-  // Preenche o card a cada item aberto.
+  function applyFields(f: LaunchDraftFields) {
+    setName(f.name);
+    setPriceText(f.priceText);
+    setCategoryName(f.categoryName);
+    setUnit(f.unit);
+    setPackText(f.packText);
+    setMetersText(f.metersText);
+  }
+
+  // Preenche o card a cada item aberto e recupera o rascunho, se houver.
   useEffect(() => {
     if (!item) return;
-    setName(item.name);
-    setPriceText("");
-    setCategoryName(matchCategory(item.suggestedCategoryKey, categories) ?? "");
-    setUnit(null);
-    setPackText(item.packQty && item.packQty > 1 ? String(item.packQty) : "");
     const meters = extractRollMeters(item.name);
-    setMetersText(meters ? String(meters) : "");
+    const defaults: LaunchDraftFields = {
+      name: item.name,
+      priceText: "",
+      categoryName: matchCategory(item.suggestedCategoryKey, categories) ?? "",
+      unit: null,
+      packText: item.packQty && item.packQty > 1 ? String(item.packQty) : "",
+      metersText: meters ? String(meters) : "",
+    };
+    defaultsRef.current = defaults;
+    hydratedRef.current = null;
+    applyFields(defaults);
     setPhoto(null);
+    setRestored(false);
+    if (item.status !== "pendente") return flushPending;
+    let alive = true;
+    loadDraft(item.id).then((d) => {
+      if (!alive) return;
+      if (d) {
+        applyFields(d);
+        if (d.photo) {
+          setPhoto({ blob: d.photo, preview: URL.createObjectURL(d.photo) });
+        }
+        setRestored(true);
+        skipNextSaveRef.current = true;
+      }
+      hydratedRef.current = item.id;
+    });
+    return () => {
+      alive = false;
+      flushPending();
+    };
     // categories fora das deps de propósito: não resetar o que a atendente
     // já digitou se a lista de categorias atualizar com o card aberto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
+
+  // Guarda o rascunho enquanto a atendente preenche (com folga de 400 ms).
+  useEffect(() => {
+    if (!item || hydratedRef.current !== item.id || !defaultsRef.current) return;
+    const id = item.id;
+    const fields: LaunchDraftFields = {
+      name, priceText, categoryName, unit, packText, metersText,
+    };
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
+    const defaults = defaultsRef.current;
+    const flush = () => {
+      if (pendingSaveRef.current === flush) pendingSaveRef.current = null;
+      else return; // já gravado ou substituído por uma edição mais nova
+      if (hydratedRef.current !== id) return;
+      if (isWorthSaving(fields, defaults, !!photo)) {
+        saveDraft(id, {
+          ...fields,
+          v: DRAFT_VERSION,
+          photo: photo?.blob ?? null,
+          savedAt: Date.now(),
+        });
+      } else {
+        deleteDraft(id);
+      }
+    };
+    pendingSaveRef.current = flush;
+    const t = setTimeout(flush, 400);
+    return () => clearTimeout(t);
+  }, [item, name, priceText, categoryName, unit, packText, metersText, photo]);
+
+  // Celular bloqueando / aba indo pro fundo: grava o pendente já.
+  // (Publicar/pular zeram hydratedRef antes, então não ressuscita
+  // rascunho apagado.)
+  useEffect(() => {
+    const onHide = () => pendingSaveRef.current?.();
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      onHide();
+    };
+  }, []);
+
+  function discardDraft() {
+    if (!item || !defaultsRef.current) return;
+    deleteDraft(item.id);
+    applyFields(defaultsRef.current);
+    setPhoto(null);
+    setRestored(false);
+  }
 
   useEffect(
     () => () => {
@@ -137,6 +243,8 @@ export function LaunchSheet({
         { ...input, photoUrl },
         userEmail,
       );
+      hydratedRef.current = null;
+      deleteDraft(item.id);
       toast.success("Publicado na loja!");
       onChanged({ ...item, name: input.name, status: "publicado", productId });
       onClose();
@@ -159,6 +267,8 @@ export function LaunchSheet({
     try {
       const { setIntakeStatus } = await import("@/lib/intake/actions");
       await setIntakeStatus(item, to, userEmail);
+      hydratedRef.current = null;
+      deleteDraft(item.id);
       toast.success(message);
       onChanged({ ...item, status: to });
       onClose();
@@ -211,6 +321,24 @@ export function LaunchSheet({
           </div>
         ) : (
           <div className="space-y-4 p-4">
+            {restored && (
+              <div
+                role="status"
+                className="flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900"
+              >
+                <History size={18} className="shrink-0" />
+                <span className="flex-1">
+                  Rascunho recuperado: continue de onde parou.
+                </span>
+                <button
+                  type="button"
+                  onClick={discardDraft}
+                  className="min-h-11 shrink-0 px-2 font-medium underline"
+                >
+                  Descartar
+                </button>
+              </div>
+            )}
             <p className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               <BookOpenCheck size={18} className="mt-0.5 shrink-0" />
               <span>
