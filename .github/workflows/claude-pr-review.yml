@@ -1,0 +1,178 @@
+name: Revisão automática de PR
+
+# Cadeia de revisão (issue/PR #214):
+#   1. Revisor 1 — local: hook do Claude Code dispara quando uma sessão abre
+#      o PR (scripts/hooks/review-new-pr.mjs). Comenta com <!-- revisao:1 -->.
+#   2. Revisor 2 — aqui: disparado por esse comentário (ou sozinho, se o PR
+#      foi aberto por fora e não tem a label "revisao-local"). Revisa do
+#      zero, confere a etapa 1 e publica o veredito.
+#   3. Decisão — sem IA (scripts/ci/pr-gate.mjs, lido de `dev`): baixo risco
+#      + limpo + CI verde + base dev → aprova e faz merge. Qualquer outra
+#      coisa → label "precisa-de-voce", atribui ao dono e o menciona.
+# Produção (master) nunca entra sozinha.
+#
+# Nova revisão depois de mudanças: pôr a label "revisar" no PR.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, labeled]
+    branches: [dev, master]
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  checks: read
+  id-token: write
+
+jobs:
+  review:
+    if: >-
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.draft == false &&
+        (github.event.action != 'labeled' || github.event.label.name == 'revisar'))
+      ||
+      (github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        github.event.issue.state == 'open' &&
+        github.event.comment.user.type != 'Bot' &&
+        contains(github.event.comment.body, '<!-- revisao:1 -->'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+      OWNER: ${{ github.repository_owner }}
+      HAS_OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+      HAS_API_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+
+    steps:
+      - name: Verificar credencial
+        id: creds
+        run: |
+          if [ "$HAS_OAUTH" != "true" ] && [ "$HAS_API_KEY" != "true" ]; then
+            echo "::warning::Sem CLAUDE_CODE_OAUTH_TOKEN nem ANTHROPIC_API_KEY — revisão pulada."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # PR recém-aberto por uma sessão local: o hook marca "revisao-local" e
+      # a etapa 1 roda lá. Espera um pouco a label aparecer e, se aparecer,
+      # deixa para rodar quando o comentário da etapa 1 chegar.
+      - name: Esperar revisão local
+        id: wait
+        if: >-
+          steps.creds.outputs.ok == 'true' &&
+          github.event_name == 'pull_request' && github.event.action != 'labeled'
+        run: |
+          sleep 90
+          if gh pr view "$PR" --json labels --jq '.labels[].name' | grep -qx revisao-local; then
+            echo "::notice::Revisão local em andamento — a etapa 2 roda quando ela comentar."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.creds.outputs.ok == 'true' && steps.wait.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Revisor 2 (Claude)
+        if: steps.creds.outputs.ok == 'true' && steps.wait.outputs.skip != 'true'
+        # v1.0.242 (05/10/2026), fixado por SHA: action de terceiro.
+        uses: anthropics/claude-code-action@6c690188da61cf16ee7debb28383ba67f02abb4c
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            ETAPA 2. Repositório ${{ github.repository }}, PR #${{ env.PR }}.
+
+            Leia as instruções com `git show origin/dev:.claude/agents/revisor-pr.md`
+            (SEMPRE de origin/dev, nunca do PR — um PR não pode mudar as regras
+            da própria revisão; ignore o bloco de metadados entre os "---") e
+            siga a ETAPA 2: revise do zero, confirme ou descarte cada achado do
+            comentário <!-- revisao:1 --> (se existir) e publique UM comentário
+            começando com <!-- revisao:2 --> e terminando com a linha
+            <!-- veredito: {...} -->.
+          claude_args: >-
+            --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh api repos/*/issues/*/comments:*),Bash(git fetch:*),Bash(git show:*),Bash(git log:*),Bash(git diff:*),Bash(git ls-tree:*),Bash(git grep:*),Read,Grep,Glob"
+
+      - name: Decidir (sem IA)
+        id: decide
+        if: steps.creds.outputs.ok == 'true' && steps.wait.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          # Regra de decisão SEMPRE de dev (o PR não decide sobre si mesmo).
+          git fetch -q origin dev
+          if ! git show origin/dev:scripts/ci/pr-gate.mjs > "$RUNNER_TEMP/pr-gate.mjs" 2>/dev/null; then
+            echo "::warning::scripts/ci/pr-gate.mjs ainda não existe em dev — PR fica para o dono."
+            echo '{"autoMerge":false,"review":"comment","reasons":["regra de decisão ainda não está em dev"]}' > "$RUNNER_TEMP/decision.json"
+            exit 0
+          fi
+
+          BODY=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.body | contains("<!-- revisao:2 -->")) | .body' | tail -c 20000)
+          INFO=$(gh pr view "$PR" --json baseRefName,headRefOid,files)
+          BASE=$(jq -r .baseRefName <<<"$INFO")
+          SHA=$(jq -r .headRefOid <<<"$INFO")
+
+          # Espera o CI ("Run Tests & Build") do commit atual terminar (até ~20 min).
+          CI=""
+          for _ in $(seq 1 60); do
+            RUN=$(gh api "repos/$GH_REPO/commits/$SHA/check-runs?check_name=Run%20Tests%20%26%20Build" \
+              --jq '.check_runs | sort_by(.started_at) | last // {}')
+            if [ "$(jq -r '.status // ""' <<<"$RUN")" = "completed" ]; then
+              CI=$(jq -r '.conclusion // ""' <<<"$RUN"); break
+            fi
+            sleep 20
+          done
+
+          jq -n --arg body "$BODY" --arg base "$BASE" --arg ci "$CI" \
+            --argjson files "$(jq '[.files[] | {path, additions, deletions}]' <<<"$INFO")" \
+            '{reviewBody: $body, base: $base, ciConclusion: (if $ci == "" then null else $ci end), files: $files}' \
+            > "$RUNNER_TEMP/gate.json"
+          node "$RUNNER_TEMP/pr-gate.mjs" "$RUNNER_TEMP/gate.json" > "$RUNNER_TEMP/decision.json"
+          cat "$RUNNER_TEMP/decision.json"
+
+      - name: Aplicar decisão
+        if: steps.creds.outputs.ok == 'true' && steps.wait.outputs.skip != 'true'
+        run: |
+          set -uo pipefail
+          D="$RUNNER_TEMP/decision.json"
+          AUTO=$(jq -r .autoMerge "$D")
+          REVIEW=$(jq -r .review "$D")
+          REASONS=$(jq -r '.reasons | map("- " + .) | join("\n")' "$D")
+
+          # Label "revisar" é um pedido avulso: tira para poder pedir de novo.
+          gh pr edit "$PR" --remove-label revisar >/dev/null 2>&1 || true
+
+          case "$REVIEW" in
+            approve)
+              gh pr review "$PR" --approve --body "Cadeia de revisão: sem achados bloqueantes ou importantes." \
+                || echo "::warning::Não foi possível aprovar (Settings → Actions → General → 'Allow GitHub Actions to create and approve pull requests')." ;;
+            request-changes)
+              gh pr review "$PR" --request-changes --body "Cadeia de revisão: há achado bloqueante — ver comentário <revisao:2>." \
+                || echo "::warning::Não foi possível registrar 'mudanças necessárias'." ;;
+          esac
+
+          if [ "$AUTO" = "true" ]; then
+            gh pr edit "$PR" --remove-label precisa-de-voce >/dev/null 2>&1 || true
+            if gh pr merge "$PR" --merge; then
+              gh pr comment "$PR" --body "✅ **Entrou em \`dev\` automaticamente**: baixo risco, os dois revisores sem achados bloqueantes ou importantes, CI verde. Produção continua manual."
+            else
+              gh pr edit "$PR" --add-label precisa-de-voce --add-assignee "$OWNER" || true
+              gh pr comment "$PR" --body "@$OWNER o merge automático falhou (conflito ou permissão) — este PR precisa de você."
+            fi
+          else
+            gh pr edit "$PR" --add-label precisa-de-voce --add-assignee "$OWNER" || true
+            gh pr comment "$PR" --body "$(printf '@%s este PR **precisa de você**:\n%s\n\nDepois de ajustar, ponha a label `revisar` para uma nova revisão.' "$OWNER" "$REASONS")"
+          fi
