@@ -78,6 +78,7 @@ export interface IntakeItem extends IntakeSourceFields {
   id: string;
   status: IntakeWorkflowStatus;
   productId?: string;
+  publishedBy?: string | null;
   inLatestImport: boolean;
   firstImportedAt?: any;
   lastImportedAt?: any;

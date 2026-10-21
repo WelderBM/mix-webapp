@@ -15,7 +15,7 @@ import {
   statusTransitionDeltas,
   type LaunchInput,
 } from "./publish";
-import { NO_FAMILY } from "./summary";
+import { NO_FAMILY, stockValue } from "./summary";
 
 // Gravações do card de lançamento (#200). Produto, item da fila e placar
 // vão no MESMO batch: ou tudo acontece, ou nada (sem produto publicado com
@@ -25,6 +25,7 @@ function addSummaryDeltas(
   batch: WriteBatch,
   item: IntakeItem,
   to: IntakeWorkflowStatus,
+  userEmail: string | null = null,
 ) {
   const { byStatus, familyPending } = statusTransitionDeltas(item.status, to);
   const updates: unknown[] = [];
@@ -35,6 +36,17 @@ function addSummaryDeltas(
     updates.push(
       new FieldPath("families", item.family ?? NO_FAMILY, "pending"),
       increment(familyPending),
+    );
+  }
+  // Placar (#202): valor em estoque publicado e contagem por atendente.
+  if (to === "publicado" && item.status !== "publicado") {
+    updates.push(
+      new FieldPath("publishedStockValue"),
+      increment(stockValue(item)),
+    );
+    updates.push(
+      new FieldPath("publishedBy", userEmail || "(desconhecido)"),
+      increment(1),
     );
   }
   if (updates.length === 0) return;
@@ -82,7 +94,7 @@ export async function publishIntakeItem(
     publishedAt: serverTimestamp(),
     publishedBy: userEmail,
   });
-  addSummaryDeltas(batch, item, "publicado");
+  addSummaryDeltas(batch, item, "publicado", userEmail);
   await batch.commit();
   return productRef.id;
 }

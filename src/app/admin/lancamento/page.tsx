@@ -23,6 +23,8 @@ import type {
 } from "@/types/intake";
 import { matchesQuery, parseQuery } from "@/lib/intake/search";
 import {
+  coreProgress,
+  stockValue,
   sortedFamilies,
   NO_FAMILY,
   type IntakeSummary,
@@ -100,6 +102,15 @@ export default function IntakeQueuePage() {
       }
       const fam = next.families[prev.family ?? NO_FAMILY];
       if (fam) fam.pending += familyPending;
+      if (updated.status === "publicado" && prev.status !== "publicado") {
+        next.publishedStockValue =
+          (next.publishedStockValue ?? 0) + stockValue(prev);
+        const who = user?.email || "(desconhecido)";
+        next.publishedBy = {
+          ...next.publishedBy,
+          [who]: (next.publishedBy?.[who] ?? 0) + 1,
+        };
+      }
       setSummary(next);
     }
   }
@@ -282,6 +293,8 @@ export default function IntakeQueuePage() {
           </p>
         )}
 
+        {summary && <Scoreboard summary={summary} email={user.email} />}
+
         {families.length > 0 && (
           <section aria-label="Corredores">
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -412,5 +425,52 @@ function Chip({
     >
       {children}
     </button>
+  );
+}
+
+function Scoreboard({
+  summary,
+  email,
+}: {
+  summary: IntakeSummary;
+  email: string | null;
+}) {
+  const { done, total } = coreProgress(summary);
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const mine = email ? (summary.publishedBy?.[email] ?? 0) : 0;
+  return (
+    <section
+      aria-label="Progresso"
+      className="space-y-2 rounded-xl border border-slate-200 bg-white p-4"
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-medium text-slate-800">Revenda</p>
+        <p className="text-sm text-slate-600">
+          {done.toLocaleString("pt-BR")} de {total.toLocaleString("pt-BR")}{" "}
+          conferidos
+        </p>
+      </div>
+      <div
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        className="h-2 overflow-hidden rounded-full bg-slate-100"
+      >
+        <div
+          className="h-full rounded-full bg-purple-600"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="text-xs text-slate-500">
+        {(summary.publishedStockValue ?? 0).toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+          maximumFractionDigits: 0,
+        })}{" "}
+        em estoque já na loja online
+        {mine > 0 && ` · você publicou ${mine.toLocaleString("pt-BR")}`}
+      </p>
+    </section>
   );
 }

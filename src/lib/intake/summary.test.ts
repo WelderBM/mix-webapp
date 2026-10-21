@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyWrites, buildIntakeSummary, sortedFamilies, NO_FAMILY } from "./summary";
+import { applyWrites, buildIntakeSummary, coreProgress, sortedFamilies, NO_FAMILY } from "./summary";
 import type { IntakeItem } from "@/types/intake";
 
 const item = (o: Partial<IntakeItem>): IntakeItem =>
@@ -45,5 +45,28 @@ describe("sortedFamilies", () => {
       item({ id: "5", family: "FITA" }),
     ]);
     expect(sortedFamilies(s).map(([f]) => f)).toEqual(["FITA", "BALAO", "CANETA"]);
+  });
+});
+
+describe("placar", () => {
+  it("soma o valor em estoque publicado e conta por atendente", () => {
+    const s = buildIntakeSummary([
+      item({ id: "1", status: "publicado", stock: 10, unitCost: 2, publishedBy: "ana@loja" }),
+      item({ id: "2", status: "publicado", stock: 5, unitCost: 4, publishedBy: "ana@loja" }),
+      item({ id: "3", status: "publicado", stock: 1, unitCost: 1, publishedBy: "bia@loja" }),
+      item({ id: "4", status: "pendente", stock: 100, unitCost: 100 }),
+    ]);
+    expect(s.publishedStockValue).toBe(41);
+    expect(s.publishedBy).toEqual({ "ana@loja": 2, "bia@loja": 1 });
+  });
+
+  it("progresso da revenda conta triados (não-pendentes) só nas famílias de revenda", () => {
+    const s = buildIntakeSummary([
+      item({ id: "1", status: "publicado" }),
+      item({ id: "2", status: "pulado" }),
+      item({ id: "3" }),
+      item({ id: "4", family: "CANETA", isCoreFamily: false, status: "publicado" }),
+    ]);
+    expect(coreProgress(s)).toEqual({ done: 2, total: 3 });
   });
 });
