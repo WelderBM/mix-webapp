@@ -10,6 +10,13 @@ import { db } from "@/lib/firebase";
 import { Product, StoreSettings, KitRecipe } from "@/types"; // Import atualizado
 import HomeClient from "@/components/views/HomeClient";
 
+// ISR: home servida do cache (rápida em celular fraco), mas refeita no
+// máximo a cada 60s. Sem isto a rota vira estática PARA SEMPRE após o
+// #155 remover o `force-dynamic` — nome da loja, vitrine, produtos e
+// preços editados no admin só apareciam no próximo deploy. Mesmo valor
+// de /natura.
+export const revalidate = 60;
+
 async function getInitialData() {
   try {
     // Executa as 3 buscas em paralelo para performance máxima
