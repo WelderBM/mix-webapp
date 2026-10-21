@@ -16,7 +16,12 @@ export interface LaunchDraftFields {
   metersText: string;
 }
 
+// Versão do formato: quando ele mudar (ex.: várias fotos, #201), rascunho
+// antigo é descartado em vez de voltar quebrado.
+export const DRAFT_VERSION = 1;
+
 export interface LaunchDraft extends LaunchDraftFields {
+  v: number;
   photo: Blob | null;
   savedAt: number;
 }
@@ -38,6 +43,18 @@ export function isWorthSaving(
 
 export function isExpired(draft: Pick<LaunchDraft, "savedAt">, now: number): boolean {
   return now - draft.savedAt > DRAFT_TTL_MS;
+}
+
+// Rascunho utilizável: formato atual e dentro do prazo.
+export function isUsable(d: unknown, now: number): d is LaunchDraft {
+  const x = d as Partial<LaunchDraft> | null;
+  return (
+    !!x &&
+    x.v === DRAFT_VERSION &&
+    typeof x.savedAt === "number" &&
+    typeof x.priceText === "string" &&
+    !isExpired(x as LaunchDraft, now)
+  );
 }
 
 // ── IndexedDB (mínimo, sem dependência) ──────────────────────────────
@@ -80,9 +97,9 @@ function run<T>(
 // sem rascunho, o card só funciona como antes.
 export async function loadDraft(id: string): Promise<LaunchDraft | null> {
   try {
-    const d = await run<LaunchDraft | undefined>("readonly", (s) => s.get(id));
+    const d = await run<unknown>("readonly", (s) => s.get(id));
     if (!d) return null;
-    if (isExpired(d, Date.now())) {
+    if (!isUsable(d, Date.now())) {
       deleteDraft(id);
       return null;
     }
@@ -108,11 +125,21 @@ export async function deleteDraft(id: string): Promise<void> {
   }
 }
 
-// Ids com rascunho guardado (badge na lista e aviso ao sair, #235).
+// Ids com rascunho válido (aviso ao sair, #235). Aproveita pra apagar os
+// vencidos ou de formato antigo, que senão ficariam no aparelho.
 export async function draftIds(): Promise<string[]> {
   try {
-    const keys = await run<IDBValidKey[]>("readonly", (s) => s.getAllKeys());
-    return keys.map(String);
+    const [keys, values] = await Promise.all([
+      run<IDBValidKey[]>("readonly", (s) => s.getAllKeys()),
+      run<unknown[]>("readonly", (s) => s.getAll()),
+    ]);
+    const now = Date.now();
+    const ok: string[] = [];
+    keys.forEach((k, i) => {
+      if (isUsable(values[i], now)) ok.push(String(k));
+      else deleteDraft(String(k));
+    });
+    return ok;
   } catch {
     return [];
   }

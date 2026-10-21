@@ -22,6 +22,7 @@ import {
 } from "@/lib/intake/publish";
 import { pricePerUnit } from "@/lib/intake/pack";
 import {
+  DRAFT_VERSION,
   deleteDraft,
   isWorthSaving,
   loadDraft,
@@ -82,6 +83,13 @@ export function LaunchSheet({
   // card vazio por cima do rascunho que ainda está sendo lido).
   const defaultsRef = useRef<LaunchDraftFields | null>(null);
   const hydratedRef = useRef<string | null>(null);
+  // A primeira passada depois de carregar o rascunho só repete o que já
+  // está gravado — não regrava (nem renova o prazo) por só ter aberto.
+  const skipNextSaveRef = useRef(false);
+  // Gravação pendente (dentro da folga de 400 ms): executada ao fechar o
+  // card, trocar de item ou a tela ir pro fundo — nunca se perde.
+  const pendingSaveRef = useRef<(() => void) | null>(null);
+  const flushPending = () => pendingSaveRef.current?.();
   const [restored, setRestored] = useState(false);
 
   function applyFields(f: LaunchDraftFields) {
@@ -110,7 +118,7 @@ export function LaunchSheet({
     applyFields(defaults);
     setPhoto(null);
     setRestored(false);
-    if (item.status !== "pendente") return;
+    if (item.status !== "pendente") return flushPending;
     let alive = true;
     loadDraft(item.id).then((d) => {
       if (!alive) return;
@@ -120,11 +128,13 @@ export function LaunchSheet({
           setPhoto({ blob: d.photo, preview: URL.createObjectURL(d.photo) });
         }
         setRestored(true);
+        skipNextSaveRef.current = true;
       }
       hydratedRef.current = item.id;
     });
     return () => {
       alive = false;
+      flushPending();
     };
     // categories fora das deps de propósito: não resetar o que a atendente
     // já digitou se a lista de categorias atualizar com o card aberto.
@@ -138,15 +148,42 @@ export function LaunchSheet({
     const fields: LaunchDraftFields = {
       name, priceText, categoryName, unit, packText, metersText,
     };
-    const t = setTimeout(() => {
-      if (isWorthSaving(fields, defaultsRef.current!, !!photo)) {
-        saveDraft(id, { ...fields, photo: photo?.blob ?? null, savedAt: Date.now() });
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
+    const defaults = defaultsRef.current;
+    const flush = () => {
+      if (pendingSaveRef.current === flush) pendingSaveRef.current = null;
+      else return; // já gravado ou substituído por uma edição mais nova
+      if (hydratedRef.current !== id) return;
+      if (isWorthSaving(fields, defaults, !!photo)) {
+        saveDraft(id, {
+          ...fields,
+          v: DRAFT_VERSION,
+          photo: photo?.blob ?? null,
+          savedAt: Date.now(),
+        });
       } else {
         deleteDraft(id);
       }
-    }, 400);
+    };
+    pendingSaveRef.current = flush;
+    const t = setTimeout(flush, 400);
     return () => clearTimeout(t);
   }, [item, name, priceText, categoryName, unit, packText, metersText, photo]);
+
+  // Celular bloqueando / aba indo pro fundo: grava o pendente já.
+  // (Publicar/pular zeram hydratedRef antes, então não ressuscita
+  // rascunho apagado.)
+  useEffect(() => {
+    const onHide = () => pendingSaveRef.current?.();
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      onHide();
+    };
+  }, []);
 
   function discardDraft() {
     if (!item || !defaultsRef.current) return;
@@ -285,7 +322,10 @@ export function LaunchSheet({
         ) : (
           <div className="space-y-4 p-4">
             {restored && (
-              <div className="flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+              <div
+                role="status"
+                className="flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900"
+              >
                 <History size={18} className="shrink-0" />
                 <span className="flex-1">
                   Rascunho recuperado: continue de onde parou.

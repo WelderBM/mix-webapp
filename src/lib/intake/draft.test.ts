@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { DRAFT_TTL_MS, isExpired, isWorthSaving, type LaunchDraftFields } from "./draft";
+import {
+  DRAFT_TTL_MS,
+  DRAFT_VERSION,
+  isExpired,
+  isUsable,
+  isWorthSaving,
+  type LaunchDraftFields,
+} from "./draft";
 
 const defaults: LaunchDraftFields = {
   name: "SACO TRANSP 10X14 PT C/100",
@@ -23,6 +30,18 @@ describe("isWorthSaving", () => {
 
   it("foto sozinha já vale rascunho (é o passo mais trabalhoso)", () => {
     expect(isWorthSaving({ ...defaults }, defaults, true)).toBe(true);
+  });
+});
+
+describe("isUsable", () => {
+  const now = 10 * DRAFT_TTL_MS;
+  const ok = { ...defaults, v: DRAFT_VERSION, photo: null, savedAt: now - 1000 };
+  it("aceita só o formato atual e dentro do prazo", () => {
+    expect(isUsable(ok, now)).toBe(true);
+    expect(isUsable({ ...ok, v: undefined }, now)).toBe(false);
+    expect(isUsable({ ...ok, savedAt: now - DRAFT_TTL_MS - 1 }, now)).toBe(false);
+    expect(isUsable({ foo: 1 }, now)).toBe(false);
+    expect(isUsable(null, now)).toBe(false);
   });
 });
 
