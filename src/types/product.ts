@@ -97,6 +97,11 @@ export interface Product {
   // confirmado sem este campo) não tem `createdAt` — todo consumidor deve
   // tratar a ausência com guard explícito, nunca `||`/comparação implícita.
   createdAt?: any;
+
+  // Código do produto no Noturno (sistema da loja física), gravado quando o
+  // produto nasce da fila de lançamento (#200). Vincula reimportações do
+  // Noturno ao produto publicado (estoque, #202).
+  sourceCode?: string;
 }
 export interface AssembledKitProduct extends Product {
   type: "ASSEMBLED_KIT";
