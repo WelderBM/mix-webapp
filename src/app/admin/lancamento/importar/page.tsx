@@ -8,6 +8,7 @@ import {
   doc,
   getDocs,
   serverTimestamp,
+  setDoc,
   writeBatch,
 } from "firebase/firestore";
 import { onAuthStateChanged, User } from "firebase/auth";
@@ -39,6 +40,7 @@ const BATCH_SIZE = 400; // limite do Firestore é 500 operações por batch
 interface Analysis {
   fileName: string;
   items: IntakeSourceFields[];
+  existing: Map<string, IntakeItem>;
   merge: IntakeMergeResult;
 }
 
@@ -85,7 +87,7 @@ export default function NoturnoImportPage() {
       const existing = new Map<string, IntakeItem>(
         snap.docs.map((d) => [d.id, { ...(d.data() as IntakeItem), id: d.id }])
       );
-      setAnalysis({ fileName: file.name, items, merge: mergeIntake(existing, items) });
+      setAnalysis({ fileName: file.name, items, existing, merge: mergeIntake(existing, items) });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Não foi possível ler o arquivo.");
     } finally {
@@ -112,6 +114,12 @@ export default function NoturnoImportPage() {
         await batch.commit();
         setProgress(Math.min(writes.length, i + BATCH_SIZE));
       }
+      const { applyWrites, buildIntakeSummary } = await import("@/lib/intake/summary");
+      const summary = buildIntakeSummary(applyWrites(analysis.existing, writes).values());
+      await setDoc(doc(db, "intake_meta", "summary"), {
+        ...summary,
+        updatedAt: serverTimestamp(),
+      });
       setDone(analysis.merge);
       setAnalysis(null);
       toast.success("Importação concluída.");

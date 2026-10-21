@@ -38,6 +38,7 @@ import {
   LogOut,
   Package,
   FileSpreadsheet,
+  ClipboardList,
   Save,
   Eye,
   Database,
@@ -436,6 +437,11 @@ function AdminPageContent() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/lancamento" className="gap-2 cursor-pointer">
+                    <ClipboardList size={14} /> Lançamento de produtos
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/admin/batch-import" className="gap-2 cursor-pointer">
                     <Package size={14} /> Importação em Lote (Fitas)

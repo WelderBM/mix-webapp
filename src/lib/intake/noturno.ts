@@ -1,4 +1,5 @@
 import type { Cell } from "./xlsx";
+import { normalizeText, searchTokensFor } from "./search";
 import type {
   IntakeFlag,
   IntakeSourceFields,
@@ -67,14 +68,7 @@ function toNumber(c: Cell): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function normalizeText(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
+export { normalizeText };
 
 const upper = (s: string) => normalizeText(s).toUpperCase();
 
@@ -199,6 +193,7 @@ export function analyzeNoturnoRows(rows: NoturnoRow[]): IntakeSourceFields[] {
       family === "FITA" && !isRibbon ? null : CATEGORY_BY_FAMILY[family ?? ""] ?? null;
 
     const brand = brandRaw ? BRAND_CANON[brandKey] ?? brandRaw : null;
+    const searchText = normalizeText([name, r.code, r.ref ?? "", brand ?? ""].join(" "));
 
     return {
       source: "noturno" as const,
@@ -220,7 +215,8 @@ export function analyzeNoturnoRows(rows: NoturnoRow[]): IntakeSourceFields[] {
       suggestedType,
       suggestedUnit,
       duplicateGroup: dupIds.get(dupKey(name)) ?? null,
-      searchText: normalizeText([name, r.code, r.ref ?? "", brand ?? ""].join(" ")),
+      searchText,
+      searchTokens: searchTokensFor(searchText),
     };
   });
 }
