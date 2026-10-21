@@ -58,6 +58,10 @@ export interface IntakeSourceFields {
   // sugerida pela família — casada contra as categorias reais na hora de
   // publicar, porque o nome exibido delas é livre. `null` = sem palpite.
   suggestedCategoryKey: string | null;
+  // Subcategoria sugerida (#232), nome de exibição ("Fita para laço",
+  // "Seda"…), casado com as subcategorias reais da categoria na publicação.
+  // Pode faltar em itens importados antes do #232.
+  suggestedSubcategory?: string | null;
   suggestedType: ProductType;
   suggestedUnit: Unit;
   // Quantidade por pacote LIDA DO NOME ("PT C/100" → 100) e o trecho que a

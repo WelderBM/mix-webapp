@@ -27,7 +27,7 @@ export interface IntakeMergeResult {
 const SOURCE_KEYS: (keyof IntakeSourceFields)[] = [
   "sourceRef", "ean", "rawName", "name", "family", "brandRaw", "brand",
   "stock", "unitCost", "flags", "suggestedStatus", "priority", "isCoreFamily",
-  "suggestedCategoryKey", "suggestedType", "suggestedUnit", "packQty",
+  "suggestedCategoryKey", "suggestedSubcategory", "suggestedType", "suggestedUnit", "packQty",
   "packEvidence", "duplicateGroup",
   "searchText", "searchTokens",
 ];

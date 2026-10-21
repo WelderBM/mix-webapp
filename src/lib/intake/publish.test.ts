@@ -104,6 +104,12 @@ describe("validateLaunch", () => {
 });
 
 describe("buildProductFromIntake", () => {
+  it("grava a subcategoria escolhida (#232) e omite quando não há", () => {
+    expect(buildProductFromIntake(item(), input({ subcategoryName: "Seda" })).subcategory).toBe("Seda");
+    expect(buildProductFromIntake(item(), input({ subcategoryName: null })).subcategory).toBeUndefined();
+    expect(buildProductFromIntake(item(), input()).subcategory).toBeUndefined();
+  });
+
   it("item comum: preço, unidade, foto de capa e vínculo com o Noturno", () => {
     const p = buildProductFromIntake(item(), input());
     expect(p).toMatchObject({

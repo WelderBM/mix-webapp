@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -21,6 +21,7 @@ import {
   FileSpreadsheet,
   Loader2,
   Lock,
+  Tags,
   Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,13 @@ import {
   isIgnorableSyncError,
   type ProductStockUpdate,
 } from "@/lib/intake/stockSync";
+import { useCategoryStore } from "@/store/categoryStore";
+import {
+  buildTaxonomyWrites,
+  planTaxonomy,
+  type TaxonomyPlan,
+} from "@/lib/intake/subcategories";
+import { uniqueSlug } from "@/lib/migrateCategories";
 
 // Importador do cadastro do Noturno → fila de lançamento (issue #198).
 // Parse, análise e comparação rodam no navegador; só o que mudou é
@@ -91,6 +99,39 @@ export default function NoturnoImportPage() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [done, setDone] = useState<ImportResult | null>(null);
+  const categories = useCategoryStore((st) => st.categories);
+  const subscribeCategories = useCategoryStore((st) => st.subscribe);
+  const [creatingTaxonomy, setCreatingTaxonomy] = useState(false);
+
+  useEffect(() => {
+    if (user) subscribeCategories();
+  }, [user, subscribeCategories]);
+
+  // Varredura pós-importação (#232): só o que ainda vai ser lançado.
+  const taxonomy = useMemo(() => {
+    if (!analysis) return null;
+    const pending = analysis.items.filter(
+      (i) => (analysis.existing.get(i.sourceCode)?.status ?? "pendente") === "pendente",
+    );
+    return planTaxonomy(pending, categories);
+  }, [analysis, categories]);
+
+  async function createMissingTaxonomy(plan: TaxonomyPlan) {
+    setCreatingTaxonomy(true);
+    try {
+      const writes = buildTaxonomyWrites(plan, categories, uniqueSlug);
+      for (const w of writes) {
+        await setDoc(doc(db, "categories", w.id), w.data, { merge: !w.isNew });
+      }
+      toast.success("Categorias e subcategorias criadas na loja.");
+    } catch (err) {
+      toast.error(
+        "Não foi possível criar: " + (err instanceof Error ? err.message : String(err)),
+      );
+    } finally {
+      setCreatingTaxonomy(false);
+    }
+  }
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -362,6 +403,14 @@ export default function NoturnoImportPage() {
               </p>
             )}
 
+            {taxonomy && (
+              <TaxonomyPanel
+                plan={taxonomy}
+                busy={creatingTaxonomy}
+                onCreate={() => createMissingTaxonomy(taxonomy)}
+              />
+            )}
+
             {top.length > 0 && (
               <div>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -445,6 +494,74 @@ function Stat({
         {value.toLocaleString("pt-BR")}
       </p>
       <p className="text-xs text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+// Organização da loja (#232): como a fila vai cair nas categorias e
+// subcategorias do site, o que falta criar e o que as regras não pegaram.
+function TaxonomyPanel({
+  plan,
+  busy,
+  onCreate,
+}: {
+  plan: TaxonomyPlan;
+  busy: boolean;
+  onCreate: () => void;
+}) {
+  const byCategory = new Map<string, { subcategory: string; count: number }[]>();
+  for (const c of plan.classified) {
+    byCategory.set(c.category, [...(byCategory.get(c.category) ?? []), c]);
+  }
+  const missingCount =
+    plan.missingCategories.length + plan.missingSubcategories.length;
+  if (plan.classified.length === 0 && plan.unclassified.length === 0) return null;
+  return (
+    <div className="space-y-3 rounded-lg border border-slate-200 p-3">
+      <p className="flex items-center gap-2 text-sm font-medium text-slate-700">
+        <Tags size={16} /> Organização da loja
+      </p>
+      <ul className="space-y-1 text-sm text-slate-600">
+        {[...byCategory.entries()].map(([cat, subs]) => (
+          <li key={cat}>
+            <strong className="text-slate-800">{cat}:</strong>{" "}
+            {subs.map((x) => `${x.subcategory} (${x.count})`).join(", ")}
+          </li>
+        ))}
+      </ul>
+      {missingCount > 0 && (
+        <div className="space-y-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          <p>
+            Ainda não existem no site
+            {plan.missingCategories.length > 0 &&
+              ` — categorias: ${plan.missingCategories.join(", ")}`}
+            {plan.missingSubcategories.length > 0 &&
+              ` — ${plan.missingSubcategories.length} subcategoria(s)`}
+            . Sem elas, a atendente escolhe à mão.
+          </p>
+          <Button
+            variant="outline"
+            className="h-11 w-full bg-white"
+            disabled={busy}
+            onClick={onCreate}
+          >
+            {busy ? <Loader2 className="animate-spin" size={16} /> : "Criar o que falta no site"}
+          </Button>
+        </div>
+      )}
+      {plan.unclassified.length > 0 && (
+        <details className="text-sm text-slate-600">
+          <summary className="cursor-pointer">
+            Sem subcategoria:{" "}
+            {plan.unclassified.map((u) => `${u.family} ${u.count}`).join(", ")}
+          </summary>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-slate-500">
+            {plan.unclassified.flatMap((u) =>
+              u.examples.map((e) => <li key={u.family + e}>{e}</li>),
+            )}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }
