@@ -64,6 +64,11 @@ Um padrão comum neste admin: `useState` inicializado com um objeto default (`{ 
 
 ---
 
+### Dado salvo no navegador por uma versão antiga não pode derrubar a renderização
+Logo depois da promoção para produção (21/10/2026), a home quebrava inteira ("Algo deu errado") para quem tinha no `localStorage` um item de carrinho salvo pela versão anterior: o snapshot do produto não tinha preço efetivo, e `getCartItemTotal` lança de propósito (para nunca cobrar R$ 0) — mas era chamado durante a renderização do `CartSidebar`. Em navegador limpo nada aparecia; só reproduziu injetando o carrinho legado.
+
+**Padrão**: todo estado persistido (`zustand/persist`, `localStorage`) é dado não confiável vindo do passado. Valide e descarte o que não serve **na reidratação** (`merge` do `persist`, ver `dropUnpricedCartItems`), e use variantes que não lançam (`getCartItemTotalOrNull`) em telas que exibem dado já gravado. Para reproduzir bug "só na minha máquina", suspeite primeiro de storage antigo.
+
 ## Firebase / Firestore
 
 ### `request.resource` só existe em operações de escrita nas regras
@@ -93,11 +98,28 @@ Comparar conteúdo via `JSON.stringify(a) === JSON.stringify(b)` funciona só se
 
 ---
 
+### `allow read` cobre `get` **e** `list` — e coleção sem regra cai no deny-all
+`match /orders/{id} { allow read: if true; }` foi escrito para o cliente abrir o próprio pedido pelo ID, mas também liberava **listar a coleção inteira** sem login (nome, telefone e endereço de todos os clientes, confirmado em produção em 21/10/2026). Separar: `allow get: if true; allow list: if isAdmin();`.
+
+O inverso também morde: a coleção `tags` (TagManager, #68) nunca teve regra, caiu no `match /{document=**} { allow read, write: if false; }` e o `onSnapshot` do admin falhava com `permission-denied` para todo mundo, inclusive admin.
+
+**Padrão**: ao criar regra pública de leitura, decida `get` e `list` separadamente. Ao criar coleção nova no código, crie a regra no mesmo PR. Para testar regra publicada sem login: `curl -s -o /dev/null -w "%{http_code}" "https://firestore.googleapis.com/v1/projects/<projeto>/databases/(default)/documents/<colecao>"` (403 = negado).
+
+### `firestore.rules` só vale depois de publicado — e publicar de branch errada apaga regras
+As regras não sobem com o deploy da Vercel. Em 21/10/2026, publicar a partir de `dev` (que ainda não tinha as regras da fila de lançamento) apagou `intake_items`/`intake_meta` do staging. Desde o PR #213 a publicação é automática: push em `dev` → staging, push em `master` → produção (`.github/workflows/deploy-firestore-rules.yml`).
+
+**Padrão**: não rode `firebase deploy --only firestore:rules` à mão a partir de uma feature branch. Se precisar publicar fora de um merge, use **Actions → Deploy Firestore Rules → Run workflow** no branch certo.
+
 ## Vercel / Deploy
 
 Graduou para skill: ver `.claude/skills/deploy-vercel/SKILL.md` (env vars escopadas por branch, workaround da CLI pra `vercel env add`, cuidado com `vercel env rm` em escopo combinado, e o gotcha do `sitemap.ts` em build time).
 
 ---
+
+### Rota sem `revalidate` nem `force-dynamic` vira estática para sempre
+O PR #155 removeu `force-dynamic` da home (`src/app/page.tsx`) para ganhar performance, mas não declarou `revalidate`. A rota passou a ser gerada só no build: nome da loja, vitrine, produtos e preços editados no admin só apareciam no próximo deploy (descoberto em produção em 21/10/2026, com "(Em teste)" preso no logo). Em `dev` ninguém percebe, porque todo merge gera build novo.
+
+**Padrão**: página que lê dado editável do Firestore no servidor precisa de `export const revalidate = <segundos>` (a home e `/natura` usam 60) ou `force-dynamic`. Para conferir em produção: `curl -sI <url> | grep -i x-nextjs` — `X-Nextjs-Prerender: 1` com `X-Vercel-Cache: HIT` em página que deveria mudar é o sintoma.
 
 ## Processo / coordenação entre sessões
 
