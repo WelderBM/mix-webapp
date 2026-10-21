@@ -17,17 +17,38 @@ export interface IntakeSummary {
   totalItems: number;
   byStatus: Record<IntakeWorkflowStatus, number>;
   families: Record<string, FamilyCount>;
+  // Placar (#202): custo do estoque já publicado na loja (R$, estoque ×
+  // custo do Noturno) e quantos itens cada atendente publicou.
+  publishedStockValue: number;
+  publishedBy: Record<string, number>;
 }
 
-type SummaryInput = Pick<IntakeItem, "family" | "status" | "isCoreFamily" | "inLatestImport">;
+type SummaryInput = Pick<
+  IntakeItem,
+  | "family"
+  | "status"
+  | "isCoreFamily"
+  | "inLatestImport"
+  | "stock"
+  | "unitCost"
+  | "publishedBy"
+>;
+
+export function stockValue(i: Pick<IntakeItem, "stock" | "unitCost">): number {
+  return Math.max(0, (i.stock ?? 0) * (i.unitCost ?? 0));
+}
 
 export const NO_FAMILY = "(sem família)";
 
-export function buildIntakeSummary(items: Iterable<SummaryInput>): IntakeSummary {
+export function buildIntakeSummary(
+  items: Iterable<SummaryInput>,
+): IntakeSummary {
   const summary: IntakeSummary = {
     totalItems: 0,
     byStatus: { pendente: 0, publicado: 0, pulado: 0, fora_da_loja: 0 },
     families: {},
+    publishedStockValue: 0,
+    publishedBy: {},
   };
   for (const i of items) {
     // Item que saiu do Noturno não entra mais na fila de trabalho.
@@ -35,9 +56,18 @@ export function buildIntakeSummary(items: Iterable<SummaryInput>): IntakeSummary
     summary.totalItems++;
     summary.byStatus[i.status]++;
     const key = i.family ?? NO_FAMILY;
-    const f = (summary.families[key] ??= { total: 0, pending: 0, isCore: false });
+    const f = (summary.families[key] ??= {
+      total: 0,
+      pending: 0,
+      isCore: false,
+    });
     f.total++;
     if (i.status === "pendente") f.pending++;
+    if (i.status === "publicado") {
+      summary.publishedStockValue += stockValue(i);
+      const who = i.publishedBy || "(desconhecido)";
+      summary.publishedBy[who] = (summary.publishedBy[who] ?? 0) + 1;
+    }
     f.isCore ||= i.isCoreFamily;
   }
   return summary;
@@ -46,20 +76,43 @@ export function buildIntakeSummary(items: Iterable<SummaryInput>): IntakeSummary
 // Estado final da fila depois das escritas do merge — sem reler o banco.
 export function applyWrites(
   existing: Map<string, IntakeItem>,
-  writes: IntakeWrite[]
+  writes: IntakeWrite[],
 ): Map<string, IntakeItem> {
   const next = new Map(existing);
   for (const w of writes) {
-    next.set(w.id, { ...(next.get(w.id) as IntakeItem), ...w.data } as IntakeItem);
+    next.set(w.id, {
+      ...(next.get(w.id) as IntakeItem),
+      ...w.data,
+    } as IntakeItem);
   }
   return next;
 }
 
+// Progresso da revenda (foco atual): itens já triados (publicados, pulados
+// ou fora da loja) sobre o total das famílias de revenda.
+export function coreProgress(summary: IntakeSummary): {
+  done: number;
+  total: number;
+} {
+  let done = 0;
+  let total = 0;
+  for (const f of Object.values(summary.families)) {
+    if (!f.isCore) continue;
+    total += f.total;
+    done += f.total - f.pending;
+  }
+  return { done, total };
+}
+
 // Ordem do menu de corredores: núcleo da loja primeiro, depois quem tem
 // mais trabalho pendente.
-export function sortedFamilies(summary: IntakeSummary): [string, FamilyCount][] {
+export function sortedFamilies(
+  summary: IntakeSummary,
+): [string, FamilyCount][] {
   return Object.entries(summary.families).sort(
     ([an, a], [bn, b]) =>
-      Number(b.isCore) - Number(a.isCore) || b.pending - a.pending || an.localeCompare(bn)
+      Number(b.isCore) - Number(a.isCore) ||
+      b.pending - a.pending ||
+      an.localeCompare(bn),
   );
 }
