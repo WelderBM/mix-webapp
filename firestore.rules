@@ -107,6 +107,18 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // /tags/{tagId}
+    //   Catálogo de tags gerenciado (issue #68, TagManager). Mesmo padrão de
+    //   /categories. Sem esta regra a coleção caía no deny-all: o
+    //   onSnapshot de tags do admin falhava com permission-denied e o
+    //   TagManager não conseguia gravar.
+    // ─────────────────────────────────────────────────────────────────────
+    match /tags/{tagId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /users/{userId} {
       allow read:   if request.auth != null &&
                        (request.auth.uid == userId || isAdmin());
