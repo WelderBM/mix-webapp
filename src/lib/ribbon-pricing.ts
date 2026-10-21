@@ -50,6 +50,9 @@ export function getEffectiveUnitLabel(product: Product): string {
   if (product.type === "RIBBON" && product.ribbonInventory?.status === "FECHADO") {
     return "rolo";
   }
+  if (product.unit === "pct" && product.packQty && product.packQty > 1) {
+    return `pct c/ ${product.packQty}`;
+  }
   return product.unit || "un";
 }
 

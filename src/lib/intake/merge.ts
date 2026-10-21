@@ -27,7 +27,8 @@ export interface IntakeMergeResult {
 const SOURCE_KEYS: (keyof IntakeSourceFields)[] = [
   "sourceRef", "ean", "rawName", "name", "family", "brandRaw", "brand",
   "stock", "unitCost", "flags", "suggestedStatus", "priority", "isCoreFamily",
-  "suggestedCategoryKey", "suggestedType", "suggestedUnit", "duplicateGroup",
+  "suggestedCategoryKey", "suggestedType", "suggestedUnit", "packQty",
+  "packEvidence", "duplicateGroup",
   "searchText", "searchTokens",
 ];
 
@@ -70,6 +71,8 @@ export function mergeIntake(
       next.rawName = prev.rawName;
       next.searchText = prev.searchText;
       next.searchTokens = prev.searchTokens;
+      next.packQty = prev.packQty;
+      next.packEvidence = prev.packEvidence;
     }
 
     const changed: Partial<IntakeItem> = {};
