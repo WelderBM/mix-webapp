@@ -104,6 +104,18 @@ function AdminPageContent() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  // Lançamentos com rascunho NESTE aparelho (#233): avisados antes de sair.
+  const [draftsOnDevice, setDraftsOnDevice] = useState(0);
+
+  async function askLogout() {
+    try {
+      const { draftIds } = await import("@/lib/intake/draft");
+      setDraftsOnDevice((await draftIds()).length);
+    } catch {
+      setDraftsOnDevice(0);
+    }
+    setConfirmLogout(true);
+  }
   const [isAdminUser, setIsAdminUser] = useState(false);
   // Defaults to orders since user emphasized it — `?view=estoque` abre direto em Gerenciar Estoque.
   const [viewMode, setViewMode] = useState<"orders" | "inventory">(() =>
@@ -427,7 +439,7 @@ function AdminPageContent() {
               </Button>
             </Link>
             <Button
-              onClick={() => setConfirmLogout(true)}
+              onClick={askLogout}
               variant="ghost"
               className="gap-2"
             >
@@ -569,7 +581,11 @@ function AdminPageContent() {
           open={confirmLogout}
           onOpenChange={setConfirmLogout}
           title="Sair do sistema?"
-          description="Você vai precisar entrar de novo com e-mail e senha."
+          description={
+            draftsOnDevice > 0
+              ? `Você tem ${draftsOnDevice} lançamento(s) começado(s) neste aparelho. Eles continuam guardados aqui e voltam quando você entrar de novo.`
+              : "Você vai precisar entrar de novo com e-mail e senha."
+          }
           confirmLabel="Sair"
           onConfirm={() => {
             setConfirmLogout(false);
