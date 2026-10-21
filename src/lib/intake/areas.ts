@@ -93,7 +93,7 @@ export function areaForItem(item: AreaInput, overrides: AreaOverrides = {}): num
   const fam = item.family ?? "";
   if (fam === RIBBON_FAMILY) {
     if (item.suggestedType !== "RIBBON") return 5; // adesiva, durex…
-    return isClosedRoll(item.name) ? 10 : 6;
+    return isClosedRoll(item.name ?? "") ? 10 : 6;
   }
   return overrides[fam] ?? AREA_BY_FAMILY[fam] ?? NO_AREA;
 }
@@ -105,8 +105,12 @@ export function areasForFamily(family: string, overrides: AreaOverrides = {}): n
 }
 
 // Família pode ser movida à mão só se o mapa não tem palpite para ela.
+// "(sem família)" não entra: a consulta por família não acha item com
+// família nula.
 export function isAssignableFamily(family: string): boolean {
-  return family !== RIBBON_FAMILY && !(family in AREA_BY_FAMILY);
+  return (
+    family !== RIBBON_FAMILY && family !== "(sem família)" && !(family in AREA_BY_FAMILY)
+  );
 }
 
 export interface AreaProgress {
@@ -115,21 +119,43 @@ export interface AreaProgress {
   families: string[];
 }
 
-// Progresso por área a partir do resumo por família (uma leitura só).
-// FITA conta inteira em "Fitas fechadas" (a grande maioria); nas outras
-// duas áreas ela só aparece no menu.
+type Count = { total: number; pending: number };
+
+// FITA dividida por área só vale se o resumo já foi gravado com ela
+// (reimportação depois do #231) — `total` só nasce na importação; antes
+// disso só existiriam incrementos de `pending`, sem base.
+function usableRibbonAreas(r: Record<string, Partial<Count>> | undefined) {
+  if (!r) return null;
+  const vals = Object.values(r);
+  return vals.length > 0 && vals.every((v) => typeof v.total === "number")
+    ? (r as Record<string, Count>)
+    : null;
+}
+
+// Progresso por área a partir do resumo (uma leitura só). FITA conta em
+// cada área pela divisão do resumo; resumo antigo (sem divisão) conta
+// tudo em "Fitas fechadas", a grande maioria.
 export function areaProgress(
-  families: Record<string, { total: number; pending: number }>,
+  families: Record<string, Count>,
   overrides: AreaOverrides = {},
+  ribbonAreas?: Record<string, Partial<Count>>,
 ): Record<number, AreaProgress> {
   const out: Record<number, AreaProgress> = {};
   const slot = (id: number) => (out[id] ??= { total: 0, pending: 0, families: [] });
+  const ribbon = usableRibbonAreas(ribbonAreas);
   for (const [fam, c] of Object.entries(families)) {
     const areas = areasForFamily(fam, overrides);
+    for (const a of areas) slot(a).families.push(fam);
+    if (fam === RIBBON_FAMILY && ribbon) {
+      for (const [a, rc] of Object.entries(ribbon)) {
+        slot(Number(a)).total += rc.total;
+        slot(Number(a)).pending += Math.max(0, rc.pending);
+      }
+      continue;
+    }
     const counted = fam === RIBBON_FAMILY ? 10 : areas[0];
     slot(counted).total += c.total;
     slot(counted).pending += c.pending;
-    for (const a of areas) slot(a).families.push(fam);
   }
   for (const p of Object.values(out)) {
     p.families.sort((a, b) => (families[b]?.pending ?? 0) - (families[a]?.pending ?? 0));

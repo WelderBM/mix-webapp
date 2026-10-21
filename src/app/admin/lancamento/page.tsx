@@ -31,6 +31,7 @@ import {
 } from "@/lib/intake/summary";
 import { statusTransitionDeltas } from "@/lib/intake/publish";
 import { useCategoryStore } from "@/store/categoryStore";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LaunchSheet } from "@/components/admin/intake/LaunchSheet";
 import {
   activeClaim,
@@ -89,6 +90,8 @@ export default function IntakeQueuePage() {
   const [family, setFamily] = useState<string | null>(null);
   const [area, setArea] = useState<number | null>(null);
   const [meta, setMeta] = useState<AreasMeta>({ claims: {}, overrides: {} });
+  // Área ocupada por outra atendente: pede confirmação antes de entrar.
+  const [busyArea, setBusyArea] = useState<{ id: number; name: string } | null>(null);
   const [status, setStatus] = useState<StatusFilter>("pendente");
   const [text, setText] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -125,6 +128,10 @@ export default function IntakeQueuePage() {
       }
       const fam = next.families[prev.family ?? NO_FAMILY];
       if (fam) fam.pending += familyPending;
+      if (prev.family === RIBBON_FAMILY && next.ribbonAreas) {
+        const r = next.ribbonAreas[String(areaForItem(prev))];
+        if (r) r.pending += familyPending;
+      }
       if (updated.status === "publicado" && prev.status !== "publicado") {
         next.publishedStockValue =
           (next.publishedStockValue ?? 0) + stockValue(prev);
@@ -135,6 +142,13 @@ export default function IntakeQueuePage() {
         };
       }
       setSummary(next);
+    }
+    // Quem está trabalhando renova a reserva da área (vale 3 h).
+    if (area != null && area !== NO_AREA && me) {
+      const c = meta.claims[String(area)];
+      if (c?.email === me && Date.now() - c.at > 30 * 60 * 1000) {
+        claimArea(area, me, c.name).catch(() => {});
+      }
     }
   }
 
@@ -159,13 +173,25 @@ export default function IntakeQueuePage() {
   }, [user]);
 
   const progress = useMemo(
-    () => (summary ? areaProgress(summary.families, meta.overrides) : {}),
+    () =>
+      summary
+        ? areaProgress(summary.families, meta.overrides, summary.ribbonAreas)
+        : {},
     [summary, meta.overrides],
   );
 
   const me = user?.email ?? "";
 
-  function enterArea(id: number | null) {
+  // Toque na grade: se outra atendente está na área, confirma antes.
+  function pickArea(id: number) {
+    const c = activeClaim(meta.claims[String(id)], Date.now());
+    if (c && c.email !== me) setBusyArea({ id, name: c.name });
+    else enterArea(id);
+  }
+
+  // claim=false: entrou numa área de outra pessoa sem tomar a reserva
+  // (a reserva continua dela; ao sair não libera nada).
+  function enterArea(id: number | null, claim = true) {
     const prev = area;
     if (prev != null && prev !== NO_AREA) {
       const c = meta.claims[String(prev)];
@@ -175,7 +201,7 @@ export default function IntakeQueuePage() {
     setText("");
     const fams = id == null ? [] : (progress[id]?.families ?? []);
     setFamily(fams[0] ?? null);
-    if (id != null && id !== NO_AREA && me) {
+    if (claim && id != null && id !== NO_AREA && me) {
       claimArea(id, me, firstName(user?.displayName || me)).catch(() => {});
     }
   }
@@ -253,7 +279,6 @@ export default function IntakeQueuePage() {
     return items
       .filter((i) => i.inLatestImport)
       .filter((i) => status === "todos" || i.status === status)
-      .filter((i) => !family || !parsed.indexToken || i.family === family)
       // FITA se divide em três áreas: mostra só os rolos desta área.
       .filter(
         (i) =>
@@ -368,7 +393,7 @@ export default function IntakeQueuePage() {
             claims={meta.claims}
             me={me}
             now={now}
-            onPick={enterArea}
+            onPick={pickArea}
           />
         )}
 
@@ -377,6 +402,10 @@ export default function IntakeQueuePage() {
             <AreaBar
               area={area}
               progress={progress[area]}
+              sharedWith={(() => {
+                const c = activeClaim(meta.claims[String(area)], now);
+                return c && c.email !== me ? c.name : null;
+              })()}
               next={next}
               onBack={() => enterArea(null)}
               onNext={() => next != null && enterArea(next)}
@@ -453,6 +482,21 @@ export default function IntakeQueuePage() {
           </section>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!busyArea}
+        onOpenChange={(open) => !open && setBusyArea(null)}
+        title={busyArea ? `${busyArea.name} está nessa área agora` : ""}
+        description="Se entrar mesmo assim, vocês duas podem lançar o mesmo produto. Melhor escolher outra área."
+        confirmLabel="Entrar mesmo assim"
+        cancelLabel="Escolher outra"
+        destructive={false}
+        onConfirm={() => {
+          const id = busyArea?.id;
+          setBusyArea(null);
+          if (id != null) enterArea(id, false);
+        }}
+      />
 
       <LaunchSheet
         item={selected}
@@ -667,12 +711,14 @@ function AreaGrid({
 function AreaBar({
   area,
   progress,
+  sharedWith,
   next,
   onBack,
   onNext,
 }: {
   area: number;
   progress: AreaProgress | undefined;
+  sharedWith: string | null;
   next: number | null;
   onBack: () => void;
   onNext: () => void;
@@ -693,6 +739,11 @@ function AreaBar({
               ? `${pending.toLocaleString("pt-BR")} a lançar nesta área`
               : "Área concluída 🎉"}
           </p>
+          {sharedWith && (
+            <p className="text-xs font-medium text-amber-700">
+              {sharedWith} também está nesta área: combinem quem lança o quê.
+            </p>
+          )}
         </div>
         <Button variant="outline" size="sm" className="h-11 shrink-0" onClick={onBack}>
           Trocar área

@@ -58,6 +58,7 @@ describe("areasForFamily / isAssignableFamily", () => {
     expect(isAssignableFamily("FITA")).toBe(false);
     expect(isAssignableFamily("CAIXA")).toBe(false);
     expect(isAssignableFamily("KIT")).toBe(true);
+    expect(isAssignableFamily("(sem família)")).toBe(false);
   });
 });
 
@@ -77,6 +78,23 @@ describe("areaProgress", () => {
     expect(p[6]).toMatchObject({ pending: 0, families: ["FITA"] });
     expect(p[NO_AREA].families).toEqual(["KIT"]);
     expect(areaProgress({ KIT: { total: 10, pending: 3 } }, { KIT: 4 })[4].pending).toBe(3);
+  });
+
+  it("FITA é contada em cada área pela divisão do resumo", () => {
+    const fams = { FITA: { total: 300, pending: 200 } };
+    const p = areaProgress(fams, {}, {
+      "5": { total: 20, pending: 5 },
+      "6": { total: 30, pending: 30 },
+      "10": { total: 250, pending: 165 },
+    });
+    expect([p[5].pending, p[6].pending, p[10].pending]).toEqual([5, 30, 165]);
+    expect(p[6].families).toEqual(["FITA"]);
+  });
+
+  it("resumo antigo (só incrementos, sem total) cai na conta antiga", () => {
+    const p = areaProgress({ FITA: { total: 300, pending: 200 } }, {}, { "6": { pending: -1 } });
+    expect(p[10].pending).toBe(200);
+    expect(p[6].pending).toBe(0);
   });
 });
 

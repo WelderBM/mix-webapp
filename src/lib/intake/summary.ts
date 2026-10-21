@@ -1,5 +1,6 @@
 import type { IntakeItem, IntakeWorkflowStatus } from "@/types/intake";
 import type { IntakeWrite } from "./merge";
+import { areaForItem, RIBBON_FAMILY } from "./areas";
 
 // Resumo da fila (`intake_meta/summary`, issue #199): famílias com
 // contagem por status, pra tela de lançamento abrir com UMA leitura em
@@ -21,6 +22,9 @@ export interface IntakeSummary {
   // custo do Noturno) e quantos itens cada atendente publicou.
   publishedStockValue: number;
   publishedBy: Record<string, number>;
+  // FITA dividida pelas áreas da loja (#231): "5" adesiva, "6" rolo em
+  // uso, "10" rolo fechado. Ausente em resumos gravados antes disso.
+  ribbonAreas?: Record<string, { total: number; pending: number }>;
 }
 
 type SummaryInput = Pick<
@@ -32,6 +36,8 @@ type SummaryInput = Pick<
   | "stock"
   | "unitCost"
   | "publishedBy"
+  | "name"
+  | "suggestedType"
 >;
 
 export function stockValue(i: Pick<IntakeItem, "stock" | "unitCost">): number {
@@ -49,6 +55,7 @@ export function buildIntakeSummary(
     families: {},
     publishedStockValue: 0,
     publishedBy: {},
+    ribbonAreas: {},
   };
   for (const i of items) {
     // Item que saiu do Noturno não entra mais na fila de trabalho.
@@ -69,6 +76,12 @@ export function buildIntakeSummary(
       summary.publishedBy[who] = (summary.publishedBy[who] ?? 0) + 1;
     }
     f.isCore ||= i.isCoreFamily;
+    if (i.family === RIBBON_FAMILY) {
+      const a = String(areaForItem(i));
+      const r = (summary.ribbonAreas![a] ??= { total: 0, pending: 0 });
+      r.total++;
+      if (i.status === "pendente") r.pending++;
+    }
   }
   return summary;
 }
