@@ -33,3 +33,15 @@ export function computeStockSync(
   }
   return updates;
 }
+
+// Única falha que a sincronização pode ignorar: o produto não existe mais
+// (apagado à mão no admin). Rede, cota ou permissão precisam interromper a
+// importação ANTES de gravar a fila — senão a fila fica igual ao arquivo e
+// a próxima importação nunca refaz a sincronização.
+export function isIgnorableSyncError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { code?: string }).code === "not-found"
+  );
+}

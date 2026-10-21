@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeStockSync } from "./stockSync";
+import { computeStockSync, isIgnorableSyncError } from "./stockSync";
 import type { IntakeItem } from "@/types/intake";
 
 const item = (o: Partial<IntakeItem>): IntakeItem =>
@@ -38,5 +38,19 @@ describe("computeStockSync", () => {
 
   it("item novo (sem estado anterior) não gera atualização", () => {
     expect(computeStockSync(new Map(), new Map([["1", item({ stock: 0 })]]))).toEqual([]);
+  });
+});
+
+describe("isIgnorableSyncError", () => {
+  it("só produto inexistente é ignorado", () => {
+    expect(isIgnorableSyncError({ code: "not-found" })).toBe(true);
+  });
+
+  it("rede, cota e permissão interrompem a importação", () => {
+    for (const code of ["unavailable", "deadline-exceeded", "resource-exhausted", "permission-denied"]) {
+      expect(isIgnorableSyncError({ code })).toBe(false);
+    }
+    expect(isIgnorableSyncError(new Error("offline"))).toBe(false);
+    expect(isIgnorableSyncError(null)).toBe(false);
   });
 });

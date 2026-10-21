@@ -30,7 +30,10 @@ import {
 } from "@/components/admin/SystemPasswordGate";
 import type { IntakeItem, IntakeSourceFields } from "@/types/intake";
 import type { IntakeMergeResult } from "@/lib/intake/merge";
-import type { ProductStockUpdate } from "@/lib/intake/stockSync";
+import {
+  isIgnorableSyncError,
+  type ProductStockUpdate,
+} from "@/lib/intake/stockSync";
 
 // Importador do cadastro do Noturno → fila de lançamento (issue #198).
 // Parse, análise e comparação rodam no navegador; só o que mudou é
@@ -52,6 +55,29 @@ interface ImportResult extends IntakeMergeResult {
   soldOut: number;
   backInStock: number;
   syncSkipped: number;
+}
+
+// Lê a fila atual e calcula o que gravar. Chamada na prévia E de novo no
+// clique em "Importar": entre os dois, uma atendente pode ter publicado
+// algo — gravar com o retrato da prévia usaria estado velho (produto
+// publicado ficaria fora da sincronização e o placar perderia a contagem).
+async function computeImport(items: IntakeSourceFields[]) {
+  const [{ mergeIntake }, { applyWrites }, { computeStockSync }] =
+    await Promise.all([
+      import("@/lib/intake/merge"),
+      import("@/lib/intake/summary"),
+      import("@/lib/intake/stockSync"),
+    ]);
+  const snap = await getDocs(collection(db, "intake_items"));
+  const existing = new Map<string, IntakeItem>(
+    snap.docs.map((d) => [d.id, { ...(d.data() as IntakeItem), id: d.id }]),
+  );
+  const merge = mergeIntake(existing, items);
+  const stockSync = computeStockSync(
+    existing,
+    applyWrites(existing, merge.writes),
+  );
+  return { existing, merge, stockSync };
 }
 
 export default function NoturnoImportPage() {
@@ -84,31 +110,14 @@ export default function NoturnoImportPage() {
     setAnalysis(null);
     setDone(null);
     try {
-      const [
-        { readFirstSheet },
-        { rowsFromSheet, analyzeNoturnoRows },
-        { mergeIntake },
-        { applyWrites },
-        { computeStockSync },
-      ] = await Promise.all([
-        import("@/lib/intake/xlsx"),
-        import("@/lib/intake/noturno"),
-        import("@/lib/intake/merge"),
-        import("@/lib/intake/summary"),
-        import("@/lib/intake/stockSync"),
-      ]);
+      const [{ readFirstSheet }, { rowsFromSheet, analyzeNoturnoRows }] =
+        await Promise.all([
+          import("@/lib/intake/xlsx"),
+          import("@/lib/intake/noturno"),
+        ]);
       const sheet = readFirstSheet(new Uint8Array(await file.arrayBuffer()));
       const items = analyzeNoturnoRows(rowsFromSheet(sheet));
-
-      const snap = await getDocs(collection(db, "intake_items"));
-      const existing = new Map<string, IntakeItem>(
-        snap.docs.map((d) => [d.id, { ...(d.data() as IntakeItem), id: d.id }]),
-      );
-      const merge = mergeIntake(existing, items);
-      const stockSync = computeStockSync(
-        existing,
-        applyWrites(existing, merge.writes),
-      );
+      const { existing, merge, stockSync } = await computeImport(items);
       setAnalysis({ fileName: file.name, items, existing, merge, stockSync });
     } catch (err) {
       toast.error(
@@ -121,24 +130,32 @@ export default function NoturnoImportPage() {
 
   async function runImport() {
     if (!analysis) return;
-    const { writes } = analysis.merge;
     setProgress(0);
     try {
+      // Recalcula com o estado ATUAL da fila (ver computeImport).
+      const { existing, merge, stockSync } = await computeImport(
+        analysis.items,
+      );
+      const { writes } = merge;
       // Produtos ANTES da fila: se algo falhar no meio, reimportar o mesmo
       // arquivo recalcula a sincronização (a fila ainda está no estado
       // antigo). Ao contrário, a fila já igual ao arquivo esconderia a
       // diferença e o produto ficaria com o estoque errado.
-      let syncSkipped = 0;
-      for (const u of analysis.stockSync) {
-        try {
-          await updateDoc(doc(db, "products", u.productId), {
-            inStock: u.inStock,
-          });
-        } catch {
-          // Produto apagado manualmente no admin: nada a sincronizar.
-          syncSkipped++;
-        }
-      }
+      const results = await Promise.allSettled(
+        stockSync.map((u) =>
+          updateDoc(doc(db, "products", u.productId), { inStock: u.inStock }),
+        ),
+      );
+      // Só "produto não existe" (apagado à mão no admin) é ignorado. Qualquer
+      // outra falha (rede, cota) interrompe ANTES de gravar a fila — senão a
+      // fila ficaria igual ao arquivo e a próxima importação não refaria a
+      // sincronização, deixando o produto à venda com estoque zero.
+      const failed = results.filter(
+        (r): r is PromiseRejectedResult =>
+          r.status === "rejected" && !isIgnorableSyncError(r.reason),
+      );
+      if (failed.length > 0) throw failed[0].reason;
+      const syncSkipped = results.filter((r) => r.status === "rejected").length;
 
       for (let i = 0; i < writes.length; i += BATCH_SIZE) {
         const batch = writeBatch(db);
@@ -161,16 +178,16 @@ export default function NoturnoImportPage() {
       const { applyWrites, buildIntakeSummary } =
         await import("@/lib/intake/summary");
       const summary = buildIntakeSummary(
-        applyWrites(analysis.existing, writes).values(),
+        applyWrites(existing, writes).values(),
       );
       await setDoc(doc(db, "intake_meta", "summary"), {
         ...summary,
         updatedAt: serverTimestamp(),
       });
       setDone({
-        ...analysis.merge,
-        soldOut: analysis.stockSync.filter((u) => !u.inStock).length,
-        backInStock: analysis.stockSync.filter((u) => u.inStock).length,
+        ...merge,
+        soldOut: stockSync.filter((u) => !u.inStock).length,
+        backInStock: stockSync.filter((u) => u.inStock).length,
         syncSkipped,
       });
       setAnalysis(null);
@@ -379,10 +396,12 @@ export default function NoturnoImportPage() {
                 {importing ? (
                   <>
                     <Loader2 className="mr-2 animate-spin" size={18} />
-                    Gravando {progress} de {m.writes.length}…
+                    Gravando…
                   </>
+                ) : m.writes.length > 0 ? (
+                  `Importar ${m.writes.length} alterações`
                 ) : (
-                  `Importar ${m.writes.length + analysis.stockSync.length} alterações`
+                  `Atualizar estoque de ${analysis.stockSync.length} produtos`
                 )}
               </Button>
             )}
