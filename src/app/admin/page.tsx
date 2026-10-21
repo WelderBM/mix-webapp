@@ -9,10 +9,9 @@ import {
   orderBy,
   setDoc,
 } from "firebase/firestore";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { signOut, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { useAuthStore } from "@/store/authStore";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Product, StoreSettings } from "@/types";
 import { BalloonConfig } from "@/types/balloon";
 import { Category } from "@/types/category";
@@ -57,7 +56,7 @@ import {
 } from "@/components/admin/SystemPasswordGate";
 
 import { OrdersTab } from "@/components/admin/OrdersTab";
-import { AdminLogin } from "@/components/admin/AdminLogin";
+import { AdminAuthGate } from "@/components/admin/AdminAuthGate";
 import { NaturaTab } from "@/components/admin/NaturaTab";
 import { ProductsTab } from "@/components/admin/ProductsTab";
 import { SectionsTab } from "@/components/admin/SectionsTab";
@@ -92,19 +91,19 @@ export default function AdminPage() {
         </div>
       }
     >
-      <AdminPageContent />
+      {/* Controle de acesso isolado em AdminAuthGate (alto risco no gate de
+          revisão); esta tela é área comum de trabalho. */}
+      <AdminAuthGate>
+        {(user) => <AdminPageContent currentUser={user} />}
+      </AdminAuthGate>
     </Suspense>
   );
 }
 
-function AdminPageContent() {
-  const router = useRouter();
+function AdminPageContent({ currentUser }: { currentUser: User }) {
   const searchParams = useSearchParams();
   const patchParams = useSearchParamsPatch();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [isAdminUser, setIsAdminUser] = useState(false);
   // Defaults to orders since user emphasized it — `?view=estoque` abre direto em Gerenciar Estoque.
   const [viewMode, setViewMode] = useState<"orders" | "inventory">(() =>
     searchParams.get("view") === "estoque" ? "inventory" : "orders"
@@ -197,50 +196,6 @@ function AdminPageContent() {
   const [showSystemPasswordPrompt, setShowSystemPasswordPrompt] =
     useState(false);
 
-  // Auth & Data — com verificação de whitelist
-  useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setCurrentUser(null);
-        setIsAdminUser(false);
-        setLoadingAuth(false);
-        return;
-      }
-
-      // Verifica se o email está verificado e na whitelist
-      if (!user.email || !user.emailVerified) {
-        toast.error("Acesso restrito. E-mail não verificado ou não autorizado.");
-        await signOut(auth);
-        router.replace("/");
-        setLoadingAuth(false);
-        return;
-      }
-
-      try {
-        // Mesma regra do firestore.rules: whitelist individual OU domínio
-        // corporativo (settings/general.allowedStaffDomain).
-        const isActive = await useAuthStore.getState().checkAdminRole(user);
-
-        if (!isActive) {
-          toast.error("Seu e-mail não consta na lista de funcionários autorizados.");
-          await signOut(auth);
-          router.replace("/");
-          return;
-        }
-
-        setCurrentUser(user);
-        setIsAdminUser(true);
-      } catch (err) {
-        console.error("Erro ao verificar permissões:", err);
-        toast.error("Não foi possível verificar seu acesso. Tente novamente.");
-        await signOut(auth);
-        router.replace("/");
-      } finally {
-        setLoadingAuth(false);
-      }
-    });
-    return () => unsubAuth();
-  }, [router]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -366,27 +321,6 @@ function AdminPageContent() {
       toast.error("Erro ao salvar.");
     }
   };
-
-  if (loadingAuth) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-slate-100">
-        <Loader2 className="animate-spin text-purple-600 w-8 h-8" />
-      </div>
-    );
-  }
-
-  if (!currentUser) {
-    return <AdminLogin />;
-  }
-
-  // Proteção extra: usuário logado mas sem role de admin (estado transitório)
-  if (!isAdminUser) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-slate-100">
-        <Loader2 className="animate-spin text-purple-600 w-8 h-8" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
