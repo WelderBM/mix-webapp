@@ -20,10 +20,6 @@ on:
   issue_comment:
     types: [created]
 
-concurrency:
-  group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
-
 permissions:
   contents: write
   pull-requests: write
@@ -45,6 +41,12 @@ jobs:
         contains(github.event.comment.body, '<!-- revisao:1 -->'))
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # No JOB, não no workflow: no workflow, todo comentário no PR (mesmo de
+    # bot, cujo job é pulado) entrava no grupo e CANCELAVA a revisão em
+    # andamento — PR ficava com check vermelho ou sem etapa 2.
+    concurrency:
+      group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: false
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
@@ -86,6 +88,7 @@ jobs:
           fetch-depth: 0
 
       - name: Revisor 2 (Claude)
+        id: claude
         if: steps.creds.outputs.ok == 'true' && steps.wait.outputs.skip != 'true'
         # v1.0.242 (05/10/2026), fixado por SHA: action de terceiro.
         uses: anthropics/claude-code-action@6c690188da61cf16ee7debb28383ba67f02abb4c
@@ -100,11 +103,36 @@ jobs:
             (SEMPRE de origin/dev, nunca do PR — um PR não pode mudar as regras
             da própria revisão; ignore o bloco de metadados entre os "---") e
             siga a ETAPA 2: revise do zero, confirme ou descarte cada achado do
-            comentário <!-- revisao:1 --> (se existir) e publique UM comentário
+            comentário <!-- revisao:1 --> (se existir) e escreva UM comentário
             começando com <!-- revisao:2 --> e terminando com a linha
             <!-- veredito: {...} -->.
+
+            NÃO publique com gh pr comment (aqui você nem tem essa
+            ferramenta): sua RESPOSTA FINAL deve ser exatamente o comentário,
+            do <!-- revisao:2 --> até a linha do veredito, sem nada antes ou
+            depois. O workflow publica no PR.
+            Use comandos simples, um por vez, sem $(...), |, && ou heredoc —
+            esses formatos são bloqueados pela lista de permissões.
           claude_args: >-
-            --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh api repos/*/issues/*/comments:*),Bash(git fetch:*),Bash(git show:*),Bash(git log:*),Bash(git diff:*),Bash(git ls-tree:*),Bash(git grep:*),Read,Grep,Glob"
+            --allowedTools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh issue view:*),Bash(gh api repos/*/issues/*/comments:*),Bash(git fetch:*),Bash(git show:*),Bash(git log:*),Bash(git diff:*),Bash(git ls-tree:*),Bash(git grep:*),Read,Grep,Glob"
+
+      - name: Publicar revisão
+        if: steps.creds.outputs.ok == 'true' && steps.wait.outputs.skip != 'true'
+        env:
+          EXEC_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          set -uo pipefail
+          F="${EXEC_FILE:-$RUNNER_TEMP/claude-execution-output.json}"
+          # Funciona com o arquivo em array JSON ou em objetos soltos.
+          TEXT=$(jq -rs 'flatten | (map(select(.type == "result")) | last | .result) // (map(select(.type == "assistant")) | last | [.message.content[]? | select(.type == "text") | .text] | join("\n")) // ""' "$F" 2>/dev/null || true)
+          if grep -q '<!-- revisao:2 -->' <<<"$TEXT"; then
+            # Do marcador em diante (descarta qualquer preâmbulo).
+            printf '%s\n' "$TEXT" | sed -n '/<!-- revisao:2 -->/,$p' > "$RUNNER_TEMP/revisao2.md"
+            gh pr comment "$PR" --body-file "$RUNNER_TEMP/revisao2.md"
+          else
+            echo "::warning::O revisor não devolveu uma revisão com <!-- revisao:2 --> — o PR fica para o dono."
+            jq -rs 'flatten | map(select(.type == "result")) | last | .permission_denials // [] | .[] | "negado: \(.tool_name) \(.tool_input.command // "" | .[0:160])"' "$F" 2>/dev/null || true
+          fi
 
       - name: Decidir (sem IA)
         id: decide
