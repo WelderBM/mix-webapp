@@ -6,6 +6,7 @@ on:
 permissions:
   contents: read
   id-token: write
+  pull-requests: write
 
 jobs:
   authorize-preview-domain:
@@ -97,3 +98,33 @@ jobs:
             process.exit(1);
           });
           NODE
+
+      # O botão "Visit Preview" da Vercel leva ao endereço com hash, que o
+      # Firebase não autoriza (sem curinga). Comenta no PR o endereço FIXO do
+      # branch, onde o login com Google funciona. Um comentário por PR,
+      # atualizado a cada deploy.
+      - name: Comentar no PR o link fixo do preview
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.event.deployment.sha }}
+          PREVIEW_HOSTNAME: ${{ steps.vercel.outputs.hostname }}
+        run: |
+          set -euo pipefail
+          PRS=$(gh api "repos/$GH_REPO/commits/$SHA/pulls" --jq '.[] | select(.state=="open") | .number')
+          [ -z "$PRS" ] && { echo "Nenhum PR aberto para este commit."; exit 0; }
+          MARKER="<!-- preview-link-fixo -->"
+          BODY="$MARKER
+          🔗 **Teste aqui (login com Google funciona):** https://$PREVIEW_HOSTNAME/admin
+
+          <sub>Endereço fixo do branch, autorizado no Firebase do staging. O \"Visit Preview\" da Vercel abre um endereço que muda a cada deploy e bloqueia o login. Atualizado em ${SHA:0:7}.</sub>"
+          for PR in $PRS; do
+            ID=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
+              --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" | head -1)
+            if [ -n "$ID" ]; then
+              gh api -X PATCH "repos/$GH_REPO/issues/comments/$ID" -f body="$BODY" >/dev/null
+            else
+              gh pr comment "$PR" --body "$BODY"
+            fi
+            echo "PR #$PR: link fixo publicado."
+          done
