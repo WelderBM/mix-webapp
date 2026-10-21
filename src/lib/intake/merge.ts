@@ -28,7 +28,7 @@ const SOURCE_KEYS: (keyof IntakeSourceFields)[] = [
   "sourceRef", "ean", "rawName", "name", "family", "brandRaw", "brand",
   "stock", "unitCost", "flags", "suggestedStatus", "priority", "isCoreFamily",
   "suggestedCategoryKey", "suggestedType", "suggestedUnit", "duplicateGroup",
-  "searchText",
+  "searchText", "searchTokens",
 ];
 
 export function isTruncationOf(short: string, full: string): boolean {
@@ -69,6 +69,7 @@ export function mergeIntake(
       next.name = prev.name;
       next.rawName = prev.rawName;
       next.searchText = prev.searchText;
+      next.searchTokens = prev.searchTokens;
     }
 
     const changed: Partial<IntakeItem> = {};

@@ -64,6 +64,9 @@ export interface IntakeSourceFields {
   // Texto pré-normalizado pra busca tolerante (#199): nome + códigos +
   // marca, sem acento, minúsculo.
   searchText: string;
+  // Prefixos (2+ letras) das palavras de `searchText`, pra consulta
+  // `array-contains` — ver src/lib/intake/search.ts.
+  searchTokens: string[];
 }
 
 export interface IntakeItem extends IntakeSourceFields {
