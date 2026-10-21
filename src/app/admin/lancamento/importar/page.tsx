@@ -190,9 +190,15 @@ export default function NoturnoImportPage() {
         <section className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
           <p className="font-medium text-slate-800">Como exportar</p>
           <p className="mt-1">
-            No Noturno, exporte o cadastro de produtos em Excel (.xlsx) e envie aqui o
-            arquivo completo, sem editar. Pode reenviar sempre que entrarem notas novas:
-            só os produtos novos são criados, e o estoque dos já existentes é atualizado.
+            No Noturno, exporte o cadastro de produtos em <strong>Excel (.xlsx)</strong> e
+            envie aqui o arquivo completo, sem editar. Pode reenviar sempre que entrarem
+            notas novas: só os produtos novos são criados, e o estoque dos já existentes
+            é atualizado.
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            Precisa ser o Excel: o relatório em PDF corta o nome do produto em 44
+            letras e perde cor e estampa (ex.: vários sacos de presente ficam com o
+            mesmo nome).
           </p>
         </section>
 
