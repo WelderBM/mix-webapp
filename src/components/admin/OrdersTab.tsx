@@ -65,6 +65,23 @@ import {
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 
+// Um nome só por forma de pagamento (antes: "Cartão" no celular, "Crédito"
+// no desktop, e forma desconhecida virava "PIX"). `long` = texto pro cliente.
+export function paymentLabel(method: string | undefined, long = false): string {
+  switch (method) {
+    case "pix":
+      return "PIX";
+    case "cash":
+      return "Dinheiro";
+    case "credit_card":
+      return long ? "Cartão de crédito" : "Crédito";
+    case "debit_card":
+      return long ? "Cartão de débito" : "Débito";
+    default:
+      return "Não informado";
+  }
+}
+
 const ITEMS_PER_PAGE = 10;
 
 /**
@@ -341,13 +358,7 @@ ${order.customerName}
 ${order.address || "Endereço não informado"}
 Telefone: ${order.customerPhone}
 
-Forma de Pagamento: ${
-      order.paymentMethod === "pix"
-        ? "PIX"
-        : order.paymentMethod === "cash"
-        ? "Dinheiro"
-        : "Cartão"
-    }
+Forma de Pagamento: ${paymentLabel(order.paymentMethod, true)}
 ${paymentInstruction}`;
 
     navigator.clipboard.writeText(text);
@@ -543,7 +554,7 @@ ${paymentInstruction}`;
     <button
       onClick={() => handleStatusFilterChange(value)}
       className={cn(
-        "px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border",
+        "min-h-11 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border",
         statusFilter === value
           ? "bg-slate-800 text-white border-slate-800"
           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
@@ -564,10 +575,10 @@ ${paymentInstruction}`;
           </Badge>
         </div>
 
-        {/* Navigation / Filters Scrollable */}
-        {/* Navigation / Filters Scrollable - Native Scroll for Mobile Touch Fix */}
-        <div className="w-full overflow-x-auto pb-2 touch-pan-x">
-          <div className="flex gap-2 min-w-max px-1">
+        {/* Filtros quebram linha no celular (vistoria do #242): rolando
+            para o lado, "Pronto p/ Entrega" em diante ficava escondido. */}
+        <div className="w-full pb-2">
+          <div className="flex flex-wrap gap-2 px-1">
             <FilterButton label="Todos" value="all" count={orders.length} />
             <FilterButton
               label="Pendentes"
@@ -702,13 +713,7 @@ ${paymentInstruction}`;
                       <div className="flex items-center gap-1.5 text-xs font-medium">
                         {getPaymentIcon(order.paymentMethod)}
                         <span className="uppercase">
-                          {order.paymentMethod === "credit_card"
-                            ? "Crédito"
-                            : order.paymentMethod === "debit_card"
-                            ? "Débito"
-                            : order.paymentMethod === "cash"
-                            ? "Dinheiro"
-                            : "PIX"}
+                          {paymentLabel(order.paymentMethod)}
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-[10px] text-slate-500">
@@ -929,11 +934,7 @@ ${paymentInstruction}`;
                   </div>
                   <div>
                     <p className="text-xs font-bold text-slate-500 uppercase">
-                      {order.paymentMethod === "pix"
-                        ? "PIX"
-                        : order.paymentMethod === "cash"
-                        ? "Dinheiro"
-                        : "Cartão"}
+                      {paymentLabel(order.paymentMethod)}
                     </p>
                     <p className="text-[10px] text-slate-400">
                       {order.deliveryMethod === "delivery"
