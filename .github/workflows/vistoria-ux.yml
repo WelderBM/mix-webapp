@@ -1,0 +1,111 @@
+name: Vistoria semanal de UX
+
+# Vistoria do PRODUTO (não de PR): toda segunda às 6h de Boa Vista abre as
+# telas principais em produção e em dev (celular 360px + desktop), mede
+# alvo de toque, estouro de layout, acessibilidade (axe) e erros de console,
+# e mantém o backlog sozinha: cria issue para problema novo (agrupado),
+# atualiza as existentes, fecha após 2 vistorias sem o problema e reabre se
+# voltar. Resumo na issue fixa "🔎 Vistoria de UX"; o dono só é mencionado
+# quando aparece problema novo. A IA olha os prints e comenta no resumo.
+
+on:
+  schedule:
+    - cron: "0 10 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: vistoria-ux
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+env:
+  STORE_ROUTES: '["/","/fitas","/baloes","/natura","/meu-pedido"]'
+  ALL_ROUTES: '["/","/fitas","/baloes","/natura","/meu-pedido","/admin","/admin/lancamento"]'
+
+jobs:
+  vistoria:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+
+    steps:
+      # Agendado/manual roda do branch padrão (dev): código confiável.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar navegador (fora do package.json)
+        run: |
+          mkdir -p "$RUNNER_TEMP/ux-deps" && cd "$RUNNER_TEMP/ux-deps"
+          npm init -y >/dev/null
+          npm i --no-audit --no-fund playwright@1.63.0 @axe-core/playwright@4.13.0 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+
+      - name: Medir produção (loja)
+        env:
+          UX_DEPS: ${{ runner.temp }}/ux-deps
+        run: |
+          echo "$STORE_ROUTES" > "$RUNNER_TEMP/store.json"
+          node scripts/ux/visual-check.mjs https://www.mixnovidades.com "$RUNNER_TEMP/store.json" "$RUNNER_TEMP/prod"
+
+      - name: Medir dev (loja + admin)
+        env:
+          UX_DEPS: ${{ runner.temp }}/ux-deps
+          VERCEL_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          UX_ADMIN_EMAIL: ${{ secrets.UX_STAGING_ADMIN_EMAIL }}
+          UX_ADMIN_PASSWORD: ${{ secrets.UX_STAGING_ADMIN_PASSWORD }}
+        run: |
+          echo "$ALL_ROUTES" > "$RUNNER_TEMP/all.json"
+          node scripts/ux/visual-check.mjs https://mix-webapp-git-dev-welderbms-projects.vercel.app "$RUNNER_TEMP/all.json" "$RUNNER_TEMP/dev" \
+            || echo "::warning::Não consegui medir dev — vistoria só com produção."
+
+      - name: Guardar prints
+        uses: actions/upload-artifact@v4
+        with:
+          name: vistoria-ux-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/prod
+            ${{ runner.temp }}/dev
+          retention-days: 30
+
+      - name: Atualizar issues da vistoria
+        id: sync
+        run: node scripts/ux/vistoria-run.mjs "$RUNNER_TEMP/prod/ux-report.json" "$RUNNER_TEMP/dev/ux-report.json"
+
+      - name: Claude olha os prints
+        if: env.HAS_CLAUDE == 'true' && steps.sync.outputs.summary_issue != ''
+        # v1.0.242 (05/10/2026), fixado por SHA: action de terceiro.
+        uses: anthropics/claude-code-action@6c690188da61cf16ee7debb28383ba67f02abb4c
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Vistoria semanal de UX da loja Mix Novidades. Prints em
+            ${{ runner.temp }}/prod (produção) e ${{ runner.temp }}/dev (dev/staging,
+            inclui telas /admin das atendentes). Abra TODOS os .png com Read.
+
+            Público: clientes no celular (loja) e atendentes com pouca
+            familiaridade com sistemas (/admin) — clareza vale mais que estética.
+            Os problemas MEDIDOS (toque, contraste, acessibilidade, estouro) já
+            viraram issues: não repita. Procure o que só se vê na tela:
+            sobreposição, texto cortado, botão principal escondido, hierarquia
+            confusa, estado vazio sem explicação, inconsistência entre telas.
+
+            Publique UM comentário na issue #${{ steps.sync.outputs.summary_issue }}
+            com `gh issue comment ${{ steps.sync.outputs.summary_issue }} --body "..."`:
+            título "### Olhar da IA sobre os prints", no máximo 8 itens, cada um com
+            o print e onde está o problema, do mais importante ao menos. Opinião de
+            design marcada como sugestão. Não crie nem edite issues.
+          claude_args: >-
+            --allowedTools "Read,Glob,Bash(gh issue comment:*)"
