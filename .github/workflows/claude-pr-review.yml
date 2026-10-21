@@ -176,6 +176,18 @@ jobs:
         run: |
           set -uo pipefail
           D="$RUNNER_TEMP/decision.json"
+          # Marca o PR para o dono: etiqueta (o lembrete diário depende dela)
+          # e responsável, em chamadas REST separadas e com novas tentativas —
+          # um erro temporário do GraphQL (PR #242) deixava o PR sem etiqueta.
+          flag_owner() {
+            local ok=""
+            for _ in 1 2 3; do
+              gh api -X POST "repos/$GH_REPO/issues/$PR/labels" -f "labels[]=precisa-de-voce" >/dev/null && { ok=1; break; }
+              sleep 5
+            done
+            [ -n "$ok" ] || echo "::error::Não consegui pôr a label precisa-de-voce no PR #$PR."
+            gh api -X POST "repos/$GH_REPO/issues/$PR/assignees" -f "assignees[]=$OWNER" >/dev/null || true
+          }
           AUTO=$(jq -r .autoMerge "$D")
           REVIEW=$(jq -r .review "$D")
           REASONS=$(jq -r '.reasons | map("- " + .) | join("\n")' "$D")
@@ -197,10 +209,10 @@ jobs:
             if gh pr merge "$PR" --merge; then
               gh pr comment "$PR" --body "✅ **Entrou em \`dev\` automaticamente**: baixo risco, os dois revisores sem achados bloqueantes ou importantes, CI verde. Produção continua manual."
             else
-              gh pr edit "$PR" --add-label precisa-de-voce --add-assignee "$OWNER" || true
+              flag_owner
               gh pr comment "$PR" --body "@$OWNER o merge automático falhou (conflito ou permissão) — este PR precisa de você."
             fi
           else
-            gh pr edit "$PR" --add-label precisa-de-voce --add-assignee "$OWNER" || true
+            flag_owner
             gh pr comment "$PR" --body "$(printf '@%s este PR **precisa de você**:\n%s\n\nDepois de ajustar, ponha a label `revisar` para uma nova revisão.' "$OWNER" "$REASONS")"
           fi
