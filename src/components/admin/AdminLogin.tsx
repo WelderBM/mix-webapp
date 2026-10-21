@@ -51,7 +51,10 @@ export function AdminLogin() {
       // O redirecionamento é automático pelo onAuthStateChanged do pai
       toast.success("Bem-vindo de volta!");
     } catch (error: any) {
-      console.error("Login error:", error);
+      // Senha errada é erro de uso, não de app — só loga o inesperado.
+      if (error.code !== "auth/invalid-credential") {
+        console.error("Login error:", error);
+      }
       let message = "Erro ao fazer login.";
       if (error.code === "auth/invalid-credential") {
         message = "E-mail ou senha incorretos.";

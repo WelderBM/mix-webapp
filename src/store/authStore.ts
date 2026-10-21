@@ -28,7 +28,7 @@ interface AuthState {
    * Verifica se o usuário tem role "admin" no documento /users/{uid}.
    * Retorna true se admin, false caso contrário.
    */
-  checkAdminRole: () => Promise<boolean>;
+  checkAdminRole: (user?: User | null) => Promise<boolean>;
 }
 
 // 2. Criação do Store
@@ -68,8 +68,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  checkAdminRole: async (): Promise<boolean> => {
-    const user = auth.currentUser;
+  checkAdminRole: async (userArg?: User | null): Promise<boolean> => {
+    const user = userArg ?? auth.currentUser;
     if (!user || !user.email || !user.emailVerified) {
       set({ isAdmin: false });
       return false;
@@ -95,9 +95,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ isAdmin: false });
       return false;
     } catch (error) {
-      console.error("Erro ao verificar permissões de staff:", error);
+      // Falha de rede/regra ≠ "não autorizado": repassa pro chamador decidir
+      // a mensagem (o listener abaixo já trata como não-admin).
       set({ isAdmin: false });
-      return false;
+      throw error;
     }
   },
 
@@ -114,7 +115,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
         try {
           // Reutiliza a lógica de checagem centralizada
-          const isAdmin = await useAuthStore.getState().checkAdminRole();
+          const isAdmin = await useAuthStore.getState().checkAdminRole(firebaseUser);
           set({ isAdmin, isLoading: false });
         } catch {
           set({ isAdmin: false, isLoading: false });
