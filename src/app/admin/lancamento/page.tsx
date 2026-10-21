@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { ArrowLeft, Loader2, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, MapPin, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type {
   IntakeFlag,
@@ -32,9 +32,30 @@ import {
 import { statusTransitionDeltas } from "@/lib/intake/publish";
 import { useCategoryStore } from "@/store/categoryStore";
 import { LaunchSheet } from "@/components/admin/intake/LaunchSheet";
+import {
+  activeClaim,
+  areaById,
+  areaForItem,
+  areaProgress,
+  firstName,
+  isAssignableFamily,
+  nextArea,
+  NO_AREA,
+  RIBBON_FAMILY,
+  STORE_AREAS,
+  type AreaProgress,
+} from "@/lib/intake/areas";
+import {
+  claimArea,
+  releaseArea,
+  setFamilyArea,
+  subscribeAreasMeta,
+  type AreasMeta,
+} from "@/lib/intake/areasMeta";
 
 // Fila de lançamento (issue #199): a atendente, na frente da prateleira,
-// acha o item em segundos — por corredor (família) ou busca tolerante.
+// acha o item em segundos — por ÁREA da loja (#231) → família, ou busca
+// tolerante. Cada atendente "pega" uma área; as outras veem quem está lá.
 // Cada consulta lê só a família escolhida ou os itens que casam com UM
 // termo da busca; nunca a fila inteira (cota diária do Firestore).
 
@@ -66,6 +87,8 @@ export default function IntakeQueuePage() {
     undefined,
   );
   const [family, setFamily] = useState<string | null>(null);
+  const [area, setArea] = useState<number | null>(null);
+  const [meta, setMeta] = useState<AreasMeta>({ claims: {}, overrides: {} });
   const [status, setStatus] = useState<StatusFilter>("pendente");
   const [text, setText] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -129,6 +152,33 @@ export default function IntakeQueuePage() {
       .then((s) => setSummary(s.exists() ? (s.data() as IntakeSummary) : null))
       .catch(() => setSummary(null));
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    return subscribeAreasMeta(setMeta);
+  }, [user]);
+
+  const progress = useMemo(
+    () => (summary ? areaProgress(summary.families, meta.overrides) : {}),
+    [summary, meta.overrides],
+  );
+
+  const me = user?.email ?? "";
+
+  function enterArea(id: number | null) {
+    const prev = area;
+    if (prev != null && prev !== NO_AREA) {
+      const c = meta.claims[String(prev)];
+      if (c?.email === me) releaseArea(prev).catch(() => {});
+    }
+    setArea(id);
+    setText("");
+    const fams = id == null ? [] : (progress[id]?.families ?? []);
+    setFamily(fams[0] ?? null);
+    if (id != null && id !== NO_AREA && me) {
+      claimArea(id, me, firstName(user?.displayName || me)).catch(() => {});
+    }
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(text), 300);
@@ -204,14 +254,31 @@ export default function IntakeQueuePage() {
       .filter((i) => i.inLatestImport)
       .filter((i) => status === "todos" || i.status === status)
       .filter((i) => !family || !parsed.indexToken || i.family === family)
+      // FITA se divide em três áreas: mostra só os rolos desta área.
+      .filter(
+        (i) =>
+          parsed.indexToken ||
+          area == null ||
+          i.family !== RIBBON_FAMILY ||
+          areaForItem(i, meta.overrides) === area,
+      )
       .filter((i) => matchesQuery(i.searchText, parsed.terms))
       .sort((a, b) => b.priority - a.priority);
-  }, [items, status, family, parsed]);
+  }, [items, status, family, parsed, area, meta.overrides]);
 
   const families = useMemo(
     () => (summary ? sortedFamilies(summary) : []),
     [summary],
   );
+  const areaFamilies = useMemo(() => {
+    if (area == null) return [];
+    const inArea = new Set(progress[area]?.families ?? []);
+    return families.filter(([name]) => inArea.has(name));
+  }, [area, progress, families]);
+  const searching = !!parsed.indexToken;
+  const now = Date.now();
+  const next =
+    area != null ? nextArea(area, progress, meta.claims, me, now) : null;
 
   if (authChecking) {
     return (
@@ -295,29 +362,62 @@ export default function IntakeQueuePage() {
 
         {summary && <Scoreboard summary={summary} email={user.email} />}
 
-        {families.length > 0 && (
-          <section aria-label="Corredores">
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
-              Corredor {family && "· toque de novo para sair"}
-            </p>
-            <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto">
-              {families.map(([name, f]) => (
-                <Chip
-                  key={name}
-                  active={family === name}
-                  onClick={() => setFamily(family === name ? null : name)}
-                  muted={!f.isCore}
-                >
-                  {name} <span className="opacity-60">{f.pending}</span>
-                </Chip>
-              ))}
-            </div>
+        {summary && area == null && !searching && (
+          <AreaGrid
+            progress={progress}
+            claims={meta.claims}
+            me={me}
+            now={now}
+            onPick={enterArea}
+          />
+        )}
+
+        {area != null && !searching && (
+          <section aria-label="Área" className="space-y-3">
+            <AreaBar
+              area={area}
+              progress={progress[area]}
+              next={next}
+              onBack={() => enterArea(null)}
+              onNext={() => next != null && enterArea(next)}
+            />
+            {areaFamilies.length > 0 ? (
+              <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto">
+                {areaFamilies.map(([name, f]) => (
+                  <Chip
+                    key={name}
+                    active={family === name}
+                    onClick={() => setFamily(name)}
+                    muted={f.pending === 0}
+                  >
+                    {name} <span className="opacity-60">{f.pending}</span>
+                  </Chip>
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sm text-slate-500">
+                Nada para lançar nesta área.
+              </p>
+            )}
+            {area === NO_AREA && family && isAssignableFamily(family) && (
+              <AssignFamily
+                key={family}
+                family={family}
+                onAssign={(id) => {
+                  setFamilyArea(family, id).catch(() => {});
+                  const rest = areaFamilies
+                    .map(([n]) => n)
+                    .filter((n) => n !== family);
+                  setFamily(rest[0] ?? null);
+                }}
+              />
+            )}
           </section>
         )}
 
-        {!items && !loading && summary && (
+        {!items && !loading && summary && area != null && !searching && (
           <p className="py-8 text-center text-sm text-slate-500">
-            Escolha um corredor ou busque pelo nome do produto.
+            Escolha uma família acima ou busque pelo nome do produto.
           </p>
         )}
 
@@ -472,5 +572,177 @@ function Scoreboard({
         {mine > 0 && ` · você publicou ${mine.toLocaleString("pt-BR")}`}
       </p>
     </section>
+  );
+}
+
+// Grade de áreas da loja (#231): a atendente escolhe onde está; cada
+// área mostra o que falta e quem já está lá.
+function AreaGrid({
+  progress,
+  claims,
+  me,
+  now,
+  onPick,
+}: {
+  progress: Record<number, AreaProgress>;
+  claims: AreasMeta["claims"];
+  me: string;
+  now: number;
+  onPick: (id: number) => void;
+}) {
+  const unassigned = progress[NO_AREA];
+  return (
+    <section aria-label="Áreas da loja" className="space-y-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+        Em que área da loja você está?
+      </p>
+      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {STORE_AREAS.map((a) => {
+          const p = progress[a.id];
+          const total = p?.total ?? 0;
+          const pending = p?.pending ?? 0;
+          const pct = total > 0 ? Math.round(((total - pending) / total) * 100) : 100;
+          const c = activeClaim(claims[String(a.id)], now);
+          const other = c && c.email !== me ? c : null;
+          return (
+            <li key={a.id}>
+              <button
+                type="button"
+                onClick={() => onPick(a.id)}
+                className={`flex min-h-16 w-full flex-col gap-1.5 rounded-xl border bg-white p-3 text-left active:bg-slate-50 ${
+                  other ? "border-amber-200" : "border-slate-200"
+                }`}
+              >
+                <span className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium text-slate-800">
+                    <span className="text-slate-400">{a.id}.</span> {a.name}
+                  </span>
+                  <span className="shrink-0 text-xs text-slate-500">
+                    {pending > 0
+                      ? `${pending.toLocaleString("pt-BR")} a lançar`
+                      : "concluída"}
+                  </span>
+                </span>
+                <span className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <span
+                    className="block h-full rounded-full bg-purple-600"
+                    style={{ width: `${pct}%` }}
+                  />
+                </span>
+                <span className="truncate text-xs text-slate-500">
+                  {other ? (
+                    <span className="font-medium text-amber-700">
+                      Com {other.name} agora
+                    </span>
+                  ) : (
+                    a.hint
+                  )}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {unassigned && unassigned.pending > 0 && (
+        <button
+          type="button"
+          onClick={() => onPick(NO_AREA)}
+          className="flex min-h-14 w-full items-center justify-between gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 text-left text-sm active:bg-slate-50"
+        >
+          <span>
+            <span className="font-medium text-slate-700">Sem área definida</span>
+            <span className="block text-xs text-slate-500">
+              Diga uma vez em que área fica cada família
+            </span>
+          </span>
+          <span className="shrink-0 text-xs text-slate-500">
+            {unassigned.families.length.toLocaleString("pt-BR")} famílias
+          </span>
+        </button>
+      )}
+    </section>
+  );
+}
+
+function AreaBar({
+  area,
+  progress,
+  next,
+  onBack,
+  onNext,
+}: {
+  area: number;
+  progress: AreaProgress | undefined;
+  next: number | null;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const a = areaById(area);
+  const pending = progress?.pending ?? 0;
+  const nextArea = next != null ? areaById(next) : null;
+  return (
+    <div className="space-y-2 rounded-xl border border-purple-200 bg-purple-50 p-3">
+      <div className="flex items-center gap-2">
+        <MapPin size={18} className="shrink-0 text-purple-600" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium text-slate-800">
+            {a ? `Área ${a.id} · ${a.name}` : "Sem área definida"}
+          </p>
+          <p className="text-xs text-slate-600">
+            {pending > 0
+              ? `${pending.toLocaleString("pt-BR")} a lançar nesta área`
+              : "Área concluída 🎉"}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" className="h-11 shrink-0" onClick={onBack}>
+          Trocar área
+        </Button>
+      </div>
+      {nextArea && (
+        <Button
+          variant={pending === 0 ? "default" : "ghost"}
+          className="h-11 w-full justify-between"
+          onClick={onNext}
+        >
+          <span className="truncate">
+            Próxima: Área {nextArea.id} · {nextArea.name}
+          </span>
+          <ArrowRight size={16} className="shrink-0" />
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function AssignFamily({
+  family,
+  onAssign,
+}: {
+  family: string;
+  onAssign: (area: number) => void;
+}) {
+  return (
+    <label className="block space-y-1 rounded-xl border border-slate-200 bg-white p-3">
+      <span className="text-sm text-slate-700">
+        Em que área ficam os produtos <strong>{family}</strong>?
+      </span>
+      <select
+        defaultValue=""
+        onChange={(e) => e.target.value && onAssign(Number(e.target.value))}
+        className="h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-base"
+      >
+        <option value="" disabled>
+          Escolha a área…
+        </option>
+        {STORE_AREAS.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.id}. {a.name}
+          </option>
+        ))}
+      </select>
+      <span className="block text-xs text-slate-500">
+        Vale para todos os produtos dessa família, para todas as atendentes.
+      </span>
+    </label>
   );
 }
