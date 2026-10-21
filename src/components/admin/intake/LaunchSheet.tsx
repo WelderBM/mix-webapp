@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Camera, Loader2, RotateCcw } from "lucide-react";
+import { BookOpenCheck, Camera, Loader2, RotateCcw } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -20,15 +20,28 @@ import {
   parsePrice,
   validateLaunch,
 } from "@/lib/intake/publish";
+import { pricePerUnit } from "@/lib/intake/pack";
 
 // Card de lançamento (#200): tudo que veio do Noturno já preenchido; a
 // atendente só digita o preço da etiqueta, tira a foto e publica.
+// "Vende como" começa SEM escolha de propósito: o nome do Noturno nem
+// sempre diz a verdade sobre pacote × unidade, então a atendente precisa
+// olhar a embalagem e decidir — a sugestão do nome aparece só como dica.
 
 const UNIT_LABEL: Record<Unit, string> = {
+  pct: "Pacote",
   un: "Unidade",
   m: "Metro",
-  pct: "Pacote",
 };
+
+const PRICE_LABEL: Record<Unit, string> = {
+  pct: "Preço do pacote (etiqueta)",
+  un: "Preço da unidade (etiqueta)",
+  m: "Preço do metro (etiqueta)",
+};
+
+const brl = (n: number) =>
+  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 interface Props {
   item: IntakeItem | null;
@@ -48,7 +61,8 @@ export function LaunchSheet({
   const [name, setName] = useState("");
   const [priceText, setPriceText] = useState("");
   const [categoryName, setCategoryName] = useState("");
-  const [unit, setUnit] = useState<Unit>("un");
+  const [unit, setUnit] = useState<Unit | null>(null);
+  const [packText, setPackText] = useState("");
   const [metersText, setMetersText] = useState("");
   const [photo, setPhoto] = useState<{ blob: Blob; preview: string } | null>(
     null,
@@ -63,7 +77,8 @@ export function LaunchSheet({
     setName(item.name);
     setPriceText("");
     setCategoryName(matchCategory(item.suggestedCategoryKey, categories) ?? "");
-    setUnit(item.suggestedUnit);
+    setUnit(null);
+    setPackText(item.packQty && item.packQty > 1 ? String(item.packQty) : "");
     const meters = extractRollMeters(item.name);
     setMetersText(meters ? String(meters) : "");
     setPhoto(null);
@@ -103,6 +118,7 @@ export function LaunchSheet({
       price: parsePrice(priceText),
       categoryName,
       unit: ribbon ? ("m" as Unit) : unit,
+      packQty: unit === "pct" ? Number(packText) || null : null,
       photoUrl: photo ? "pending" : null,
       rollMeters: ribbon ? parsePrice(metersText) : null,
     };
@@ -195,6 +211,15 @@ export function LaunchSheet({
           </div>
         ) : (
           <div className="space-y-4 p-4">
+            <p className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <BookOpenCheck size={18} className="mt-0.5 shrink-0" />
+              <span>
+                <strong>Leia o nome inteiro</strong> e confira na embalagem: é
+                pacote ou unidade? Quantas vêm? Se o nome e a embalagem não
+                baterem, vale a embalagem.
+              </span>
+            </p>
+
             {/* Foto primeiro: é o passo que exige estar na frente do produto. */}
             <button
               type="button"
@@ -236,8 +261,63 @@ export function LaunchSheet({
               }}
             />
 
+            {!ribbon && (
+              <fieldset className="space-y-1.5">
+                <legend className="text-sm font-medium text-slate-700">
+                  Vende como
+                </legend>
+                <div className="grid grid-cols-3 gap-2">
+                  {(Object.keys(UNIT_LABEL) as Unit[]).map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      aria-pressed={unit === u}
+                      onClick={() => setUnit(u)}
+                      className={`h-12 rounded-xl border text-base font-medium transition-colors ${
+                        unit === u
+                          ? "border-purple-600 bg-purple-600 text-white"
+                          : "border-slate-300 bg-white text-slate-700"
+                      }`}
+                    >
+                      {UNIT_LABEL[u]}
+                    </button>
+                  ))}
+                </div>
+                {item.packEvidence && (
+                  <p className="text-xs text-slate-500">
+                    O nome diz &ldquo;{item.packEvidence}&rdquo;
+                    {item.packQty && item.packQty > 1
+                      ? ` (pacote com ${item.packQty}?)`
+                      : " (unidade?)"}{" "}
+                    — confira na embalagem.
+                  </p>
+                )}
+              </fieldset>
+            )}
+
+            {unit === "pct" && !ribbon && (
+              <Field label="Unidades no pacote">
+                <input
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={packText}
+                  onChange={(e) =>
+                    setPackText(e.target.value.replace(/\D/g, ""))
+                  }
+                  placeholder="Ex.: 100"
+                  className="h-12 w-full rounded-xl border border-slate-300 px-3 text-lg outline-none focus:border-purple-500"
+                />
+              </Field>
+            )}
+
             <Field
-              label={ribbon ? "Preço do rolo (etiqueta)" : "Preço (etiqueta)"}
+              label={
+                ribbon
+                  ? "Preço do rolo (etiqueta)"
+                  : unit
+                    ? PRICE_LABEL[unit]
+                    : "Preço (etiqueta)"
+              }
             >
               <div className="relative">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
@@ -254,6 +334,18 @@ export function LaunchSheet({
                   className="h-12 w-full rounded-xl border border-slate-300 pl-10 pr-3 text-lg outline-none focus:border-purple-500"
                 />
               </div>
+              {(() => {
+                const price = parsePrice(priceText);
+                const each =
+                  unit === "pct" && price
+                    ? pricePerUnit(price, Number(packText))
+                    : null;
+                return each ? (
+                  <span className="text-xs text-slate-500">
+                    {brl(price!)} o pacote = {brl(each)} a unidade
+                  </span>
+                ) : null;
+              })()}
             </Field>
 
             {ribbon && (
@@ -295,21 +387,6 @@ export function LaunchSheet({
                   ))}
                 </select>
               </Field>
-              {!ribbon && (
-                <Field label="Vendido por">
-                  <select
-                    value={unit}
-                    onChange={(e) => setUnit(e.target.value as Unit)}
-                    className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base"
-                  >
-                    {(Object.keys(UNIT_LABEL) as Unit[]).map((u) => (
-                      <option key={u} value={u}>
-                        {UNIT_LABEL[u]}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-              )}
             </div>
 
             <div className="space-y-2 pb-[env(safe-area-inset-bottom)] pt-2">

@@ -8,6 +8,7 @@ import {
   doc,
   getDocs,
   serverTimestamp,
+  updateDoc,
   setDoc,
   writeBatch,
 } from "firebase/firestore";
@@ -29,6 +30,10 @@ import {
 } from "@/components/admin/SystemPasswordGate";
 import type { IntakeItem, IntakeSourceFields } from "@/types/intake";
 import type { IntakeMergeResult } from "@/lib/intake/merge";
+import {
+  isIgnorableSyncError,
+  type ProductStockUpdate,
+} from "@/lib/intake/stockSync";
 
 // Importador do cadastro do Noturno → fila de lançamento (issue #198).
 // Parse, análise e comparação rodam no navegador; só o que mudou é
@@ -42,6 +47,37 @@ interface Analysis {
   items: IntakeSourceFields[];
   existing: Map<string, IntakeItem>;
   merge: IntakeMergeResult;
+  // Produtos já publicados cujo estoque cruzou o zero (#202).
+  stockSync: ProductStockUpdate[];
+}
+
+interface ImportResult extends IntakeMergeResult {
+  soldOut: number;
+  backInStock: number;
+  syncSkipped: number;
+}
+
+// Lê a fila atual e calcula o que gravar. Chamada na prévia E de novo no
+// clique em "Importar": entre os dois, uma atendente pode ter publicado
+// algo — gravar com o retrato da prévia usaria estado velho (produto
+// publicado ficaria fora da sincronização e o placar perderia a contagem).
+async function computeImport(items: IntakeSourceFields[]) {
+  const [{ mergeIntake }, { applyWrites }, { computeStockSync }] =
+    await Promise.all([
+      import("@/lib/intake/merge"),
+      import("@/lib/intake/summary"),
+      import("@/lib/intake/stockSync"),
+    ]);
+  const snap = await getDocs(collection(db, "intake_items"));
+  const existing = new Map<string, IntakeItem>(
+    snap.docs.map((d) => [d.id, { ...(d.data() as IntakeItem), id: d.id }]),
+  );
+  const merge = mergeIntake(existing, items);
+  const stockSync = computeStockSync(
+    existing,
+    applyWrites(existing, merge.writes),
+  );
+  return { existing, merge, stockSync };
 }
 
 export default function NoturnoImportPage() {
@@ -54,7 +90,7 @@ export default function NoturnoImportPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
-  const [done, setDone] = useState<IntakeMergeResult | null>(null);
+  const [done, setDone] = useState<ImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -74,22 +110,19 @@ export default function NoturnoImportPage() {
     setAnalysis(null);
     setDone(null);
     try {
-      const [{ readFirstSheet }, { rowsFromSheet, analyzeNoturnoRows }, { mergeIntake }] =
+      const [{ readFirstSheet }, { rowsFromSheet, analyzeNoturnoRows }] =
         await Promise.all([
           import("@/lib/intake/xlsx"),
           import("@/lib/intake/noturno"),
-          import("@/lib/intake/merge"),
         ]);
       const sheet = readFirstSheet(new Uint8Array(await file.arrayBuffer()));
       const items = analyzeNoturnoRows(rowsFromSheet(sheet));
-
-      const snap = await getDocs(collection(db, "intake_items"));
-      const existing = new Map<string, IntakeItem>(
-        snap.docs.map((d) => [d.id, { ...(d.data() as IntakeItem), id: d.id }])
-      );
-      setAnalysis({ fileName: file.name, items, existing, merge: mergeIntake(existing, items) });
+      const { existing, merge, stockSync } = await computeImport(items);
+      setAnalysis({ fileName: file.name, items, existing, merge, stockSync });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Não foi possível ler o arquivo.");
+      toast.error(
+        err instanceof Error ? err.message : "Não foi possível ler o arquivo.",
+      );
     } finally {
       setAnalyzing(false);
     }
@@ -97,16 +130,44 @@ export default function NoturnoImportPage() {
 
   async function runImport() {
     if (!analysis) return;
-    const { writes } = analysis.merge;
     setProgress(0);
     try {
+      // Recalcula com o estado ATUAL da fila (ver computeImport).
+      const { existing, merge, stockSync } = await computeImport(
+        analysis.items,
+      );
+      const { writes } = merge;
+      // Produtos ANTES da fila: se algo falhar no meio, reimportar o mesmo
+      // arquivo recalcula a sincronização (a fila ainda está no estado
+      // antigo). Ao contrário, a fila já igual ao arquivo esconderia a
+      // diferença e o produto ficaria com o estoque errado.
+      const results = await Promise.allSettled(
+        stockSync.map((u) =>
+          updateDoc(doc(db, "products", u.productId), { inStock: u.inStock }),
+        ),
+      );
+      // Só "produto não existe" (apagado à mão no admin) é ignorado. Qualquer
+      // outra falha (rede, cota) interrompe ANTES de gravar a fila — senão a
+      // fila ficaria igual ao arquivo e a próxima importação não refaria a
+      // sincronização, deixando o produto à venda com estoque zero.
+      const failed = results.filter(
+        (r): r is PromiseRejectedResult =>
+          r.status === "rejected" && !isIgnorableSyncError(r.reason),
+      );
+      if (failed.length > 0) throw failed[0].reason;
+      const syncSkipped = results.filter((r) => r.status === "rejected").length;
+
       for (let i = 0; i < writes.length; i += BATCH_SIZE) {
         const batch = writeBatch(db);
         for (const w of writes.slice(i, i + BATCH_SIZE)) {
           const ref = doc(db, "intake_items", w.id);
           const stamp = { lastImportedAt: serverTimestamp() };
           if (w.isNew) {
-            batch.set(ref, { ...w.data, ...stamp, firstImportedAt: serverTimestamp() });
+            batch.set(ref, {
+              ...w.data,
+              ...stamp,
+              firstImportedAt: serverTimestamp(),
+            });
           } else {
             batch.set(ref, { ...w.data, ...stamp }, { merge: true });
           }
@@ -114,19 +175,27 @@ export default function NoturnoImportPage() {
         await batch.commit();
         setProgress(Math.min(writes.length, i + BATCH_SIZE));
       }
-      const { applyWrites, buildIntakeSummary } = await import("@/lib/intake/summary");
-      const summary = buildIntakeSummary(applyWrites(analysis.existing, writes).values());
+      const { applyWrites, buildIntakeSummary } =
+        await import("@/lib/intake/summary");
+      const summary = buildIntakeSummary(
+        applyWrites(existing, writes).values(),
+      );
       await setDoc(doc(db, "intake_meta", "summary"), {
         ...summary,
         updatedAt: serverTimestamp(),
       });
-      setDone(analysis.merge);
+      setDone({
+        ...merge,
+        soldOut: stockSync.filter((u) => !u.inStock).length,
+        backInStock: stockSync.filter((u) => u.inStock).length,
+        syncSkipped,
+      });
       setAnalysis(null);
       toast.success("Importação concluída.");
     } catch (err) {
       toast.error(
         "Falha ao gravar (o que já foi gravado fica; importe o mesmo arquivo de novo pra completar): " +
-          (err instanceof Error ? err.message : String(err))
+          (err instanceof Error ? err.message : String(err)),
       );
     } finally {
       setProgress(null);
@@ -153,7 +222,9 @@ export default function NoturnoImportPage() {
               Importar o cadastro do Noturno exige a senha de sistema.
             </p>
           </div>
-          <Button onClick={() => setShowPasswordPrompt(true)}>Desbloquear</Button>
+          <Button onClick={() => setShowPasswordPrompt(true)}>
+            Desbloquear
+          </Button>
           <Button variant="ghost" size="sm" asChild>
             <Link href="/admin">Voltar</Link>
           </Button>
@@ -180,7 +251,12 @@ export default function NoturnoImportPage() {
     <main className="min-h-screen bg-slate-50 pb-20">
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white px-4 py-3">
         <div className="mx-auto flex max-w-3xl items-center gap-3">
-          <Button variant="ghost" size="icon" asChild aria-label="Voltar ao admin">
+          <Button
+            variant="ghost"
+            size="icon"
+            asChild
+            aria-label="Voltar ao admin"
+          >
             <Link href="/admin">
               <ArrowLeft size={20} />
             </Link>
@@ -188,7 +264,8 @@ export default function NoturnoImportPage() {
           <div>
             <h1 className="font-bold text-slate-800">Importar do Noturno</h1>
             <p className="text-xs text-slate-500">
-              Cadastro → fila de lançamento. Nada aparece na loja até ser publicado.
+              Cadastro → fila de lançamento. Nada aparece na loja até ser
+              publicado.
             </p>
           </div>
         </div>
@@ -198,15 +275,16 @@ export default function NoturnoImportPage() {
         <section className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
           <p className="font-medium text-slate-800">Como exportar</p>
           <p className="mt-1">
-            No Noturno, exporte o cadastro de produtos em <strong>Excel (.xlsx)</strong> e
-            envie aqui o arquivo completo, sem editar. Pode reenviar sempre que entrarem
-            notas novas: só os produtos novos são criados, e o estoque dos já existentes
-            é atualizado.
+            No Noturno, exporte o cadastro de produtos em{" "}
+            <strong>Excel (.xlsx)</strong> e envie aqui o arquivo completo, sem
+            editar. Pode reenviar sempre que entrarem notas novas: só os
+            produtos novos são criados, e o estoque dos já existentes é
+            atualizado.
           </p>
           <p className="mt-2 text-xs text-slate-500">
-            Precisa ser o Excel: o relatório em PDF corta o nome do produto em 44
-            letras e perde cor e estampa (ex.: vários sacos de presente ficam com o
-            mesmo nome).
+            Precisa ser o Excel: o relatório em PDF corta o nome do produto em
+            44 letras e perde cor e estampa (ex.: vários sacos de presente ficam
+            com o mesmo nome).
           </p>
         </section>
 
@@ -230,7 +308,9 @@ export default function NoturnoImportPage() {
           ) : (
             <>
               <Upload size={28} />
-              <span className="font-medium">Toque para escolher o arquivo .xlsx</span>
+              <span className="font-medium">
+                Toque para escolher o arquivo .xlsx
+              </span>
               <span className="text-xs">ou arraste aqui</span>
             </>
           )}
@@ -252,15 +332,35 @@ export default function NoturnoImportPage() {
             <div className="flex items-center gap-2 text-sm text-slate-600">
               <FileSpreadsheet size={16} />
               <span className="truncate">{analysis.fileName}</span>
-              <span className="ml-auto shrink-0">{analysis.items.length} produtos</span>
+              <span className="ml-auto shrink-0">
+                {analysis.items.length} produtos
+              </span>
             </div>
 
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Stat label="Novos" value={m.created} tone="text-emerald-700" />
               <Stat label="Atualizados" value={m.updated} tone="text-sky-700" />
-              <Stat label="Sem mudança" value={m.unchanged} tone="text-slate-500" />
-              <Stat label="Saíram do Noturno" value={m.missing} tone="text-amber-700" />
+              <Stat
+                label="Sem mudança"
+                value={m.unchanged}
+                tone="text-slate-500"
+              />
+              <Stat
+                label="Saíram do Noturno"
+                value={m.missing}
+                tone="text-amber-700"
+              />
             </div>
+
+            {analysis.stockSync.length > 0 && (
+              <p className="rounded-lg bg-sky-50 p-3 text-sm text-sky-900">
+                Produtos já na loja:{" "}
+                {analysis.stockSync.filter((u) => !u.inStock).length} vão ficar{" "}
+                <strong>esgotados</strong> e{" "}
+                {analysis.stockSync.filter((u) => u.inStock).length} voltam à{" "}
+                <strong>venda</strong>, conforme o estoque do Noturno.
+              </p>
+            )}
 
             {top.length > 0 && (
               <div>
@@ -269,28 +369,39 @@ export default function NoturnoImportPage() {
                 </p>
                 <ul className="divide-y divide-slate-100 text-sm">
                   {top.map((i) => (
-                    <li key={i.sourceCode} className="flex justify-between gap-3 py-1.5">
+                    <li
+                      key={i.sourceCode}
+                      className="flex justify-between gap-3 py-1.5"
+                    >
                       <span className="truncate text-slate-700">{i.name}</span>
-                      <span className="shrink-0 text-slate-400">{i.stock} em estoque</span>
+                      <span className="shrink-0 text-slate-400">
+                        {i.stock} em estoque
+                      </span>
                     </li>
                   ))}
                 </ul>
               </div>
             )}
 
-            {m.writes.length === 0 ? (
+            {m.writes.length === 0 && analysis.stockSync.length === 0 ? (
               <p className="text-sm text-slate-500">
                 Nada mudou desde a última importação.
               </p>
             ) : (
-              <Button className="h-12 w-full text-base" disabled={importing} onClick={runImport}>
+              <Button
+                className="h-12 w-full text-base"
+                disabled={importing}
+                onClick={runImport}
+              >
                 {importing ? (
                   <>
                     <Loader2 className="mr-2 animate-spin" size={18} />
-                    Gravando {progress} de {m.writes.length}…
+                    Gravando…
                   </>
-                ) : (
+                ) : m.writes.length > 0 ? (
                   `Importar ${m.writes.length} alterações`
+                ) : (
+                  `Atualizar estoque de ${analysis.stockSync.length} produtos`
                 )}
               </Button>
             )}
@@ -301,8 +412,16 @@ export default function NoturnoImportPage() {
           <section className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
             <CheckCircle2 className="mt-0.5 shrink-0" size={18} />
             <p>
-              Importação concluída: {done.created} novos, {done.updated} atualizados
-              {done.missing > 0 && `, ${done.missing} marcados como fora do Noturno`}.
+              Importação concluída: {done.created} novos, {done.updated}{" "}
+              atualizados
+              {done.missing > 0 &&
+                `, ${done.missing} marcados como fora do Noturno`}
+              {done.soldOut > 0 &&
+                `, ${done.soldOut} produtos da loja esgotados`}
+              {done.backInStock > 0 && `, ${done.backInStock} de volta à venda`}
+              {done.syncSkipped > 0 &&
+                ` (${done.syncSkipped} produtos não encontrados na loja, ignorados)`}
+              .
             </p>
           </section>
         )}
@@ -311,10 +430,20 @@ export default function NoturnoImportPage() {
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone: string }) {
+function Stat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+}) {
   return (
     <div className="rounded-lg bg-slate-50 p-3 text-center">
-      <p className={`text-xl font-bold ${tone}`}>{value.toLocaleString("pt-BR")}</p>
+      <p className={`text-xl font-bold ${tone}`}>
+        {value.toLocaleString("pt-BR")}
+      </p>
       <p className="text-xs text-slate-500">{label}</p>
     </div>
   );

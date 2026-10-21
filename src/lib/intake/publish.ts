@@ -11,7 +11,11 @@ export interface LaunchInput {
   name: string;
   price: number | null;
   categoryName: string;
-  unit: Unit;
+  // null = atendente ainda não escolheu "Vende como" (escolha obrigatória:
+  // o nome do Noturno nem sempre diz a verdade sobre pacote × unidade).
+  unit: Unit | null;
+  // Unidades no pacote (só quando unit === "pct").
+  packQty: number | null;
   photoUrl: string | null;
   // Só fita de laço: metragem do rolo.
   rollMeters: number | null;
@@ -25,9 +29,19 @@ export function isRibbonItem(item: Pick<IntakeItem, "suggestedType">): boolean {
 // Pega a última medida em metros (M sozinho, não MM nem ML).
 export function extractRollMeters(name: string): number | null {
   const matches = [
-    ...name.toUpperCase().matchAll(/(\d+(?:[.,]\d+)?)\s?M(?:TS?|ETROS?)?(?![A-Z])/g),
+    ...name
+      .toUpperCase()
+      .matchAll(/(\d+(?:[.,]\d+)?)\s?M(?:TS?|ETROS?)?(?![A-Z])/g),
   ];
-  if (matches.length === 0) return null;
+  if (matches.length === 0) {
+    // "32MMX100" (largura × metragem, sem o M final).
+    const wxl = /\d\s?MM\s?X\s?(\d+(?:[.,]\d+)?)(?![\d.,]*\s?MM)/.exec(
+      name.toUpperCase(),
+    );
+    if (!wxl) return null;
+    const n = Number(wxl[1].replace(",", "."));
+    return n > 0 ? n : null;
+  }
   const n = Number(matches[matches.length - 1][1].replace(",", "."));
   return n > 0 ? n : null;
 }
@@ -49,6 +63,19 @@ export function validateLaunch(
 ): string | null {
   if (!input.name.trim()) return "Preencha o nome do produto.";
   if (!input.categoryName) return "Escolha a categoria.";
+  if (!ribbon && !input.unit) {
+    return "Escolha como é vendido: pacote, unidade ou metro.";
+  }
+  if (
+    input.unit === "pct" &&
+    !(
+      input.packQty != null &&
+      Number.isInteger(input.packQty) &&
+      input.packQty > 1
+    )
+  ) {
+    return "Digite quantas unidades vêm no pacote.";
+  }
   if (input.price == null || !(input.price > 0)) {
     return ribbon
       ? "Digite o preço do rolo (da etiqueta)."
@@ -107,8 +134,9 @@ export function buildProductFromIntake(
   return {
     ...base,
     type: "STANDARD_ITEM",
-    unit: input.unit,
+    unit: input.unit ?? "un",
     price: input.price ?? undefined,
+    packQty: input.unit === "pct" ? (input.packQty ?? undefined) : undefined,
   };
 }
 

@@ -1,5 +1,6 @@
 import type { Cell } from "./xlsx";
 import { normalizeText, searchTokensFor } from "./search";
+import { detectPack, isPackHint } from "./pack";
 import type {
   IntakeFlag,
   IntakeSourceFields,
@@ -95,23 +96,38 @@ const RE_NAO_COMIDA =
 
 // Fita que NÃO é fita de laço (vendida por unidade, não por metro).
 const RE_FITA_NAO_LACO =
-  /^FITA (ADESIVA|CREPE|DUPLA FACE|ISOLANTE|CORRETIVA|METRICA|MEDIDA|K7|DUREX|VEDA|DEMARCA|ANTIDERRAPANTE|HELLERMANN|TEFLON|MAGNETICA|DE IMPRESSORA|PARA IMPRESSORA|MULTIUSO|SILVER TAPE|EMPACOTAMENTO|TRANSPARENTE|KRAFT|MICROPOROSA|LARGA (MARROM|TRANSPARENTE))|^FITA .*(\bDE EMP\b|\b4[58](MM)?X\d)/;
+  /^FITA (ADESIVA|CREPE|DUPLA FACE|ISOLANTE|CORRETIVA|METRICA|MEDIDA|K7|DUREX|VEDA|DEMARCA|ANTIDERRAPANTE|HELLERMANN|TEFLON|MAGNETICA|DE IMPRESSORA|PARA IMPRESSORA|MULTIUSO|SILVER TAPE|EMPACOTAMENTO|TRANSPARENTE|KRAFT|MICROPOROSA|DE VIDEO|LARGA (MARROM|TRANSPARENTE))|^FITA .*(\bDE EMP\b|\b4[58](MM)?X\d)/;
 
-// Núcleo do que a loja online vende (festa, presente, embalagem) — pesa na
-// prioridade da fila.
-const CORE_FAMILIES = new Set([
-  "BALAO", "FITA", "LACO", "LACINHO", "SACO", "SACOLA", "SAQUINHO", "PAPEL",
-  "CAIXA", "CAIXINHA", "CESTA", "CANECA", "VELA", "KIT", "PELUCIA", "URSO",
-  "URSINHO", "EMBALAGEM", "CARTAO", "TOPO", "FORMINHA", "BOLSA", "CAIXETA",
+// Foco atual da loja online (decisão de 21/10): material para REVENDA —
+// pacotes de sacos, caixas para kits, laços e fita para fazer laço. Pesa
+// mais na prioridade da fila. Nível 2: resto de festa/presente.
+const RESALE_FAMILIES = new Set([
+  "SACO", "SAQUINHO", "CAIXA", "CAIXINHA", "CAIXETA", "CACHEPOT",
+  "LACO", "LACINHO", "FITA", "FITILHO",
+]);
+const GIFT_FAMILIES = new Set([
+  "BALAO", "SACOLA", "POLI", "PAPEL", "CESTA", "VELA", "CORTINA", "FAIXA",
+  "CONFEITE", "CANECA", "XICARA", "FLOR", "PELUCIA", "URSO", "URSINHO",
+  "TOPO", "FORMINHA", "EMBALAGEM", "CARTAO", "ETIQUETA", "FECHO",
 ]);
 
-// Família → chave normalizada de categoria do site. Conservador: sem
-// palpite é melhor que palpite errado (a atendente escolhe no card).
+// Família → chave normalizada (sem acento, minúscula) da categoria do
+// site. Só famílias INEQUÍVOCAS — PAPEL, KIT, BOLA, TINTA, GRAMPO, MINI…
+// misturam coisas diferentes e ficam sem palpite (a atendente escolhe).
+// Chave sem categoria correspondente no site simplesmente não preenche.
 const CATEGORY_BY_FAMILY: Record<string, string> = {
-  FITA: "fitas", LACO: "fitas", LACINHO: "fitas",
-  CAIXA: "caixas", CAIXINHA: "caixas", CAIXETA: "caixas",
+  FITA: "fitas", FITILHO: "fitas",
+  LACO: "lacos", LACINHO: "lacos",
+  CAIXA: "caixas", CAIXINHA: "caixas", CAIXETA: "caixas", CACHEPOT: "caixas",
   CESTA: "cestas",
-  SACO: "sacos", SACOLA: "sacos", SAQUINHO: "sacos",
+  SACO: "sacos", SAQUINHO: "sacos",
+  SACOLA: "sacolas",
+  BALAO: "baloes",
+  POLI: "papel de presente",
+  VELA: "artigos de festa", CORTINA: "artigos de festa",
+  FAIXA: "artigos de festa", CONFEITE: "artigos de festa",
+  CANECA: "canecas e xicaras", XICARA: "canecas e xicaras",
+  FLOR: "flores",
   PELUCIA: "ursinhos", URSO: "ursinhos", URSINHO: "ursinhos",
 };
 
@@ -184,11 +200,14 @@ export function analyzeNoturnoRows(rows: NoturnoRow[]): IntakeSourceFields[] {
           : "candidato";
 
     const isRibbon = family === "FITA" && !RE_FITA_NAO_LACO.test(d);
-    // Fita de escritório (adesiva, durex…) não é festa/presente.
-    const isCoreFamily =
-      family != null && CORE_FAMILIES.has(family) && (family !== "FITA" || isRibbon);
+    // Fita de escritório (adesiva, durex…) não é revenda de laço.
+    const officeTape = family === "FITA" && !isRibbon;
+    const isCoreFamily = family != null && RESALE_FAMILIES.has(family) && !officeTape;
+    const isGiftFamily = family != null && GIFT_FAMILIES.has(family);
     const suggestedType: ProductType = isRibbon ? "RIBBON" : "STANDARD_ITEM";
-    const suggestedUnit: Unit = isRibbon || fractional ? "m" : "un";
+    const pack = isRibbon ? null : detectPack(name);
+    const suggestedUnit: Unit =
+      isRibbon || fractional ? "m" : isPackHint(pack) ? "pct" : "un";
     const suggestedCategoryKey =
       family === "FITA" && !isRibbon ? null : CATEGORY_BY_FAMILY[family ?? ""] ?? null;
 
@@ -209,11 +228,13 @@ export function analyzeNoturnoRows(rows: NoturnoRow[]): IntakeSourceFields[] {
       unitCost: r.unitCost,
       flags,
       suggestedStatus,
-      priority: priorityScore({ isCoreFamily, flags, stock: r.stock, unitCost: r.unitCost }),
+      priority: priorityScore({ isCoreFamily, isGiftFamily, flags, stock: r.stock, unitCost: r.unitCost }),
       isCoreFamily,
       suggestedCategoryKey,
       suggestedType,
       suggestedUnit,
+      packQty: pack?.qty ?? null,
+      packEvidence: pack?.evidence ?? null,
       duplicateGroup: dupIds.get(dupKey(name)) ?? null,
       searchText,
       searchTokens: searchTokensFor(searchText),
@@ -225,11 +246,12 @@ export function analyzeNoturnoRows(rows: NoturnoRow[]): IntakeSourceFields[] {
 // dentro dele, mais dinheiro parado em estoque sobe; descartáveis afundam.
 export function priorityScore(i: {
   isCoreFamily: boolean;
+  isGiftFamily?: boolean;
   flags: IntakeFlag[];
   stock: number;
   unitCost: number;
 }): number {
-  let score = i.isCoreFamily ? 50 : 0;
+  let score = i.isCoreFamily ? 50 : i.isGiftFamily ? 25 : 0;
   const stockValue = Math.max(0, i.stock * i.unitCost);
   score += Math.min(30, Math.round(10 * Math.log10(1 + stockValue)));
   if (i.stock > 1) score += 10;

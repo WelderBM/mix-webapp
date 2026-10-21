@@ -29,6 +29,7 @@ const input = (o: Partial<LaunchInput> = {}): LaunchInput => ({
   price: 19.9,
   categoryName: "Canecas",
   unit: "un",
+  packQty: null,
   photoUrl: "https://img/x.webp",
   rollMeters: null,
   ...o,
@@ -41,10 +42,13 @@ describe("extractRollMeters", () => {
     expect(extractRollMeters("FITA GORGURAO 9MM X 50M")).toBe(50);
     expect(extractRollMeters("FITA CETIM 22MMX10MTS ROSE")).toBe(10);
     expect(extractRollMeters("FITA VOIL 38MM 10 METROS")).toBe(10);
+    expect(extractRollMeters("FITA MAXI FM 03D 32MMX100 AMEIXA/OURO")).toBe(100);
+    expect(extractRollMeters("FITA MAXI FM 100L 16MMX50 VERMELHO")).toBe(50);
   });
 
   it("não confunde milímetro nem mililitro com metro", () => {
     expect(extractRollMeters("FITA CETIM 22MM VERMELHA")).toBeNull();
+    expect(extractRollMeters("FITA 48MMX40MM DE EMP")).toBeNull();
     expect(extractRollMeters("CANECA 300ML")).toBeNull();
   });
 });
@@ -81,6 +85,18 @@ describe("validateLaunch", () => {
     expect(validateLaunch(input({ categoryName: "" }), false)).toMatch(/categoria/);
     expect(validateLaunch(input({ photoUrl: null }), false)).toMatch(/foto/);
   });
+  it("exige escolher como é vendido (exceto fita)", () => {
+    expect(validateLaunch(input({ unit: null }), false)).toMatch(/pacote, unidade ou metro/);
+    expect(validateLaunch(input({ unit: null, rollMeters: 100 }), true)).toBeNull();
+  });
+
+  it("pacote exige quantidade inteira maior que 1", () => {
+    expect(validateLaunch(input({ unit: "pct", packQty: null }), false)).toMatch(/unidades vêm no pacote/);
+    expect(validateLaunch(input({ unit: "pct", packQty: 1 }), false)).toMatch(/unidades vêm no pacote/);
+    expect(validateLaunch(input({ unit: "pct", packQty: 2.5 }), false)).toMatch(/unidades vêm no pacote/);
+    expect(validateLaunch(input({ unit: "pct", packQty: 100 }), false)).toBeNull();
+  });
+
   it("fita exige metragem do rolo", () => {
     expect(validateLaunch(input({ rollMeters: null }), true)).toMatch(/metros/);
     expect(validateLaunch(input({ rollMeters: 100 }), true)).toBeNull();
@@ -118,6 +134,13 @@ describe("buildProductFromIntake", () => {
     });
     expect(p).not.toHaveProperty("price");
     expect(getEffectiveUnitPrice({ id: "x", ...p } as Product)).toBe(25);
+  });
+
+  it("pacote grava a quantidade; unidade não", () => {
+    const pack = buildProductFromIntake(item(), input({ unit: "pct", packQty: 100, price: 18 }));
+    expect(pack).toMatchObject({ unit: "pct", packQty: 100, price: 18 });
+    const unit = buildProductFromIntake(item(), input({ unit: "un", packQty: 100 }));
+    expect(unit.packQty).toBeUndefined();
   });
 
   it("estoque zero publica fora de estoque", () => {
