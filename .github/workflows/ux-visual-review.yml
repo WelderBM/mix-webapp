@@ -1,0 +1,173 @@
+name: Revisão visual de UX
+
+# Paralela e NÃO bloqueante (decisão de 21/10): quando o preview da Vercel de
+# um PR que mexe em telas fica pronto, abre as telas num navegador real
+# (celular 360px + desktop), mede alvo de toque, estouro de layout,
+# acessibilidade (axe-core) e erros de console, tira prints e pede para o
+# Claude olhar os prints. Publica tudo no PR. Não segura o merge em dev;
+# achado objetivo marca "precisa-de-voce" e menciona o dono (e, se o PR já
+# entrou, abre issue de correção).
+#
+# Scripts SEMPRE lidos de dev: este job usa secrets (bypass do preview,
+# conta de teste) e um PR não pode trocar o código que roda com eles.
+
+on:
+  deployment_status:
+
+concurrency:
+  group: ux-visual-${{ github.event.deployment.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  ux:
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Preview' &&
+      github.event.deployment_status.environment_url != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      PREVIEW_URL: ${{ github.event.deployment_status.environment_url }}
+      SHA: ${{ github.event.deployment.sha }}
+      HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
+
+    steps:
+      - name: Achar o PR e decidir se há tela no diff
+        id: pr
+        run: |
+          set -euo pipefail
+          PR=$(gh api "repos/$GH_REPO/commits/$SHA/pulls" \
+            --jq '[.[] | select(.state=="open" and (.base.ref=="dev" or .base.ref=="master"))][0].number // empty')
+          if [ -z "$PR" ]; then echo "::notice::Nenhum PR aberto para dev/master neste commit."; exit 0; fi
+          echo "number=$PR" >> "$GITHUB_OUTPUT"
+          # Versão de antes do PR, para reportar só o que o PR piorou.
+          if [ "$(gh pr view "$PR" --json baseRefName --jq .baseRefName)" = "master" ]; then
+            echo "base_url=https://www.mixnovidades.com" >> "$GITHUB_OUTPUT"
+          else
+            echo "base_url=https://mix-webapp-git-dev-welderbms-projects.vercel.app" >> "$GITHUB_OUTPUT"
+          fi
+          gh pr view "$PR" --json files --jq '[.files[].path]' > "$RUNNER_TEMP/files.json"
+
+          git init -q "$RUNNER_TEMP/repo" && cd "$RUNNER_TEMP/repo"
+          git fetch -q --depth=1 "https://x-access-token:$GH_TOKEN@github.com/$GH_REPO" dev
+          mkdir -p "$RUNNER_TEMP/ux-scripts"
+          for f in visual-check.mjs summarize.mjs; do
+            git show "FETCH_HEAD:scripts/ux/$f" > "$RUNNER_TEMP/ux-scripts/$f"
+          done
+
+          node "$RUNNER_TEMP/ux-scripts/summarize.mjs" routes "$RUNNER_TEMP/files.json" > "$RUNNER_TEMP/plan.json"
+          cat "$RUNNER_TEMP/plan.json"
+          if [ "$(jq -r .ui "$RUNNER_TEMP/plan.json")" != "true" ]; then
+            echo "::notice::PR #$PR não mexe em telas — revisão visual pulada."; exit 0
+          fi
+          jq '.routes' "$RUNNER_TEMP/plan.json" > "$RUNNER_TEMP/routes.json"
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar navegador (fora do package.json)
+        if: steps.pr.outputs.run == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/ux-deps" && cd "$RUNNER_TEMP/ux-deps"
+          npm init -y >/dev/null
+          npm i --no-audit --no-fund playwright@1.63.0 @axe-core/playwright@4.13.0 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+
+      - name: Abrir as telas e medir
+        if: steps.pr.outputs.run == 'true'
+        env:
+          UX_DEPS: ${{ runner.temp }}/ux-deps
+          VERCEL_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          UX_ADMIN_EMAIL: ${{ secrets.UX_STAGING_ADMIN_EMAIL }}
+          UX_ADMIN_PASSWORD: ${{ secrets.UX_STAGING_ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$VERCEL_BYPASS" ]; then
+            echo "::warning::Sem VERCEL_AUTOMATION_BYPASS_SECRET — o preview protegido não abre para o robô."
+          fi
+          node "$RUNNER_TEMP/ux-scripts/visual-check.mjs" "$PREVIEW_URL" "$RUNNER_TEMP/routes.json" "$RUNNER_TEMP/ux-out"
+          # Base: falha aqui não derruba a revisão, só perde a comparação.
+          node "$RUNNER_TEMP/ux-scripts/visual-check.mjs" "${{ steps.pr.outputs.base_url }}" "$RUNNER_TEMP/routes.json" "$RUNNER_TEMP/ux-base" \
+            || echo "::warning::Não consegui medir a versão base — achados sem comparação."
+
+      - name: Guardar prints
+        if: steps.pr.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ux-visual-pr-${{ steps.pr.outputs.number }}
+          path: ${{ runner.temp }}/ux-out
+          retention-days: 14
+
+      - name: Publicar medições
+        id: measured
+        if: steps.pr.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          PR=${{ steps.pr.outputs.number }}
+          BASE_REPORT=""
+          [ -f "$RUNNER_TEMP/ux-base/ux-report.json" ] && BASE_REPORT="$RUNNER_TEMP/ux-base/ux-report.json"
+          node "$RUNNER_TEMP/ux-scripts/summarize.mjs" report "$RUNNER_TEMP/ux-out/ux-report.json" "$PR" $BASE_REPORT > "$RUNNER_TEMP/summary.json"
+          jq -r .markdown "$RUNNER_TEMP/summary.json" > "$RUNNER_TEMP/ux-out/medicoes.md"
+          gh pr comment "$PR" --body-file "$RUNNER_TEMP/ux-out/medicoes.md"
+          echo "importantes=$(jq -r .importantes "$RUNNER_TEMP/summary.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Claude olha os prints
+        if: steps.pr.outputs.run == 'true' && env.HAS_CLAUDE == 'true'
+        # v1.0.242 (05/10/2026), fixado por SHA: action de terceiro.
+        uses: anthropics/claude-code-action@6c690188da61cf16ee7debb28383ba67f02abb4c
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Você é o revisor VISUAL de UX do PR #${{ steps.pr.outputs.number }} (${{ github.repository }}).
+            Público da tela: clientes no celular (loja) e atendentes com pouca
+            familiaridade com sistemas (telas /admin) — clareza vale mais que estética.
+
+            Material em ${{ runner.temp }}/ux-out:
+            - medicoes.md: achados objetivos já publicados (não repita, só use como contexto)
+            - *.png: prints de cada tela em celular (360px) e desktop. Abra TODOS com a ferramenta Read.
+
+            Procure o que só se vê na tela: sobreposição de elementos, texto
+            cortado ou ilegível, botão principal escondido ou sem destaque,
+            hierarquia confusa, estado vazio sem explicação, rolagem
+            desnecessária no celular, inconsistência entre telas.
+
+            Severidade: 🟡 só para problema concreto que você aponta no print
+            (diga qual print e onde). Opinião de design é ⚪ sugestão.
+
+            Publique UM comentário com `gh pr comment ${{ steps.pr.outputs.number }} --body "..."`:
+            começa com <!-- revisao:ux-visual -->, título "## Revisão visual — olhar da IA",
+            lista de achados (🟡/⚪, com o print), e termina com a linha
+            <!-- veredito-ux-visual: {"importantes":N} -->.
+            Nunca escreva "revisao:1" nem "revisao:2" no comentário.
+          claude_args: >-
+            --allowedTools "Read,Glob,Bash(gh pr comment:*)"
+
+      - name: Escalar achados (não bloqueante)
+        if: steps.pr.outputs.run == 'true'
+        run: |
+          set -uo pipefail
+          PR=${{ steps.pr.outputs.number }}
+          MEASURED=${{ steps.measured.outputs.importantes || 0 }}
+          VISUAL=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.body | contains("veredito-ux-visual")) | .body' \
+            | grep -oE 'veredito-ux-visual: \{"importantes":[0-9]+\}' | tail -1 | grep -oE '[0-9]+$' || echo 0)
+          TOTAL=$(( MEASURED + ${VISUAL:-0} ))
+          [ "$TOTAL" -eq 0 ] && { echo "Sem achados de UX."; exit 0; }
+
+          STATE=$(gh pr view "$PR" --json state --jq .state)
+          if [ "$STATE" = "MERGED" ]; then
+            TITLE=$(gh pr view "$PR" --json title --jq .title)
+            gh issue create --title "UX: ajustes do PR #$PR — $TITLE" --label precisa-de-voce --assignee "$OWNER" \
+              --body "@$OWNER a revisão visual do PR #$PR (já em \`dev\`) encontrou $TOTAL achado(s) de UX. Detalhes nos comentários do PR #$PR (medições + olhar da IA) e prints no artefato **ux-visual-pr-$PR**."
+          else
+            gh pr edit "$PR" --add-label precisa-de-voce --add-assignee "$OWNER" || true
+            gh pr comment "$PR" --body "@$OWNER a revisão visual encontrou **$TOTAL achado(s) de UX** (medições: $MEASURED, olhar da IA: ${VISUAL:-0}). Não bloqueia o merge em \`dev\`, mas vale ver antes de promover para produção."
+          fi
