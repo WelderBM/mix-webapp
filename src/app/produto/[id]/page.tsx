@@ -9,7 +9,8 @@ import ProductPageClient from "@/components/features/ProductPageClient";
 
 // Rota depende de dado que muda a qualquer momento (preço, estoque, imagem
 // escolhida pelo admin) e é acessada via link direto/compartilhado — mesma
-// justificativa de `src/app/page.tsx` pra `force-dynamic`.
+// justificativa histórica de `force-dynamic` (a home hoje usa ISR com
+// `revalidate = 60`, ver src/app/page.tsx).
 export const dynamic = "force-dynamic";
 
 interface ProductPageProps {
