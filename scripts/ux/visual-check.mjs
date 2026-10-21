@@ -39,8 +39,10 @@ async function login(page) {
   const email = page.locator('input[type="email"]');
   if (!(await email.count())) return true; // já logado
   await email.fill(process.env.UX_ADMIN_EMAIL);
-  await page.locator('input[type="password"]').fill(process.env.UX_ADMIN_PASSWORD ?? "");
-  await page.locator('form button[type="submit"]').first().click();
+  const pass = page.locator('input[type="password"]');
+  await pass.fill(process.env.UX_ADMIN_PASSWORD ?? "");
+  // Enter envia o formulário mesmo quando o botão não declara type="submit".
+  await pass.press("Enter");
   await page.waitForFunction(() => !document.querySelector('input[type="password"]'), null, {
     timeout: 20_000,
   });
