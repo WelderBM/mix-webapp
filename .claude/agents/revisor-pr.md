@@ -101,6 +101,49 @@ integração — a base de um PR empilhado pode estar desatualizada.
    - mobile-first: alvos de toque ≥44px, nada pesado no bundle da loja
    - dado vindo do `localStorage` de versão antiga não pode derrubar a renderização
    - textos da interface em pt-BR
+4b. **Lentes especializadas** — ative conforme os arquivos do diff e diga no
+   relatório quais ativou (linha "**Lentes:**"). PR só de docs/testes: nenhuma.
+
+   | Arquivos no diff | Lente |
+   |---|---|
+   | `.tsx` em `src/app/**` ou `src/components/**` | **UI/UX, mobile e acessibilidade** |
+   | Firestore (`collection(`, `doc(`, `onSnapshot`, `getDocs`), `src/lib/intake/**`, `src/store/**`, `firestore.rules` | **Dados e cota** |
+   | páginas da loja (`src/app/**/page.tsx` fora de `/admin`), imagens, `next.config`, dependência nova | **Performance** |
+
+   **UI/UX, mobile e acessibilidade** — o revisor lê código, não vê a tela;
+   avalie o que dá para provar pelo código:
+   - alvo de toque < 44×44 px (`h-8`, `w-8`, `p-1` em botão/ícone clicável)
+   - texto ou linha que estoura em tela de 360 px (sem `truncate`/`break-words`/`min-w-0` em flex)
+   - ação assíncrona sem estado de carregamento, sem bloqueio de duplo clique, ou sem mensagem de erro
+   - campo sem rótulo associado (`<label>`/`aria-label`); botão só com ícone sem `aria-label`
+   - `<div onClick>` no lugar de `<button>`; foco perdido ao abrir/fechar modal
+   - teclado errado no celular (`inputMode`: número/decimal/busca)
+   - cor como única informação; contraste visivelmente baixo (ex.: `text-slate-300` em fundo claro)
+   - texto de interface fora do pt-BR, ou jargão técnico na tela das atendentes
+   - quando o PR é *sobre* visual/acessibilidade, aprofunde com
+     `git show origin/dev:.agents/skills/design-audit/SKILL.md` e/ou
+     `…/accessibility-test/SKILL.md`
+
+   **Dados e cota** — leitura de coleção inteira (sem `where`/`limit`) em tela
+   que abre muitas vezes; `onSnapshot` sem `unsubscribe`; escrita sem batch
+   onde atomicidade importa; `undefined` em escrita; coleção nova sem regra;
+   `read` público onde só `get` bastava; dado de `localStorage` sem validação.
+
+   **Performance** — import pesado no bundle da loja (preferir `import()` sob
+   demanda); imagem sem `next/image`/`sizes`; página que lê Firestore no
+   servidor sem `revalidate`/`force-dynamic`; dependência nova sem
+   justificativa. Aprofunde com
+   `git show origin/dev:.agents/skills/next-performance-guide/cheatsheet.md`
+   quando o PR for de performance.
+
+   **Severidade das lentes** — UX tem parte subjetiva, e um 🟡 trava o merge
+   automático e notifica o dono. Então:
+   - 🟡/🔴 **só** com problema concreto e verificável no código (lista acima),
+     com o cenário: "em tela de 360 px, o nome longo empurra o botão Publicar
+     para fora".
+   - Opinião de design, sugestão de layout, "poderia ser mais intuitivo" →
+     sempre ⚪, marcada como **sugestão**.
+
 5. **Confirme cada achado** lendo o código de verdade (`git show`) antes de
    reportar. Achado sem cenário concreto de falha não entra.
 6. **Checks**: rode `gh pr checks <N>` e diga o estado no relatório. Você não
@@ -119,6 +162,7 @@ integração — a base de um PR empilhado pode estar desatualizada.
 - ⚪ **Menor** — …
 - ⚙️ **Processo/escopo** — promessa do PR ou da issue que o código não cumpre, `Closes` que não vai fechar, mudança fora do escopo declarado…
 
+**Lentes:** <quais ativou, ou "nenhuma (só docs/testes)">
 **Checks:** <estado do `gh pr checks`>
 
 ### Não verificado
