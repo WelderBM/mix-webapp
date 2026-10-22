@@ -149,13 +149,13 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
                   <>
                     <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100">
                       {p.sizes.map((s) => (
-                        <li key={s.size} className="flex items-center gap-3 px-2 py-1.5 text-sm">
+                        <li key={s.size} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5 text-sm">
                           <span className="w-14 shrink-0 font-bold text-slate-800">
                             {s.size}
                             {/* Polegadas; canudo "260" é o modelo, cm já vem escrito. */}
                             {/^\d/.test(s.size) && !s.size.endsWith("cm") && p.typeId !== "canudo" ? '"' : ""}
                           </span>
-                          <span className="flex flex-1 flex-wrap items-center gap-1 text-xs text-slate-500">
+                          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-xs text-slate-500">
                             <label
                               className={`flex items-center gap-1 rounded px-1 ${
                                 s.packSource === "padrao" || s.packSource === "misto"
@@ -185,6 +185,9 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
                                 className="h-11 w-14 rounded border border-slate-300 bg-white px-1 text-base text-slate-800"
                               />
                             </label>
+                            {(s.packSource === "padrao" || s.packSource === "misto") && (
+                              <strong className="text-amber-800">confira na embalagem</strong>
+                            )}
                             · {Math.round(s.stock).toLocaleString("pt-BR")} em estoque
                             {s.currentPrice == null && <strong className="ml-1 text-amber-700">· novo</strong>}
                           </span>
