@@ -249,7 +249,7 @@ export function LaunchSheet({
         // Prévia nova: a antiga já foi liberada quando a foto saiu da lista.
         onClick: () =>
           setPhotos((list) =>
-            list.some((ph) => ph.blob === removed.blob)
+            list.some((ph) => ph.blob === removed.blob) || list.length >= MAX_PHOTOS
               ? list
               : [
                   ...list.slice(0, i),
