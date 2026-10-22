@@ -104,6 +104,10 @@ jobs:
       - name: Revisor 2 (Claude)
         id: claude
         if: steps.creds.outputs.ok == 'true' && steps.wait.outputs.skip != 'true'
+        # Falha do Claude (limite de uso, erro de API) não pode pular o gate:
+        # sem veredito, o gate manda o PR para o dono (PRs #248/#249 ficaram
+        # sem decisão e sem aviso).
+        continue-on-error: true
         # v1.0.242 (05/10/2026), fixado por SHA: action de terceiro.
         uses: anthropics/claude-code-action@6c690188da61cf16ee7debb28383ba67f02abb4c
         with:
@@ -145,6 +149,8 @@ jobs:
             gh pr comment "$PR" --body-file "$RUNNER_TEMP/revisao2.md"
           else
             echo "::warning::O revisor não devolveu uma revisão com <!-- revisao:2 --> — o PR fica para o dono."
+            # Mensagem do Claude (ex.: limite de uso), que o log da action esconde.
+            [ -n "$TEXT" ] && echo "Resposta do revisor: ${TEXT:0:400}"
             jq -rs 'flatten | map(select(.type == "result")) | last | .permission_denials // [] | .[] | "negado: \(.tool_name) \(.tool_input.command // "" | .[0:160])"' "$F" 2>/dev/null || true
           fi
 
