@@ -18,14 +18,23 @@ export interface LaunchDraftFields {
   metersText: string;
 }
 
-// Versão do formato: quando ele mudar (ex.: várias fotos, #201), rascunho
-// antigo é descartado em vez de voltar quebrado.
-export const DRAFT_VERSION = 1;
+// Versão do formato. v2 (#201): várias fotos. v1 (uma foto só) ainda é
+// aceito e convertido em normalizeDraft; formato desconhecido é descartado.
+export const DRAFT_VERSION = 2;
 
 export interface LaunchDraft extends LaunchDraftFields {
   v: number;
-  photo: Blob | null;
+  photos: Blob[]; // a primeira é a capa
   savedAt: number;
+}
+
+// Rascunho gravado antes do #201 tinha `photo` (uma só).
+export function normalizeDraft(d: LaunchDraft & { photo?: Blob | null }): LaunchDraft {
+  if (d.v === 1) {
+    const { photo, ...rest } = d;
+    return { ...rest, v: DRAFT_VERSION, photos: photo ? [photo] : [] };
+  }
+  return { ...d, photos: d.photos ?? [] };
 }
 
 export const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -52,7 +61,7 @@ export function isUsable(d: unknown, now: number): d is LaunchDraft {
   const x = d as Partial<LaunchDraft> | null;
   return (
     !!x &&
-    x.v === DRAFT_VERSION &&
+    (x.v === DRAFT_VERSION || x.v === 1) &&
     typeof x.savedAt === "number" &&
     typeof x.priceText === "string" &&
     !isExpired(x as LaunchDraft, now)
@@ -105,7 +114,7 @@ export async function loadDraft(id: string): Promise<LaunchDraft | null> {
       deleteDraft(id);
       return null;
     }
-    return d;
+    return normalizeDraft(d);
   } catch {
     return null;
   }

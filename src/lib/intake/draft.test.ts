@@ -5,6 +5,7 @@ import {
   isExpired,
   isUsable,
   isWorthSaving,
+  normalizeDraft,
   type LaunchDraftFields,
 } from "./draft";
 
@@ -50,5 +51,22 @@ describe("isExpired", () => {
     const now = 10 * DRAFT_TTL_MS;
     expect(isExpired({ savedAt: now - DRAFT_TTL_MS - 1 }, now)).toBe(true);
     expect(isExpired({ savedAt: now - 1000 }, now)).toBe(false);
+  });
+});
+
+describe("normalizeDraft (#201: várias fotos)", () => {
+  const base = { ...defaults, savedAt: 1 };
+  it("rascunho antigo (v1, uma foto) vira lista com essa foto", () => {
+    const blob = new Blob(["x"]);
+    const d = normalizeDraft({ ...base, v: 1, photo: blob } as never);
+    expect(d.v).toBe(DRAFT_VERSION);
+    expect(d.photos).toEqual([blob]);
+    expect("photo" in d).toBe(false);
+    expect(normalizeDraft({ ...base, v: 1, photo: null } as never).photos).toEqual([]);
+  });
+  it("v1 continua utilizável; formato desconhecido não", () => {
+    const now = 10;
+    expect(isUsable({ ...base, v: 1, photo: null }, now)).toBe(true);
+    expect(isUsable({ ...base, v: 99, photos: [] }, now)).toBe(false);
   });
 });

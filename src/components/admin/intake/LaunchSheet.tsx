@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { BookOpenCheck, Camera, History, Loader2, RotateCcw } from "lucide-react";
+import { BookOpenCheck, Camera, History, Loader2, Plus, RotateCcw, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -49,6 +49,10 @@ const PRICE_LABEL: Record<Unit, string> = {
   m: "Preço do metro (etiqueta)",
 };
 
+// Até 5 fotos por produto (#201); a primeira é a capa.
+const MAX_PHOTOS = 5;
+type Photo = { blob: Blob; preview: string };
+
 const brl = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -74,9 +78,9 @@ export function LaunchSheet({
   const [unit, setUnit] = useState<Unit | null>(null);
   const [packText, setPackText] = useState("");
   const [metersText, setMetersText] = useState("");
-  const [photo, setPhoto] = useState<{ blob: Blob; preview: string } | null>(
-    null,
-  );
+  // Várias fotos (#201): a primeira é a capa.
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const prevPhotosRef = useRef<Photo[]>([]);
   const [processingPhoto, setProcessingPhoto] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -123,7 +127,7 @@ export function LaunchSheet({
     defaultsRef.current = defaults;
     hydratedRef.current = null;
     applyFields(defaults);
-    setPhoto(null);
+    setPhotos([]);
     setRestored(false);
     if (item.status !== "pendente") return flushPending;
     let alive = true;
@@ -131,9 +135,9 @@ export function LaunchSheet({
       if (!alive) return;
       if (d) {
         applyFields(d);
-        if (d.photo) {
-          setPhoto({ blob: d.photo, preview: URL.createObjectURL(d.photo) });
-        }
+        setPhotos(
+          d.photos.map((blob) => ({ blob, preview: URL.createObjectURL(blob) })),
+        );
         setRestored(true);
         skipNextSaveRef.current = true;
       }
@@ -164,11 +168,11 @@ export function LaunchSheet({
       if (pendingSaveRef.current === flush) pendingSaveRef.current = null;
       else return; // já gravado ou substituído por uma edição mais nova
       if (hydratedRef.current !== id) return;
-      if (isWorthSaving(fields, defaults, !!photo)) {
+      if (isWorthSaving(fields, defaults, photos.length > 0)) {
         saveDraft(id, {
           ...fields,
           v: DRAFT_VERSION,
-          photo: photo?.blob ?? null,
+          photos: photos.map((ph) => ph.blob),
           savedAt: Date.now(),
         });
       } else {
@@ -178,7 +182,7 @@ export function LaunchSheet({
     pendingSaveRef.current = flush;
     const t = setTimeout(flush, 400);
     return () => clearTimeout(t);
-  }, [item, name, priceText, categoryName, subcategoryName, unit, packText, metersText, photo]);
+  }, [item, name, priceText, categoryName, subcategoryName, unit, packText, metersText, photos]);
 
   // Celular bloqueando / aba indo pro fundo: grava o pendente já.
   // (Publicar/pular zeram hydratedRef antes, então não ressuscita
@@ -196,15 +200,21 @@ export function LaunchSheet({
     if (!item || !defaultsRef.current) return;
     deleteDraft(item.id);
     applyFields(defaultsRef.current);
-    setPhoto(null);
+    setPhotos([]);
     setRestored(false);
   }
 
+  // Libera a memória das prévias que saíram da lista (e todas ao sair).
+  useEffect(() => {
+    const keep = new Set(photos.map((ph) => ph.preview));
+    for (const ph of prevPhotosRef.current) {
+      if (!keep.has(ph.preview)) URL.revokeObjectURL(ph.preview);
+    }
+    prevPhotosRef.current = photos;
+  }, [photos]);
   useEffect(
-    () => () => {
-      if (photo) URL.revokeObjectURL(photo.preview);
-    },
-    [photo],
+    () => () => prevPhotosRef.current.forEach((ph) => URL.revokeObjectURL(ph.preview)),
+    [],
   );
 
   if (!item) return null;
@@ -216,7 +226,11 @@ export function LaunchSheet({
     try {
       const { compressImage } = await import("@/lib/intake/compressImage");
       const blob = await compressImage(file);
-      setPhoto({ blob, preview: URL.createObjectURL(blob) });
+      setPhotos((list) =>
+        list.length >= MAX_PHOTOS
+          ? list
+          : [...list, { blob, preview: URL.createObjectURL(blob) }],
+      );
     } catch {
       toast.error("Não foi possível usar essa foto. Tente de novo.");
     } finally {
@@ -233,7 +247,8 @@ export function LaunchSheet({
       subcategoryName: subcategoryName || null,
       unit: ribbon ? ("m" as Unit) : unit,
       packQty: unit === "pct" ? Number(packText) || null : null,
-      photoUrl: photo ? "pending" : null,
+      // Só pra validação; as URLs reais vêm do envio abaixo.
+      photoUrls: photos.map(() => "pending"),
       rollMeters: ribbon ? parsePrice(metersText) : null,
     };
     const error = validateLaunch(input, ribbon);
@@ -245,10 +260,12 @@ export function LaunchSheet({
     try {
       const { uploadIntakePhoto, publishIntakeItem } =
         await import("@/lib/intake/actions");
-      const photoUrl = await uploadIntakePhoto(item, photo!.blob);
+      const photoUrls = await Promise.all(
+        photos.map((ph, i) => uploadIntakePhoto(item, ph.blob, i)),
+      );
       const productId = await publishIntakeItem(
         item,
-        { ...input, photoUrl },
+        { ...input, photoUrls },
         userEmail,
       );
       hydratedRef.current = null;
@@ -357,33 +374,84 @@ export function LaunchSheet({
             </p>
 
             {/* Foto primeiro: é o passo que exige estar na frente do produto. */}
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={processingPhoto || saving}
-              className="relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500"
-            >
-              {processingPhoto ? (
-                <Loader2 className="animate-spin" size={28} />
-              ) : photo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={photo.preview}
-                  alt="Foto do produto"
-                  className="h-full w-full object-contain"
-                />
-              ) : (
-                <span className="flex flex-col items-center gap-2">
-                  <Camera size={32} />
-                  <span className="font-medium">Tirar foto</span>
-                </span>
-              )}
-              {photo && !processingPhoto && (
-                <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
-                  Trocar foto
-                </span>
-              )}
-            </button>
+            {photos.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={processingPhoto || saving}
+                className="flex aspect-[4/3] w-full items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500"
+              >
+                {processingPhoto ? (
+                  <Loader2 className="animate-spin" size={28} />
+                ) : (
+                  <span className="flex flex-col items-center gap-2">
+                    <Camera size={32} />
+                    <span className="font-medium">Tirar foto</span>
+                  </span>
+                )}
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photos[0].preview}
+                    alt="Foto de capa do produto"
+                    className="h-full w-full object-contain"
+                  />
+                  <span className="absolute left-2 top-2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
+                    Capa
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {photos.map((ph, i) => (
+                    <div key={ph.preview} className="relative">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPhotos((list) => [list[i], ...list.filter((_, j) => j !== i)])
+                        }
+                        disabled={saving}
+                        aria-label={i === 0 ? "Foto de capa" : `Usar foto ${i + 1} como capa`}
+                        className={`h-16 w-16 overflow-hidden rounded-lg border-2 ${
+                          i === 0 ? "border-purple-600" : "border-slate-200"
+                        }`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={ph.preview} alt="" className="h-full w-full object-cover" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPhotos((list) => list.filter((_, j) => j !== i))}
+                        disabled={saving}
+                        aria-label={`Remover foto ${i + 1}`}
+                        className="absolute -right-3 -top-3 flex h-11 w-11 items-center justify-center"
+                      >
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-white">
+                          <X size={14} />
+                        </span>
+                      </button>
+                    </div>
+                  ))}
+                  {photos.length < MAX_PHOTOS && (
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
+                      disabled={processingPhoto || saving}
+                      aria-label="Adicionar foto"
+                      className="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-dashed border-slate-300 text-slate-500"
+                    >
+                      {processingPhoto ? <Loader2 className="animate-spin" size={20} /> : <Plus size={22} />}
+                    </button>
+                  )}
+                </div>
+                {photos.length > 1 && (
+                  <p className="text-xs text-slate-500">
+                    Toque numa miniatura para ela virar a capa.
+                  </p>
+                )}
+              </div>
+            )}
             <input
               ref={fileRef}
               type="file"
