@@ -33,7 +33,7 @@ import { statusTransitionDeltas } from "@/lib/intake/publish";
 import { useCategoryStore } from "@/store/categoryStore";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LaunchSheet } from "@/components/admin/intake/LaunchSheet";
-import { buildGroups, type VariantGroup } from "@/lib/intake/groups";
+import { attributePlural, buildGroups, type VariantGroup } from "@/lib/intake/groups";
 import {
   activeClaim,
   areaById,
@@ -599,7 +599,7 @@ function GroupRow({
           </p>
         </div>
         <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-800">
-          {group.members.length} cores
+          {group.members.length} {attributePlural(group.attribute)}
         </span>
       </button>
     </li>

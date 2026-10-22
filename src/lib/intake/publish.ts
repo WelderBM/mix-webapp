@@ -170,6 +170,7 @@ export function statusTransitionDeltas(
 export interface GroupMember {
   item: IntakeItem;
   label: string; // nome da variação, editável pela atendente
+  attribute?: string; // o que varia: "Cor" (padrão), "Letra", "Número"
 }
 
 export function buildGroupProductFromIntake(
@@ -184,10 +185,10 @@ export function buildGroupProductFromIntake(
     inStock: members.some((m) => m.item.stock > 0),
     variants: members.map((m) => ({
       id: m.item.sourceCode,
-      type: "Cor",
+      type: m.attribute ?? "Cor",
       name: m.label.trim(),
       inStock: m.item.stock > 0,
-      attributes: { Cor: m.label.trim() },
+      attributes: { [m.attribute ?? "Cor"]: m.label.trim() },
     })),
   };
 }

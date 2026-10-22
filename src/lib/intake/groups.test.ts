@@ -42,6 +42,24 @@ describe("groupKeyFor", () => {
   });
 });
 
+describe("balões de letra/número (#236)", () => {
+  it("um grupo por cor, com as letras como opções", () => {
+    const { groups } = buildGroups([
+      it_("1", "BALAO METALIZADO 16 40CM VERMELHO A", "BALAO"),
+      it_("2", "BALAO METALIZADO 16 40CM VERMELHO B", "BALAO"),
+      it_("3", "BALAO METALIZADO 16 40CM PRATA A", "BALAO"),
+      it_("4", "BALAO METALIZADO 16 40CM PRATA B", "BALAO"),
+      it_("5", "BALAO METALIZADO 1640 CM ROSE 2", "BALAO"),
+      it_("6", "BALAO METALIZADO 1640 CM ROSE 10", "BALAO"),
+      it_("7", "BALAO METALIZADO 1640 CM ROSE 9", "BALAO"),
+    ]);
+    const byBase = Object.fromEntries(groups.map((g) => [g.base, g]));
+    expect(byBase["Balao metalizado 16 40cm vermelho"].attribute).toBe("Letra");
+    expect(byBase["Balao metalizado 16 40cm vermelho"].members.map((m) => m.label)).toEqual(["A", "B"]);
+    expect(byBase["Balao metalizado 16 40cm prata"].members).toHaveLength(2);
+  });
+});
+
 describe("buildGroups", () => {
   it("junta as cores da mesma base; item sozinho continua solto", () => {
     const { groups, singles } = buildGroups([

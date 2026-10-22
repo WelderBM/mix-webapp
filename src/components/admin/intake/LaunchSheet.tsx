@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { BookOpenCheck, Camera, History, Loader2, Plus, RotateCcw, X } from "lucide-react";
+import { BookOpenCheck, Camera, History, Loader2, Plus, RotateCcw, Sparkles, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -23,7 +23,8 @@ import {
 } from "@/lib/intake/publish";
 import { pricePerUnit } from "@/lib/intake/pack";
 import { matchSubcategory } from "@/lib/intake/subcategories";
-import type { VariantGroup } from "@/lib/intake/groups";
+import { attributePlural, type VariantGroup } from "@/lib/intake/groups";
+import { parseBalloon } from "@/lib/intake/balloons";
 import {
   DRAFT_VERSION,
   deleteDraft,
@@ -270,6 +271,7 @@ export function LaunchSheet({
 
   if (!item) return null;
   const ribbon = isRibbonItem(item);
+  const balloon = item.family === "BALAO" ? parseBalloon(item.name) : null;
   const pending = item.status === "pendente";
 
   function removePhoto(i: number) {
@@ -291,6 +293,28 @@ export function LaunchSheet({
           ),
       },
     });
+  }
+
+  // Balão (#236): arte desenhada a partir do nome, entra como uma foto.
+  // No grupo de letras/números, a capa usa a primeira letra/número.
+  async function useBalloonArt() {
+    if (!balloon) return;
+    setProcessingPhoto(true);
+    try {
+      const { balloonSvg, renderBalloonImage } = await import("@/lib/intake/balloonArt");
+      const glyph =
+        group && group.attribute !== "Cor"
+          ? variants.find((v) => v.include)?.label
+          : undefined;
+      const blob = await renderBalloonImage(balloonSvg(balloon, glyph));
+      setPhotos((list) =>
+        list.length >= MAX_PHOTOS ? list : [...list, { blob, preview: URL.createObjectURL(blob) }],
+      );
+    } catch {
+      toast.error("Não foi possível gerar a arte. Tire uma foto do balão.");
+    } finally {
+      setProcessingPhoto(false);
+    }
   }
 
   async function handlePhoto(file: File) {
@@ -325,7 +349,7 @@ export function LaunchSheet({
     };
     const chosen = variants
       .filter((v) => v.include)
-      .map((v) => ({ item: v.item, label: v.label }));
+      .map((v) => ({ item: v.item, label: v.label, attribute: group?.attribute }));
     const error =
       validateLaunch(input, ribbon) ?? (group ? validateGroup(chosen) : null);
     if (error) {
@@ -428,11 +452,13 @@ export function LaunchSheet({
       >
         <SheetHeader className="border-b border-slate-100 px-4 pb-3 pt-4 text-left">
           <SheetTitle className="pr-8 text-base leading-snug">
-            {group ? `${group.base} · ${group.members.length} cores` : item.name}
+            {group
+              ? `${group.base} · ${group.members.length} ${attributePlural(group.attribute)}`
+              : item.name}
           </SheetTitle>
           <SheetDescription>
             {group ? (
-              "Lançamento em grupo: um produto na loja, com uma opção por cor."
+              `Lançamento em grupo: um produto na loja, com uma opção por ${group.attribute.toLowerCase()}.`
             ) : (
               <>
                 Cód. {item.sourceCode}
@@ -511,7 +537,20 @@ export function LaunchSheet({
                   </span>
                 )}
               </button>
-            ) : (
+            ) : null}
+            {photos.length === 0 && balloon && (
+              // Balão de formato conhecido (#236): arte gerada, sem foto.
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full gap-2"
+                disabled={processingPhoto || saving}
+                onClick={useBalloonArt}
+              >
+                <Sparkles size={18} /> Usar arte do balão (sem foto)
+              </Button>
+            )}
+            {photos.length === 0 ? null : (
               <div className="space-y-2">
                 <button
                   type="button"
@@ -702,7 +741,8 @@ export function LaunchSheet({
             {group && (
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium text-slate-700">
-                  Cores ({variants.filter((v) => v.include).length} de {variants.length})
+                  {group.attribute === "Cor" ? "Cores" : group.attribute === "Letra" ? "Letras" : "Números"} (
+                  {variants.filter((v) => v.include).length} de {variants.length})
                 </legend>
                 <p className="text-xs text-slate-500">
                   Desmarque a cor que não vai para a loja. O nome de cada cor
