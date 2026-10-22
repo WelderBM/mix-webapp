@@ -1,5 +1,6 @@
 import type { IntakeItem } from "@/types/intake";
 import { normalizeText } from "./search";
+import { parseBalloon } from "./balloons";
 
 // Lançamento em grupo (#201, parte 2): o Noturno cadastra cada COR como um
 // produto separado ("ZIPER NYLON 15CM COR 540 VERDE", "... COR 501 BRANCO").
@@ -63,18 +64,40 @@ export function splitVariantName(name: string): NameSplit {
 
 type GroupInput = Pick<IntakeItem, "family" | "name" | "suggestedType">;
 
-// Chave do grupo: família + base normalizada. null = item não agrupa.
+// O que varia dentro do grupo: a cor (padrão) ou, no balão metalizado de
+// letra/número (#236), a LETRA/NÚMERO — um produto por cor, com A–Z ou
+// 0–9 como opções (como o cliente compra; e cabe no limite de variações).
+export type GroupAttribute = "Cor" | "Letra" | "Número";
+
+export function splitForGroup(item: GroupInput): NameSplit & { attribute: GroupAttribute } {
+  if (item.family === "BALAO") {
+    const b = parseBalloon(item.name);
+    if (b?.glyph && (b.shape === "letra" || b.shape === "numero")) {
+      const base = item.name.toUpperCase().replace(/\s+/g, " ").trim().replace(/\s+[A-Z0-9&]$/, "");
+      return { base, label: b.glyph, attribute: b.shape === "letra" ? "Letra" : "Número" };
+    }
+  }
+  return { ...splitVariantName(item.name), attribute: "Cor" };
+}
+
+// Chave do grupo: família + o que varia + base normalizada. null = não agrupa.
 export function groupKeyFor(item: GroupInput): string | null {
   if (item.suggestedType === "RIBBON") return null;
-  const { base, label } = splitVariantName(item.name);
+  const { base, label, attribute } = splitForGroup(item);
   if (!label || !base) return null;
-  return `${item.family ?? ""}|${normalizeText(base)}`;
+  return `${item.family ?? ""}|${attribute}|${normalizeText(base)}`;
 }
 
 export interface VariantGroup<T> {
   key: string;
   base: string; // nome base para exibir ("Zíper nylon 15cm")
+  attribute: GroupAttribute;
   members: { item: T; label: string }[];
+}
+
+// "cores", "letras", "números" — para a fila e o card.
+export function attributePlural(a: GroupAttribute): string {
+  return a === "Cor" ? "cores" : a === "Letra" ? "letras" : "números";
 }
 
 // Agrupa os itens CARREGADOS (a fila lê por família ou busca): só vira
@@ -99,18 +122,19 @@ export function buildGroups<T extends GroupInput & { sourceCode: string }>(
       singles.push(...list);
       continue;
     }
-    const split = list.map((i) => ({ item: i, ...splitVariantName(i.name) }));
+    const split = list.map((i) => ({ item: i, ...splitForGroup(i) }));
     const seen = new Map<string, number>();
     for (const s of split) seen.set(s.label!, (seen.get(s.label!) ?? 0) + 1);
     groups.push({
       key,
       base: titleCase(split[0].base),
+      attribute: split[0].attribute,
       members: split
         .map((s) => ({
           item: s.item,
           label: seen.get(s.label!)! > 1 ? `${s.label} (cód. ${s.item.sourceCode})` : s.label!,
         }))
-        .sort((a, b) => a.label.localeCompare(b.label, "pt-BR")),
+        .sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { numeric: true })),
     });
   }
   groups.sort((a, b) => a.base.localeCompare(b.base, "pt-BR"));
