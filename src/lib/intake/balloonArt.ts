@@ -82,7 +82,15 @@ function glyph(text: string, fill: string, stroke: string): string {
                 stroke-width="8" paint-order="stroke" stroke-linejoin="round">${esc(text)}</text>`;
 }
 
-export function balloonSvg(info: BalloonInfo, glyphOverride?: string): string {
+export function balloonSvg(
+  info: BalloonInfo,
+  glyphOverride?: string,
+  // Montador da loja: sem legenda e com fundo transparente (vai dentro do
+  // cartão, que já tem fundo e texto).
+  opts: { caption?: boolean; background?: boolean } = {},
+): string {
+  const showCaption = opts.caption !== false;
+  const showBackground = opts.background !== false;
   const base = info.colors[0];
   const stroke = info.colors.length > 1 ? "#64748b" : shade(base, -0.3);
   // id único por arte: várias artes na mesma página não dividem degradê.
@@ -134,9 +142,9 @@ export function balloonSvg(info: BalloonInfo, glyphOverride?: string): string {
     .join(" · ");
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
   <defs>${fillDefs(id, info)}${extraDefs}</defs>
-  <rect width="${S}" height="${S}" fill="#ffffff"/>
+  ${showBackground ? `<rect width="${S}" height="${S}" fill="#ffffff"/>` : ""}
   ${body}
-  ${caption ? `<text x="256" y="490" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" fill="#475569">${esc(caption)}</text>` : ""}
+  ${showCaption && caption ? `<text x="256" y="490" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" fill="#475569">${esc(caption)}</text>` : ""}
 </svg>`;
 }
 
