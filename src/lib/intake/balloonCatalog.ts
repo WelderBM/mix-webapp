@@ -204,3 +204,163 @@ export function withAddedColors(
     return { ...t, colors };
   });
 }
+
+// ── Montar o catálogo a partir do Noturno ────────────────────────────
+// Tipos, tamanhos (com pacote), cores com estoque — tudo do Noturno. Só o
+// PREÇO de cada tamanho é digitado (etiqueta). Funciona com o catálogo
+// vazio e MESCLA com o existente (nunca apaga tipo, tamanho ou cor).
+
+export const DEFAULT_TYPE_NAMES: Record<string, string> = {
+  simples: "Balão Simples (Liso)",
+  metalico: "Metálico",
+  candy: "Candy Colors",
+  cintilante: "Cintilante",
+  canudo: "Canudo / 260",
+  uniq: "Linha Uniq",
+  foil_numeros: "Números & Letras (Foil)",
+};
+
+export interface ProposalSize {
+  size: string;
+  unitsPerPackage: number;
+  // De onde veio o pacote: "catalogo" (já cadastrado), "lido" (todos os
+  // nomes dizem C/N), "misto" (nomes discordam: vale o mais frequente) ou
+  // "padrao" (nenhum nome diz — chute 1). Os dois últimos pedem conferência.
+  packSource: "catalogo" | "lido" | "misto" | "padrao";
+  stock: number;
+  currentPrice: number | null; // preço já cadastrado (null = tamanho novo)
+}
+
+export interface ProposalType {
+  typeId: string;
+  name: string;
+  exists: boolean;
+  sizes: ProposalSize[];
+  colors: { name: string; stock: number; inCatalog: boolean }[];
+}
+
+function packOf(name: string, typeId: string): number | null {
+  if (typeId === "foil_numeros") return 1;
+  const m = /\bC\/ ?(\d+)\b|\b(\d+)X1\b/.exec(name.toUpperCase());
+  return m ? Number(m[1] ?? m[2]) : null;
+}
+
+const sizeOrder = (s: string) => parseFloat(s) || 0;
+
+type Acc = {
+  sizes: Map<string, { stock: number; packs: Map<number, number> }>;
+  colors: Map<string, { name: string; stock: number; inCatalog: boolean }>;
+};
+
+export function proposeCatalog(items: StockItem[], config: BalloonConfig): ProposalType[] {
+  const ids = Object.keys(DEFAULT_TYPE_NAMES);
+  const full: BalloonConfig = {
+    ...config,
+    types: [
+      ...config.types,
+      ...ids
+        .filter((id) => !config.types.some((t) => t.id === id))
+        .map((id) => ({ id, name: DEFAULT_TYPE_NAMES[id], sizes: [], colors: [] })),
+    ],
+  };
+  const acc = new Map<string, Acc>();
+  for (const i of items) {
+    if (i.family !== "BALAO" || i.inLatestImport === false) continue;
+    const m = matchBalloon(i.name, full);
+    if (!m || !m.size) continue;
+    const qty = Math.max(0, i.stock);
+    const t: Acc = acc.get(m.typeId) ?? { sizes: new Map(), colors: new Map() };
+    acc.set(m.typeId, t);
+    const s = t.sizes.get(m.size) ?? { stock: 0, packs: new Map<number, number>() };
+    s.stock += qty;
+    const pack = packOf(i.name, m.typeId);
+    if (pack) s.packs.set(pack, (s.packs.get(pack) ?? 0) + 1);
+    t.sizes.set(m.size, s);
+    const colorName = m.color ?? m.rawColor;
+    if (colorName) {
+      const k = key(colorName);
+      const c = t.colors.get(k) ?? { name: colorName, stock: 0, inCatalog: m.color != null };
+      c.stock += qty;
+      t.colors.set(k, c);
+    }
+  }
+  return ids
+    .filter((id) => acc.has(id))
+    .map((id) => {
+      const existing = config.types.find((t) => t.id === id);
+      const a = acc.get(id)!;
+      return {
+        typeId: id,
+        name: existing?.name ?? DEFAULT_TYPE_NAMES[id],
+        exists: !!existing,
+        sizes: [...a.sizes.entries()]
+          .map(([size, s]) => {
+            const cur = existing?.sizes.find((z) => z.size === size);
+            const packs = [...s.packs.entries()].sort((x, y) => y[1] - x[1]);
+            const commonPack = packs[0]?.[0];
+            const packSource: ProposalSize["packSource"] = cur
+              ? "catalogo"
+              : packs.length === 0
+                ? "padrao"
+                : packs.length > 1
+                  ? "misto"
+                  : "lido";
+            return {
+              size,
+              unitsPerPackage: cur?.unitsPerPackage ?? commonPack ?? 1,
+              packSource,
+              stock: s.stock,
+              currentPrice: cur?.price ?? null,
+            };
+          })
+          .sort((x, y) => sizeOrder(x.size) - sizeOrder(y.size)),
+        colors: [...a.colors.values()]
+          .filter((c) => c.stock > 0)
+          .sort((x, y) => y.stock - x.stock),
+      };
+    });
+}
+
+// Aplica a proposta: cria tipos que faltam e acrescenta tamanhos (com o
+// preço digitado) e cores com estoque. Tamanho novo sem preço fica de
+// fora — não dá para vender sem preço. Preço digitado num tamanho que já
+// existe atualiza o preço.
+export function applyCatalogProposal(
+  config: BalloonConfig,
+  proposal: ProposalType[],
+  choices: {
+    include: Record<string, boolean>;
+    prices: Record<string, number | null>;
+    // Pacote corrigido pela atendente ("typeId|size" → unidades).
+    packs?: Record<string, number | null>;
+  },
+): BalloonConfig {
+  const types = config.types.map((t) => ({ ...t, sizes: t.sizes.map((s) => ({ ...s })), colors: [...t.colors] }));
+  for (const p of proposal) {
+    if (choices.include[p.typeId] === false) continue;
+    let t = types.find((x) => x.id === p.typeId);
+    const priced = p.sizes
+      .map((s) => ({ s, price: choices.prices[`${p.typeId}|${s.size}`] ?? s.currentPrice }))
+      .filter((x): x is { s: ProposalSize; price: number } => x.price != null && x.price > 0);
+    if (!t) {
+      if (priced.length === 0) continue; // tipo novo sem nenhum preço: não cria
+      t = { id: p.typeId, name: p.name, sizes: [], colors: [] };
+      types.push(t);
+    }
+    const target = t;
+    for (const { s, price } of priced) {
+      const cur = target.sizes.find((z) => z.size === s.size);
+      const pack = choices.packs?.[`${p.typeId}|${s.size}`];
+      const units = pack != null && pack > 0 ? Math.round(pack) : s.unitsPerPackage;
+      if (cur) {
+        cur.price = price;
+        if (pack != null && pack > 0) cur.unitsPerPackage = units;
+      } else target.sizes.push({ size: s.size, price, unitsPerPackage: units });
+    }
+    target.sizes.sort((x, y) => sizeOrder(x.size) - sizeOrder(y.size));
+    for (const c of p.colors) {
+      if (!target.colors.some((x) => key(x) === key(c.name))) target.colors.push(c.name);
+    }
+  }
+  return { ...config, types };
+}
