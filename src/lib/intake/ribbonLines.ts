@@ -105,6 +105,14 @@ export function groupRibbonLines<T extends Item>(items: T[]): RibbonLine<T>[] {
     map.set(key, g);
   }
   for (const g of map.values()) {
+    // Nome repetido na mesma linha (só o código do fabricante diferia, ou
+    // não sobrou cor no nome): acrescenta o código do Noturno para a loja
+    // não ter duas fitas iguais.
+    const count = new Map<string, number>();
+    for (const m of g.members) count.set(m.label, (count.get(m.label) ?? 0) + 1);
+    for (const m of g.members) {
+      if (count.get(m.label)! > 1) m.label = `${m.label} (cód. ${m.item.sourceCode})`;
+    }
     g.members.sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
   }
   return [...map.values()].sort((a, b) => b.members.length - a.members.length);

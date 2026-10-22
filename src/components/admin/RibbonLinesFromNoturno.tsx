@@ -90,7 +90,12 @@ export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
         setBusy({ key: line.key, step: `Gerando imagens ${i + 1}–${Math.min(i + 6, members.length)} de ${members.length}…` });
         const part = await Promise.all(
           members.slice(i, i + 6).map(async (m, j) => {
-            const blob = await renderBalloonImage(ribbonSvg(m.item.name, line.label), 600);
+            // Cor do rolo pelo nome CORRIGIDO (se a atendente trocou), senão o do Noturno.
+            const edited = s.labels[m.item.id];
+            const blob = await renderBalloonImage(
+              ribbonSvg(edited ? `FITA ${edited}` : m.item.name, line.label),
+              600,
+            );
             return uploadIntakePhoto(m.item, blob, i + j);
           }),
         );

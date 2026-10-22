@@ -36,6 +36,14 @@ describe("fitas de plástico por linha (nomes reais do Noturno)", () => {
     ]);
   });
 
+  it("nome repetido na linha ganha o código do Noturno", () => {
+    const [l] = groupRibbonLines([fita("FITA MAXI FM03D 32MMX100 AMARELO"), fita("FITA MAXI FM04D 32MMX100 AMARELO")]);
+    expect(l.members.map((m) => m.label)).toEqual([
+      `Amarelo (cód. ${l.members[0].item.sourceCode})`,
+      `Amarelo (cód. ${l.members[1].item.sourceCode})`,
+    ]);
+  });
+
   it("rótulo da cor/estampa sem linha e medidas", () => {
     expect(ribbonLabel("FITA MAXI AMOR SEM FIM 32MMX100M ROSA")).toBe("Amor Sem Fim Rosa");
     expect(ribbonLabel("FITA PLASTICA GLITTER OURO 18MMX25M C/1 UN")).toBe("Glitter Ouro");
