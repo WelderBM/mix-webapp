@@ -246,9 +246,16 @@ export function LaunchSheet({
     undoToastRef.current = toast("Foto removida", {
       action: {
         label: "Desfazer",
+        // Prévia nova: a antiga já foi liberada quando a foto saiu da lista.
         onClick: () =>
           setPhotos((list) =>
-            list.includes(removed) ? list : [...list.slice(0, i), removed, ...list.slice(i)],
+            list.some((ph) => ph.blob === removed.blob)
+              ? list
+              : [
+                  ...list.slice(0, i),
+                  { blob: removed.blob, preview: URL.createObjectURL(removed.blob) },
+                  ...list.slice(i),
+                ],
           ),
       },
     });

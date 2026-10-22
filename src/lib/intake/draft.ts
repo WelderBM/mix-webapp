@@ -120,7 +120,14 @@ export async function loadDraft(id: string): Promise<LaunchDraft | null> {
       return null;
     }
     const draft = normalizeDraft(d);
-    if (draft.photos.length > 0) return draft; // v1 convertido
+    if ((d as { v?: number }).v === 1) {
+      // Migra de vez: foto para a chave própria + registro v2. Sem isso, a
+      // primeira edição regravava o registro sem a foto (revisão do #251).
+      const { photos, ...fields } = draft;
+      await saveDraftPhotos(id, photos);
+      await saveDraft(id, fields);
+      return draft;
+    }
     const photos = await run<Blob[] | undefined>("readonly", (s) => s.get(photosKey(id)));
     return { ...draft, photos: photos ?? [] };
   } catch {
