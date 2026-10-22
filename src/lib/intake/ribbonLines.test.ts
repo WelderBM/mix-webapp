@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildRibbonProduct, groupRibbonLines, isPlasticRibbon, ribbonLabel, validateLinePrices } from "./ribbonLines";
+import { buildRibbonProduct, groupRibbonLines, isPlasticRibbon, ribbonLabel, splitBowRibbons, validateLinePrices } from "./ribbonLines";
 
 let n = 0;
 const fita = (name: string, stock = 5, status = "pendente", suggestedType = "RIBBON") =>
@@ -19,6 +19,15 @@ describe("fitas de plástico por linha (nomes reais do Noturno)", () => {
     expect(isPlasticRibbon(fita("FITA TNT LISA 40MMX50M AZUL ESCURO"))).toBe(false);
     expect(isPlasticRibbon(fita("FITA CETIM 10MM 50M ROSA"))).toBe(false);
     expect(isPlasticRibbon(fita("FITA ADESIVA 38MIC 48X30", 5, "pendente", "STANDARD_ITEM"))).toBe(false);
+  });
+
+  it("fila: fita de laço pendente sai da lista comum; o resto fica", () => {
+    const laco = fita("FITA MAXI FM03D 32MMX100 AMARELO");
+    const feita = fita("FITA MAXI FM03D 32MMX100 AZUL", 5, "publicado");
+    const tecido = fita("FITA CETIM 10MM 50M ROSA");
+    const { queue, bow } = splitBowRibbons([laco, feita, tecido]);
+    expect(bow).toEqual([laco]);
+    expect(queue).toEqual([feita, tecido]);
   });
 
   it("agrupa por linha × largura × metragem; só pendentes", () => {
