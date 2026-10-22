@@ -33,6 +33,7 @@ import { statusTransitionDeltas } from "@/lib/intake/publish";
 import { useCategoryStore } from "@/store/categoryStore";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LaunchSheet } from "@/components/admin/intake/LaunchSheet";
+import { buildGroups, type VariantGroup } from "@/lib/intake/groups";
 import {
   activeClaim,
   areaById,
@@ -102,6 +103,8 @@ export default function IntakeQueuePage() {
   const [shown, setShown] = useState(PAGE_SIZE);
   const cache = useRef(new Map<string, IntakeItem[]>());
   const [selected, setSelected] = useState<IntakeItem | null>(null);
+  const [selectedGroup, setSelectedGroup] =
+    useState<VariantGroup<IntakeItem> | null>(null);
   const categories = useCategoryStore((s) => s.categories);
   const subscribeCategories = useCategoryStore((s) => s.subscribe);
 
@@ -112,37 +115,48 @@ export default function IntakeQueuePage() {
   // Depois de publicar/pular: atualiza lista, cache e placar localmente,
   // sem reler o banco.
   function handleChanged(updated: IntakeItem) {
-    const prev = selected;
-    const swap = (list: IntakeItem[]) =>
-      list.map((i) => (i.id === updated.id ? updated : i));
+    if (selected) applyChanges([{ prev: selected, updated }]);
+  }
+
+  // Grupo (#201): vários itens mudam de uma vez.
+  function handleGroupChanged(changes: { prev: IntakeItem; updated: IntakeItem }[]) {
+    applyChanges(changes);
+  }
+
+  function applyChanges(changes: { prev: IntakeItem; updated: IntakeItem }[]) {
+    const byId = new Map(changes.map((c) => [c.updated.id, c.updated]));
+    const swap = (list: IntakeItem[]) => list.map((i) => byId.get(i.id) ?? i);
     for (const [k, list] of cache.current) cache.current.set(k, swap(list));
     setItems((list) => (list ? swap(list) : list));
-    if (prev && summary) {
-      const { byStatus, familyPending } = statusTransitionDeltas(
-        prev.status,
-        updated.status,
-      );
-      const next: IntakeSummary = structuredClone(summary);
-      for (const [st, d] of Object.entries(byStatus)) {
-        next.byStatus[st as IntakeWorkflowStatus] += d;
+    setSummary((current) => {
+      if (!current) return current;
+      const next: IntakeSummary = structuredClone(current);
+      for (const { prev, updated } of changes) {
+        const { byStatus, familyPending } = statusTransitionDeltas(
+          prev.status,
+          updated.status,
+        );
+        for (const [st, d] of Object.entries(byStatus)) {
+          next.byStatus[st as IntakeWorkflowStatus] += d;
+        }
+        const fam = next.families[prev.family ?? NO_FAMILY];
+        if (fam) fam.pending += familyPending;
+        if (prev.family === RIBBON_FAMILY && next.ribbonAreas) {
+          const r = next.ribbonAreas[String(areaForItem(prev))];
+          if (r) r.pending += familyPending;
+        }
+        if (updated.status === "publicado" && prev.status !== "publicado") {
+          next.publishedStockValue =
+            (next.publishedStockValue ?? 0) + stockValue(prev);
+          const who = user?.email || "(desconhecido)";
+          next.publishedBy = {
+            ...next.publishedBy,
+            [who]: (next.publishedBy?.[who] ?? 0) + 1,
+          };
+        }
       }
-      const fam = next.families[prev.family ?? NO_FAMILY];
-      if (fam) fam.pending += familyPending;
-      if (prev.family === RIBBON_FAMILY && next.ribbonAreas) {
-        const r = next.ribbonAreas[String(areaForItem(prev))];
-        if (r) r.pending += familyPending;
-      }
-      if (updated.status === "publicado" && prev.status !== "publicado") {
-        next.publishedStockValue =
-          (next.publishedStockValue ?? 0) + stockValue(prev);
-        const who = user?.email || "(desconhecido)";
-        next.publishedBy = {
-          ...next.publishedBy,
-          [who]: (next.publishedBy?.[who] ?? 0) + 1,
-        };
-      }
-      setSummary(next);
-    }
+      return next;
+    });
     // Quem está trabalhando renova a reserva da área (vale 3 h).
     if (area != null && area !== NO_AREA && me) {
       const c = meta.claims[String(area)];
@@ -290,6 +304,29 @@ export default function IntakeQueuePage() {
       .filter((i) => matchesQuery(i.searchText, parsed.terms))
       .sort((a, b) => b.priority - a.priority);
   }, [items, status, family, parsed, area, meta.overrides]);
+
+  // Lançamento em grupo (#201): pendentes com a mesma base e cores
+  // diferentes viram UMA linha. Grupo sobe na lista pela maior prioridade.
+  type Entry =
+    | { kind: "item"; item: IntakeItem; priority: number }
+    | { kind: "group"; group: VariantGroup<IntakeItem>; priority: number };
+  const entries = useMemo<Entry[]>(() => {
+    const pendingItems = visible.filter((i) => i.status === "pendente");
+    const others = visible.filter((i) => i.status !== "pendente");
+    const { groups, singles } = buildGroups(pendingItems);
+    return [
+      ...groups.map((g) => ({
+        kind: "group" as const,
+        group: g,
+        priority: Math.max(...g.members.map((m) => m.item.priority)),
+      })),
+      ...[...singles, ...others].map((i) => ({
+        kind: "item" as const,
+        item: i,
+        priority: i.priority,
+      })),
+    ].sort((a, b) => b.priority - a.priority);
+  }, [visible]);
 
   const families = useMemo(
     () => (summary ? sortedFamilies(summary) : []),
@@ -466,17 +503,35 @@ export default function IntakeQueuePage() {
                 " · muitos resultados, digite mais palavras para refinar"}
             </p>
             <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
-              {visible.slice(0, shown).map((i) => (
-                <IntakeRow key={i.id} item={i} onOpen={() => setSelected(i)} />
-              ))}
+              {entries.slice(0, shown).map((e) =>
+                e.kind === "group" ? (
+                  <GroupRow
+                    key={e.group.key}
+                    group={e.group}
+                    onOpen={() => {
+                      setSelectedGroup(e.group);
+                      setSelected(e.group.members[0].item);
+                    }}
+                  />
+                ) : (
+                  <IntakeRow
+                    key={e.item.id}
+                    item={e.item}
+                    onOpen={() => {
+                      setSelectedGroup(null);
+                      setSelected(e.item);
+                    }}
+                  />
+                ),
+              )}
             </ul>
-            {visible.length > shown && (
+            {entries.length > shown && (
               <Button
                 variant="outline"
                 className="mt-3 h-12 w-full"
                 onClick={() => setShown((n) => n + PAGE_SIZE)}
               >
-                Mostrar mais {Math.min(PAGE_SIZE, visible.length - shown)}
+                Mostrar mais {Math.min(PAGE_SIZE, entries.length - shown)}
               </Button>
             )}
           </section>
@@ -502,10 +557,52 @@ export default function IntakeQueuePage() {
         item={selected}
         categories={categories}
         userEmail={user.email}
-        onClose={() => setSelected(null)}
+        group={selectedGroup}
+        onClose={() => {
+          setSelected(null);
+          setSelectedGroup(null);
+        }}
         onChanged={handleChanged}
+        onGroupChanged={handleGroupChanged}
       />
     </main>
+  );
+}
+
+// Uma linha para várias cores do mesmo produto (#201).
+function GroupRow({
+  group,
+  onOpen,
+}: {
+  group: VariantGroup<IntakeItem>;
+  onOpen: () => void;
+}) {
+  const stock = group.members.reduce((n, m) => n + m.item.stock, 0);
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex min-h-14 w-full items-center gap-3 px-3 py-2 text-left active:bg-slate-50"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-slate-800">
+            {group.base}
+          </p>
+          <p className="truncate text-xs text-slate-500">
+            {group.members
+              .slice(0, 4)
+              .map((m) => m.label)
+              .join(", ")}
+            {group.members.length > 4 && "…"} · {stock.toLocaleString("pt-BR")} em
+            estoque
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-medium text-purple-800">
+          {group.members.length} cores
+        </span>
+      </button>
+    </li>
   );
 }
 

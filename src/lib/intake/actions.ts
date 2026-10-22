@@ -11,8 +11,10 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import type { IntakeItem, IntakeWorkflowStatus } from "@/types/intake";
 import {
+  buildGroupProductFromIntake,
   buildProductFromIntake,
   statusTransitionDeltas,
+  type GroupMember,
   type LaunchInput,
 } from "./publish";
 import { NO_FAMILY, stockValue } from "./summary";
@@ -119,4 +121,35 @@ export async function setIntakeStatus(
   });
   addSummaryDeltas(batch, item, to);
   await batch.commit();
+}
+
+// Grupo (#201): UM produto com variações + todos os itens do grupo
+// publicados apontando para ele, num batch só (tudo ou nada).
+export async function publishIntakeGroup(
+  members: GroupMember[],
+  input: LaunchInput,
+  userEmail: string | null,
+): Promise<string> {
+  const productRef = doc(collection(db, "products"));
+  const product = buildGroupProductFromIntake(members, input);
+  const clean = Object.fromEntries(
+    Object.entries(product).filter(([, v]) => v !== undefined),
+  );
+  const batch = writeBatch(db);
+  batch.set(productRef, {
+    ...clean,
+    id: productRef.id,
+    createdAt: serverTimestamp(),
+  });
+  for (const { item } of members) {
+    batch.update(doc(db, "intake_items", item.id), {
+      status: "publicado",
+      productId: productRef.id,
+      publishedAt: serverTimestamp(),
+      publishedBy: userEmail,
+    });
+    addSummaryDeltas(batch, item, "publicado", userEmail);
+  }
+  await batch.commit();
+  return productRef.id;
 }

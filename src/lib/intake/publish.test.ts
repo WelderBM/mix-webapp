@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildGroupProductFromIntake,
+  validateGroup,
   buildProductFromIntake,
   extractRollMeters,
   matchCategory,
@@ -166,5 +168,34 @@ describe("statusTransitionDeltas", () => {
   });
   it("mesmo status não muda nada", () => {
     expect(statusTransitionDeltas("pulado", "pulado")).toEqual({ byStatus: {}, familyPending: 0 });
+  });
+});
+
+describe("lançamento em grupo (#201)", () => {
+  const m = (sourceCode: string, label: string, stock: number) => ({
+    item: item({ sourceCode, stock }),
+    label,
+  });
+  it("um produto com uma variação por cor; id = código do Noturno", () => {
+    const p = buildGroupProductFromIntake(
+      [m("501", "Branco cor 501", 3), m("540", "Verde cor 540", 0)],
+      input({ name: "Zíper nylon 15cm" }),
+    );
+    expect(p.name).toBe("Zíper nylon 15cm");
+    expect(p.sourceCode).toBeUndefined();
+    expect(p.inStock).toBe(true);
+    expect(p.variants).toEqual([
+      { id: "501", type: "Cor", name: "Branco cor 501", inStock: true, attributes: { Cor: "Branco cor 501" } },
+      { id: "540", type: "Cor", name: "Verde cor 540", inStock: false, attributes: { Cor: "Verde cor 540" } },
+    ]);
+  });
+  it("sem nenhuma cor em estoque, produto esgotado", () => {
+    expect(buildGroupProductFromIntake([m("1", "A", 0), m("2", "B", 0)], input()).inStock).toBe(false);
+  });
+  it("valida: 2+ cores, nomes preenchidos e diferentes", () => {
+    expect(validateGroup([m("1", "Azul", 1)])).toMatch(/2 cores/);
+    expect(validateGroup([m("1", "Azul", 1), m("2", " ", 1)])).toMatch(/nome/);
+    expect(validateGroup([m("1", "Azul", 1), m("2", "azul", 1)])).toMatch(/mesmo nome/);
+    expect(validateGroup([m("1", "Azul", 1), m("2", "Verde", 1)])).toBeNull();
   });
 });

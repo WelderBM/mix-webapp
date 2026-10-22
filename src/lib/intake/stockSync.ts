@@ -13,6 +13,10 @@ import type { IntakeItem } from "@/types/intake";
 export interface ProductStockUpdate {
   productId: string;
   inStock: boolean;
+  // Produto lançado em grupo (#201): disponibilidade de CADA variação,
+  // pelo código do Noturno (= id da variação). O produto fica em estoque
+  // enquanto houver alguma cor disponível.
+  variants?: Record<string, boolean>;
 }
 
 const available = (i: Pick<IntakeItem, "stock" | "inLatestImport">) =>
@@ -22,16 +26,42 @@ export function computeStockSync(
   before: Map<string, IntakeItem>,
   after: Map<string, IntakeItem>,
 ): ProductStockUpdate[] {
-  const updates: ProductStockUpdate[] = [];
-  for (const [id, next] of after) {
+  // Itens publicados agrupados pelo produto: 1 item = produto simples;
+  // 2+ = produto com variações (grupo).
+  const byProduct = new Map<string, IntakeItem[]>();
+  for (const next of after.values()) {
     if (next.status !== "publicado" || !next.productId) continue;
-    const prev = before.get(id);
-    if (!prev) continue;
-    const was = available(prev);
-    const now = available(next);
-    if (was !== now) updates.push({ productId: next.productId, inStock: now });
+    byProduct.set(next.productId, [...(byProduct.get(next.productId) ?? []), next]);
+  }
+  const updates: ProductStockUpdate[] = [];
+  for (const [productId, members] of byProduct) {
+    const crossed = members.some((m) => {
+      const prev = before.get(m.id);
+      return prev != null && available(prev) !== available(m);
+    });
+    if (!crossed) continue;
+    if (members.length === 1) {
+      updates.push({ productId, inStock: available(members[0]) });
+      continue;
+    }
+    updates.push({
+      productId,
+      inStock: members.some(available),
+      variants: Object.fromEntries(members.map((m) => [m.sourceCode, available(m)])),
+    });
   }
   return updates;
+}
+
+// Aplica a disponibilidade por variação sobre as variações gravadas no
+// produto (as que não vieram do Noturno ficam como estão).
+export function applyVariantStock<V extends { id: string; inStock: boolean }>(
+  variants: V[] | undefined,
+  stock: Record<string, boolean>,
+): V[] {
+  return (variants ?? []).map((v) =>
+    v.id in stock ? { ...v, inStock: stock[v.id] } : v,
+  );
 }
 
 // Única falha que a sincronização pode ignorar: o produto não existe mais

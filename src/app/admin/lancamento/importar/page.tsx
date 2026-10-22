@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   serverTimestamp,
   updateDoc,
@@ -32,6 +33,7 @@ import {
 import type { IntakeItem, IntakeSourceFields } from "@/types/intake";
 import type { IntakeMergeResult } from "@/lib/intake/merge";
 import {
+  applyVariantStock,
   isIgnorableSyncError,
   type ProductStockUpdate,
 } from "@/lib/intake/stockSync";
@@ -183,9 +185,17 @@ export default function NoturnoImportPage() {
       // antigo). Ao contrário, a fila já igual ao arquivo esconderia a
       // diferença e o produto ficaria com o estoque errado.
       const results = await Promise.allSettled(
-        stockSync.map((u) =>
-          updateDoc(doc(db, "products", u.productId), { inStock: u.inStock }),
-        ),
+        stockSync.map(async (u) => {
+          const ref = doc(db, "products", u.productId);
+          if (!u.variants) return updateDoc(ref, { inStock: u.inStock });
+          // Produto lançado em grupo (#201): atualiza cada cor.
+          const snap = await getDoc(ref);
+          if (!snap.exists()) throw { code: "not-found" };
+          return updateDoc(ref, {
+            inStock: u.inStock,
+            variants: applyVariantStock(snap.data().variants, u.variants),
+          });
+        }),
       );
       // Só "produto não existe" (apagado à mão no admin) é ignorado. Qualquer
       // outra falha (rede, cota) interrompe ANTES de gravar a fila — senão a

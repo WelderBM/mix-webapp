@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeStockSync, isIgnorableSyncError } from "./stockSync";
+import { applyVariantStock, computeStockSync, isIgnorableSyncError } from "./stockSync";
 import type { IntakeItem } from "@/types/intake";
 
 const item = (o: Partial<IntakeItem>): IntakeItem =>
@@ -52,5 +52,48 @@ describe("isIgnorableSyncError", () => {
     }
     expect(isIgnorableSyncError(new Error("offline"))).toBe(false);
     expect(isIgnorableSyncError(null)).toBe(false);
+  });
+});
+
+describe("produto lançado em grupo (#201)", () => {
+  const it2 = (id: string, stock: number, extra: Partial<IntakeItem> = {}) =>
+    ({
+      id,
+      sourceCode: id,
+      stock,
+      inLatestImport: true,
+      status: "publicado",
+      productId: "P1",
+      ...extra,
+    }) as IntakeItem;
+
+  it("acabar uma cor esgota só a variação; produto segue à venda", () => {
+    const before = new Map([["a", it2("a", 2)], ["b", it2("b", 5)]]);
+    const after = new Map([["a", it2("a", 0)], ["b", it2("b", 5)]]);
+    expect(computeStockSync(before, after)).toEqual([
+      { productId: "P1", inStock: true, variants: { a: false, b: true } },
+    ]);
+  });
+
+  it("todas as cores zeradas: produto esgotado", () => {
+    const before = new Map([["a", it2("a", 1)], ["b", it2("b", 0)]]);
+    const after = new Map([["a", it2("a", 0)], ["b", it2("b", 0)]]);
+    expect(computeStockSync(before, after)[0]).toMatchObject({ inStock: false });
+  });
+
+  it("nenhuma cor cruzou o zero: nada a fazer", () => {
+    const m = new Map([["a", it2("a", 2)], ["b", it2("b", 3)]]);
+    expect(computeStockSync(m, new Map(m))).toEqual([]);
+  });
+
+  it("applyVariantStock só mexe nas variações do Noturno", () => {
+    const vs = [
+      { id: "a", name: "Azul", inStock: true },
+      { id: "manual", name: "Extra", inStock: true },
+    ];
+    expect(applyVariantStock(vs, { a: false })).toEqual([
+      { id: "a", name: "Azul", inStock: false },
+      { id: "manual", name: "Extra", inStock: true },
+    ]);
   });
 });
