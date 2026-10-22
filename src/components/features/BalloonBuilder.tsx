@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   BalloonConfig,
@@ -21,6 +21,8 @@ import {
   BalloonSizeConfig,
 } from "@/types/balloon";
 import { SAO_ROQUE_COLORS } from "@/lib/balloonColors";
+import { isSoldOut } from "@/lib/intake/balloonCatalog";
+import type { BalloonStock, BalloonStockDoc } from "@/types/balloon";
 // Gradients especiais para cores metálicas
 const SPECIAL_GRADIENTS: Record<string, string> = {
   Ouro: "linear-gradient(135deg, #FFD700 0%, #FDB931 100%)",
@@ -58,6 +60,7 @@ export function BalloonBuilder() {
     allColors: [],
   });
   const [loading, setLoading] = useState(true);
+  const [balloonStock, setBalloonStock] = useState<BalloonStock | null>(null);
 
   // Selection state
   const [step, setStep] = useState(0); // 0=tipo, 1=tamanho, 2=cor, 3=quantidade
@@ -99,6 +102,22 @@ export function BalloonBuilder() {
     };
   }, []);
 
+  // Estoque por tipo/tamanho/cor (`settings/balloonStock`, gravado pelo
+  // importador do Noturno). Leitura única: muda a cada ~2 dias.
+  useEffect(() => {
+    let isMounted = true;
+    getDoc(doc(db, "settings", "balloonStock"))
+      .then((s) => {
+        if (isMounted && s.exists()) {
+          setBalloonStock((s.data() as BalloonStockDoc).stock ?? null);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const selectedType = useMemo(
     () => balloonConfig.types.find((t) => t.id === selectedTypeId),
     [balloonConfig.types, selectedTypeId]
@@ -108,9 +127,15 @@ export function BalloonBuilder() {
     return selectedType?.sizes || [];
   }, [selectedType]);
 
+  // Cor esgotada naquele tamanho (estoque do Noturno, atualizado a cada
+  // importação) não aparece. Sem informação de estoque, mostra tudo.
   const availableColors = useMemo(() => {
-    return selectedType?.colors || [];
-  }, [selectedType]);
+    const colors = selectedType?.colors || [];
+    if (!selectedType || !selectedSize) return colors;
+    return colors.filter(
+      (c) => !isSoldOut(balloonStock, selectedType.id, selectedSize.size, c)
+    );
+  }, [selectedType, selectedSize, balloonStock]);
 
   const currentPrice = useMemo(() => {
     if (!selectedSize) return 0;

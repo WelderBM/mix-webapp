@@ -11,6 +11,8 @@ vi.mock("firebase/firestore", async () => {
     ...actual,
     doc: vi.fn(),
     onSnapshot: vi.fn(),
+    // Estoque dos balões (settings/balloonStock): por padrão, sem informação.
+    getDoc: vi.fn(async () => ({ exists: () => false, data: () => undefined })),
   };
 });
 
@@ -135,5 +137,37 @@ describe("BalloonBuilder", () => {
 
     // Check if colors are displayed
     expect(screen.getByText("Azul")).toBeTruthy();
+  });
+  it("esconde a cor que o Noturno confirma esgotada no tamanho (#236)", async () => {
+    const mockData = {
+      types: [
+        {
+          id: "t1",
+          name: "Liso",
+          sizes: [{ size: "9", price: 10, unitsPerPackage: 50 }],
+          colors: ["Azul", "Preto", "Verde"],
+        },
+      ],
+      allColors: [],
+    };
+    (firestore.onSnapshot as any).mockImplementation((_ref: any, callback: any) => {
+      callback({ exists: () => true, data: () => mockData });
+      return () => {};
+    });
+    (firestore.getDoc as any).mockImplementation(async () => ({
+      exists: () => true,
+      data: () => ({ stock: { t1: { "9": { Azul: 4, Preto: 0 } } } }),
+    }));
+
+    render(<BalloonBuilder />);
+    await waitFor(() => screen.getByText("Liso"));
+    fireEvent.click(screen.getByText("Liso"));
+    await waitFor(() => screen.getByText(/9"/));
+    fireEvent.click(screen.getByText(/9"/));
+    await waitFor(() => screen.getByText("Escolha a Cor"));
+
+    expect(screen.getByText("Azul")).toBeTruthy();
+    expect(screen.getByText("Verde")).toBeTruthy(); // sem informação: aparece
+    expect(screen.queryByText("Preto")).toBeNull(); // esgotada: some
   });
 });

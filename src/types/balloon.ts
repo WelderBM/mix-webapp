@@ -18,3 +18,13 @@ export interface BalloonConfig {
   allColors: string[];
   placeholderUrl?: string;
 }
+
+// Estoque dos balões vindo do Noturno (#236): tipo → tamanho → cor →
+// quantidade. Documento próprio (`settings/balloonStock`) — não dentro de
+// `settings/balloons`, que o admin regrava inteiro ao salvar.
+export type BalloonStock = Record<string, Record<string, Record<string, number>>>;
+
+export interface BalloonStockDoc {
+  stock: BalloonStock;
+  updatedAt?: unknown;
+}

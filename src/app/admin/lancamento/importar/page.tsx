@@ -8,6 +8,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  runTransaction,
   serverTimestamp,
   updateDoc,
   setDoc,
@@ -44,6 +45,12 @@ import {
   type TaxonomyPlan,
 } from "@/lib/intake/subcategories";
 import { uniqueSlug } from "@/lib/migrateCategories";
+import {
+  surveyCatalog,
+  withAddedColors,
+  type CatalogSurvey,
+} from "@/lib/intake/balloonCatalog";
+import type { BalloonConfig } from "@/types/balloon";
 
 // Importador do cadastro do Noturno → fila de lançamento (issue #198).
 // Parse, análise e comparação rodam no navegador; só o que mudou é
@@ -104,6 +111,43 @@ export default function NoturnoImportPage() {
   const categories = useCategoryStore((st) => st.categories);
   const subscribeCategories = useCategoryStore((st) => st.subscribe);
   const [creatingTaxonomy, setCreatingTaxonomy] = useState(false);
+  // Balões do Noturno × catálogo do montador (#236).
+  const [balloonConfig, setBalloonConfig] = useState<BalloonConfig | null>(null);
+  const [addingColors, setAddingColors] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    getDoc(doc(db, "settings", "balloons"))
+      .then((s) => s.exists() && setBalloonConfig(s.data() as BalloonConfig))
+      .catch(() => {});
+  }, [user]);
+
+  const balloonSurvey = useMemo(
+    () => (analysis && balloonConfig ? surveyCatalog(analysis.items, balloonConfig) : null),
+    [analysis, balloonConfig],
+  );
+
+  // Cores do Noturno que o catálogo não tem → catálogo (transação: não
+  // sobrescreve uma edição feita no admin ao mesmo tempo).
+  async function addBalloonColors(adds: { typeId: string; color: string }[]) {
+    setAddingColors(true);
+    try {
+      const ref = doc(db, "settings", "balloons");
+      const next = await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const cfg = snap.data() as BalloonConfig;
+        const types = withAddedColors(cfg.types, adds);
+        tx.update(ref, { types });
+        return { ...cfg, types };
+      });
+      setBalloonConfig(next);
+      toast.success(`${adds.length} cor(es) adicionada(s) ao catálogo de balões.`);
+    } catch (err) {
+      toast.error("Não foi possível adicionar: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setAddingColors(false);
+    }
+  }
 
   useEffect(() => {
     if (user) subscribeCategories();
@@ -235,6 +279,14 @@ export default function NoturnoImportPage() {
         ...summary,
         updatedAt: serverTimestamp(),
       });
+      // Estoque dos balões para o montador da loja (cor esgotada some).
+      if (balloonConfig) {
+        const { stock } = surveyCatalog(analysis.items, balloonConfig);
+        await setDoc(doc(db, "settings", "balloonStock"), {
+          stock,
+          updatedAt: serverTimestamp(),
+        });
+      }
       setDone({
         ...merge,
         soldOut: stockSync.filter((u) => !u.inStock).length,
@@ -413,6 +465,15 @@ export default function NoturnoImportPage() {
               </p>
             )}
 
+            {balloonSurvey && (
+              <BalloonSurveyPanel
+                survey={balloonSurvey}
+                config={balloonConfig!}
+                busy={addingColors}
+                onAdd={addBalloonColors}
+              />
+            )}
+
             {taxonomy && (
               <TaxonomyPanel
                 plan={taxonomy}
@@ -571,6 +632,97 @@ function TaxonomyPanel({
             )}
           </ul>
         </details>
+      )}
+    </div>
+  );
+}
+
+// Balões do Noturno × catálogo do montador (#236): o que casou, cores e
+// tamanhos que faltam no catálogo, e o que segue como produto comum.
+function BalloonSurveyPanel({
+  survey,
+  config,
+  busy,
+  onAdd,
+}: {
+  survey: CatalogSurvey;
+  config: BalloonConfig;
+  busy: boolean;
+  onAdd: (adds: { typeId: string; color: string }[]) => void;
+}) {
+  const typeName = (id: string) => config.types.find((t) => t.id === id)?.name ?? id;
+  // Uma sugestão por tipo+cor (a mesma cor em vários tamanhos entra uma vez).
+  const byTypeColor = new Map<string, { typeId: string; color: string; stock: number }>();
+  for (const c of survey.newColors) {
+    const k = `${c.typeId}|${c.color.toLowerCase()}`;
+    const e = byTypeColor.get(k) ?? { typeId: c.typeId, color: c.color, stock: 0 };
+    e.stock += c.stock;
+    byTypeColor.set(k, e);
+  }
+  const colorAdds = [...byTypeColor.values()].sort((a, b) => b.stock - a.stock);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const nameOf = (a: { typeId: string; color: string }) => names[`${a.typeId}|${a.color}`] ?? a.color;
+  return (
+    <div className="space-y-3 rounded-lg border border-slate-200 p-3">
+      <p className="text-sm font-medium text-slate-700">Balões × catálogo do site</p>
+      <p className="text-sm text-slate-600">
+        <strong>{survey.matched}</strong> balões ligados ao catálogo: o estoque de
+        cada cor e tamanho vai para o montador da loja ao importar (cor zerada
+        some). <strong>{survey.notCatalog}</strong> são formatos ou temáticos e
+        seguem como produto.
+      </p>
+      {colorAdds.length > 0 && (
+        <div className="space-y-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          <p>
+            Cores com estoque no Noturno que o catálogo não tem. Corrija o nome
+            se precisar e adicione:
+          </p>
+          <ul className="space-y-1">
+            {colorAdds.map((a) => (
+              <li key={a.typeId + a.color} className="flex items-center gap-2">
+                <span className="w-28 shrink-0 truncate text-xs text-amber-800">
+                  {typeName(a.typeId)}
+                </span>
+                <input
+                  value={nameOf(a)}
+                  onChange={(e) =>
+                    setNames((n) => ({ ...n, [`${a.typeId}|${a.color}`]: e.target.value }))
+                  }
+                  aria-label={`Nome da cor ${a.color}`}
+                  className="h-11 min-w-0 flex-1 rounded-md border border-amber-200 bg-white px-2 text-base"
+                />
+                <span className="shrink-0 text-xs">{Math.round(a.stock)} un.</span>
+                <Button
+                  variant="outline"
+                  className="h-11 shrink-0 bg-white"
+                  disabled={busy}
+                  onClick={() => onAdd([{ typeId: a.typeId, color: nameOf(a) }])}
+                >
+                  Adicionar
+                </Button>
+              </li>
+            ))}
+          </ul>
+          {colorAdds.length > 1 && (
+            <Button
+              variant="outline"
+              className="h-11 w-full bg-white"
+              disabled={busy}
+              onClick={() => onAdd(colorAdds.map((a) => ({ typeId: a.typeId, color: nameOf(a) })))}
+            >
+              {busy ? <Loader2 className="animate-spin" size={16} /> : `Adicionar as ${colorAdds.length} cores`}
+            </Button>
+          )}
+        </div>
+      )}
+      {survey.newSizes.length > 0 && (
+        <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+          Tamanhos no Noturno que o catálogo não tem (cadastre com preço em
+          Admin → Balões):{" "}
+          {survey.newSizes
+            .map((z) => `${typeName(z.typeId)} ${z.size}" (${Math.round(z.stock)} un.)`)
+            .join(", ")}
+        </p>
       )}
     </div>
   );
