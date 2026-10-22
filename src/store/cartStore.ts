@@ -72,7 +72,8 @@ export const useCartStore = create<CartStore>()(
                 i.type === "CUSTOM_BALLOON" &&
                 i.balloonDetails?.typeId === item.balloonDetails?.typeId &&
                 i.balloonDetails?.size === item.balloonDetails?.size &&
-                i.balloonDetails?.color === item.balloonDetails?.color
+                i.balloonDetails?.color === item.balloonDetails?.color &&
+                i.balloonDetails?.characters === item.balloonDetails?.characters
             );
           } else if (item.type === "CUSTOM_RIBBON") {
             // Dois laços são "o mesmo item" quando usam a mesma fita E o

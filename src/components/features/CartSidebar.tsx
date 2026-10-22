@@ -30,6 +30,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
+import { balloonItemLabel } from "@/lib/balloonFoil";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/types";
@@ -280,7 +281,7 @@ export function CartSidebar() {
       items.forEach((item) => {
         let name = "";
         if (item.type === "CUSTOM_BALLOON" && item.balloonDetails) {
-          name = `${item.balloonDetails.typeName} ${item.balloonDetails.size}" (${item.balloonDetails.color})`;
+          name = `${balloonItemLabel(item.balloonDetails)} (${item.balloonDetails.color})`;
         } else {
           name =
             item.type === "CUSTOM_KIT"
@@ -439,7 +440,7 @@ export function CartSidebar() {
                           <h4 className="font-medium text-slate-800 text-sm line-clamp-2">
                             {item.type === "CUSTOM_BALLOON" &&
                             item.balloonDetails
-                              ? `${item.balloonDetails.typeName} - ${item.balloonDetails.size}"`
+                              ? balloonItemLabel(item.balloonDetails)
                               : item.type === "CUSTOM_KIT"
                               ? `Kit: ${item.kitName}`
                               : item.product?.name}

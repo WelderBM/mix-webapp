@@ -326,6 +326,22 @@ describe("useCartStore", () => {
       expect(items).toHaveLength(1);
     });
 
+    it("foil com letras diferentes não se junta no carrinho", () => {
+      const { addItem } = useCartStore.getState();
+      const foil = (cartId: string, characters: string) => ({
+        cartId,
+        type: "CUSTOM_BALLOON" as const,
+        quantity: 1,
+        balloonDetails: { typeId: "foil_numeros", typeName: "Foil", size: "40cm", color: "Dourado", colorHex: "#d4a017", unitsPerPackage: 1, characters },
+        kitTotalAmount: 30,
+      });
+      addItem(foil("a", "ANA") as any);
+      addItem(foil("b", "15") as any);
+      addItem(foil("c", "ANA") as any);
+      const { items } = useCartStore.getState();
+      expect(items).toHaveLength(2);
+      expect(items.find((i) => i.balloonDetails?.characters === "ANA")?.quantity).toBe(2);
+    });
     it("should deduplicate by typeId+size+color", () => {
       const { addItem } = useCartStore.getState();
       const baseItem = {

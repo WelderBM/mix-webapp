@@ -28,6 +28,7 @@ import {
   balloonVisualPx,
 } from "@/lib/balloonTypeArt";
 import { isSoldOut } from "@/lib/intake/balloonCatalog";
+import { FOIL_MAX_CHARS, FOIL_TYPE_ID, foilCharacters } from "@/lib/balloonFoil";
 import type { BalloonStock, BalloonStockDoc } from "@/types/balloon";
 // Gradients especiais para cores metálicas
 const SPECIAL_GRADIENTS: Record<string, string> = {
@@ -76,6 +77,8 @@ export function BalloonBuilder() {
   );
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
+  // Foil de letras e números: o que o cliente quer escrever ("ANA").
+  const [characters, setCharacters] = useState("");
 
   const stepRef = useRef<HTMLDivElement>(null);
 
@@ -143,10 +146,13 @@ export function BalloonBuilder() {
     );
   }, [selectedType, selectedSize, balloonStock]);
 
+  const isFoil = selectedTypeId === FOIL_TYPE_ID;
+  // Foil: um balão por caractere; a quantidade conta conjuntos ("ANA" × 2).
+  const piecesPerSet = isFoil ? characters.length : 1;
   const currentPrice = useMemo(() => {
     if (!selectedSize) return 0;
-    return selectedSize.price * quantity;
-  }, [selectedSize, quantity]);
+    return selectedSize.price * piecesPerSet * quantity;
+  }, [selectedSize, quantity, piecesPerSet]);
 
   const handleSelectType = (typeId: string) => {
     setSelectedTypeId(typeId);
@@ -176,14 +182,18 @@ export function BalloonBuilder() {
       toast.error("Selecione todas as opções");
       return;
     }
+    if (isFoil && !characters) {
+      toast.error("Digite as letras ou números que você quer.");
+      return;
+    }
 
     const colorName = selectedColor.split("|")[0];
     const cartItem = {
       cartId: crypto.randomUUID(),
       type: "CUSTOM_BALLOON" as const,
       quantity,
-      kitName: `${selectedType.name} ${balloonSizeLabel(selectedType.id, selectedSize.size)} - ${colorName}`,
-      kitTotalAmount: selectedSize.price,
+      kitName: `${selectedType.name} ${balloonSizeLabel(selectedType.id, selectedSize.size)}${isFoil ? ` "${characters}"` : ""} - ${colorName}`,
+      kitTotalAmount: selectedSize.price * piecesPerSet,
       balloonDetails: {
         typeId: selectedType.id,
         typeName: selectedType.name,
@@ -191,6 +201,7 @@ export function BalloonBuilder() {
         color: colorName,
         colorHex: selectedColor.split("|")[1] || "#EEEEEE",
         unitsPerPackage: selectedSize.unitsPerPackage,
+        ...(isFoil ? { characters } : {}),
       },
     };
 
@@ -203,6 +214,7 @@ export function BalloonBuilder() {
     setSelectedSize(null);
     setSelectedColor("");
     setQuantity(1);
+    setCharacters("");
   };
 
   const handleBack = () => {
@@ -439,6 +451,33 @@ export function BalloonBuilder() {
                 </p>
               </div>
 
+              {isFoil && (
+                <label className="mb-6 block">
+                  <span className="mb-1 block text-sm font-bold text-slate-700">
+                    Quais letras ou números?
+                  </span>
+                  <input
+                    value={characters}
+                    onChange={(e) => setCharacters(foilCharacters(e.target.value))}
+                    maxLength={FOIL_MAX_CHARS}
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    placeholder="Ex.: ANA ou 15"
+                    className="h-12 w-full rounded-xl border-2 border-slate-200 px-4 text-center text-2xl font-black tracking-widest outline-none focus:border-purple-500"
+                  />
+                  <span className="mt-1 block text-xs text-slate-500">
+                    {characters
+                      ? `${characters.length} balão(ões), um por caractere.`
+                      : "Cada letra ou número é um balão."}
+                  </span>
+                </label>
+              )}
+
+              {isFoil && (
+                <p className="mb-2 text-center text-sm text-slate-600">
+                  Quantos conjuntos?
+                </p>
+              )}
               <div className="flex items-center justify-center gap-4 mb-6">
                 <Button
                   variant="outline"
@@ -470,6 +509,7 @@ export function BalloonBuilder() {
 
               <Button
                 onClick={handleAddToCart}
+                disabled={isFoil && !characters}
                 className="w-full h-14 px-8 text-lg font-bold bg-purple-600 hover:bg-purple-700 rounded-full"
               >
                 <ShoppingCart className="mr-2" size={20} />

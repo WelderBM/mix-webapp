@@ -64,6 +64,7 @@ import {
   ImageOff,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
+import { balloonItemLabel } from "@/lib/balloonFoil";
 
 // Um nome só por forma de pagamento (antes: "Cartão" no celular, "Crédito"
 // no desktop, e forma desconhecida virava "PIX"). `long` = texto pro cliente.
@@ -149,7 +150,7 @@ function OrderItemRow({
         )}
         {item.type === "CUSTOM_BALLOON" && item.balloonDetails && (
           <p className="text-xs text-slate-500">
-            {item.balloonDetails.typeName} - {item.balloonDetails.size}"
+            {balloonItemLabel(item.balloonDetails)}
           </p>
         )}
       </div>
@@ -1186,8 +1187,7 @@ ${paymentInstruction}`;
                     Balão
                   </p>
                   <p>
-                    {fallbackItem.balloonDetails.typeName} —{" "}
-                    {fallbackItem.balloonDetails.size}" —{" "}
+                    {balloonItemLabel(fallbackItem.balloonDetails)} —{" "}
                     {fallbackItem.balloonDetails.color}
                   </p>
                 </div>
