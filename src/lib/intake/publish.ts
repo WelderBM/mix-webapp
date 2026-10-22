@@ -198,11 +198,11 @@ export function buildGroupProductFromIntake(
 export const MAX_GROUP_SIZE = 200;
 
 export function validateGroup(members: GroupMember[]): string | null {
-  if (members.length < 2) return "Escolha pelo menos 2 cores para lançar em grupo.";
+  if (members.length < 2) return "Escolha pelo menos 2 opções para lançar em grupo.";
   if (members.length > MAX_GROUP_SIZE)
-    return `Grupo grande demais: lance no máximo ${MAX_GROUP_SIZE} cores de uma vez.`;
+    return `Grupo grande demais: lance no máximo ${MAX_GROUP_SIZE} opções de uma vez.`;
   const names = members.map((m) => m.label.trim().toLowerCase());
-  if (names.some((n) => !n)) return "Toda cor precisa de um nome.";
-  if (new Set(names).size !== names.length) return "Há duas cores com o mesmo nome.";
+  if (names.some((n) => !n)) return "Toda opção precisa de um nome.";
+  if (new Set(names).size !== names.length) return "Há duas opções com o mesmo nome.";
   return null;
 }

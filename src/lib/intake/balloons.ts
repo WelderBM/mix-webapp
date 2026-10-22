@@ -41,6 +41,11 @@ const COLOR_TABLE: [RegExp, string, string[]][] = [
   [/\bBRANC[OA]\b/, "Branco", ["#f1f5f9"]],
   [/\bPRET[OA]\b/, "Preto", ["#1f2937"]],
   [/\bMARROM\b/, "Marrom", ["#92400e"]],
+  [/\bCHAMPAGNE\b/, "Champagne", ["#e9d8a6"]],
+  [/\bBRONZE\b/, "Bronze", ["#b07a3b"]],
+  [/\bCOBRE\b/, "Cobre", ["#c46a3a"]],
+  [/\bNUDE\b/, "Nude", ["#e3bc9a"]],
+  [/\bBORDO\b|\bVINHO\b/, "Bordô", ["#7f1d1d"]],
   [/\bTRANSP(ARENTE)?\b/, "Transparente", ["#dbeafe"]],
 ];
 
@@ -49,7 +54,7 @@ export function balloonColor(name: string): { colorName: string | null; colors: 
   for (const [re, colorName, colors] of COLOR_TABLE) {
     if (re.test(n)) return { colorName, colors };
   }
-  return { colorName: null, colors: ["#e11d48"] };
+  return { colorName: null, colors: [] };
 }
 
 // "16 40CM VERMELHO V", "1640 CM ROSE 2", "40 100CM ARCO IRIS L": o último
@@ -70,6 +75,9 @@ export function parseBalloon(rawName: string): BalloonInfo | null {
   const n = (rawName ?? "").toUpperCase().replace(/\s+/g, " ").trim();
   if (!n.startsWith("BALAO")) return null;
   const { colorName, colors } = balloonColor(n);
+  // Cor que a tabela não conhece: sem arte (seria um balão da cor errada
+  // na loja — revisão do #254). Vai com foto.
+  if (!colorName) return null;
   const pack = /\bC\/ ?(\d+)|\b(\d+) ?UN(D|ID)?\b|\b50X1\b/.exec(n);
   const packQty = pack ? Number(pack[1] ?? pack[2] ?? 50) : null;
   const base = { colorName, colors, sizeLabel: sizeLabel(n), packQty };
