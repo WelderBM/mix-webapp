@@ -101,8 +101,10 @@ describe("balões do catálogo (#259)", () => {
     expect(r2.writes).toEqual([]);
   });
 
-  it("publicado ou pulado nunca é mexido", () => {
-    const pub = stored(latex, { status: "publicado" });
+  it("publicado ou pulado: status nunca muda, só fica marcado como verificado", () => {
+    const pulado = stored(latex, { status: "pulado" });
+    expect(mergeIntake(new Map([["1", pulado]]), [src(latex)]).writes[0].data).toEqual({ catalogChecked: true });
+    const pub = stored(latex, { status: "publicado", catalogChecked: true });
     expect(mergeIntake(new Map([["1", pub]]), [src(latex)]).writes).toEqual([]);
   });
 });
