@@ -36,7 +36,7 @@ describe("isWorthSaving", () => {
 
 describe("isUsable", () => {
   const now = 10 * DRAFT_TTL_MS;
-  const ok = { ...defaults, v: DRAFT_VERSION, photo: null, savedAt: now - 1000 };
+  const ok = { ...defaults, v: DRAFT_VERSION, photos: [], savedAt: now - 1000 };
   it("aceita só o formato atual e dentro do prazo", () => {
     expect(isUsable(ok, now)).toBe(true);
     expect(isUsable({ ...ok, v: undefined }, now)).toBe(false);

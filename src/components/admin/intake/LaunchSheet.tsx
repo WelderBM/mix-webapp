@@ -28,6 +28,7 @@ import {
   isWorthSaving,
   loadDraft,
   saveDraft,
+  saveDraftPhotos,
   type LaunchDraftFields,
 } from "@/lib/intake/draft";
 
@@ -80,7 +81,16 @@ export function LaunchSheet({
   const [metersText, setMetersText] = useState("");
   // Várias fotos (#201): a primeira é a capa.
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const hasPhotos = photos.length > 0;
   const prevPhotosRef = useRef<Photo[]>([]);
+  // Mesmo papel do skipNextSaveRef, para as fotos recuperadas do rascunho.
+  const skipPhotosSaveRef = useRef(false);
+  // Foto já enviada nesta abertura do card → URL. Numa nova tentativa de
+  // publicar (falha de rede), não sobe de novo nem deixa arquivo órfão.
+  const uploadedRef = useRef(new Map<Blob, string>());
+  // Aviso "Foto removida · Desfazer": fechado ao trocar de item, senão o
+  // desfazer poria a foto no card de OUTRO produto.
+  const undoToastRef = useRef<string | number | null>(null);
   const [processingPhoto, setProcessingPhoto] = useState(false);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -128,6 +138,8 @@ export function LaunchSheet({
     hydratedRef.current = null;
     applyFields(defaults);
     setPhotos([]);
+    uploadedRef.current = new Map();
+    if (undoToastRef.current != null) toast.dismiss(undoToastRef.current);
     setRestored(false);
     if (item.status !== "pendente") return flushPending;
     let alive = true;
@@ -135,6 +147,7 @@ export function LaunchSheet({
       if (!alive) return;
       if (d) {
         applyFields(d);
+        if (d.photos.length > 0) skipPhotosSaveRef.current = true;
         setPhotos(
           d.photos.map((blob) => ({ blob, preview: URL.createObjectURL(blob) })),
         );
@@ -168,13 +181,8 @@ export function LaunchSheet({
       if (pendingSaveRef.current === flush) pendingSaveRef.current = null;
       else return; // já gravado ou substituído por uma edição mais nova
       if (hydratedRef.current !== id) return;
-      if (isWorthSaving(fields, defaults, photos.length > 0)) {
-        saveDraft(id, {
-          ...fields,
-          v: DRAFT_VERSION,
-          photos: photos.map((ph) => ph.blob),
-          savedAt: Date.now(),
-        });
+      if (isWorthSaving(fields, defaults, hasPhotos)) {
+        saveDraft(id, { ...fields, v: DRAFT_VERSION, savedAt: Date.now() });
       } else {
         deleteDraft(id);
       }
@@ -182,7 +190,18 @@ export function LaunchSheet({
     pendingSaveRef.current = flush;
     const t = setTimeout(flush, 400);
     return () => clearTimeout(t);
-  }, [item, name, priceText, categoryName, subcategoryName, unit, packText, metersText, photos]);
+  }, [item, name, priceText, categoryName, subcategoryName, unit, packText, metersText, hasPhotos]);
+
+  // Fotos: gravadas à parte, só quando a lista muda.
+  useEffect(() => {
+    if (!item || hydratedRef.current !== item.id) return;
+    if (skipPhotosSaveRef.current) {
+      skipPhotosSaveRef.current = false;
+      return;
+    }
+    saveDraftPhotos(item.id, photos.map((ph) => ph.blob));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photos]);
 
   // Celular bloqueando / aba indo pro fundo: grava o pendente já.
   // (Publicar/pular zeram hydratedRef antes, então não ressuscita
@@ -220,6 +239,20 @@ export function LaunchSheet({
   if (!item) return null;
   const ribbon = isRibbonItem(item);
   const pending = item.status === "pendente";
+
+  function removePhoto(i: number) {
+    const removed = photos[i];
+    setPhotos((list) => list.filter((_, j) => j !== i));
+    undoToastRef.current = toast("Foto removida", {
+      action: {
+        label: "Desfazer",
+        onClick: () =>
+          setPhotos((list) =>
+            list.includes(removed) ? list : [...list.slice(0, i), removed, ...list.slice(i)],
+          ),
+      },
+    });
+  }
 
   async function handlePhoto(file: File) {
     setProcessingPhoto(true);
@@ -261,7 +294,13 @@ export function LaunchSheet({
       const { uploadIntakePhoto, publishIntakeItem } =
         await import("@/lib/intake/actions");
       const photoUrls = await Promise.all(
-        photos.map((ph, i) => uploadIntakePhoto(item, ph.blob, i)),
+        photos.map(async (ph, i) => {
+          const done = uploadedRef.current.get(ph.blob);
+          if (done) return done;
+          const url = await uploadIntakePhoto(item, ph.blob, i);
+          uploadedRef.current.set(ph.blob, url);
+          return url;
+        }),
       );
       const productId = await publishIntakeItem(
         item,
@@ -392,7 +431,13 @@ export function LaunchSheet({
               </button>
             ) : (
               <div className="space-y-2">
-                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                <button
+                  type="button"
+                  onClick={() => photos.length < MAX_PHOTOS && fileRef.current?.click()}
+                  disabled={processingPhoto || saving}
+                  aria-label={photos.length < MAX_PHOTOS ? "Adicionar outra foto" : "Foto de capa"}
+                  className="relative block aspect-[4/3] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={photos[0].preview}
@@ -402,10 +447,15 @@ export function LaunchSheet({
                   <span className="absolute left-2 top-2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
                     Capa
                   </span>
-                </div>
+                  {photos.length < MAX_PHOTOS && (
+                    <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
+                      + foto
+                    </span>
+                  )}
+                </button>
                 <div className="flex flex-wrap gap-2">
                   {photos.map((ph, i) => (
-                    <div key={ph.preview} className="relative">
+                    <div key={ph.preview} className="flex w-16 flex-col items-center">
                       <button
                         type="button"
                         onClick={() =>
@@ -420,16 +470,16 @@ export function LaunchSheet({
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={ph.preview} alt="" className="h-full w-full object-cover" />
                       </button>
+                      {/* Fora da miniatura: tocar na foto para virar capa
+                          nunca remove (revisão do #251). */}
                       <button
                         type="button"
-                        onClick={() => setPhotos((list) => list.filter((_, j) => j !== i))}
+                        onClick={() => removePhoto(i)}
                         disabled={saving}
                         aria-label={`Remover foto ${i + 1}`}
-                        className="absolute -right-3 -top-3 flex h-11 w-11 items-center justify-center"
+                        className="flex h-11 w-16 items-center justify-center gap-1 text-xs text-slate-500"
                       >
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-white">
-                          <X size={14} />
-                        </span>
+                        <X size={14} /> Remover
                       </button>
                     </div>
                   ))}

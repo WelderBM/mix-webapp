@@ -106,6 +106,11 @@ function run<T>(
 
 // Falhas (aba anônima, armazenamento cheio) nunca atrapalham o lançamento:
 // sem rascunho, o card só funciona como antes.
+// As fotos ficam numa chave própria: digitar no card regrava só o texto
+// (registro pequeno), não até 5 Blobs a cada letra (revisão do #251).
+const PHOTOS_SUFFIX = "#fotos";
+const photosKey = (id: string) => id + PHOTOS_SUFFIX;
+
 export async function loadDraft(id: string): Promise<LaunchDraft | null> {
   try {
     const d = await run<unknown>("readonly", (s) => s.get(id));
@@ -114,13 +119,20 @@ export async function loadDraft(id: string): Promise<LaunchDraft | null> {
       deleteDraft(id);
       return null;
     }
-    return normalizeDraft(d);
+    const draft = normalizeDraft(d);
+    if (draft.photos.length > 0) return draft; // v1 convertido
+    const photos = await run<Blob[] | undefined>("readonly", (s) => s.get(photosKey(id)));
+    return { ...draft, photos: photos ?? [] };
   } catch {
     return null;
   }
 }
 
-export async function saveDraft(id: string, draft: LaunchDraft): Promise<void> {
+// Campos do card (sem as fotos).
+export async function saveDraft(
+  id: string,
+  draft: Omit<LaunchDraft, "photos">,
+): Promise<void> {
   try {
     await run("readwrite", (s) => s.put(draft, id));
   } catch {
@@ -128,9 +140,20 @@ export async function saveDraft(id: string, draft: LaunchDraft): Promise<void> {
   }
 }
 
+export async function saveDraftPhotos(id: string, photos: Blob[]): Promise<void> {
+  try {
+    await run("readwrite", (s) =>
+      photos.length > 0 ? s.put(photos, photosKey(id)) : s.delete(photosKey(id)),
+    );
+  } catch {
+    /* idem */
+  }
+}
+
 export async function deleteDraft(id: string): Promise<void> {
   try {
     await run("readwrite", (s) => s.delete(id));
+    await run("readwrite", (s) => s.delete(photosKey(id)));
   } catch {
     /* idem */
   }
@@ -146,10 +169,21 @@ export async function draftIds(): Promise<string[]> {
     ]);
     const now = Date.now();
     const ok: string[] = [];
+    const valid = new Set<string>();
     keys.forEach((k, i) => {
-      if (isUsable(values[i], now)) ok.push(String(k));
-      else deleteDraft(String(k));
+      const key = String(k);
+      if (key.endsWith(PHOTOS_SUFFIX)) return;
+      if (isUsable(values[i], now)) {
+        ok.push(key);
+        valid.add(key);
+      } else deleteDraft(key);
     });
+    // Fotos sem o registro do card (rascunho já apagado): limpa.
+    for (const k of keys.map(String)) {
+      if (k.endsWith(PHOTOS_SUFFIX) && !valid.has(k.slice(0, -PHOTOS_SUFFIX.length))) {
+        run("readwrite", (s) => s.delete(k)).catch(() => {});
+      }
+    }
     return ok;
   } catch {
     return [];
