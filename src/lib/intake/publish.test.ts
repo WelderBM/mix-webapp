@@ -207,5 +207,7 @@ describe("lançamento em grupo (#201)", () => {
     expect(validateGroup([m("1", "Azul", 1), m("2", " ", 1)])).toMatch(/nome/);
     expect(validateGroup([m("1", "Azul", 1), m("2", "azul", 1)])).toMatch(/mesmo nome/);
     expect(validateGroup([m("1", "Azul", 1), m("2", "Verde", 1)])).toBeNull();
+    const many = Array.from({ length: 201 }, (_, k) => m(String(k), `Cor ${k}`, 1));
+    expect(validateGroup(many)).toMatch(/grande demais/);
   });
 });

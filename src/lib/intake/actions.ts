@@ -155,3 +155,23 @@ export async function publishIntakeGroup(
   await batch.commit();
   return productRef.id;
 }
+
+// Pular / "não vender online" do grupo inteiro num batch só (tudo ou
+// nada): gravando cor por cor, uma queda de rede no meio deixava parte
+// gravada e o placar era descontado duas vezes na nova tentativa (#252).
+export async function setIntakeStatusMany(
+  items: IntakeItem[],
+  to: Exclude<IntakeWorkflowStatus, "publicado">,
+  userEmail: string | null,
+): Promise<void> {
+  const batch = writeBatch(db);
+  for (const item of items) {
+    batch.update(doc(db, "intake_items", item.id), {
+      status: to,
+      statusChangedAt: serverTimestamp(),
+      statusChangedBy: userEmail,
+    });
+    addSummaryDeltas(batch, item, to);
+  }
+  await batch.commit();
+}

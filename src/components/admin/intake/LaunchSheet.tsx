@@ -126,6 +126,15 @@ export function LaunchSheet({
     setPriceText(f.priceText);
     setCategoryName(f.categoryName);
     setSubcategoryName(f.subcategoryName ?? "");
+    if (f.variantState) {
+      const byCode = new Map(f.variantState.map((v) => [v.code, v]));
+      setVariants((rows) =>
+        rows.map((r) => {
+          const saved = byCode.get(r.item.sourceCode);
+          return saved ? { ...r, label: saved.label, include: saved.include } : r;
+        }),
+      );
+    }
     setUnit(f.unit);
     setPackText(f.packText);
     setMetersText(f.metersText);
@@ -139,6 +148,9 @@ export function LaunchSheet({
       matchCategory(item.suggestedCategoryKey, categories) ?? "";
     const defaults: LaunchDraftFields = {
       name: group ? group.base : item.name,
+      variantState: group
+        ? group.members.map((m) => ({ code: m.item.sourceCode, label: m.label, include: true }))
+        : undefined,
       priceText: "",
       categoryName: suggestedCategory,
       subcategoryName:
@@ -188,6 +200,9 @@ export function LaunchSheet({
     const id = draftId;
     const fields: LaunchDraftFields = {
       name, priceText, categoryName, subcategoryName, unit, packText, metersText,
+      variantState: group
+        ? variants.map((v) => ({ code: v.item.sourceCode, label: v.label, include: v.include }))
+        : undefined,
     };
     if (skipNextSaveRef.current) {
       skipNextSaveRef.current = false;
@@ -207,7 +222,7 @@ export function LaunchSheet({
     pendingSaveRef.current = flush;
     const t = setTimeout(flush, 400);
     return () => clearTimeout(t);
-  }, [item, name, priceText, categoryName, subcategoryName, unit, packText, metersText, hasPhotos]);
+  }, [item, name, priceText, categoryName, subcategoryName, unit, packText, metersText, hasPhotos, variants]);
 
   // Fotos: gravadas à parte, só quando a lista muda.
   useEffect(() => {
@@ -378,7 +393,8 @@ export function LaunchSheet({
       const { setIntakeStatus } = await import("@/lib/intake/actions");
       if (group) {
         const targets = variants.filter((v) => v.include).map((v) => v.item);
-        for (const it of targets) await setIntakeStatus(it, to, userEmail);
+        const { setIntakeStatusMany } = await import("@/lib/intake/actions");
+        await setIntakeStatusMany(targets, to, userEmail);
         hydratedRef.current = null;
         deleteDraft(draftId);
         toast.success(message);
@@ -691,17 +707,20 @@ export function LaunchSheet({
                 <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
                   {variants.map((v, i) => (
                     <li key={v.item.id} className="flex items-center gap-2 px-2">
-                      <input
-                        type="checkbox"
-                        checked={v.include}
-                        onChange={(e) =>
-                          setVariants((list) =>
-                            list.map((x, j) => (j === i ? { ...x, include: e.target.checked } : x)),
-                          )
-                        }
-                        aria-label={`Incluir ${v.label}`}
-                        className="h-11 w-6 shrink-0 accent-purple-600"
-                      />
+                      {/* Alvo de toque 44×44 (o campo de nome fica ao lado). */}
+                      <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={v.include}
+                          onChange={(e) =>
+                            setVariants((list) =>
+                              list.map((x, j) => (j === i ? { ...x, include: e.target.checked } : x)),
+                            )
+                          }
+                          aria-label={`Incluir ${v.label}`}
+                          className="h-5 w-5 accent-purple-600"
+                        />
+                      </label>
                       <input
                         value={v.label}
                         onChange={(e) =>

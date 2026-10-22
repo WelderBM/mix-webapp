@@ -20,6 +20,10 @@ describe("splitVariantName (nomes reais do Noturno)", () => {
     expect(splitVariantName("MEIA ABS COL 6MM - PEROLA COR 100").base).toBe("MEIA ABS COL 6MM");
   });
 
+  it("cor no feminino também separa", () => {
+    expect(splitVariantName("SACOLA KRAFT P PRETA")).toEqual({ base: "SACOLA KRAFT P", label: "Preta" });
+  });
+
   it("sem cor no nome: sem rótulo", () => {
     expect(splitVariantName("CANETA BIC CRISTAL")).toEqual({ base: "CANETA BIC CRISTAL", label: null });
   });

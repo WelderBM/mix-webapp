@@ -192,8 +192,14 @@ export function buildGroupProductFromIntake(
   };
 }
 
+// Cada cor = 2 gravações (variação no produto + item da fila) num batch
+// de no máximo 500.
+export const MAX_GROUP_SIZE = 200;
+
 export function validateGroup(members: GroupMember[]): string | null {
   if (members.length < 2) return "Escolha pelo menos 2 cores para lançar em grupo.";
+  if (members.length > MAX_GROUP_SIZE)
+    return `Grupo grande demais: lance no máximo ${MAX_GROUP_SIZE} cores de uma vez.`;
   const names = members.map((m) => m.label.trim().toLowerCase());
   if (names.some((n) => !n)) return "Toda cor precisa de um nome.";
   if (new Set(names).size !== names.length) return "Há duas cores com o mesmo nome.";
