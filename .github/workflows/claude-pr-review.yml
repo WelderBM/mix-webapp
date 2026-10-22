@@ -167,8 +167,11 @@ jobs:
             exit 0
           fi
 
+          # Só a revisão MAIS RECENTE vale: com várias (label "revisar"), o
+          # veredito antigo vinha primeiro e era o lido (PR #249).
           BODY=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
-            --jq '.[] | select(.body | contains("<!-- revisao:2 -->")) | .body' | tail -c 20000)
+            --jq '.[] | select(.body | contains("<!-- revisao:2 -->")) | {t: .created_at, b: .body}' \
+            | jq -rs 'sort_by(.t) | last | .b // ""' | tail -c 20000)
           INFO=$(gh pr view "$PR" --json baseRefName,headRefOid,files)
           BASE=$(jq -r .baseRefName <<<"$INFO")
           SHA=$(jq -r .headRefOid <<<"$INFO")
