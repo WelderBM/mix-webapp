@@ -21,6 +21,12 @@ import {
   BalloonSizeConfig,
 } from "@/types/balloon";
 import { SAO_ROQUE_COLORS } from "@/lib/balloonColors";
+import {
+  balloonSizeImage,
+  balloonSizeLabel,
+  balloonTypeImage,
+  balloonVisualPx,
+} from "@/lib/balloonTypeArt";
 import { isSoldOut } from "@/lib/intake/balloonCatalog";
 import type { BalloonStock, BalloonStockDoc } from "@/types/balloon";
 // Gradients especiais para cores metálicas
@@ -280,15 +286,19 @@ export function BalloonBuilder() {
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       />
                     ) : balloonConfig.placeholderUrl ? (
-                      <img 
-                        src={balloonConfig.placeholderUrl} 
+                      <img
+                        src={balloonConfig.placeholderUrl}
                         alt={type.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 opacity-50"
                       />
                     ) : (
-                      <div className="w-full h-full bg-linear-to-br from-purple-100 to-pink-100 flex items-center justify-center">
-                        <PartyPopper className="text-purple-400" size={48} />
-                      </div>
+                      // Arte do material do tipo (metálico brilha, candy é
+                      // pastel…), desenhada no navegador — #259.
+                      <img
+                        src={balloonTypeImage(type.id)}
+                        alt=""
+                        className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500"
+                      />
                     )}
                   </div>
                   <h4 className="font-bold text-sm text-center text-slate-800 group-hover:text-purple-600 transition-colors">
@@ -320,8 +330,8 @@ export function BalloonBuilder() {
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {availableSizes.map((size) => {
-                const sizeNum = parseFloat(size.size);
-                const visualSize = Math.min(100, Math.max(40, sizeNum * 6));
+                // Proporcional às polegadas (40 cm ≈ 16"); canudo, fixo.
+                const visualSize = balloonVisualPx(selectedType.id, size.size);
 
                 return (
                   <button
@@ -329,18 +339,18 @@ export function BalloonBuilder() {
                     onClick={() => handleSelectSize(size)}
                     className="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-purple-500 hover:shadow-lg transition-all group"
                   >
-                    <div className="flex justify-center mb-3">
-                      <div
-                        className="rounded-full bg-linear-to-br from-purple-400 to-purple-600 transition-transform group-hover:scale-110 flex items-center justify-center relative"
-                        style={{
-                          width: `${visualSize}px`,
-                          height: `${visualSize}px`,
-                        }}
-                      >
-                        <span className="text-white font-black text-lg drop-shadow-lg">
-                          {size.size}"
-                        </span>
-                      </div>
+                    <div className="mb-3 flex h-28 items-end justify-center">
+                      <img
+                        src={balloonSizeImage(selectedType.id)}
+                        alt=""
+                        width={visualSize}
+                        height={visualSize}
+                        className="transition-transform group-hover:scale-110"
+                        style={{ width: `${visualSize}px`, height: `${visualSize}px` }}
+                      />
+                    </div>
+                    <div className="text-sm font-black text-slate-700">
+                      {balloonSizeLabel(selectedType.id, size.size)}
                     </div>
                     <div className="text-lg font-bold text-slate-800">
                       {formatCurrency(size.price)}
@@ -367,7 +377,7 @@ export function BalloonBuilder() {
               Escolha a Cor
             </h3>
             <p className="text-center text-slate-600 mb-6">
-              {selectedType.name} {selectedSize.size}" -{" "}
+              {selectedType.name} {balloonSizeLabel(selectedType.id, selectedSize.size)} -{" "}
               {formatCurrency(selectedSize.price)}
             </p>
             <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
