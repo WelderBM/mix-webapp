@@ -85,7 +85,11 @@ export function groupKeyFor(item: GroupInput): string | null {
   if (item.suggestedType === "RIBBON") return null;
   const { base, label, attribute } = splitForGroup(item);
   if (!label || !base) return null;
-  return `${item.family ?? ""}|${attribute}|${normalizeText(base)}`;
+  // Grupo de cor mantém a chave de antes do #236 (rascunhos "g:<chave>"
+  // já gravados continuam valendo); letra/número ganham o prefixo.
+  return attribute === "Cor"
+    ? `${item.family ?? ""}|${normalizeText(base)}`
+    : `${item.family ?? ""}|${attribute}|${normalizeText(base)}`;
 }
 
 export interface VariantGroup<T> {

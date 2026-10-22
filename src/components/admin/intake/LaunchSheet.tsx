@@ -302,9 +302,12 @@ export function LaunchSheet({
     setProcessingPhoto(true);
     try {
       const { balloonSvg, renderBalloonImage } = await import("@/lib/intake/balloonArt");
+      // Letra/número do NOME do balão no Noturno — o rótulo é editável e
+      // pode ter "(cód. …)" (revisão do #254).
+      const first = variants.find((v) => v.include);
       const glyph =
-        group && group.attribute !== "Cor"
-          ? variants.find((v) => v.include)?.label
+        group && group.attribute !== "Cor" && first
+          ? (parseBalloon(first.item.name)?.glyph ?? undefined)
           : undefined;
       const blob = await renderBalloonImage(balloonSvg(balloon, glyph));
       setPhotos((list) =>
@@ -377,7 +380,7 @@ export function LaunchSheet({
         );
         hydratedRef.current = null;
         deleteDraft(draftId);
-        toast.success(`Publicado na loja com ${chosen.length} cores!`);
+        toast.success(`Publicado na loja com ${chosen.length} ${attributePlural(group.attribute)}!`);
         onGroupChanged?.(
           chosen.map(({ item: it }) => ({
             prev: it,
@@ -418,7 +421,7 @@ export function LaunchSheet({
       if (group) {
         const targets = variants.filter((v) => v.include).map((v) => v.item);
         if (targets.length === 0) {
-          toast.error("Marque pelo menos uma cor.");
+          toast.error("Marque pelo menos uma opção.");
           return;
         }
         const { setIntakeStatusMany } = await import("@/lib/intake/actions");
@@ -745,7 +748,7 @@ export function LaunchSheet({
                   {variants.filter((v) => v.include).length} de {variants.length})
                 </legend>
                 <p className="text-xs text-slate-500">
-                  Desmarque a cor que não vai para a loja. O nome de cada cor
+                  Desmarque o que não vai para a loja. O nome de cada opção
                   aparece para o cliente: dá para corrigir.
                 </p>
                 <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
@@ -772,7 +775,7 @@ export function LaunchSheet({
                             list.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)),
                           )
                         }
-                        aria-label="Nome da cor"
+                        aria-label="Nome da opção"
                         disabled={!v.include}
                         className="h-11 min-w-0 flex-1 bg-transparent text-base outline-none disabled:text-slate-400"
                       />

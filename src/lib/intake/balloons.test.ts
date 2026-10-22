@@ -47,6 +47,11 @@ describe("parseBalloon (nomes reais do Noturno)", () => {
     });
   });
 
+  it("cor fora da tabela: sem arte (nunca uma cor errada)", () => {
+    expect(parseBalloon("BALAO METALIZADO 16 40CM TURQUESA ESCURO A")).toBeNull();
+    expect(parseBalloon("BALAO METALIZADO 16 40CM CHAMPAGNE A")).toMatchObject({ colorName: "Champagne", glyph: "A" });
+  });
+
   it("temático não tem arte (precisa de foto)", () => {
     expect(parseBalloon("BALAO LEAO 76X72CM")).toBeNull();
     expect(parseBalloon("BALAO 45 CM REVELACAO GIRL OR BOY")).toBeNull();

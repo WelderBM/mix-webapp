@@ -203,7 +203,7 @@ describe("lançamento em grupo (#201)", () => {
     expect(buildGroupProductFromIntake([m("1", "A", 0), m("2", "B", 0)], input()).inStock).toBe(false);
   });
   it("valida: 2+ cores, nomes preenchidos e diferentes", () => {
-    expect(validateGroup([m("1", "Azul", 1)])).toMatch(/2 cores/);
+    expect(validateGroup([m("1", "Azul", 1)])).toMatch(/2 opções/);
     expect(validateGroup([m("1", "Azul", 1), m("2", " ", 1)])).toMatch(/nome/);
     expect(validateGroup([m("1", "Azul", 1), m("2", "azul", 1)])).toMatch(/mesmo nome/);
     expect(validateGroup([m("1", "Azul", 1), m("2", "Verde", 1)])).toBeNull();
