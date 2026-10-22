@@ -159,3 +159,15 @@ export function validateLinePrices(p: { rollPrice: number | null; meterPrice: nu
 }
 
 export const lineSearchKey = (s: string) => normalizeText(s);
+
+// Fila de lançamento (#259): fita plástica de laço PENDENTE não aparece
+// como produto comum; é cadastrada por linha em Fitas › "Cadastrar pelo
+// Noturno". Publicada/pulada continua visível nos outros filtros.
+export function splitBowRibbons<T extends Pick<IntakeItem, "family" | "name" | "suggestedType" | "status">>(
+  items: T[],
+): { queue: T[]; bow: T[] } {
+  const queue: T[] = [];
+  const bow: T[] = [];
+  for (const i of items) (i.status === "pendente" && isPlasticRibbon(i) ? bow : queue).push(i);
+  return { queue, bow };
+}

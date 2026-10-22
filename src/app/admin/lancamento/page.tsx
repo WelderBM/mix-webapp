@@ -34,6 +34,7 @@ import { useCategoryStore } from "@/store/categoryStore";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LaunchSheet } from "@/components/admin/intake/LaunchSheet";
 import { attributePlural, buildGroups, type VariantGroup } from "@/lib/intake/groups";
+import { splitBowRibbons } from "@/lib/intake/ribbonLines";
 import {
   activeClaim,
   areaById,
@@ -305,6 +306,8 @@ export default function IntakeQueuePage() {
       .filter((i) => matchesQuery(i.searchText, parsed.terms))
       .sort((a, b) => b.priority - a.priority);
   }, [items, status, family, parsed, area, meta.overrides]);
+  // Fita plástica de laço pendente: cadastro por linha em Fitas (#259).
+  const { queue: listed, bow: bowRibbons } = useMemo(() => splitBowRibbons(visible), [visible]);
 
   // Lançamento em grupo (#201): pendentes com a mesma base e cores
   // diferentes viram UMA linha. Grupo sobe na lista pela maior prioridade.
@@ -312,8 +315,8 @@ export default function IntakeQueuePage() {
     | { kind: "item"; item: IntakeItem; priority: number }
     | { kind: "group"; group: VariantGroup<IntakeItem>; priority: number };
   const entries = useMemo<Entry[]>(() => {
-    const pendingItems = visible.filter((i) => i.status === "pendente");
-    const others = visible.filter((i) => i.status !== "pendente");
+    const pendingItems = listed.filter((i) => i.status === "pendente");
+    const others = listed.filter((i) => i.status !== "pendente");
     const { groups, singles } = buildGroups(pendingItems);
     return [
       ...groups.map((g) => ({
@@ -327,7 +330,7 @@ export default function IntakeQueuePage() {
         priority: i.priority,
       })),
     ].sort((a, b) => b.priority - a.priority);
-  }, [visible]);
+  }, [listed]);
 
   const families = useMemo(
     () => (summary ? sortedFamilies(summary) : []),
@@ -499,10 +502,21 @@ export default function IntakeQueuePage() {
         {items && !loading && (
           <section aria-label="Produtos">
             <p className="mb-2 text-xs text-slate-500">
-              {visible.length.toLocaleString("pt-BR")} produto(s)
+              {listed.length.toLocaleString("pt-BR")} produto(s)
               {hitLimit &&
                 " · muitos resultados, digite mais palavras para refinar"}
             </p>
+            {bowRibbons.length > 0 && (
+              <p className="mb-3 rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
+                {bowRibbons.length.toLocaleString("pt-BR")} fita(s) de laço não
+                aparecem aqui: são cadastradas por linha, todas as cores de uma
+                vez, em{" "}
+                <Link href="/admin?aba=fitas" className="font-medium underline">
+                  Fitas › Cadastrar pelo Noturno
+                </Link>
+                .
+              </p>
+            )}
             <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
               {entries.slice(0, shown).map((e) =>
                 e.kind === "group" ? (
