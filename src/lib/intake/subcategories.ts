@@ -22,9 +22,13 @@ interface Rule {
 }
 
 // Fita de laço (o Noturno já separa a de escritório: suggestedType).
+// Ordem importa: o MATERIAL de tecido vence ("FITA TNT LISA" é tecido,
+// não plástico — "LISA" é só o acabamento). Estampa (xadrez, renda) só
+// decide se nada mais decidiu.
 const RIBBON_RULES: Rule[] = [
+  { test: /\b(CETIM|ORGANZA|LUREX|TNT|GORGURAO|JUTA|VELUDO|SINIMBU)\b/, subcategory: "Cetim e tecido" },
   { test: /\b(MAXI|MASTER|PLASTICA|POLIPROP|LINE|ECOPACK|FIDEPLA|LISA)\b/, subcategory: "Fita para laço" },
-  { test: /\b(CETIM|ORGANZA|LUREX|TNT|GORGURAO|JUTA|VELUDO|XADREZ|RENDA|SINIMBU)\b/, subcategory: "Cetim e tecido" },
+  { test: /\b(XADREZ|RENDA)\b/, subcategory: "Cetim e tecido" },
 ];
 
 // Papéis (ordem importa: "PAPEL CARTAO" antes de genéricos).
