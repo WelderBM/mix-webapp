@@ -22,6 +22,7 @@ import {
 } from "@/types/balloon";
 import { SAO_ROQUE_COLORS } from "@/lib/balloonColors";
 import {
+  balloonSizeHint,
   balloonSizeImage,
   balloonSizeLabel,
   balloonTypeImage,
@@ -352,6 +353,11 @@ export function BalloonBuilder() {
                     <div className="text-sm font-black text-slate-700">
                       {balloonSizeLabel(selectedType.id, size.size)}
                     </div>
+                    {balloonSizeHint(selectedType.id) && (
+                      <div className="text-xs text-slate-500">
+                        {balloonSizeHint(selectedType.id)}
+                      </div>
+                    )}
                     <div className="text-lg font-bold text-slate-800">
                       {formatCurrency(size.price)}
                     </div>

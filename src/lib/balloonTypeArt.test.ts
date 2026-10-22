@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  balloonSizeHint,
   balloonSizeImage,
   balloonSizeLabel,
   balloonTypeImage,
@@ -28,6 +29,18 @@ describe("arte do montador de balões", () => {
     expect(balloonVisualPx("foil_numeros", "40cm")).toBe(balloonVisualPx("simples", "16"));
     expect(sizeInInches("canudo", "260")).toBeNull();
     expect(balloonVisualPx("foil_numeros", "75cm")).toBeLessThanOrEqual(96);
+  });
+
+  it("canudo é tubo comprido (não gota); cintilante tem cor viva e pontos de brilho", () => {
+    const canudo = decodeURIComponent(balloonTypeImage("canudo"));
+    expect(canudo).toContain('stroke-linecap="round"');
+    expect(canudo).not.toContain("<ellipse");
+    expect(decodeURIComponent(balloonSizeImage("canudo"))).not.toContain("<rect");
+    const cint = decodeURIComponent(balloonTypeImage("cintilante"));
+    expect(cint).toContain("#db2777");
+    expect(cint.match(/opacity="0.95"/g)?.length).toBe(5);
+    expect(balloonSizeHint("canudo")).toContain("modelar");
+    expect(balloonSizeHint("simples")).toBeNull();
   });
 
   it("rótulo certo para cada unidade", () => {
