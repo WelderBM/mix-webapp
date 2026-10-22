@@ -121,8 +121,8 @@ describe("montar o catálogo pelo Noturno", () => {
     const simples = p.find((t) => t.typeId === "simples")!;
     expect(simples).toMatchObject({ name: "Balão Simples (Liso)", exists: false });
     expect(simples.sizes).toEqual([
-      { size: "9", unitsPerPackage: 50, stock: 32, currentPrice: null },
-      { size: "11", unitsPerPackage: 50, stock: 5, currentPrice: null },
+      { size: "9", unitsPerPackage: 50, packSource: "lido", stock: 32, currentPrice: null },
+      { size: "11", unitsPerPackage: 50, packSource: "lido", stock: 5, currentPrice: null },
     ]);
     expect(simples.colors.map((c) => c.name)).toEqual(["Azul Petroleo", "Verde Folha", "Preto"]);
     expect(p.map((t) => t.typeId)).toEqual(["simples", "candy"]); // coração é produto
@@ -135,6 +135,26 @@ describe("montar o catálogo pelo Noturno", () => {
     expect(out.types).toHaveLength(1); // candy sem preço não é criado
     expect(out.types[0].sizes).toEqual([{ size: "9", price: 16, unitsPerPackage: 50 }]);
     expect(out.types[0].colors).toContain("Azul Petroleo");
+  });
+
+  it("pacote não lido no nome ou que discorda fica marcado para conferir; pacote corrigido vale", () => {
+    const p = proposeCatalog(
+      [
+        { family: "BALAO", name: "BALAO 9 CANDY COLORS ROSA", stock: 3 },
+        { family: "BALAO", name: "BALAO 16 CANDY COLORS C/10 ROSA", stock: 3 },
+        { family: "BALAO", name: "BALAO 16 CANDY COLORS C/25 AZUL", stock: 3 },
+      ],
+      { types: [], allColors: [] },
+    );
+    const sizes = p[0].sizes;
+    expect(sizes.find((s) => s.size === "9")).toMatchObject({ packSource: "padrao", unitsPerPackage: 1 });
+    expect(sizes.find((s) => s.size === "16")?.packSource).toBe("misto");
+    const out = applyCatalogProposal({ types: [], allColors: [] }, p, {
+      include: {},
+      prices: { "candy|9": 8 },
+      packs: { "candy|9": 25 },
+    });
+    expect(out.types[0].sizes).toEqual([{ size: "9", price: 8, unitsPerPackage: 25 }]);
   });
 
   it("mescla com o existente: mantém preço, acrescenta tamanho e cor, nunca apaga", () => {

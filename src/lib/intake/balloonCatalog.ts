@@ -223,6 +223,10 @@ export const DEFAULT_TYPE_NAMES: Record<string, string> = {
 export interface ProposalSize {
   size: string;
   unitsPerPackage: number;
+  // De onde veio o pacote: "catalogo" (já cadastrado), "lido" (todos os
+  // nomes dizem C/N), "misto" (nomes discordam: vale o mais frequente) ou
+  // "padrao" (nenhum nome diz — chute 1). Os dois últimos pedem conferência.
+  packSource: "catalogo" | "lido" | "misto" | "padrao";
   stock: number;
   currentPrice: number | null; // preço já cadastrado (null = tamanho novo)
 }
@@ -292,10 +296,19 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
         sizes: [...a.sizes.entries()]
           .map(([size, s]) => {
             const cur = existing?.sizes.find((z) => z.size === size);
-            const commonPack = [...s.packs.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
+            const packs = [...s.packs.entries()].sort((x, y) => y[1] - x[1]);
+            const commonPack = packs[0]?.[0];
+            const packSource: ProposalSize["packSource"] = cur
+              ? "catalogo"
+              : packs.length === 0
+                ? "padrao"
+                : packs.length > 1
+                  ? "misto"
+                  : "lido";
             return {
               size,
               unitsPerPackage: cur?.unitsPerPackage ?? commonPack ?? 1,
+              packSource,
               stock: s.stock,
               currentPrice: cur?.price ?? null,
             };
@@ -315,7 +328,12 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
 export function applyCatalogProposal(
   config: BalloonConfig,
   proposal: ProposalType[],
-  choices: { include: Record<string, boolean>; prices: Record<string, number | null> },
+  choices: {
+    include: Record<string, boolean>;
+    prices: Record<string, number | null>;
+    // Pacote corrigido pela atendente ("typeId|size" → unidades).
+    packs?: Record<string, number | null>;
+  },
 ): BalloonConfig {
   const types = config.types.map((t) => ({ ...t, sizes: t.sizes.map((s) => ({ ...s })), colors: [...t.colors] }));
   for (const p of proposal) {
@@ -332,8 +350,12 @@ export function applyCatalogProposal(
     const target = t;
     for (const { s, price } of priced) {
       const cur = target.sizes.find((z) => z.size === s.size);
-      if (cur) cur.price = price;
-      else target.sizes.push({ size: s.size, price, unitsPerPackage: s.unitsPerPackage });
+      const pack = choices.packs?.[`${p.typeId}|${s.size}`];
+      const units = pack != null && pack > 0 ? Math.round(pack) : s.unitsPerPackage;
+      if (cur) {
+        cur.price = price;
+        if (pack != null && pack > 0) cur.unitsPerPackage = units;
+      } else target.sizes.push({ size: s.size, price, unitsPerPackage: units });
     }
     target.sizes.sort((x, y) => sizeOrder(x.size) - sizeOrder(y.size));
     for (const c of p.colors) {

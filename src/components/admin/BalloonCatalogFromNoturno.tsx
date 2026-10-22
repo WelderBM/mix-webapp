@@ -45,10 +45,24 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
   const [error, setError] = useState<string | null>(null);
   const [include, setInclude] = useState<Record<string, boolean>>({});
   const [prices, setPrices] = useState<Record<string, string>>({});
+  const [packs, setPacks] = useState<Record<string, string>>({});
+
+  // Tudo digitado vale só para esta abertura: ao fechar, limpa — senão um
+  // preço antigo voltaria e sobrescreveria uma correção feita na Edição.
+  function close(next: boolean) {
+    if (!next) {
+      setPrices({});
+      setPacks({});
+      setInclude({});
+      setItems(null); // relê a fila na próxima abertura
+    }
+    onOpenChange(next);
+  }
 
   // Balões da fila (~650 leituras): só ao abrir a janela.
   useEffect(() => {
     if (!open || items) return;
+    setError(null);
     getDocs(query(collection(db, "intake_items"), where("family", "==", "BALAO")))
       .then((snap) =>
         setItems(
@@ -58,7 +72,9 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
           }),
         ),
       )
-      .catch(() => setError("Não foi possível ler os balões do Noturno. Importe o Excel primeiro."));
+      .catch(() =>
+        setError("Não foi possível ler os balões do Noturno. Verifique a conexão e tente de novo."),
+      );
   }, [open, items]);
 
   const proposal: ProposalType[] = useMemo(
@@ -75,20 +91,25 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
   function apply() {
     const typed: Record<string, number | null> = {};
     for (const [k, v] of Object.entries(prices)) typed[k] = parsePrice(v);
-    onApply(applyCatalogProposal(config, proposal, { include, prices: typed }));
-    toast.success("Catálogo montado. Confira na edição e toque em Salvar Configurações.");
-    onOpenChange(false);
+    const typedPacks: Record<string, number | null> = {};
+    for (const [k, v] of Object.entries(packs)) typedPacks[k] = v ? Number(v) : null;
+    onApply(applyCatalogProposal(config, proposal, { include, prices: typed, packs: typedPacks }));
+    toast.success(
+      "Catálogo montado. Na Edição, confira os nomes das cores novas e toque em Salvar Configurações.",
+    );
+    close(false);
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Montar o catálogo de balões pelo Noturno</DialogTitle>
           <DialogDescription>
             Tipos, tamanhos, pacote e cores com estoque vêm do Noturno. Digite o
-            preço da etiqueta de cada tamanho novo. Nada do catálogo atual é
-            apagado.
+            preço da etiqueta de cada tamanho novo (o preço é do PACOTE; em
+            branco ou zero, mantém o atual). Confira o pacote marcado em
+            amarelo. Nada do catálogo atual é apagado.
           </DialogDescription>
         </DialogHeader>
 
@@ -131,10 +152,40 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
                         <li key={s.size} className="flex items-center gap-3 px-2 py-1.5 text-sm">
                           <span className="w-14 shrink-0 font-bold text-slate-800">
                             {s.size}
-                            {/^\d/.test(s.size) && !s.size.endsWith("cm") ? '"' : ""}
+                            {/* Polegadas; canudo "260" é o modelo, cm já vem escrito. */}
+                            {/^\d/.test(s.size) && !s.size.endsWith("cm") && p.typeId !== "canudo" ? '"' : ""}
                           </span>
-                          <span className="flex-1 text-xs text-slate-500">
-                            pacote c/ {s.unitsPerPackage} · {Math.round(s.stock).toLocaleString("pt-BR")} em estoque
+                          <span className="flex flex-1 flex-wrap items-center gap-1 text-xs text-slate-500">
+                            <label
+                              className={`flex items-center gap-1 rounded px-1 ${
+                                s.packSource === "padrao" || s.packSource === "misto"
+                                  ? "bg-amber-100 text-amber-900"
+                                  : ""
+                              }`}
+                              title={
+                                s.packSource === "padrao"
+                                  ? "O nome não diz quantos vêm: confira na embalagem"
+                                  : s.packSource === "misto"
+                                    ? "Os nomes discordam: confira na embalagem"
+                                    : undefined
+                              }
+                            >
+                              pacote c/
+                              <input
+                                inputMode="numeric"
+                                aria-label={`Unidades por pacote ${p.name} ${s.size}`}
+                                placeholder={String(s.unitsPerPackage)}
+                                value={packs[priceKey(p.typeId, s.size)] ?? ""}
+                                onChange={(e) =>
+                                  setPacks((x) => ({
+                                    ...x,
+                                    [priceKey(p.typeId, s.size)]: e.target.value.replace(/\D/g, ""),
+                                  }))
+                                }
+                                className="h-11 w-14 rounded border border-slate-300 bg-white px-1 text-base text-slate-800"
+                              />
+                            </label>
+                            · {Math.round(s.stock).toLocaleString("pt-BR")} em estoque
                             {s.currentPrice == null && <strong className="ml-1 text-amber-700">· novo</strong>}
                           </span>
                           <div className="relative w-28 shrink-0">
@@ -182,7 +233,7 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
               {missingPrices} tamanho(s) novo(s) sem preço ficam de fora.
             </p>
           )}
-          <Button variant="outline" className="h-11" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" className="h-11" onClick={() => close(false)}>
             Cancelar
           </Button>
           <Button className="h-11" disabled={!items || proposal.length === 0} onClick={apply}>
