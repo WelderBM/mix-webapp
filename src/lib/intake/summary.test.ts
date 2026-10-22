@@ -15,7 +15,7 @@ describe("buildIntakeSummary", () => {
       item({ id: "5", family: null }),
     ]);
     expect(s.totalItems).toBe(4);
-    expect(s.byStatus).toEqual({ pendente: 3, publicado: 1, pulado: 0, fora_da_loja: 0 });
+    expect(s.byStatus).toEqual({ pendente: 3, publicado: 1, pulado: 0, fora_da_loja: 0, catalogo: 0 });
     expect(s.families.FITA).toEqual({ total: 2, pending: 1, isCore: true });
     expect(s.families.CANETA).toEqual({ total: 1, pending: 1, isCore: false });
     expect(s.families[NO_FAMILY].total).toBe(1);

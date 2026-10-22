@@ -51,7 +51,7 @@ export function buildIntakeSummary(
 ): IntakeSummary {
   const summary: IntakeSummary = {
     totalItems: 0,
-    byStatus: { pendente: 0, publicado: 0, pulado: 0, fora_da_loja: 0 },
+    byStatus: { pendente: 0, publicado: 0, pulado: 0, fora_da_loja: 0, catalogo: 0 },
     families: {},
     publishedStockValue: 0,
     publishedBy: {},

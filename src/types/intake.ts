@@ -34,7 +34,10 @@ export type IntakeWorkflowStatus =
   | "pendente"
   | "publicado"
   | "pulado"
-  | "fora_da_loja";
+  | "fora_da_loja"
+  // Balão de tipo do catálogo (liso, metálico, candy…): vendido pelo
+  // montador de balões, não como produto comum (#259).
+  | "catalogo";
 
 // Campos que vêm do Noturno (ou derivam dele) — a reimportação recalcula
 // e sobrescreve todos.
@@ -83,6 +86,9 @@ export interface IntakeItem extends IntakeSourceFields {
   status: IntakeWorkflowStatus;
   productId?: string;
   publishedBy?: string | null;
+  // A importação já decidiu se este balão vai pelo catálogo (#259). Se a
+  // atendente devolver para "pendente", não é movido de novo.
+  catalogChecked?: boolean;
   inLatestImport: boolean;
   firstImportedAt?: any;
   lastImportedAt?: any;
