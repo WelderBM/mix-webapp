@@ -182,3 +182,13 @@ No Playwright, `x-vercel-protection-bypass` em `extraHTTPHeaders` vai em **toda*
 
 ### `claude-code-action` não aceita `deployment_status`
 A action falha com *Unsupported event type: deployment_status*, que é o evento natural de "o preview da Vercel ficou pronto". Em `schedule`/`workflow_dispatch`/`pull_request`/`issue_comment` ela funciona. **Padrão:** em workflow disparado por deployment, rodar a CLI direto (`npm i -g @anthropic-ai/claude-code@<versão fixa>` + `claude -p "$PROMPT" --allowedTools ...`, com `CLAUDE_CODE_OAUTH_TOKEN` no env) e `continue-on-error`, para não derrubar os passos seguintes.
+
+### `h-*` não muda a altura do `SelectTrigger` (shadcn) — use `min-h-*`
+O `SelectTrigger` de `src/components/ui/select.tsx` aplica `data-size="default"` e a classe base `data-[size=default]:h-9`. No Tailwind v4 essa classe tem especificidade maior (seletor de atributo) que um `h-11` passado em `className`, e o `cn()`/tailwind-merge não remove a base (uma tem variante, a outra não). Resultado: `h-11` some e o seletor continua com 36px. **Padrão:** para altura mínima de toque (44px), `min-h-11` — `min-height` vence `height` seja qual for a especificidade. Achado real: PR #249 (revisor apontou como bloqueante; a mudança "h-8 → h-11" não teria efeito nenhum). Vale para qualquer componente shadcn que fixe altura via `data-[size=…]`.
+
+### Cadeia de revisão: falhas silenciosas que já aconteceram
+Três jeitos de a revisão automática "sumir" sem avisar, todos corrigidos em #241/#248 — reconhecer se reaparecerem:
+1. **Claude publicando o próprio comentário** com `gh pr comment --body "$(cat <<EOF…)"`: a substituição de comando às vezes é negada pela lista de permissões; revisão some, check verde. Hoje o workflow publica a resposta final.
+2. **Etapa 1 local que nunca comenta** (limite de uso da conta): a execução do GitHub esperava para sempre. Hoje espera 15 min e segue sozinha.
+3. **Gate lendo o veredito antigo** quando o PR é revisado de novo: o regex pegava o primeiro `<!-- veredito -->`. Hoje só a revisão mais recente vale.
+E: o token `CLAUDE_CODE_OAUTH_TOKEN` é da **assinatura** (divide o limite de uso com as sessões interativas); `gh secret set` via `!` no Claude Code grava valor VAZIO (sem stdin interativo) — atualizar pela página do GitHub.
