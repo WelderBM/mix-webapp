@@ -71,6 +71,7 @@ const STATUS_LABEL: Record<StatusFilter, string> = {
   publicado: "Publicados",
   pulado: "Pulados",
   fora_da_loja: "Fora da loja",
+  catalogo: "No catálogo",
   todos: "Todos",
 };
 

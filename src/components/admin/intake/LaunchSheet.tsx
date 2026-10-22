@@ -479,7 +479,9 @@ export function LaunchSheet({
                 ? "Este produto já está publicado na loja."
                 : item.status === "pulado"
                   ? "Este produto foi pulado."
-                  : "Este produto foi marcado para não vender online."}
+                  : item.status === "catalogo"
+                    ? "Este balão é vendido pelo montador de balões da loja. Ele entra por Admin → Balões → Montar pelo Noturno, com o estoque atualizado a cada importação."
+                    : "Este produto foi marcado para não vender online."}
             </p>
             {item.status !== "publicado" && (
               <Button

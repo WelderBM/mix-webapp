@@ -1,4 +1,11 @@
 import type { IntakeItem, IntakeSourceFields } from "@/types/intake";
+import { balloonTypeOf } from "./balloonCatalog";
+
+// Balão de tipo do catálogo do montador (#259): não entra na fila como
+// produto comum. Formatos (coração, estrela…) e temáticos: fila normal.
+export function isCatalogBalloon(src: Pick<IntakeSourceFields, "family" | "name">): boolean {
+  return src.family === "BALAO" && balloonTypeOf(src.name) != null;
+}
 
 // Reimportação do Noturno sobre a fila existente (issue #198).
 //  - Campos do Noturno são recalculados; campos da atendente (status,
@@ -60,7 +67,9 @@ export function mergeIntake(
       result.writes.push({
         id,
         isNew: true,
-        data: { ...src, id, status: "pendente", inLatestImport: true },
+        data: isCatalogBalloon(src)
+          ? { ...src, id, status: "catalogo", catalogChecked: true, inLatestImport: true }
+          : { ...src, id, status: "pendente", inLatestImport: true },
       });
       continue;
     }
@@ -82,6 +91,12 @@ export function mergeIntake(
       }
     }
     if (!prev.inLatestImport) changed.inLatestImport = true;
+    // Balão do catálogo que ainda estava pendente (importado antes do
+    // #259): sai da fila uma vez. Devolvido à mão para pendente, fica.
+    if (prev.status === "pendente" && !prev.catalogChecked && isCatalogBalloon(next)) {
+      changed.status = "catalogo";
+      changed.catalogChecked = true;
+    }
 
     if (Object.keys(changed).length === 0) {
       result.unchanged++;

@@ -80,3 +80,29 @@ describe("isTruncationOf", () => {
     expect(isTruncationOf("ABX", "ABCD")).toBe(false);
   });
 });
+
+describe("balões do catálogo (#259)", () => {
+  const latex = { description: "BALAO 9 LISO C/ 50 VERDE FOLHA" };
+  const coracao = { description: "BALAO METAL C25 CM CORACAO AZUL CROMO" };
+
+  it("balão de tipo do catálogo entra como 'No catálogo'; formato entra pendente", () => {
+    const r = mergeIntake(new Map(), [src({ ...latex, code: "1" }), src({ ...coracao, code: "2" })]);
+    expect(r.writes.find((w) => w.id === "1")!.data).toMatchObject({ status: "catalogo", catalogChecked: true });
+    expect(r.writes.find((w) => w.id === "2")!.data).toMatchObject({ status: "pendente" });
+  });
+
+  it("pendente antigo sai da fila uma vez; devolvido à mão continua pendente", () => {
+    const antigo = stored(latex);
+    const r1 = mergeIntake(new Map([["1", antigo]]), [src(latex)]);
+    expect(r1.writes[0].data).toMatchObject({ status: "catalogo", catalogChecked: true });
+
+    const devolvido = stored(latex, { status: "pendente", catalogChecked: true });
+    const r2 = mergeIntake(new Map([["1", devolvido]]), [src(latex)]);
+    expect(r2.writes).toEqual([]);
+  });
+
+  it("publicado ou pulado nunca é mexido", () => {
+    const pub = stored(latex, { status: "publicado" });
+    expect(mergeIntake(new Map([["1", pub]]), [src(latex)]).writes).toEqual([]);
+  });
+});
