@@ -18,6 +18,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
 import { OpenRibbonRollModal } from "@/components/admin/OpenRibbonRollModal";
+import { RibbonLinesFromNoturno } from "@/components/admin/RibbonLinesFromNoturno";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
 import {
@@ -62,6 +63,8 @@ export function RibbonsTab({
   onEditProduct,
 }: RibbonsTabProps) {
   const [ribbonTab, setRibbonTab] = useState<"edition" | "visual">("visual");
+  // "Cadastrar pelo Noturno" (#259).
+  const [fromNoturnoOpen, setFromNoturnoOpen] = useState(false);
   const [ribbonSearchTerm, setRibbonSearchTerm] = useState("");
   const [expandedTypes, setExpandedTypes] = useState<Record<string, boolean>>(
     {}
@@ -96,6 +99,15 @@ export function RibbonsTab({
               Controle de estoque de rolos e fitas por metro
             </p>
           </div>
+
+          <Button
+            variant="outline"
+            className="h-11 w-full gap-2 md:w-auto"
+            onClick={() => setFromNoturnoOpen(true)}
+          >
+            <Scissors size={16} /> Cadastrar pelo Noturno
+          </Button>
+          <RibbonLinesFromNoturno open={fromNoturnoOpen} onOpenChange={setFromNoturnoOpen} />
 
           <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
             <Button

@@ -19,7 +19,7 @@ export interface BalloonInfo {
 // Cor → hex. Ordem importa: compostas antes das simples.
 const COLOR_TABLE: [RegExp, string, string[]][] = [
   [/\bARCO ?IRIS\b|\bACO IRIS\b|\bARCOIRIS\b/, "Arco-íris", ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"]],
-  [/\bSORTID[OA]S?\b|\bCANDY\b|\bCOLOR(IDO)?\b/, "Sortido", ["#f472b6", "#60a5fa", "#facc15", "#4ade80"]],
+  [/\bSORTID[OA]S?\b|\bCANDY\b|\bCOLOR(IDO)?\b|\bMULTICOR\b/, "Sortido", ["#f472b6", "#60a5fa", "#facc15", "#4ade80"]],
   [/\bROSE ?GOLD\b|\bROSE\b/, "Rose gold", ["#e8a598"]],
   [/\bAZUL (BABY|BEBE|CLARO)\b/, "Azul bebê", ["#93c5fd"]],
   [/\bAZUL TIFFANY\b|\bTIFFANY\b/, "Azul tiffany", ["#5fd3c8"]],
@@ -45,7 +45,7 @@ const COLOR_TABLE: [RegExp, string, string[]][] = [
   [/\bBRONZE\b/, "Bronze", ["#b07a3b"]],
   [/\bCOBRE\b/, "Cobre", ["#c46a3a"]],
   [/\bNUDE\b/, "Nude", ["#e3bc9a"]],
-  [/\bBORDO\b|\bVINHO\b/, "Bordô", ["#7f1d1d"]],
+  [/\bBORDO\b|\bVINHO\b|\bBORGONHA\b|\bMARSALA\b/, "Bordô", ["#7f1d1d"]],
   [/\bTRANSP(ARENTE)?\b/, "Transparente", ["#dbeafe"]],
 ];
 

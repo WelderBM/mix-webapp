@@ -19,6 +19,8 @@ describe("classifySubcategory (nomes reais do Noturno)", () => {
     expect(classifySubcategory(it_("FITA", "FITA PLASTICA LISA 5CM", "RIBBON"))?.subcategory).toBe("Fita para laço");
     expect(classifySubcategory(it_("FITA", "FITA CETIM 10MM 50M ROSA", "RIBBON"))?.subcategory).toBe("Cetim e tecido");
     expect(classifySubcategory(it_("FITA", "FITA ORGANZA/LUREX 38MM", "RIBBON"))?.subcategory).toBe("Cetim e tecido");
+    // Material vence acabamento: TNT LISA é tecido, não plástico.
+    expect(classifySubcategory(it_("FITA", "FITA TNT LISA 40MMX50M AZUL ESCURO", "RIBBON"))?.subcategory).toBe("Cetim e tecido");
     expect(classifySubcategory(it_("FITA", "FITA ADESIVA 38MIC 48X30"))).toEqual({
       category: "Material Escolar",
       subcategory: "Fitas adesivas",

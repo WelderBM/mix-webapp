@@ -10,6 +10,7 @@ import {
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import type { IntakeItem, IntakeWorkflowStatus } from "@/types/intake";
+import type { Product } from "@/types";
 import {
   buildGroupProductFromIntake,
   buildProductFromIntake,
@@ -174,4 +175,37 @@ export async function setIntakeStatusMany(
     addSummaryDeltas(batch, item, to);
   }
   await batch.commit();
+}
+
+// Fitas por linha (#259): cada cor vira um produto RIBBON e o item da fila
+// fica publicado apontando para ele. Lotes de 150 cores (3 gravações por
+// cor, limite do batch é 500). Cada lote é tudo-ou-nada; um lote que
+// falhar não desfaz os anteriores — a tela relê e mostra o que sobrou.
+export async function publishRibbonLine(
+  entries: { item: IntakeItem; product: Omit<Product, "id" | "createdAt"> }[],
+  userEmail: string | null,
+  onProgress?: (done: number) => void,
+): Promise<string[]> {
+  const ids: string[] = [];
+  for (let i = 0; i < entries.length; i += 150) {
+    const batch = writeBatch(db);
+    for (const { item, product } of entries.slice(i, i + 150)) {
+      const productRef = doc(collection(db, "products"));
+      const clean = Object.fromEntries(
+        Object.entries(product).filter(([, v]) => v !== undefined),
+      );
+      batch.set(productRef, { ...clean, id: productRef.id, createdAt: serverTimestamp() });
+      batch.update(doc(db, "intake_items", item.id), {
+        status: "publicado",
+        productId: productRef.id,
+        publishedAt: serverTimestamp(),
+        publishedBy: userEmail,
+      });
+      addSummaryDeltas(batch, item, "publicado", userEmail);
+      ids.push(productRef.id);
+    }
+    await batch.commit();
+    onProgress?.(Math.min(entries.length, i + 150));
+  }
+  return ids;
 }
