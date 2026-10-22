@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import type { BalloonConfig } from "@/types/balloon";
-import { isSoldOut, matchBalloon, surveyCatalog, withAddedColors } from "./balloonCatalog";
+import {
+  applyCatalogProposal,
+  isSoldOut,
+  matchBalloon,
+  proposeCatalog,
+  surveyCatalog,
+  withAddedColors,
+} from "./balloonCatalog";
 
 // Recorte do catálogo real do staging (settings/balloons).
 const config: BalloonConfig = {
@@ -96,5 +103,47 @@ describe("withAddedColors", () => {
     expect(out[0].colors).toEqual([...config.types[0].colors, "Azul Petróleo"]);
     expect(out[1].colors).toEqual(["Rosa Candy", "Azul Candy", "Laranja Candy"]);
     expect(out[2]).toBe(config.types[2]);
+  });
+});
+
+describe("montar o catálogo pelo Noturno", () => {
+  const items = [
+    { family: "BALAO", name: "BALAO 9 LISO C/ 50 VERDE FOLHA", stock: 10 },
+    { family: "BALAO", name: "BALAO 9 LISO C/50 AZUL PETROLEO", stock: 22 },
+    { family: "BALAO", name: "BALAO 9 LISO C/50 PRETO", stock: 0 },
+    { family: "BALAO", name: "BALAO 11 LISO C/50 PRETO", stock: 5 },
+    { family: "BALAO", name: "BALAO 16 CANDY COLORS C/10 ROSA", stock: 4 },
+    { family: "BALAO", name: "BALAO METAL C25 CM CORACAO AZUL CROMO", stock: 3 },
+  ];
+
+  it("com o catálogo vazio: propõe tipos, tamanhos (pacote do nome) e cores com estoque", () => {
+    const p = proposeCatalog(items, { types: [], allColors: [] });
+    const simples = p.find((t) => t.typeId === "simples")!;
+    expect(simples).toMatchObject({ name: "Balão Simples (Liso)", exists: false });
+    expect(simples.sizes).toEqual([
+      { size: "9", unitsPerPackage: 50, stock: 32, currentPrice: null },
+      { size: "11", unitsPerPackage: 50, stock: 5, currentPrice: null },
+    ]);
+    expect(simples.colors.map((c) => c.name)).toEqual(["Azul Petroleo", "Verde Folha", "Preto"]);
+    expect(p.map((t) => t.typeId)).toEqual(["simples", "candy"]); // coração é produto
+  });
+
+  it("aplica: cria tipo só com preço; tamanho sem preço fica de fora", () => {
+    const empty = { types: [], allColors: [] };
+    const p = proposeCatalog(items, empty);
+    const out = applyCatalogProposal(empty, p, { include: {}, prices: { "simples|9": 16 } });
+    expect(out.types).toHaveLength(1); // candy sem preço não é criado
+    expect(out.types[0].sizes).toEqual([{ size: "9", price: 16, unitsPerPackage: 50 }]);
+    expect(out.types[0].colors).toContain("Azul Petroleo");
+  });
+
+  it("mescla com o existente: mantém preço, acrescenta tamanho e cor, nunca apaga", () => {
+    const p = proposeCatalog(items, config);
+    const out = applyCatalogProposal(config, p, { include: {}, prices: { "simples|11": 18 } });
+    const s = out.types.find((t) => t.id === "simples")!;
+    expect(s.sizes.map((z) => [z.size, z.price])).toEqual([["7", 10], ["9", 16], ["11", 18], ["16", 20]]);
+    expect(s.colors).toEqual([...config.types[0].colors, "Azul Petroleo"]);
+    expect(out.types.find((t) => t.id === "metalico")).toEqual(config.types[2]);
+    expect(config.types[0].sizes).toHaveLength(3); // não muta a entrada
   });
 });

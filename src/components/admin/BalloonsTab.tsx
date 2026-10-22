@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
+import { BalloonCatalogFromNoturno } from "@/components/admin/BalloonCatalogFromNoturno";
 import {
   Plus,
   Trash2,
@@ -45,6 +46,8 @@ export function BalloonsTab({
     useState<BalloonTypeConfig | null>(null);
   const [colorsSyncSource, setColorsSyncSource] =
     useState<BalloonTypeConfig | null>(null);
+  // "Montar pelo Noturno" (#236).
+  const [fromNoturnoOpen, setFromNoturnoOpen] = useState(false);
   const [balloonTypeToDelete, setBalloonTypeToDelete] =
     useState<BalloonTypeConfig | null>(null);
 
@@ -132,6 +135,20 @@ export function BalloonsTab({
               Controle do catálogo e precificação
             </p>
           </div>
+
+          <Button
+            variant="outline"
+            className="h-11 w-full gap-2 md:w-auto"
+            onClick={() => setFromNoturnoOpen(true)}
+          >
+            <Wand2 size={16} /> Montar pelo Noturno
+          </Button>
+          <BalloonCatalogFromNoturno
+            open={fromNoturnoOpen}
+            onOpenChange={setFromNoturnoOpen}
+            config={balloonConfig}
+            onApply={(next) => setBalloonConfig(next)}
+          />
 
           <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto">
             <button
