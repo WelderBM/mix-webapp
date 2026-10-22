@@ -910,7 +910,8 @@ ${paymentInstruction}`;
                 >
                   <SelectTrigger
                     className={cn(
-                      "h-8 w-[140px] text-xs font-bold border rounded-md shadow-sm pl-3 pr-4",
+                      // 44px: alvo de toque mínimo no celular (revisão visual do #247).
+                      "h-11 w-[140px] text-xs font-bold border rounded-md shadow-sm pl-3 pr-4",
                       getStatusColor(order.status)
                     )}
                   >
