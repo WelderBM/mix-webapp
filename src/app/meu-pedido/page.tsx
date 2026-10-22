@@ -18,6 +18,7 @@ import {
   Store,
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
+import { balloonItemLabel } from "@/lib/balloonFoil";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { SafeImage } from "@/components/ui/SafeImage";
@@ -356,7 +357,7 @@ export function TrackOrderContent() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-slate-800 line-clamp-2">
                           {item.type === "CUSTOM_BALLOON" && item.balloonDetails
-                            ? `${item.balloonDetails.typeName} - ${item.balloonDetails.size}"`
+                            ? balloonItemLabel(item.balloonDetails)
                             : item.type === "CUSTOM_KIT"
                             ? `Kit: ${item.kitName}`
                             : item.product?.name}
