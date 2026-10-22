@@ -91,11 +91,14 @@ export function mergeIntake(
       }
     }
     if (!prev.inLatestImport) changed.inLatestImport = true;
-    // Balão do catálogo que ainda estava pendente (importado antes do
-    // #259): sai da fila uma vez. Devolvido à mão para pendente, fica.
-    if (prev.status === "pendente" && !prev.catalogChecked && isCatalogBalloon(next)) {
-      changed.status = "catalogo";
+    // Balão do catálogo ainda não verificado (importado antes do #259):
+    // marca como verificado em QUALQUER status, e só tira da fila se estava
+    // pendente. Assim um pulado devolvido à mão para pendente depois não é
+    // movido contra a escolha da atendente. Migração só num sentido: item
+    // em "No catálogo" volta à fila só à mão ("Voltar para pendentes").
+    if (!prev.catalogChecked && isCatalogBalloon(next)) {
       changed.catalogChecked = true;
+      if (prev.status === "pendente") changed.status = "catalogo";
     }
 
     if (Object.keys(changed).length === 0) {
