@@ -66,11 +66,12 @@ export function sizeInInches(typeId: string, size: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-// Lado do desenho em px: proporcional às polegadas, entre 44 e 112.
+// Lado do desenho em px: proporcional às polegadas, entre 44 e 96 (cabe
+// no botão de 2 colunas num celular de 360 px, mesmo no hover).
 export function balloonVisualPx(typeId: string, size: string): number {
   const inches = sizeInInches(typeId, size);
-  if (inches == null) return 84; // canudo: tamanho único
-  return Math.round(Math.min(112, Math.max(44, 30 + inches * 5)));
+  if (inches == null) return 76; // canudo: tamanho único
+  return Math.round(Math.min(96, Math.max(44, 28 + inches * 4.25)));
 }
 
 // Rótulo do tamanho: 9" · 40 cm · 260 (canudo).

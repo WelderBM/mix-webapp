@@ -182,7 +182,7 @@ export function BalloonBuilder() {
       cartId: crypto.randomUUID(),
       type: "CUSTOM_BALLOON" as const,
       quantity,
-      kitName: `${selectedType.name} ${selectedSize.size}" - ${colorName}`,
+      kitName: `${selectedType.name} ${balloonSizeLabel(selectedType.id, selectedSize.size)} - ${colorName}`,
       kitTotalAmount: selectedSize.price,
       balloonDetails: {
         typeId: selectedType.id,
@@ -345,7 +345,7 @@ export function BalloonBuilder() {
                         alt=""
                         width={visualSize}
                         height={visualSize}
-                        className="transition-transform group-hover:scale-110"
+                        className="transition-transform group-hover:scale-105"
                         style={{ width: `${visualSize}px`, height: `${visualSize}px` }}
                       />
                     </div>
@@ -432,7 +432,7 @@ export function BalloonBuilder() {
                   }}
                 />
                 <h3 className="text-2xl font-black text-slate-800">
-                  {selectedType.name} {selectedSize.size}"
+                  {selectedType.name} {balloonSizeLabel(selectedType.id, selectedSize.size)}
                 </h3>
                 <p className="text-lg text-slate-600">
                   {selectedColor.split("|")[0]}

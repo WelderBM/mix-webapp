@@ -14,8 +14,11 @@ describe("arte do montador de balões", () => {
     expect(metal).not.toBe(balloonTypeImage("simples"));
     expect(decodeURIComponent(balloonTypeImage("foil_numeros"))).toContain(">A</text>");
     expect(balloonTypeImage("tipo-novo-do-admin")).toContain("data:image/svg+xml");
-    // sem legenda nem fundo no desenho do tamanho
-    expect(decodeURIComponent(balloonSizeImage("candy"))).not.toContain("Pacote");
+    // Cartão do tipo é um buquê (packQty 3) e mesmo assim sai SEM legenda;
+    // o desenho do tamanho sai sem fundo (sem <rect>).
+    expect(decodeURIComponent(balloonTypeImage("simples"))).not.toContain("Pacote");
+    expect(decodeURIComponent(balloonSizeImage("candy"))).not.toContain("<rect");
+    expect(decodeURIComponent(balloonTypeImage("candy"))).toContain("<rect");
   });
 
   it("tamanho em proporção: 5 < 9 < 16; 40cm ≈ 16 pol; canudo fixo", () => {
@@ -24,6 +27,7 @@ describe("arte do montador de balões", () => {
     expect(sizeInInches("foil_numeros", "40cm")).toBe(16);
     expect(balloonVisualPx("foil_numeros", "40cm")).toBe(balloonVisualPx("simples", "16"));
     expect(sizeInInches("canudo", "260")).toBeNull();
+    expect(balloonVisualPx("foil_numeros", "75cm")).toBeLessThanOrEqual(96);
   });
 
   it("rótulo certo para cada unidade", () => {
