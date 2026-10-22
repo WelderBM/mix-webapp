@@ -13,7 +13,7 @@ describe("arte do montador de balões", () => {
     const metal = balloonTypeImage("metalico");
     expect(metal.startsWith("data:image/svg+xml")).toBe(true);
     expect(metal).not.toBe(balloonTypeImage("simples"));
-    expect(decodeURIComponent(balloonTypeImage("foil_numeros"))).toContain(">A</text>");
+    expect(decodeURIComponent(balloonTypeImage("foil_numeros"))).toContain(">A1</text>");
     expect(balloonTypeImage("tipo-novo-do-admin")).toContain("data:image/svg+xml");
     // Cartão do tipo é um buquê (packQty 3) e mesmo assim sai SEM legenda;
     // o desenho do tamanho sai sem fundo (sem <rect>).

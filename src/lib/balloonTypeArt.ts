@@ -17,7 +17,8 @@ const LOOKS: Record<string, Look> = {
   cintilante: { shape: "latex", colors: ["#db2777", "#2563eb", "#16a34a"], metallic: true },
   uniq: { shape: "latex", colors: ["#b08497"], metallic: false },
   canudo: { shape: "latex", colors: ["#f97316", "#22c55e", "#a855f7"], metallic: false },
-  foil_numeros: { shape: "letra", colors: ["#d4a017"], metallic: true, glyph: "A" },
+  // Letras E números: o cartão mostra os dois.
+  foil_numeros: { shape: "letra", colors: ["#d4a017"], metallic: true, glyph: "A1" },
 };
 const FALLBACK: Look = { shape: "latex", colors: ["#a855f7"], metallic: false };
 
