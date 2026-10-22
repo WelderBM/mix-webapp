@@ -29,6 +29,13 @@ describe("isWorthSaving", () => {
     expect(isWorthSaving({ ...defaults, name: "Saco transparente" }, defaults, false)).toBe(true);
   });
 
+  it("grupo: cor desmarcada ou renomeada vale rascunho; igual não", () => {
+    const vs = [{ code: "1", label: "Azul", include: true }];
+    const d = { ...defaults, variantState: vs };
+    expect(isWorthSaving({ ...d, variantState: [{ ...vs[0] }] }, d, false)).toBe(false);
+    expect(isWorthSaving({ ...d, variantState: [{ ...vs[0], include: false }] }, d, false)).toBe(true);
+  });
+
   it("foto sozinha já vale rascunho (é o passo mais trabalhoso)", () => {
     expect(isWorthSaving({ ...defaults }, defaults, true)).toBe(true);
   });

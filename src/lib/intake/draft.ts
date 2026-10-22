@@ -13,6 +13,8 @@ export interface LaunchDraftFields {
   categoryName: string;
   // #232. Pode faltar em rascunho gravado antes (fica "").
   subcategoryName?: string;
+  // Grupo (#201): cores marcadas e nomes corrigidos, pelo código do Noturno.
+  variantState?: { code: string; label: string; include: boolean }[];
   unit: Unit | null;
   packText: string;
   metersText: string;
@@ -47,8 +49,9 @@ export function isWorthSaving(
   hasPhoto: boolean,
 ): boolean {
   if (hasPhoto) return true;
+  // JSON: compara por valor também a lista de cores do grupo.
   return (Object.keys(defaults) as (keyof LaunchDraftFields)[]).some(
-    (k) => (fields[k] ?? null) !== (defaults[k] ?? null),
+    (k) => JSON.stringify(fields[k] ?? null) !== JSON.stringify(defaults[k] ?? null),
   );
 }
 

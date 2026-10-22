@@ -18,10 +18,12 @@ import {
   isRibbonItem,
   matchCategory,
   parsePrice,
+  validateGroup,
   validateLaunch,
 } from "@/lib/intake/publish";
 import { pricePerUnit } from "@/lib/intake/pack";
 import { matchSubcategory } from "@/lib/intake/subcategories";
+import type { VariantGroup } from "@/lib/intake/groups";
 import {
   DRAFT_VERSION,
   deleteDraft,
@@ -63,7 +65,13 @@ interface Props {
   userEmail: string | null;
   onClose: () => void;
   onChanged: (item: IntakeItem) => void;
+  // Lançamento em grupo (#201): várias cores viram UM produto com
+  // variações. `item` é o primeiro do grupo (dados comuns).
+  group?: VariantGroup<IntakeItem> | null;
+  onGroupChanged?: (changes: { prev: IntakeItem; updated: IntakeItem }[]) => void;
 }
+
+type VariantRow = { item: IntakeItem; label: string; include: boolean };
 
 export function LaunchSheet({
   item,
@@ -71,7 +79,12 @@ export function LaunchSheet({
   userEmail,
   onClose,
   onChanged,
+  group = null,
+  onGroupChanged,
 }: Props) {
+  // Rascunho do grupo em chave própria: não mistura com o de um item.
+  const draftId = item ? (group ? `g:${group.key}` : item.id) : "";
+  const [variants, setVariants] = useState<VariantRow[]>([]);
   const [name, setName] = useState("");
   const [priceText, setPriceText] = useState("");
   const [categoryName, setCategoryName] = useState("");
@@ -113,6 +126,15 @@ export function LaunchSheet({
     setPriceText(f.priceText);
     setCategoryName(f.categoryName);
     setSubcategoryName(f.subcategoryName ?? "");
+    if (f.variantState) {
+      const byCode = new Map(f.variantState.map((v) => [v.code, v]));
+      setVariants((rows) =>
+        rows.map((r) => {
+          const saved = byCode.get(r.item.sourceCode);
+          return saved ? { ...r, label: saved.label, include: saved.include } : r;
+        }),
+      );
+    }
     setUnit(f.unit);
     setPackText(f.packText);
     setMetersText(f.metersText);
@@ -125,7 +147,10 @@ export function LaunchSheet({
     const suggestedCategory =
       matchCategory(item.suggestedCategoryKey, categories) ?? "";
     const defaults: LaunchDraftFields = {
-      name: item.name,
+      name: group ? group.base : item.name,
+      variantState: group
+        ? group.members.map((m) => ({ code: m.item.sourceCode, label: m.label, include: true }))
+        : undefined,
       priceText: "",
       categoryName: suggestedCategory,
       subcategoryName:
@@ -143,7 +168,11 @@ export function LaunchSheet({
     setRestored(false);
     if (item.status !== "pendente") return flushPending;
     let alive = true;
-    loadDraft(item.id).then((d) => {
+    setVariants(
+      group ? group.members.map((m) => ({ item: m.item, label: m.label, include: true })) : [],
+    );
+    const id = draftId;
+    loadDraft(id).then((d) => {
       if (!alive) return;
       if (d) {
         applyFields(d);
@@ -154,7 +183,7 @@ export function LaunchSheet({
         setRestored(true);
         skipNextSaveRef.current = true;
       }
-      hydratedRef.current = item.id;
+      hydratedRef.current = id;
     });
     return () => {
       alive = false;
@@ -163,14 +192,17 @@ export function LaunchSheet({
     // categories fora das deps de propósito: não resetar o que a atendente
     // já digitou se a lista de categorias atualizar com o card aberto.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item]);
+  }, [item, group]);
 
   // Guarda o rascunho enquanto a atendente preenche (com folga de 400 ms).
   useEffect(() => {
-    if (!item || hydratedRef.current !== item.id || !defaultsRef.current) return;
-    const id = item.id;
+    if (!item || hydratedRef.current !== draftId || !defaultsRef.current) return;
+    const id = draftId;
     const fields: LaunchDraftFields = {
       name, priceText, categoryName, subcategoryName, unit, packText, metersText,
+      variantState: group
+        ? variants.map((v) => ({ code: v.item.sourceCode, label: v.label, include: v.include }))
+        : undefined,
     };
     if (skipNextSaveRef.current) {
       skipNextSaveRef.current = false;
@@ -190,16 +222,16 @@ export function LaunchSheet({
     pendingSaveRef.current = flush;
     const t = setTimeout(flush, 400);
     return () => clearTimeout(t);
-  }, [item, name, priceText, categoryName, subcategoryName, unit, packText, metersText, hasPhotos]);
+  }, [item, name, priceText, categoryName, subcategoryName, unit, packText, metersText, hasPhotos, variants]);
 
   // Fotos: gravadas à parte, só quando a lista muda.
   useEffect(() => {
-    if (!item || hydratedRef.current !== item.id) return;
+    if (!item || hydratedRef.current !== draftId) return;
     if (skipPhotosSaveRef.current) {
       skipPhotosSaveRef.current = false;
       return;
     }
-    saveDraftPhotos(item.id, photos.map((ph) => ph.blob));
+    saveDraftPhotos(draftId, photos.map((ph) => ph.blob));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photos]);
 
@@ -217,7 +249,7 @@ export function LaunchSheet({
 
   function discardDraft() {
     if (!item || !defaultsRef.current) return;
-    deleteDraft(item.id);
+    deleteDraft(draftId);
     applyFields(defaultsRef.current);
     setPhotos([]);
     setRestored(false);
@@ -291,14 +323,18 @@ export function LaunchSheet({
       photoUrls: photos.map(() => "pending"),
       rollMeters: ribbon ? parsePrice(metersText) : null,
     };
-    const error = validateLaunch(input, ribbon);
+    const chosen = variants
+      .filter((v) => v.include)
+      .map((v) => ({ item: v.item, label: v.label }));
+    const error =
+      validateLaunch(input, ribbon) ?? (group ? validateGroup(chosen) : null);
     if (error) {
       toast.error(error);
       return;
     }
     setSaving(true);
     try {
-      const { uploadIntakePhoto, publishIntakeItem } =
+      const { uploadIntakePhoto, publishIntakeItem, publishIntakeGroup } =
         await import("@/lib/intake/actions");
       const photoUrls = await Promise.all(
         photos.map(async (ph, i) => {
@@ -309,13 +345,31 @@ export function LaunchSheet({
           return url;
         }),
       );
+      if (group) {
+        const productId = await publishIntakeGroup(
+          chosen,
+          { ...input, photoUrls },
+          userEmail,
+        );
+        hydratedRef.current = null;
+        deleteDraft(draftId);
+        toast.success(`Publicado na loja com ${chosen.length} cores!`);
+        onGroupChanged?.(
+          chosen.map(({ item: it }) => ({
+            prev: it,
+            updated: { ...it, status: "publicado", productId },
+          })),
+        );
+        onClose();
+        return;
+      }
       const productId = await publishIntakeItem(
         item,
         { ...input, photoUrls },
         userEmail,
       );
       hydratedRef.current = null;
-      deleteDraft(item.id);
+      deleteDraft(draftId);
       toast.success("Publicado na loja!");
       onChanged({ ...item, name: input.name, status: "publicado", productId });
       onClose();
@@ -337,9 +391,24 @@ export function LaunchSheet({
     setSaving(true);
     try {
       const { setIntakeStatus } = await import("@/lib/intake/actions");
+      if (group) {
+        const targets = variants.filter((v) => v.include).map((v) => v.item);
+        if (targets.length === 0) {
+          toast.error("Marque pelo menos uma cor.");
+          return;
+        }
+        const { setIntakeStatusMany } = await import("@/lib/intake/actions");
+        await setIntakeStatusMany(targets, to, userEmail);
+        hydratedRef.current = null;
+        deleteDraft(draftId);
+        toast.success(message);
+        onGroupChanged?.(targets.map((it) => ({ prev: it, updated: { ...it, status: to } })));
+        onClose();
+        return;
+      }
       await setIntakeStatus(item, to, userEmail);
       hydratedRef.current = null;
-      deleteDraft(item.id);
+      deleteDraft(draftId);
       toast.success(message);
       onChanged({ ...item, status: to });
       onClose();
@@ -359,12 +428,18 @@ export function LaunchSheet({
       >
         <SheetHeader className="border-b border-slate-100 px-4 pb-3 pt-4 text-left">
           <SheetTitle className="pr-8 text-base leading-snug">
-            {item.name}
+            {group ? `${group.base} · ${group.members.length} cores` : item.name}
           </SheetTitle>
           <SheetDescription>
-            Cód. {item.sourceCode}
-            {item.brand && ` · ${item.brand}`} ·{" "}
-            {item.stock.toLocaleString("pt-BR")} em estoque
+            {group ? (
+              "Lançamento em grupo: um produto na loja, com uma opção por cor."
+            ) : (
+              <>
+                Cód. {item.sourceCode}
+                {item.brand && ` · ${item.brand}`} ·{" "}
+                {item.stock.toLocaleString("pt-BR")} em estoque
+              </>
+            )}
           </SheetDescription>
         </SheetHeader>
 
@@ -622,6 +697,52 @@ export function LaunchSheet({
                   className="h-12 w-full rounded-xl border border-slate-300 px-3 text-lg outline-none focus:border-purple-500"
                 />
               </Field>
+            )}
+
+            {group && (
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium text-slate-700">
+                  Cores ({variants.filter((v) => v.include).length} de {variants.length})
+                </legend>
+                <p className="text-xs text-slate-500">
+                  Desmarque a cor que não vai para a loja. O nome de cada cor
+                  aparece para o cliente: dá para corrigir.
+                </p>
+                <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                  {variants.map((v, i) => (
+                    <li key={v.item.id} className="flex items-center gap-2 px-2">
+                      {/* Alvo de toque 44×44 (o campo de nome fica ao lado). */}
+                      <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={v.include}
+                          onChange={(e) =>
+                            setVariants((list) =>
+                              list.map((x, j) => (j === i ? { ...x, include: e.target.checked } : x)),
+                            )
+                          }
+                          aria-label={`Incluir ${v.label}`}
+                          className="h-5 w-5 accent-purple-600"
+                        />
+                      </label>
+                      <input
+                        value={v.label}
+                        onChange={(e) =>
+                          setVariants((list) =>
+                            list.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)),
+                          )
+                        }
+                        aria-label="Nome da cor"
+                        disabled={!v.include}
+                        className="h-11 min-w-0 flex-1 bg-transparent text-base outline-none disabled:text-slate-400"
+                      />
+                      <span className="shrink-0 text-xs text-slate-500">
+                        {v.item.stock.toLocaleString("pt-BR")} un.
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </fieldset>
             )}
 
             <Field label="Nome na loja">

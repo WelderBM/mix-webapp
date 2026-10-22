@@ -162,3 +162,46 @@ export function statusTransitionDeltas(
     familyPending: (to === "pendente" ? 1 : 0) - (from === "pendente" ? 1 : 0),
   };
 }
+
+// ── Lançamento em grupo (#201, parte 2) ──────────────────────────────
+// Um produto da loja com uma variação por item do Noturno. O id da
+// variação é o código do Noturno: é por ele que a reimportação acha a
+// variação certa para atualizar o estoque (stockSync).
+export interface GroupMember {
+  item: IntakeItem;
+  label: string; // nome da variação, editável pela atendente
+}
+
+export function buildGroupProductFromIntake(
+  members: GroupMember[],
+  input: LaunchInput,
+): Omit<Product, "id" | "createdAt"> {
+  const base = buildProductFromIntake(members[0].item, input);
+  return {
+    ...base,
+    // Vínculo com o Noturno fica nas variações, não no produto.
+    sourceCode: undefined,
+    inStock: members.some((m) => m.item.stock > 0),
+    variants: members.map((m) => ({
+      id: m.item.sourceCode,
+      type: "Cor",
+      name: m.label.trim(),
+      inStock: m.item.stock > 0,
+      attributes: { Cor: m.label.trim() },
+    })),
+  };
+}
+
+// Cada cor = 2 gravações (variação no produto + item da fila) num batch
+// de no máximo 500.
+export const MAX_GROUP_SIZE = 200;
+
+export function validateGroup(members: GroupMember[]): string | null {
+  if (members.length < 2) return "Escolha pelo menos 2 cores para lançar em grupo.";
+  if (members.length > MAX_GROUP_SIZE)
+    return `Grupo grande demais: lance no máximo ${MAX_GROUP_SIZE} cores de uma vez.`;
+  const names = members.map((m) => m.label.trim().toLowerCase());
+  if (names.some((n) => !n)) return "Toda cor precisa de um nome.";
+  if (new Set(names).size !== names.length) return "Há duas cores com o mesmo nome.";
+  return null;
+}
