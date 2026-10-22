@@ -32,7 +32,7 @@ const input = (o: Partial<LaunchInput> = {}): LaunchInput => ({
   categoryName: "Canecas",
   unit: "un",
   packQty: null,
-  photoUrl: "https://img/x.webp",
+  photoUrls: ["https://img/x.webp"],
   rollMeters: null,
   ...o,
 });
@@ -85,7 +85,7 @@ describe("validateLaunch", () => {
     expect(validateLaunch(input({ price: null }), false)).toMatch(/preço/);
     expect(validateLaunch(input({ price: 0 }), false)).toMatch(/preço/);
     expect(validateLaunch(input({ categoryName: "" }), false)).toMatch(/categoria/);
-    expect(validateLaunch(input({ photoUrl: null }), false)).toMatch(/foto/);
+    expect(validateLaunch(input({ photoUrls: [] }), false)).toMatch(/foto/);
   });
   it("exige escolher como é vendido (exceto fita)", () => {
     expect(validateLaunch(input({ unit: null }), false)).toMatch(/pacote, unidade ou metro/);
@@ -106,6 +106,16 @@ describe("validateLaunch", () => {
 });
 
 describe("buildProductFromIntake", () => {
+  it("várias fotos: a primeira é a capa e vira imageUrl (#201)", () => {
+    const p = buildProductFromIntake(item(), input({ photoUrls: ["a.webp", "b.webp", "c.webp"] }));
+    expect(p.images).toEqual([
+      { id: "cover", url: "a.webp", isCover: true },
+      { id: "foto-2", url: "b.webp", isCover: false },
+      { id: "foto-3", url: "c.webp", isCover: false },
+    ]);
+    expect(p.imageUrl).toBe("a.webp");
+  });
+
   it("grava a subcategoria escolhida (#232) e omite quando não há", () => {
     expect(buildProductFromIntake(item(), input({ subcategoryName: "Seda" })).subcategory).toBe("Seda");
     expect(buildProductFromIntake(item(), input({ subcategoryName: null })).subcategory).toBeUndefined();

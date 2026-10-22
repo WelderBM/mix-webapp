@@ -18,7 +18,8 @@ export interface LaunchInput {
   unit: Unit | null;
   // Unidades no pacote (só quando unit === "pct").
   packQty: number | null;
-  photoUrl: string | null;
+  // Fotos já enviadas, na ordem; a primeira é a capa (#201).
+  photoUrls: string[];
   // Só fita de laço: metragem do rolo.
   rollMeters: number | null;
 }
@@ -86,7 +87,7 @@ export function validateLaunch(
   if (ribbon && !(input.rollMeters != null && input.rollMeters > 0)) {
     return "Digite quantos metros tem o rolo.";
   }
-  if (!input.photoUrl) return "Tire a foto do produto.";
+  if (input.photoUrls.length === 0) return "Tire a foto do produto.";
   return null;
 }
 
@@ -106,16 +107,18 @@ export function buildProductFromIntake(
   item: IntakeItem,
   input: LaunchInput,
 ): Omit<Product, "id" | "createdAt"> {
-  const images: ProductImage[] = input.photoUrl
-    ? [{ id: "cover", url: input.photoUrl, isCover: true }]
-    : [];
+  const images: ProductImage[] = input.photoUrls.map((url, i) => ({
+    id: i === 0 ? "cover" : `foto-${i + 1}`,
+    url,
+    isCover: i === 0,
+  }));
   const base = {
     name: input.name.trim(),
     category: input.categoryName,
     // undefined some no clean() antes de gravar.
     subcategory: input.subcategoryName || undefined,
     images,
-    imageUrl: input.photoUrl ?? "",
+    imageUrl: input.photoUrls[0] ?? "",
     inStock: item.stock > 0,
     disabled: false,
     sourceCode: item.sourceCode,

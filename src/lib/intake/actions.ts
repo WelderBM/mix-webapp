@@ -71,9 +71,11 @@ function addSummaryDeltas(
 export async function uploadIntakePhoto(
   item: IntakeItem,
   blob: Blob,
+  index = 0,
 ): Promise<string> {
   const ext = blob.type === "image/webp" ? "webp" : "jpg";
-  const path = `products/noturno/${item.sourceCode}-${Date.now()}.${ext}`;
+  // index no nome: várias fotos sobem em paralelo no mesmo milissegundo.
+  const path = `products/noturno/${item.sourceCode}-${Date.now()}-${index}.${ext}`;
   const snap = await uploadBytes(ref(storage, path), blob, {
     contentType: blob.type,
   });
