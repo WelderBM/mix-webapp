@@ -393,6 +393,10 @@ export function LaunchSheet({
       const { setIntakeStatus } = await import("@/lib/intake/actions");
       if (group) {
         const targets = variants.filter((v) => v.include).map((v) => v.item);
+        if (targets.length === 0) {
+          toast.error("Marque pelo menos uma cor.");
+          return;
+        }
         const { setIntakeStatusMany } = await import("@/lib/intake/actions");
         await setIntakeStatusMany(targets, to, userEmail);
         hydratedRef.current = null;
