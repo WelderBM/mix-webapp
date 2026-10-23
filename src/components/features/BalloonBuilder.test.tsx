@@ -178,9 +178,10 @@ describe("BalloonBuilder", () => {
   it("pede a marca primeiro: São Roque na frente; o item leva a marca (dono, 23/10)", async () => {
     const mockData = {
       types: [
-        { id: "simples__riberball", name: "Liso Riberball", brand: "Riberball", sizes: [{ size: "7", price: 8, unitsPerPackage: 50 }], colors: ["Roxo"] },
+        { id: "simples__riberball", name: "Liso Riberball", brand: "Riberball", imageUrl: "https://exemplo/riberball.png", sizes: [{ size: "7", price: 8, unitsPerPackage: 50 }], colors: ["Roxo"] },
         { id: "simples", name: "Liso", brand: "São Roque", sizes: [{ size: "7", price: 10, unitsPerPackage: 50 }], colors: ["Roxo Uva"] },
         { id: "neon", name: "Neon", brand: "São Roque", sizes: [{ size: "5", price: 9, unitsPerPackage: 25 }], colors: ["Verde"] },
+        { id: "foil_numeros", name: "Números & Letras (Foil)", brand: "Gate", sizes: [{ size: "40cm", price: 12, unitsPerPackage: 1 }], colors: ["Dourado"] },
       ],
       allColors: [],
     };
@@ -193,15 +194,19 @@ describe("BalloonBuilder", () => {
     render(<BalloonBuilder />);
     await waitFor(() => screen.getByText("Escolha a Marca"));
     const cards = screen.getAllByRole("button").map((b) => b.textContent ?? "");
-    expect(cards.findIndex((t) => t.includes("São Roque"))).toBeLessThan(cards.findIndex((t) => t.includes("Riberball")));
+    const at = (txt: string) => cards.findIndex((t) => t.includes(txt));
+    expect(at("São Roque")).toBeLessThan(at("Riberball"));
+    expect(at("Riberball")).toBeLessThan(at("Números & Letras"));
+    expect(screen.getByAltText("Pacote Riberball")).toBeTruthy(); // foto do pacote do tipo
+    expect(screen.queryByText("Gate")).toBeNull(); // foil não é dividido por marca
     expect(screen.getByText("★ Mais pedida")).toBeTruthy();
 
-    fireEvent.click(screen.getByText("Riberball"));
-    await waitFor(() => screen.getByText("Liso Riberball"));
-    expect(screen.queryByText("Neon")).toBeNull();
-
-    fireEvent.click(screen.getByText("Liso Riberball"));
+    fireEvent.click(screen.getByAltText("Pacote Riberball"));
+    // Um tipo só na marca e um tamanho só: vai direto para a cor,
+    // com a marca no título.
     await waitFor(() => screen.getByText("Escolha a Cor"));
+    expect(screen.getByText(/Liso Riberball/)).toBeTruthy();
+    expect(screen.queryByText("Neon")).toBeNull();
     fireEvent.click(screen.getByText("Roxo"));
     fireEvent.click(await screen.findByRole("button", { name: /Adicionar/i }));
     expect(addItemMock).toHaveBeenCalledWith(
