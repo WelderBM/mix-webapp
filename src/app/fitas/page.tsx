@@ -200,8 +200,8 @@ function FitasContent() {
               Central de Fitas
             </h1>
             <p className="text-sm sm:text-base text-slate-500">
-              Gerencie seu estoque: Rolo Fechado para atacado, Aberto para corte
-              e laços personalizados.
+              Rolo fechado, fita por metro ou um laço feito por nós — escolha
+              como prefere levar.
             </p>
           </div>
 
@@ -256,7 +256,24 @@ function FitasContent() {
               {closedRolls.length === 0 ? (
                 <div className="text-center py-20 text-slate-400 bg-slate-50 rounded-xl border-2 border-dashed mx-4 sm:mx-0">
                   <Package size={48} className="mx-auto mb-4 opacity-20" />
-                  <p>Nenhum rolo fechado disponível.</p>
+                  <p>Nenhum rolo fechado disponível agora.</p>
+                  {/* Estado vazio com saída: as outras abas (#285). */}
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("meter")}
+                      className="min-h-11 rounded-full border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:border-primary hover:text-primary"
+                    >
+                      Comprar por metro
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("service")}
+                      className="min-h-11 rounded-full border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:border-primary hover:text-primary"
+                    >
+                      Criar um laço
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
