@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, type SyntheticEvent } from "react";
 import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/button";
 import {
@@ -109,6 +109,17 @@ function groupByBrand(types: BalloonTypeConfig[]): BrandGroup[] {
 }
 
 // Foto do cartão da marca: a do Liso dela, se tiver; senão a primeira.
+// Foto salva no admin que não carrega mais (link antigo) cai na arte
+// desenhada do tipo em vez de mostrar imagem quebrada — #282.
+function fallbackOnError(fallback: string) {
+  return (e: SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.dataset.fallback) return;
+    img.dataset.fallback = "1";
+    img.src = fallback;
+  };
+}
+
 function groupPhoto(g: BrandGroup): string | undefined {
   const withPhoto = g.types.filter((t) => t.imageUrl);
   return (withPhoto.find((t) => baseTypeId(t.id) === "simples") ?? withPhoto[0])?.imageUrl;
@@ -429,6 +440,7 @@ export function BalloonBuilder() {
                         src={groupPhoto(g)}
                         alt={`Pacote ${g.label}`}
                         loading="lazy"
+                        onError={fallbackOnError(balloonTypeImage(g.types[0].id))}
                         className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
@@ -474,14 +486,16 @@ export function BalloonBuilder() {
                     {/* Prioridade: Imagem específica do tipo > Placeholder global > Ícone padrão */}
                     {type.imageUrl ? (
                       <img 
-                        src={type.imageUrl} 
+                        src={type.imageUrl}
                         alt={type.name}
+                        onError={fallbackOnError(balloonTypeImage(type.id))}
                         className="w-full h-full object-contain bg-white p-2 group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : balloonConfig.placeholderUrl ? (
                       <img
                         src={balloonConfig.placeholderUrl}
                         alt={type.name}
+                        onError={fallbackOnError(balloonTypeImage(type.id))}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 opacity-50"
                       />
                     ) : (
