@@ -75,13 +75,17 @@ vi.mock("@/store/cartStore", () => ({
   }),
 }));
 
-vi.mock("@/store/productStore", () => ({
-  useProductStore: () => ({
-    getProductById: vi.fn(),
-    allProducts: [cartItem.product],
-    isLoading: false,
-  }),
+// Catálogo da loja trocável por teste (ex.: produto recém-publicado que
+// ainda não está na cópia carregada).
+const { productState, fetchProductsMock } = vi.hoisted(() => ({
+  productState: { allProducts: [] as unknown[], isLoading: false },
+  fetchProductsMock: vi.fn(),
 }));
+vi.mock("@/store/productStore", () => {
+  const useProductStore = () => ({ getProductById: vi.fn(), ...productState });
+  useProductStore.getState = () => ({ fetchProducts: fetchProductsMock });
+  return { useProductStore };
+});
 
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 // Radix Dialog/Sheet consulta hasPointerCapture em ambientes sem ponteiro real.
@@ -105,6 +109,7 @@ function fillContact() {
 describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    productState.allProducts = [cartItem.product];
     localStorage.clear();
     (window as any).open = vi.fn();
   });
@@ -391,5 +396,24 @@ describe("CartSidebar — sugestão de Retirada em CEP fora de Boa Vista (#161)"
     expect(screen.getByPlaceholderText("(99) 99999-9999")).toHaveValue(
       "(95) 99999-8888"
     );
+  });
+});
+
+describe("CartSidebar — produto publicado depois de a loja abrir", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    productState.allProducts = [cartItem.product];
+  });
+
+  it("produto fora da cópia do catálogo: recarrega o catálogo uma vez antes de acusar", () => {
+    productState.allProducts = [];
+    const { rerender } = render(<CartSidebar />);
+    rerender(<CartSidebar />);
+    expect(fetchProductsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("produto já no catálogo: não recarrega", () => {
+    render(<CartSidebar />);
+    expect(fetchProductsMock).not.toHaveBeenCalled();
   });
 });

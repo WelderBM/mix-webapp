@@ -20,6 +20,15 @@ import {
 } from "./publish";
 import { NO_FAMILY, stockValue } from "./summary";
 import { areaForItem, RIBBON_FAMILY } from "./areas";
+import { isCatalogBalloon } from "./merge";
+
+// Balão do catálogo do montador nunca vira produto da loja (o montador já
+// vende por tipo × tamanho × cor). Trava aqui também, além da fila.
+function assertNotCatalogBalloon(items: Pick<IntakeItem, "family" | "name">[]) {
+  if (items.some(isCatalogBalloon)) {
+    throw new Error("Balão do catálogo é vendido pelo montador de balões, não como produto.");
+  }
+}
 
 // Gravações do card de lançamento (#200). Produto, item da fila e placar
 // vão no MESMO batch: ou tudo acontece, ou nada (sem produto publicado com
@@ -88,6 +97,7 @@ export async function publishIntakeItem(
   input: LaunchInput,
   userEmail: string | null,
 ): Promise<string> {
+  assertNotCatalogBalloon([item]);
   const productRef = doc(collection(db, "products"));
   const product = buildProductFromIntake(item, input);
   // Firestore rejeita `undefined` explícito.
@@ -133,6 +143,7 @@ export async function publishIntakeGroup(
   input: LaunchInput,
   userEmail: string | null,
 ): Promise<string> {
+  assertNotCatalogBalloon(members.map((m) => m.item));
   const productRef = doc(collection(db, "products"));
   const product = buildGroupProductFromIntake(members, input);
   const clean = Object.fromEntries(
