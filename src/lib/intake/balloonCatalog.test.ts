@@ -198,6 +198,26 @@ describe("montar o catálogo pelo Noturno", () => {
     expect(config.types[0].sizes).toHaveLength(3); // não muta a entrada
   });
 
+  it("cor salva com tom (Nome|#hex) não conta como sobra nem duplica (revisão do #273)", () => {
+    const comTom = {
+      types: [{
+        id: "simples", name: "Liso", sizes: [{ size: "9", price: 16, unitsPerPackage: 50 }],
+        colors: ["Preto Ébano|#1B1B1B", "Azul|#0000FF"],
+      }],
+      allColors: [],
+    };
+    const noturno = [
+      { family: "BALAO", name: "BALAO 9 LISO RED C/50 PR EBAN O", stock: 4 },
+      { family: "BALAO", name: "BALAO 9 LISO C/50 AZUL", stock: 0 },
+    ];
+    const p = proposeCatalog(noturno, comTom);
+    expect(p[0].stale).toEqual([]);
+    for (const removeStale of [{}, { simples: false }] as Record<string, boolean>[]) {
+      const out = applyCatalogProposal(comTom, p, { include: {}, prices: {}, removeStale });
+      expect(out.types[0].colors).toEqual(["Preto Ébano|#1B1B1B", "Azul|#0000FF"]);
+    }
+  });
+
   it("corrige nome quebrado salvo antes e junta grafias da mesma cor (staging, 23/10)", () => {
     const old = {
       types: [{
