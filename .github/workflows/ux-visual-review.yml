@@ -1,12 +1,12 @@
 name: Revisão visual de UX
 
-# Paralela e NÃO bloqueante (decisão de 21/10): quando o preview da Vercel de
-# um PR que mexe em telas fica pronto, abre as telas num navegador real
-# (celular 360px + desktop), mede alvo de toque, estouro de layout,
-# acessibilidade (axe-core) e erros de console, tira prints e pede para o
-# Claude olhar os prints. Publica tudo no PR. Não segura o merge em dev;
-# achado objetivo marca "precisa-de-voce" e menciona o dono (e, se o PR já
-# entrou, abre issue de correção).
+# PÓS-MERGE em dev (decisão do dono, 23/10: rodando no PR aberto, atrasava
+# e parecia barrar o merge). Quando a Vercel publica o commit de MERGE de um
+# PR em dev, abre as telas que o PR mexeu num navegador real (celular 360px
+# + desktop), mede alvo de toque, estouro de layout, acessibilidade
+# (axe-core) e erros de console, compara com a publicação anterior do dev,
+# tira prints e pede para o Claude olhar. Comenta no PR (já fechado) e, se
+# houver achado, abre issue de correção para o dono. PR aberto: nada.
 #
 # Scripts SEMPRE lidos de dev: este job usa secrets (bypass do preview,
 # conta de teste) e um PR não pode trocar o código que roda com eles.
@@ -41,20 +41,26 @@ jobs:
       HAS_CLAUDE: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' || secrets.ANTHROPIC_API_KEY != '' }}
 
     steps:
-      - name: Achar o PR e decidir se há tela no diff
+      - name: Achar o PR mergeado e decidir se há tela no diff
         id: pr
         run: |
           set -euo pipefail
+          # Só o commit de MERGE de um PR em dev; PR aberto não é revisado aqui.
           PR=$(gh api "repos/$GH_REPO/commits/$SHA/pulls" \
-            --jq '[.[] | select(.state=="open" and (.base.ref=="dev" or .base.ref=="master"))][0].number // empty')
-          if [ -z "$PR" ]; then echo "::notice::Nenhum PR aberto para dev/master neste commit."; exit 0; fi
+            --jq '[.[] | select(.merged_at != null and .base.ref == "dev" and .merge_commit_sha == env.SHA)][0].number // empty')
+          if [ -z "$PR" ]; then echo "::notice::Não é o merge de um PR em dev — revisão visual pulada."; exit 0; fi
           echo "number=$PR" >> "$GITHUB_OUTPUT"
-          # Versão de antes do PR, para reportar só o que o PR piorou.
-          if [ "$(gh pr view "$PR" --json baseRefName --jq .baseRefName)" = "master" ]; then
-            echo "base_url=https://www.mixnovidades.com" >> "$GITHUB_OUTPUT"
-          else
-            echo "base_url=https://mix-webapp-git-dev-welderbms-projects.vercel.app" >> "$GITHUB_OUTPUT"
-          fi
+          # Base: a publicação do dev de antes do merge (1º pai do commit),
+          # para reportar só o que o PR piorou.
+          PARENT=$(gh api "repos/$GH_REPO/commits/$SHA" --jq '.parents[0].sha')
+          BASE_URL=""
+          for DEP in $(gh api "repos/$GH_REPO/deployments?sha=$PARENT&environment=Preview" --jq '.[].id'); do
+            BASE_URL=$(gh api "repos/$GH_REPO/deployments/$DEP/statuses" \
+              --jq '[.[] | select(.state == "success" and .environment_url != "")][0].environment_url // empty')
+            [ -n "$BASE_URL" ] && break
+          done
+          [ -n "$BASE_URL" ] || echo "::warning::Sem a publicação anterior do dev — achados sem comparação."
+          echo "base_url=$BASE_URL" >> "$GITHUB_OUTPUT"
           gh pr view "$PR" --json files --jq '[.files[].path]' > "$RUNNER_TEMP/files.json"
 
           git init -q "$RUNNER_TEMP/repo" && cd "$RUNNER_TEMP/repo"
@@ -93,8 +99,11 @@ jobs:
           fi
           node "$RUNNER_TEMP/ux-scripts/visual-check.mjs" "$PREVIEW_URL" "$RUNNER_TEMP/routes.json" "$RUNNER_TEMP/ux-out"
           # Base: falha aqui não derruba a revisão, só perde a comparação.
-          node "$RUNNER_TEMP/ux-scripts/visual-check.mjs" "${{ steps.pr.outputs.base_url }}" "$RUNNER_TEMP/routes.json" "$RUNNER_TEMP/ux-base" \
-            || echo "::warning::Não consegui medir a versão base — achados sem comparação."
+          BASE_URL="${{ steps.pr.outputs.base_url }}"
+          if [ -n "$BASE_URL" ]; then
+            node "$RUNNER_TEMP/ux-scripts/visual-check.mjs" "$BASE_URL" "$RUNNER_TEMP/routes.json" "$RUNNER_TEMP/ux-base" \
+              || echo "::warning::Não consegui medir a versão base — achados sem comparação."
+          fi
 
       - name: Guardar prints
         if: steps.pr.outputs.run == 'true'
@@ -156,7 +165,7 @@ jobs:
             <!-- veredito-ux-visual: {"importantes":N} -->.
             Nunca escreva "revisao:1" nem "revisao:2" no comentário.
 
-      - name: Escalar achados (não bloqueante)
+      - name: Abrir issue com os achados
         if: steps.pr.outputs.run == 'true'
         run: |
           set -uo pipefail
@@ -168,24 +177,8 @@ jobs:
           TOTAL=$(( MEASURED + ${VISUAL:-0} ))
           [ "$TOTAL" -eq 0 ] && { echo "Sem achados de UX."; exit 0; }
 
-          # Marca o PR para o dono: etiqueta (o lembrete diário depende dela)
-          # e responsável, em chamadas REST separadas e com novas tentativas —
-          # um erro temporário do GraphQL (PR #242) deixava o PR sem etiqueta.
-          flag_owner() {
-            local ok=""
-            for _ in 1 2 3; do
-              gh api -X POST "repos/$GH_REPO/issues/$PR/labels" -f "labels[]=precisa-de-voce" >/dev/null && { ok=1; break; }
-              sleep 5
-            done
-            [ -n "$ok" ] || echo "::error::Não consegui pôr a label precisa-de-voce no PR #$PR."
-            gh api -X POST "repos/$GH_REPO/issues/$PR/assignees" -f "assignees[]=$OWNER" >/dev/null || true
-          }
-          STATE=$(gh pr view "$PR" --json state --jq .state)
-          if [ "$STATE" = "MERGED" ]; then
-            TITLE=$(gh pr view "$PR" --json title --jq .title)
-            gh issue create --title "UX: ajustes do PR #$PR — $TITLE" --label precisa-de-voce --assignee "$OWNER" \
-              --body "@$OWNER a revisão visual do PR #$PR (já em \`dev\`) encontrou $TOTAL achado(s) de UX. Detalhes nos comentários do PR #$PR (medições + olhar da IA) e prints no artefato **ux-visual-pr-$PR**."
-          else
-            flag_owner
-            gh pr comment "$PR" --body "@$OWNER a revisão visual encontrou **$TOTAL achado(s) de UX** (medições: $MEASURED, olhar da IA: ${VISUAL:-0}). Não bloqueia o merge em \`dev\`, mas vale ver antes de promover para produção."
-          fi
+          # O PR já está em dev: os achados viram uma issue de correção, para
+          # resolver antes de promover para produção.
+          TITLE=$(gh pr view "$PR" --json title --jq .title)
+          gh issue create --title "UX: ajustes do PR #$PR — $TITLE" --label precisa-de-voce --assignee "$OWNER" \
+            --body "@$OWNER a revisão visual do PR #$PR (já em \`dev\`) encontrou $TOTAL achado(s) de UX (medições: $MEASURED, olhar da IA: ${VISUAL:-0}). Detalhes nos comentários do PR #$PR e prints no artefato **ux-visual-pr-$PR**. Vale resolver antes de promover para produção."
