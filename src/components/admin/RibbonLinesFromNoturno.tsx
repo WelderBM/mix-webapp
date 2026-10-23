@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { auth, db } from "@/lib/firebase";
 import {
@@ -21,6 +21,20 @@ import {
   type RibbonLine,
 } from "@/lib/intake/ribbonLines";
 import { parsePrice } from "@/lib/intake/publish";
+import { ImageSearchDialog } from "@/components/admin/ImageSearchDialog";
+import { imageSearchEnabled } from "@/lib/imageSearch/client";
+
+// Miniatura da foto escolhida na internet (o object URL é liberado ao sair).
+function BlobThumb({ blob }: { blob: Blob }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const u = URL.createObjectURL(blob);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [blob]);
+  // eslint-disable-next-line @next/next/no-img-element -- blob local
+  return url ? <img src={url} alt="" className="h-full w-full object-cover" /> : null;
+}
 
 // Fitas de plástico para laço "por linha" (#259): linha × largura ×
 // metragem vêm do Noturno; o preço do rolo e do metro é digitado UMA vez
@@ -38,6 +52,7 @@ type LineState = {
   expanded: boolean;
   skip: Record<string, boolean>; // item.id → fora
   labels: Record<string, string>; // item.id → nome corrigido
+  photos: Record<string, Blob>; // item.id → foto escolhida na internet (#267)
 };
 
 export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
@@ -45,6 +60,12 @@ export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [state, setState] = useState<Record<string, LineState>>({});
   const [busy, setBusy] = useState<{ key: string; step: string } | null>(null);
+  // Busca de foto (#267): só aparece com a chave configurada no servidor.
+  const [canSearch, setCanSearch] = useState(false);
+  const [searchFor, setSearchFor] = useState<{ line: string; id: string; q: string } | null>(null);
+  useEffect(() => {
+    if (open) imageSearchEnabled().then(setCanSearch);
+  }, [open]);
 
   // Fitas da fila (~350 leituras): só ao abrir.
   useEffect(() => {
@@ -57,7 +78,7 @@ export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
 
   const lines = useMemo(() => (items ? groupRibbonLines(items) : []), [items]);
   const st = (k: string): LineState =>
-    state[k] ?? { roll: "", meter: "", expanded: false, skip: {}, labels: {} };
+    state[k] ?? { roll: "", meter: "", expanded: false, skip: {}, labels: {}, photos: {} };
   const patch = (k: string, p: Partial<LineState>) =>
     setState((s) => ({ ...s, [k]: { ...st(k), ...p } }));
 
@@ -92,6 +113,8 @@ export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
           members.slice(i, i + 6).map(async (m, j) => {
             // Cor do rolo pelo nome CORRIGIDO (se a atendente trocou), senão o do Noturno.
             const edited = s.labels[m.item.id];
+            const picked = s.photos[m.item.id];
+            if (picked) return uploadIntakePhoto(m.item, picked, i + j);
             const blob = await renderBalloonImage(
               ribbonSvg(edited ? `FITA ${edited}` : m.item.name, line.label),
               600,
@@ -209,6 +232,22 @@ export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
                           className="h-11 min-w-0 flex-1 bg-transparent text-base outline-none"
                         />
                         <span className="shrink-0 pr-1 text-xs text-slate-500">{m.item.stock} un.</span>
+                        {canSearch && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSearchFor({
+                                line: line.key,
+                                id: m.item.id,
+                                q: `fita ${line.label} ${(s.labels[m.item.id] ?? m.label).trim()}`,
+                              })
+                            }
+                            aria-label={`Buscar foto: ${s.labels[m.item.id] ?? m.label}`}
+                            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md text-slate-500"
+                          >
+                            {s.photos[m.item.id] ? <BlobThumb blob={s.photos[m.item.id]} /> : <ImagePlus size={20} />}
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -226,6 +265,17 @@ export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
             );
           })}
         </div>
+        {searchFor && (
+          <ImageSearchDialog
+            open
+            onOpenChange={(v) => !v && setSearchFor(null)}
+            initialQuery={searchFor.q}
+            onPick={(photo) => {
+              const { line, id } = searchFor;
+              patch(line, { photos: { ...st(line).photos, [id]: photo } });
+            }}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
