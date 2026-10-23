@@ -45,6 +45,8 @@ jobs:
         id: pr
         run: |
           set -euo pipefail
+          # Início do job: o veredito da IA só vale se for desta execução.
+          echo "JOB_STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
           # Só o commit de MERGE de um PR em dev; PR aberto não é revisado aqui.
           PR=$(gh api "repos/$GH_REPO/commits/$SHA/pulls" \
             --jq '[.[] | select(.merged_at != null and .base.ref == "dev" and .merge_commit_sha == env.SHA)][0].number // empty')
@@ -52,11 +54,12 @@ jobs:
           echo "number=$PR" >> "$GITHUB_OUTPUT"
           # Base: a publicação do dev de antes do merge (1º pai do commit),
           # para reportar só o que o PR piorou.
-          PARENT=$(gh api "repos/$GH_REPO/commits/$SHA" --jq '.parents[0].sha')
+          # Erro passageiro da API aqui só tira a comparação, não a revisão.
+          PARENT=$(gh api "repos/$GH_REPO/commits/$SHA" --jq '.parents[0].sha' || true)
           BASE_URL=""
           for DEP in $(gh api "repos/$GH_REPO/deployments?sha=$PARENT&environment=Preview" --jq '.[].id'); do
             BASE_URL=$(gh api "repos/$GH_REPO/deployments/$DEP/statuses" \
-              --jq '[.[] | select(.state == "success" and .environment_url != "")][0].environment_url // empty')
+              --jq '[.[] | select(.state == "success" and .environment_url != "")][0].environment_url // empty' || true)
             [ -n "$BASE_URL" ] && break
           done
           [ -n "$BASE_URL" ] || echo "::warning::Sem a publicação anterior do dev — achados sem comparação."
@@ -127,6 +130,7 @@ jobs:
           echo "importantes=$(jq -r .importantes "$RUNNER_TEMP/summary.json")" >> "$GITHUB_OUTPUT"
 
       - name: Claude olha os prints
+        id: claude
         # CLI direto, não a claude-code-action: a action recusa o evento
         # deployment_status ("Unsupported event type"). Falha aqui não
         # impede a escalada das medições (continue-on-error).
@@ -171,14 +175,24 @@ jobs:
           set -uo pipefail
           PR=${{ steps.pr.outputs.number }}
           MEASURED=${{ steps.measured.outputs.importantes || 0 }}
-          VISUAL=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
-            --jq '.[] | select(.body | contains("veredito-ux-visual")) | .body' \
-            | grep -oE 'veredito-ux-visual: \{"importantes":[0-9]+\}' | tail -1 | grep -oE '[0-9]+$' || echo 0)
+          # Veredito da IA só DESTA execução: comentário criado depois do
+          # início do job e só se o passo do Claude deu certo (um veredito
+          # antigo do PR não conta).
+          VISUAL=0
+          if [ "${{ steps.claude.outcome }}" = "success" ]; then
+            VISUAL=$(gh api "repos/$GH_REPO/issues/$PR/comments" --paginate \
+              --jq ".[] | select(.created_at >= \"$JOB_STARTED\" and (.body | contains(\"veredito-ux-visual\"))) | .body" \
+              | grep -oE 'veredito-ux-visual: \{"importantes":[0-9]+\}' | tail -1 | grep -oE '[0-9]+$' || echo 0)
+          fi
           TOTAL=$(( MEASURED + ${VISUAL:-0} ))
           [ "$TOTAL" -eq 0 ] && { echo "Sem achados de UX."; exit 0; }
 
           # O PR já está em dev: os achados viram uma issue de correção, para
-          # resolver antes de promover para produção.
+          # resolver antes de promover para produção. Redeploy do mesmo
+          # commit não abre outra.
+          if gh issue list --state open --search "in:title \"UX: ajustes do PR #$PR \"" --json number --jq 'length' | grep -qv '^0$'; then
+            echo "Já existe issue aberta para o PR #$PR."; exit 0
+          fi
           TITLE=$(gh pr view "$PR" --json title --jq .title)
           gh issue create --title "UX: ajustes do PR #$PR — $TITLE" --label precisa-de-voce --assignee "$OWNER" \
             --body "@$OWNER a revisão visual do PR #$PR (já em \`dev\`) encontrou $TOTAL achado(s) de UX (medições: $MEASURED, olhar da IA: ${VISUAL:-0}). Detalhes nos comentários do PR #$PR e prints no artefato **ux-visual-pr-$PR**. Vale resolver antes de promover para produção."
