@@ -272,7 +272,7 @@ describe("marca (o cliente escolhe a marca primeiro — dono, 23/10)", () => {
     expect(by.simples__riberball.colors.map((c) => c.name)).toEqual(["Roxo"]);
     expect(by.simples__regina).toMatchObject({ name: "Liso Regina", brand: "Regina" });
     expect(by.neon.colors.map((c) => c.name)).toEqual(["Verde"]);
-    expect(by.foil_numeros.brand).toBe("Gate");
+    expect(by.foil_numeros.brand).toBeNull(); // foil: a marca não importa (dono, 23/10)
     const out = applyCatalogProposal({ types: [], allColors: [] }, p, {
       include: {},
       prices: { "simples|7": 10, "simples|9": 16, "simples__riberball|7": 8 },

@@ -28,7 +28,7 @@ import {
   balloonTypeImage,
   balloonVisualPx,
 } from "@/lib/balloonTypeArt";
-import { baseTypeId, isSoldOut } from "@/lib/intake/balloonCatalog";
+import { BRANDLESS_TYPES, baseTypeId, isSoldOut } from "@/lib/intake/balloonCatalog";
 import { FOIL_MAX_CHARS, FOIL_TYPE_ID, foilCharacters } from "@/lib/balloonFoil";
 import type { BalloonStock, BalloonStockDoc } from "@/types/balloon";
 // Gradients especiais para cores metálicas
@@ -72,20 +72,31 @@ interface BrandGroup {
 const brandKey = (b: string | undefined) =>
   (b ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
+// Primeiro passo do montador (dono, 23/10): "São Roque" (a mais pedida),
+// "Outras marcas" (látex das demais; o nome do tipo traz a marca, ex.
+// "Liso Riberball") e, à parte, os tipos em que a marca não importa
+// (foil de letras e números), cada um com seu cartão.
+// Catálogo sem marca nenhuma (antes do Montar pelo Noturno): um grupo só.
+const OTHER_BRANDS = "outras";
 function groupByBrand(types: BalloonTypeConfig[]): BrandGroup[] {
-  const groups = new Map<string, BalloonTypeConfig[]>();
-  for (const t of types) {
-    const b = brandKey(t.brand);
-    groups.set(b, [...(groups.get(b) ?? []), t]);
+  const brandless = (t: BalloonTypeConfig) => BRANDLESS_TYPES.has(baseTypeId(t.id));
+  if (!types.some((t) => t.brand && !brandless(t))) {
+    return [{ brand: "", label: "", preferred: false, types }];
   }
-  return [...groups.entries()]
-    .map(([brand, ts]) => ({
-      brand,
-      label: ts.find((t) => t.brand)?.brand || "Outros balões",
-      preferred: brand === brandKey(PREFERRED_BRAND),
-      types: ts,
-    }))
-    .sort((a, b) => Number(b.preferred) - Number(a.preferred) || b.types.length - a.types.length);
+  const preferred = brandKey(PREFERRED_BRAND);
+  const groups = new Map<string, BrandGroup>();
+  for (const t of types) {
+    const g = brandless(t)
+      ? { brand: `tipo:${t.id}`, label: t.name, preferred: false }
+      : brandKey(t.brand) === preferred
+        ? { brand: preferred, label: PREFERRED_BRAND, preferred: true }
+        : { brand: OTHER_BRANDS, label: "Outras marcas", preferred: false };
+    const cur = groups.get(g.brand) ?? { ...g, types: [] };
+    cur.types.push(t);
+    groups.set(g.brand, cur);
+  }
+  const order = (g: BrandGroup) => (g.preferred ? 0 : g.brand === OTHER_BRANDS ? 1 : 2);
+  return [...groups.values()].sort((a, b) => order(a) - order(b));
 }
 
 export function BalloonBuilder() {
@@ -263,11 +274,9 @@ export function BalloonBuilder() {
   };
 
   const handleBack = () => {
-    if (step === 2 && availableSizes.length === 1) {
-      // Se voltou da cor e o tipo tem tamanho único, volta para tipo
-      setStep(0);
-      setSelectedTypeId("");
-      setSelectedSize(null);
+    if ((step === 2 && availableSizes.length === 1) || step === 1) {
+      // Volta para o tipo (ou para a marca, se o grupo só tem um tipo)
+      backToStart();
     } else if (step > 0) {
       setStep(step - 1);
     } else if (selectedBrand != null) {
@@ -294,8 +303,16 @@ export function BalloonBuilder() {
   const askBrand = brandGroups.length > 1 && selectedBrand == null;
   const shownTypes =
     brandGroups.length > 1 && selectedBrand != null
-      ? activeTypes.filter((t) => brandKey(t.brand) === selectedBrand)
+      ? brandGroups.find((g) => g.brand === selectedBrand)?.types ?? activeTypes
       : activeTypes;
+  // Grupo de um tipo só (ex.: Números & Letras): voltar ao passo 0 volta
+  // direto para a escolha da marca.
+  const backToStart = () => {
+    setStep(0);
+    setSelectedTypeId("");
+    setSelectedSize(null);
+    if (shownTypes.length === 1) setSelectedBrand(null);
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -345,7 +362,11 @@ export function BalloonBuilder() {
               {brandGroups.map((g) => (
                 <button
                   key={g.brand}
-                  onClick={() => setSelectedBrand(g.brand)}
+                  onClick={() => {
+                    setSelectedBrand(g.brand);
+                    // Um tipo só no cartão: vai direto para ele.
+                    if (g.types.length === 1) handleSelectType(g.types[0].id);
+                  }}
                   className={cn(
                     "group relative bg-white border-2 rounded-2xl p-4 hover:border-purple-500 hover:shadow-lg transition-all",
                     g.preferred ? "border-purple-300" : "border-slate-200"

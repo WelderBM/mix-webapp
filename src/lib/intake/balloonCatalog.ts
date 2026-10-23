@@ -133,7 +133,12 @@ export function homeBrands(items: StockItem[], config: BalloonConfig): HomeBrand
   return home;
 }
 
+// Tipos em que a marca não faz diferença para o cliente (o foil de letras
+// e números é parecido em todas — dono, 23/10): um tipo só, sem marca.
+export const BRANDLESS_TYPES = new Set(["foil_numeros"]);
+
 export function brandTypeId(base: string, brand: string | null | undefined, home: HomeBrands): string {
+  if (BRANDLESS_TYPES.has(base)) return base;
   if (!brand || !home[base] || key(brand) === key(home[base])) return base;
   return `${base}__${key(brand)}`;
 }
@@ -427,7 +432,9 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
       return {
         typeId: id,
         name: existing?.name ?? defaultTypeName(id, brand ?? null),
-        brand: existing?.brand ?? (brand ? brandTitle(brand) : null),
+        brand: BRANDLESS_TYPES.has(baseTypeId(id))
+          ? null
+          : existing?.brand ?? (brand ? brandTitle(brand) : null),
         exists: !!existing,
         sizes: [...a.sizes.entries()]
           .map(([size, s]) => {
