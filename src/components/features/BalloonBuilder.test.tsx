@@ -198,6 +198,10 @@ describe("BalloonBuilder", () => {
     expect(at("São Roque")).toBeLessThan(at("Riberball"));
     expect(at("Riberball")).toBeLessThan(at("Números & Letras"));
     expect(screen.getByAltText("Pacote Riberball")).toBeTruthy(); // foto do pacote do tipo
+    // Foto que não carrega cai na arte desenhada (#282).
+    const foto = screen.getByAltText("Pacote Riberball") as HTMLImageElement;
+    fireEvent.error(foto);
+    expect(foto.src).not.toContain("exemplo/riberball.png");
     expect(screen.queryByText("Gate")).toBeNull(); // foil não é dividido por marca
     expect(screen.getByText("★ Mais pedida")).toBeTruthy();
 
