@@ -138,13 +138,16 @@ describe("BalloonBuilder", () => {
     // Check if colors are displayed
     expect(screen.getByText("Azul")).toBeTruthy();
   });
-  it("esconde a cor que o Noturno confirma esgotada no tamanho (#236)", async () => {
+  it("só mostra cor e tamanho que o Noturno tem em estoque (#236, 23/10)", async () => {
     const mockData = {
       types: [
         {
           id: "t1",
           name: "Liso",
-          sizes: [{ size: "9", price: 10, unitsPerPackage: 50 }],
+          sizes: [
+            { size: "7", price: 8, unitsPerPackage: 50 },
+            { size: "9", price: 10, unitsPerPackage: 50 },
+          ],
           colors: ["Azul", "Preto", "Verde"],
         },
       ],
@@ -163,11 +166,12 @@ describe("BalloonBuilder", () => {
     await waitFor(() => screen.getByText("Liso"));
     fireEvent.click(screen.getByText("Liso"));
     await waitFor(() => screen.getByText(/9"/));
+    expect(screen.queryByText(/7"/)).toBeNull(); // nada no 7": tamanho some
     fireEvent.click(screen.getByText(/9"/));
     await waitFor(() => screen.getByText("Escolha a Cor"));
 
     expect(screen.getByText("Azul")).toBeTruthy();
-    expect(screen.getByText("Verde")).toBeTruthy(); // sem informação: aparece
+    expect(screen.queryByText("Verde")).toBeNull(); // o Noturno não tem no 9"
     expect(screen.queryByText("Preto")).toBeNull(); // esgotada: some
   });
 });

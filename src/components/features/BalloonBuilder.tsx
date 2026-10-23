@@ -20,7 +20,7 @@ import {
   BalloonTypeConfig,
   BalloonSizeConfig,
 } from "@/types/balloon";
-import { SAO_ROQUE_COLORS } from "@/lib/balloonColors";
+import { suggestHexColor } from "@/lib/balloonColors";
 import {
   balloonSizeHint,
   balloonSizeImage,
@@ -44,20 +44,18 @@ const SPECIAL_GRADIENTS: Record<string, string> = {
   Cromado: "linear-gradient(135deg, #CFD8DC 0%, #90A4AE 100%)",
   Cristal:
     "radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.2) 100%)",
+  "Arco Iris":
+    "linear-gradient(135deg, #FF3B30 0%, #FF9500 20%, #FFCC00 40%, #34C759 60%, #007AFF 80%, #AF52DE 100%)",
 };
 
 const getBalloonColor = (colorName: string) => {
   const normalized = colorName.toLowerCase().trim();
+  const flat = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
   const gradientKey = Object.keys(SPECIAL_GRADIENTS).find(
-    (k) => k.toLowerCase() === normalized
+    (k) => flat(k) === flat(normalized)
   );
   if (gradientKey) return SPECIAL_GRADIENTS[gradientKey];
-  if (SAO_ROQUE_COLORS[normalized]) return SAO_ROQUE_COLORS[normalized];
-  const foundKey = Object.keys(SAO_ROQUE_COLORS).find((k) =>
-    k.includes(normalized)
-  );
-  if (foundKey) return SAO_ROQUE_COLORS[foundKey];
-  return "#EEEEEE";
+  return suggestHexColor(colorName) ?? "#EEEEEE";
 };
 
 export function BalloonBuilder() {
@@ -133,12 +131,16 @@ export function BalloonBuilder() {
     [balloonConfig.types, selectedTypeId]
   );
 
+  // Tamanho sem nenhuma cor em estoque no Noturno não aparece.
   const availableSizes = useMemo(() => {
-    return selectedType?.sizes || [];
-  }, [selectedType]);
+    if (!selectedType) return [];
+    return selectedType.sizes.filter((s) =>
+      selectedType.colors.some((c) => !isSoldOut(balloonStock, selectedType.id, s.size, c))
+    );
+  }, [selectedType, balloonStock]);
 
-  // Cor esgotada naquele tamanho (estoque do Noturno, atualizado a cada
-  // importação) não aparece. Sem informação de estoque, mostra tudo.
+  // A cor só aparece no tamanho em que o Noturno tem unidade (estoque
+  // atualizado a cada importação). Sem estoque importado, mostra tudo.
   const availableColors = useMemo(() => {
     const colors = selectedType?.colors || [];
     if (!selectedType || !selectedSize) return colors;
