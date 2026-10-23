@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { BalloonConfig } from "@/types/balloon";
 import {
   applyCatalogProposal,
+  homeBrands,
   isSoldOut,
   matchBalloon,
   proposeCatalog,
@@ -243,5 +244,52 @@ describe("montar o catálogo pelo Noturno", () => {
     expect(p[0].renames).toEqual(
       expect.arrayContaining([{ from: "Branco Pola R", to: "Branco Polar" }, { from: "Verde Euca Lipto", to: "Verde Eucalipto" }]),
     );
+  });
+});
+
+describe("marca (o cliente escolhe a marca primeiro — dono, 23/10)", () => {
+  const items = [
+    { family: "BALAO", name: "BALAO 7 LISO C/50 ROXO UVA", stock: 9, brand: "SAO ROQUE" },
+    { family: "BALAO", name: "BALAO 9 LISO C/50 PRETO", stock: 4, brand: "SAO ROQUE" },
+    { family: "BALAO", name: "BALAO ROXO N.7 C/50 UND.", stock: 6, brand: "RIBERBALL" },
+    { family: "BALAO", name: "BALAO 6,5 C/50 LILAS", stock: 2, brand: "REGINA" },
+    { family: "BALAO", name: "BALAO 5 NEON C/ 25 VERDE", stock: 9, brand: "SAO ROQUE" },
+    { family: "BALAO", name: "BALAO METALIZADO 1640 CM ROSE 2", stock: 3, brand: "GATE" },
+  ];
+
+  it("marca da casa de cada tipo é a mais frequente; o catálogo registrado manda", () => {
+    expect(homeBrands(items, { types: [], allColors: [] })).toMatchObject({ simples: "SAO ROQUE", foil_numeros: "GATE", neon: "SAO ROQUE" });
+    const reg = { types: [{ id: "simples", name: "Liso", brand: "Riberball", sizes: [], colors: [] }], allColors: [] };
+    expect(homeBrands(items, reg).simples).toBe("Riberball");
+  });
+
+  it("outra marca vira tipo à parte, com a marca no nome; neon é tipo próprio", () => {
+    const p = proposeCatalog(items, { types: [], allColors: [] });
+    const by = Object.fromEntries(p.map((t) => [t.typeId, t]));
+    expect(by.simples).toMatchObject({ name: "Balão Simples (Liso)", brand: "São Roque" });
+    expect(by.simples.colors.map((c) => c.name)).toEqual(["Roxo Uva", "Preto"]);
+    expect(by.simples__riberball).toMatchObject({ name: "Liso Riberball", brand: "Riberball" });
+    expect(by.simples__riberball.colors.map((c) => c.name)).toEqual(["Roxo"]);
+    expect(by.simples__regina).toMatchObject({ name: "Liso Regina", brand: "Regina" });
+    expect(by.neon.colors.map((c) => c.name)).toEqual(["Verde"]);
+    expect(by.foil_numeros.brand).toBe("Gate");
+    const out = applyCatalogProposal({ types: [], allColors: [] }, p, {
+      include: {},
+      prices: { "simples|7": 10, "simples|9": 16, "simples__riberball|7": 8 },
+    });
+    expect(out.types.map((t) => [t.id, t.brand])).toEqual([["simples", "São Roque"], ["simples__riberball", "Riberball"]]);
+  });
+
+  it("estoque fica separado por marca", () => {
+    const cfg = {
+      allColors: [],
+      types: [
+        { id: "simples", name: "Liso", brand: "São Roque", sizes: [{ size: "7", price: 10, unitsPerPackage: 50 }], colors: ["Roxo Uva"] },
+        { id: "simples__riberball", name: "Liso Riberball", brand: "Riberball", sizes: [{ size: "7", price: 8, unitsPerPackage: 50 }], colors: ["Roxo"] },
+      ],
+    };
+    const s = surveyCatalog(items, cfg);
+    expect(s.stock.simples).toEqual({ "7": { "Roxo Uva": 9 } });
+    expect(s.stock.simples__riberball).toEqual({ "7": { Roxo: 6 } });
   });
 });

@@ -28,7 +28,7 @@ import {
   balloonTypeImage,
   balloonVisualPx,
 } from "@/lib/balloonTypeArt";
-import { isSoldOut } from "@/lib/intake/balloonCatalog";
+import { baseTypeId, isSoldOut } from "@/lib/intake/balloonCatalog";
 import { FOIL_MAX_CHARS, FOIL_TYPE_ID, foilCharacters } from "@/lib/balloonFoil";
 import type { BalloonStock, BalloonStockDoc } from "@/types/balloon";
 // Gradients especiais para cores metálicas
@@ -58,6 +58,32 @@ const getBalloonColor = (colorName: string) => {
   return suggestHexColor(colorName) ?? "#EEEEEE";
 };
 
+// Marca mais pedida pelos clientes: vem primeiro, com destaque.
+const PREFERRED_BRAND = "São Roque";
+
+interface BrandGroup {
+  brand: string; // "" = tipos sem marca registrada
+  label: string;
+  preferred: boolean;
+  types: BalloonTypeConfig[];
+}
+
+function groupByBrand(types: BalloonTypeConfig[]): BrandGroup[] {
+  const groups = new Map<string, BalloonTypeConfig[]>();
+  for (const t of types) {
+    const b = t.brand ?? "";
+    groups.set(b, [...(groups.get(b) ?? []), t]);
+  }
+  return [...groups.entries()]
+    .map(([brand, ts]) => ({
+      brand,
+      label: brand || "Outros balões",
+      preferred: brand === PREFERRED_BRAND,
+      types: ts,
+    }))
+    .sort((a, b) => Number(b.preferred) - Number(a.preferred) || b.types.length - a.types.length);
+}
+
 export function BalloonBuilder() {
   const { addItem, openCart } = useCartStore();
 
@@ -70,6 +96,8 @@ export function BalloonBuilder() {
 
   // Selection state
   const [step, setStep] = useState(0); // 0=tipo, 1=tamanho, 2=cor, 3=quantidade
+  // Marca escolhida no primeiro passo ("" = tipos sem marca registrada).
+  const [selectedBrand, setSelectedBrand] = useState<string | null>(null);
   const [selectedTypeId, setSelectedTypeId] = useState<string>("");
   const [selectedSize, setSelectedSize] = useState<BalloonSizeConfig | null>(
     null
@@ -132,12 +160,15 @@ export function BalloonBuilder() {
   );
 
   // Tamanho sem nenhuma cor em estoque no Noturno não aparece.
-  const availableSizes = useMemo(() => {
-    if (!selectedType) return [];
-    return selectedType.sizes.filter((s) =>
-      selectedType.colors.some((c) => !isSoldOut(balloonStock, selectedType.id, s.size, c))
+  const sizesInStock = (type: BalloonTypeConfig) =>
+    type.sizes.filter((s) =>
+      type.colors.some((c) => !isSoldOut(balloonStock, type.id, s.size, c))
     );
-  }, [selectedType, balloonStock]);
+  const availableSizes = useMemo(
+    () => (selectedType ? sizesInStock(selectedType) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedType, balloonStock]
+  );
 
   // A cor só aparece no tamanho em que o Noturno tem unidade (estoque
   // atualizado a cada importação). Sem estoque importado, mostra tudo.
@@ -149,7 +180,7 @@ export function BalloonBuilder() {
     );
   }, [selectedType, selectedSize, balloonStock]);
 
-  const isFoil = selectedTypeId === FOIL_TYPE_ID;
+  const isFoil = baseTypeId(selectedTypeId) === FOIL_TYPE_ID;
   // Foil: um balão por caractere; a quantidade conta conjuntos ("ANA" × 2).
   const piecesPerSet = isFoil ? characters.length : 1;
   const currentPrice = useMemo(() => {
@@ -161,9 +192,10 @@ export function BalloonBuilder() {
     setSelectedTypeId(typeId);
     const type = balloonConfig.types.find((t) => t.id === typeId);
 
-    // Se o tipo tem apenas 1 tamanho (ex: canudo), pula para cor
-    if (type && type.sizes.length === 1) {
-      setSelectedSize(type.sizes[0]);
+    // Se o tipo tem apenas 1 tamanho em estoque (ex: canudo), pula para cor
+    const sizes = type ? sizesInStock(type) : [];
+    if (sizes.length === 1) {
+      setSelectedSize(sizes[0]);
       setStep(2); // Pula direto para cor
     } else {
       setStep(1); // Vai para seleção de tamanho
@@ -191,15 +223,20 @@ export function BalloonBuilder() {
     }
 
     const colorName = selectedColor.split("|")[0];
+    // Marca no nome do item: a atendente pega o pacote da marca certa.
+    const brand = selectedType.brand;
+    const typeLabel =
+      brand && !selectedType.name.includes(brand) ? `${selectedType.name} ${brand}` : selectedType.name;
     const cartItem = {
       cartId: crypto.randomUUID(),
       type: "CUSTOM_BALLOON" as const,
       quantity,
-      kitName: `${selectedType.name} ${balloonSizeLabel(selectedType.id, selectedSize.size)}${isFoil ? ` "${characters}"` : ""} - ${colorName}`,
+      kitName: `${typeLabel} ${balloonSizeLabel(selectedType.id, selectedSize.size)}${isFoil ? ` "${characters}"` : ""} - ${colorName}`,
       kitTotalAmount: selectedSize.price * piecesPerSet,
       balloonDetails: {
         typeId: selectedType.id,
         typeName: selectedType.name,
+        ...(brand ? { brand } : {}),
         size: selectedSize.size,
         color: colorName,
         colorHex: selectedColor.split("|")[1] || "#EEEEEE",
@@ -213,6 +250,7 @@ export function BalloonBuilder() {
 
     // Reset
     setStep(0);
+    setSelectedBrand(null);
     setSelectedTypeId("");
     setSelectedSize(null);
     setSelectedColor("");
@@ -221,13 +259,15 @@ export function BalloonBuilder() {
   };
 
   const handleBack = () => {
-    if (step === 2 && selectedType && selectedType.sizes.length === 1) {
+    if (step === 2 && availableSizes.length === 1) {
       // Se voltou da cor e o tipo tem tamanho único, volta para tipo
       setStep(0);
       setSelectedTypeId("");
       setSelectedSize(null);
     } else if (step > 0) {
       setStep(step - 1);
+    } else if (selectedBrand != null) {
+      setSelectedBrand(null); // volta para a escolha da marca
     }
   };
 
@@ -239,7 +279,19 @@ export function BalloonBuilder() {
     );
   }
 
-  const activeTypes = balloonConfig.types.filter((t) => t.active !== false);
+  // Tipo sem nenhum tamanho em estoque não aparece.
+  const activeTypes = balloonConfig.types.filter(
+    (t) => t.active !== false && sizesInStock(t).length > 0
+  );
+  // Marca primeiro (decisão do dono, 23/10): São Roque é a mais pedida e
+  // vem na frente; depois as outras, pela quantidade de tipos. Uma marca
+  // só (ou catálogo sem marca): pula direto para os tipos.
+  const brandGroups = groupByBrand(activeTypes);
+  const askBrand = brandGroups.length > 1 && selectedBrand == null;
+  const shownTypes =
+    brandGroups.length > 1 && selectedBrand != null
+      ? activeTypes.filter((t) => (t.brand ?? "") === selectedBrand)
+      : activeTypes;
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -262,7 +314,7 @@ export function BalloonBuilder() {
       <div className="flex items-center justify-center gap-2">
         {[0, 1, 2, 3].map((s) => {
           // Esconde step 1 se tipo tiver tamanho único
-          if (s === 1 && selectedType && selectedType.sizes.length === 1) {
+          if (s === 1 && selectedType && availableSizes.length === 1) {
             return null;
           }
 
@@ -279,14 +331,60 @@ export function BalloonBuilder() {
       </div>
 
       <div ref={stepRef}>
-        {/* STEP 0: TIPO */}
-        {step === 0 && (
+        {/* STEP 0a: MARCA */}
+        {step === 0 && askBrand && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h3 className="text-xl font-bold text-center mb-6">
-              Escolha o Tipo de Balão
+              Escolha a Marca
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {activeTypes.map((type) => (
+              {brandGroups.map((g) => (
+                <button
+                  key={g.brand}
+                  onClick={() => setSelectedBrand(g.brand)}
+                  className={cn(
+                    "group relative bg-white border-2 rounded-2xl p-4 hover:border-purple-500 hover:shadow-lg transition-all",
+                    g.preferred ? "border-purple-300" : "border-slate-200"
+                  )}
+                >
+                  {g.preferred && (
+                    <span className="absolute top-2 left-2 z-10 rounded-full bg-purple-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                      ★ Mais pedida
+                    </span>
+                  )}
+                  <div className="aspect-square bg-slate-50 rounded-xl mb-3 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={balloonTypeImage(g.types[0].id)}
+                      alt=""
+                      className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500"
+                    />
+                  </div>
+                  <h4 className="font-bold text-sm text-center text-slate-800 group-hover:text-purple-600 transition-colors">
+                    {g.label}
+                  </h4>
+                  <p className="text-xs text-slate-500 text-center mt-1 line-clamp-2">
+                    {g.types.map((t) => t.name.replace(g.brand, "").trim() || t.name).join(" · ")}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* STEP 0b: TIPO */}
+        {step === 0 && !askBrand && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {brandGroups.length > 1 && (
+              <Button variant="ghost" onClick={handleBack} className="mb-4" size="sm">
+                <ArrowLeft size={16} className="mr-2" /> Trocar marca
+              </Button>
+            )}
+            <h3 className="text-xl font-bold text-center mb-6">
+              Escolha o Tipo de Balão
+              {brandGroups.length > 1 && selectedBrand ? ` — ${selectedBrand}` : ""}
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {shownTypes.map((type) => (
                 <button
                   key={type.id}
                   onClick={() => handleSelectType(type.id)}
@@ -320,8 +418,8 @@ export function BalloonBuilder() {
                     {type.name}
                   </h4>
                   <p className="text-xs text-slate-500 text-center mt-1">
-                    {type.sizes.length} tamanho
-                    {type.sizes.length > 1 ? "s" : ""}
+                    {sizesInStock(type).length} tamanho
+                    {sizesInStock(type).length > 1 ? "s" : ""}
                   </p>
                 </button>
               ))}
