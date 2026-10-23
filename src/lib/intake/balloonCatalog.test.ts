@@ -43,13 +43,30 @@ const config: BalloonConfig = {
 describe("matchBalloon (nomes reais do Noturno)", () => {
   it("abreviação e palavra quebrada", () => {
     expect(matchBalloon("BALAO 16 LISO RED C/10 VD FOLHA", config)).toMatchObject({ typeId: "simples", size: "16", color: "Verde Folha" });
-    expect(matchBalloon("BALAO 16 LISO RED C/10 PR EBAN O", config)?.color).toBe("Preto");
+    // Palavra quebrada casa com o nome completo; nunca com o "parecido".
+    const ebano = { ...config, types: [{ ...config.types[0], colors: ["Preto Ébano"] }, ...config.types.slice(1)] };
+    expect(matchBalloon("BALAO 16 LISO RED C/10 PR EBAN O", ebano)?.color).toBe("Preto Ébano");
+    expect(matchBalloon("BALAO 16 LISO RED C/10 PR EBAN O", config)).toMatchObject({ color: null, rawColor: "Preto Ebano" });
   });
   it("nomes diferentes da mesma cor", () => {
     expect(matchBalloon("BALAO 7 LISO C/50 ROSA SHOCK", config)?.color).toBe("Rosa Choque");
     expect(matchBalloon("BALAO CANUDO C/50 ROS TUTTI FRUTTI", { ...config, types: [{ ...config.types[0], id: "canudo", sizes: [{ size: "260", price: 15, unitsPerPackage: 50 }] }] })?.color).toBe("Rosa Tutti Frutti");
     expect(matchBalloon("BALAO 16 CANDY COLORS C/10 ROSA", config)?.color).toBe("Rosa Candy");
     expect(matchBalloon("BALAO 9 METALLIC BALLOON C/ 25 PRATEADO", config)).toMatchObject({ typeId: "metalico", size: "9", color: "Prata" });
+  });
+  it("cor parecida NÃO junta: Roxo Uva e Roxo Ametista não viram Roxo (teste do dono, 23/10)", () => {
+    const roxo = { ...config, types: [{ ...config.types[0], sizes: [{ size: "9", price: 16, unitsPerPackage: 50 }], colors: ["Roxo", "Pink", "Amarelo"] }, ...config.types.slice(1)] };
+    for (const [name, raw] of [["BALAO 9 LISO C/ 50 ROXO UVA", "Roxo Uva"], ["BALAO 9 LISO C/ 50 ROXO AMETISTA", "Roxo Ametista"], ["BALAO 9 LISO C/50 NEW PINK", "New Pink"], ["BALAO 9 LISO C/50 AMARELO OCRE", "Amarelo Ocre"]]) {
+      expect(matchBalloon(name, roxo), name).toMatchObject({ color: null, rawColor: raw });
+    }
+    // Marca não é cor: "AMARELO ART LATEX" é Amarelo.
+    expect(matchBalloon("BALAO 9 LISO C/50 AMARELO ART LATEX", roxo)?.color).toBe("Amarelo");
+    expect(matchBalloon("BALAO 6,5 LISO BASIC VERMELHO C/50UND", roxo)?.rawColor).toBe("Vermelho");
+  });
+  it("temático, coração de látex e gigante não são do catálogo", () => {
+    for (const n of ["BALAO 9 TEMA BOLINHA C/25 VERMELHO/BRANCO", "BALAO CORACAO 11 LISO P/UNID VERMELHO QUENTE", "BALAO GIGANTE LISO BRANCO"]) {
+      expect(matchBalloon(n, config), n).toBeNull();
+    }
   });
   it("letra/número metalizado: cor sem a letra; ROSE = Rose Gold", () => {
     expect(matchBalloon("BALAO METALIZADO 1640 CM ROSE 2", config)).toMatchObject({ typeId: "foil_numeros", size: "40cm", color: "Rose Gold" });

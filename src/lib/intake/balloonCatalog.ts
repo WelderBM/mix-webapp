@@ -9,8 +9,9 @@ import { normalizeText } from "./search";
 // casa (cor ou tamanho fora do catálogo) aparece no levantamento do
 // admin, com botão para adicionar.
 //
-// Formatos (coração, estrela, redondo) e temáticos não são do catálogo:
-// seguem como produto comum (#254).
+// Formatos (coração, estrela, redondo), temáticos e gigantes não são do
+// catálogo: seguem como produto comum, agrupados em "Balões
+// personalizados" na página de balões.
 
 export interface CatalogMatch {
   typeId: string;
@@ -32,7 +33,15 @@ const NOISE = new Set([
   "BALAO", "LISO", "RED", "CANDY", "COLORS", "UNIQ", "METALLIC", "BALLOON",
   "CINTILANTE", "CANUDO", "METALIZADO", "METAL", "NEON", "GRANFESTA", "UND",
   "UND.", "UN", "UNID", "C", "POR", "CM", "M", "N",
+  // Marca/linha, não cor: "AMARELO ART LATEX", "BASIC BRANCO".
+  "ART", "LATEX", "BASIC",
 ]);
+
+// Nome curto do Noturno → nome completo da cor (casos conferidos à mão).
+const COLOR_ALIAS: Record<string, string> = {
+  tuttifrutti: "rosatuttifrutti",
+  rose: "rosegold",
+};
 
 export function balloonTypeOf(name: string): { typeId: string; size: string | null } | null {
   const n = name.toUpperCase();
@@ -43,6 +52,8 @@ export function balloonTypeOf(name: string): { typeId: string; size: string | nu
   if (/\bBOBO\b|\bBUBBLE\b/.test(n)) return null;
   // Foil de formato (coração, estrela…) e temáticos: produto, não catálogo.
   if (/\bMETAL\b|\bMETALIZADO\b/.test(n)) return null;
+  // Temático (estampa), coração/estrela de látex e gigante: personalizados.
+  if (/\b(TEMA|CORACAO|ESTRELA|GIGANTE)\b/.test(n)) return null;
   let typeId: string | null = null;
   if (/\bUNIQ\b/.test(n)) typeId = "uniq";
   else if (/\bCANDY\b/.test(n)) typeId = "candy";
@@ -59,11 +70,19 @@ export function balloonTypeOf(name: string): { typeId: string; size: string | nu
 export function colorWords(name: string): string {
   return name
     .toUpperCase()
-    .replace(/\bC\/ ?\d+\b|\b\d+X\d+\b|\b\d+(?:[.,]\d+)? ?CM\b|\bN\.\d\b|\b\d+(?:[.,]\d+)?\b/g, " ")
+    .replace(/\bC\/ ?\d+(?:UND|UN)?\b|\b\d+X\d+\b|\b\d+(?:[.,]\d+)? ?CM\b|\bN\.\d\b|\b\d+(?:[.,]\d+)?\b/g, " ")
     .replace(/[,.;()]/g, " ")
     .split(/\s+/)
     .filter((w) => w && !NOISE.has(w))
     .map((w) => ABBREV[w] ?? w)
+    // Palavra quebrada no Noturno ("EBAN O", "POLA R", "QUEN TE"): pedaço
+    // de 1–2 letras volta para a palavra anterior. Senão a cor nova entra
+    // no catálogo com o nome quebrado.
+    .reduce<string[]>((out, w) => {
+      if (out.length > 0 && /^[A-Z]{1,2}$/.test(w)) out[out.length - 1] += w;
+      else out.push(w);
+      return out;
+    }, [])
     .join(" ")
     .trim();
 }
@@ -77,21 +96,16 @@ export function matchCatalogColor(type: BalloonTypeConfig, words: string): strin
   const w = key(words);
   // Variações de nome por tipo: "ROSA" no candy é "Rosa Candy"; no
   // metálico/cintilante o perolado vem sem a palavra.
-  const tries = [w, `${w}candy`, `${w}perolado`, `${w}uniq`];
-  const colors = [...type.colors].sort((a, b) => b.length - a.length);
+  // Só igualdade, ignorando espaços ("PRETO EBAN O" = "Preto Ébano"). Cor
+  // que não casa vira cor NOVA no levantamento, nunca "a mais parecida":
+  // "contém"/"começa com" juntava cores diferentes ("ROXO UVA" e
+  // "ROXO AMETISTA" viravam "Roxo"; "NEW PINK" virava "Pink").
+  const tries = [w, `${w}candy`, `${w}perolado`, `${w}uniq`, COLOR_ALIAS[w]].filter(Boolean);
   for (const t of tries) {
-    const exact = colors.find((c) => key(c) === t);
+    const exact = type.colors.find((c) => key(c) === t);
     if (exact) return exact;
   }
-  // Palavra quebrada/abreviada: catálogo contido no texto (ou o contrário).
-  return (
-    colors.find((c) => w.includes(key(c))) ??
-    // "TUTTI FRUTTI" → "Rosa Tutti Frutti" (o nome do catálogo contém o texto).
-    colors.find((c) => w.length >= 6 && key(c).includes(w)) ??
-    // "ROSE" → "Rose Gold".
-    colors.find((c) => w.length >= 4 && key(c).startsWith(w)) ??
-    null
-  );
+  return null;
 }
 
 export function matchBalloon(name: string, config: BalloonConfig): CatalogMatch | null {
