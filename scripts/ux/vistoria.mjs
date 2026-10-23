@@ -152,6 +152,24 @@ const LABELS_BY_KIND = {
 };
 
 // Compara a vistoria atual com as issues existentes e devolve o que fazer.
+// Pontuação de prioridade de achado automático (docs/fluxo/prioridade.md).
+// A issue já nasce com ela e com `backlog`: issue criada pelo GITHUB_TOKEN
+// não dispara o sync-backlog-label.yml (#290).
+const FRENTE_BY_ROUTE = { "/": "home-rodape", "/fitas": "fitas", "/baloes": "montador", "/admin/lancamento": "lancamento" };
+
+export function priorityLabels(g) {
+  const routes = new Set([...g.occurrences.join(" ").matchAll(/`(\/[^`]*)`/g)].map((m) => m[1]));
+  const one = routes.size === 1 ? [...routes][0] : null;
+  const shared = g.key === "toque:compartilhado" || routes.size >= 3;
+  // Alcance: 3 = várias telas ou a home · 2 = uma tela muito usada · 1 = /natura e afins.
+  const alcance = shared || one === "/" ? 3 : one === "/natura" ? 1 : 2;
+  const frente =
+    g.key === "toque:compartilhado" ? "cabecalho"
+    : g.kind === "acessibilidade" && routes.size > 1 ? "acessibilidade"
+    : FRENTE_BY_ROUTE[one] ?? "loja-paginas";
+  return ["backlog", "o:2", "s:2", `a:${alcance}`, "e:p", "autonomo", `frente:${frente}`];
+}
+
 export function planSync(groups, existingIssues, today = "") {
   const existing = new Map();
   for (const i of existingIssues.map(parseIssue).filter(Boolean)) existing.set(i.key, i);
@@ -160,7 +178,7 @@ export function planSync(groups, existingIssues, today = "") {
 
   for (const g of groups) {
     seen.add(g.key);
-    const labels = ["vistoria", g.severity, ...(LABELS_BY_KIND[g.kind] ?? [])];
+    const labels = ["vistoria", g.severity, ...(LABELS_BY_KIND[g.kind] ?? []), ...priorityLabels(g)];
     const body = issueBody(g, 0, today);
     const prev = existing.get(g.key);
     if (!prev) {
