@@ -158,6 +158,7 @@ export default function BaloesBoaVistaPage() {
 
           <div className="max-w-5xl mx-auto h-96 rounded-3xl overflow-hidden shadow-xl border border-slate-200 bg-slate-200 relative">
             <iframe
+              title="Mapa: localização da Mix Novidades em Boa Vista"
               src="https://maps.google.com/maps?q=Mix%20Novidades%20Boa%20Vista&t=&z=15&ie=UTF8&iwloc=&output=embed"
               width="100%"
               height="100%"
