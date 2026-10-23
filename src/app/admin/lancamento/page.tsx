@@ -35,6 +35,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LaunchSheet } from "@/components/admin/intake/LaunchSheet";
 import { attributePlural, buildGroups, type VariantGroup } from "@/lib/intake/groups";
 import { splitBowRibbons } from "@/lib/intake/ribbonLines";
+import { splitCatalogBalloons } from "@/lib/intake/merge";
 import {
   activeClaim,
   areaById,
@@ -307,7 +308,12 @@ export default function IntakeQueuePage() {
       .sort((a, b) => b.priority - a.priority);
   }, [items, status, family, parsed, area, meta.overrides]);
   // Fita plástica de laço pendente: cadastro por linha em Fitas (#259).
-  const { queue: listed, bow: bowRibbons } = useMemo(() => splitBowRibbons(visible), [visible]);
+  // Balão do catálogo pendente: estoque vai para o montador (#259).
+  const { listed, bowRibbons, catalogBalloons } = useMemo(() => {
+    const { queue, bow } = splitBowRibbons(visible);
+    const { queue: rest, balloons } = splitCatalogBalloons(queue);
+    return { listed: rest, bowRibbons: bow, catalogBalloons: balloons };
+  }, [visible]);
 
   // Lançamento em grupo (#201): pendentes com a mesma base e cores
   // diferentes viram UMA linha. Grupo sobe na lista pela maior prioridade.
@@ -506,6 +512,17 @@ export default function IntakeQueuePage() {
               {hitLimit &&
                 " · muitos resultados, digite mais palavras para refinar"}
             </p>
+            {catalogBalloons.length > 0 && (
+              <p className="mb-3 rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
+                {catalogBalloons.length.toLocaleString("pt-BR")} balão(ões) do
+                catálogo não aparecem aqui: são vendidos pelo montador de
+                balões, com o estoque do Noturno. Novas cores e tamanhos:{" "}
+                <Link href="/admin?aba=baloes" className="font-medium underline">
+                  Balões › Montar pelo Noturno
+                </Link>
+                .
+              </p>
+            )}
             {bowRibbons.length > 0 && (
               <p className="mb-3 rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
                 {bowRibbons.length.toLocaleString("pt-BR")} fita(s) de laço não

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mergeIntake, isTruncationOf } from "./merge";
+import { mergeIntake, isTruncationOf, splitCatalogBalloons } from "./merge";
 import { analyzeNoturnoRows, type NoturnoRow } from "./noturno";
 import type { IntakeItem } from "@/types/intake";
 
@@ -106,5 +106,17 @@ describe("balões do catálogo (#259)", () => {
     expect(mergeIntake(new Map([["1", pulado]]), [src(latex)]).writes[0].data).toEqual({ catalogChecked: true });
     const pub = stored(latex, { status: "publicado", catalogChecked: true });
     expect(mergeIntake(new Map([["1", pub]]), [src(latex)]).writes).toEqual([]);
+  });
+});
+
+describe("fila: balão do catálogo nunca como produto", () => {
+  it("pendente do catálogo sai da lista; formato/temático e já publicado ficam", () => {
+    const b = (name: string, status: IntakeItem["status"] = "pendente") => ({ family: "BALAO", name, status });
+    const liso = b("BALAO 9 LISO C/ 50 ROXO UVA");
+    const coracao = b("BALAO METAL CORACAO 18 VERMELHO");
+    const antigo = b("BALAO 9 LISO C/ 50 VERDE BANDEIRA", "publicado");
+    const { queue, balloons } = splitCatalogBalloons([liso, coracao, antigo]);
+    expect(balloons).toEqual([liso]);
+    expect(queue).toEqual([coracao, antigo]);
   });
 });

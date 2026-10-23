@@ -7,6 +7,18 @@ export function isCatalogBalloon(src: Pick<IntakeSourceFields, "family" | "name"
   return src.family === "BALAO" && balloonTypeOf(src.name) != null;
 }
 
+// Fila de lançamento: balão do catálogo PENDENTE (ex.: devolvido à mão
+// para pendentes, ou de antes da reimportação marcar) não aparece como
+// produto; o estoque dele alimenta o montador de balões.
+export function splitCatalogBalloons<T extends Pick<IntakeItem, "family" | "name" | "status">>(
+  items: T[],
+): { queue: T[]; balloons: T[] } {
+  const queue: T[] = [];
+  const balloons: T[] = [];
+  for (const i of items) (i.status === "pendente" && isCatalogBalloon(i) ? balloons : queue).push(i);
+  return { queue, balloons };
+}
+
 // Reimportação do Noturno sobre a fila existente (issue #198).
 //  - Campos do Noturno são recalculados; campos da atendente (status,
 //    productId) nunca são tocados.

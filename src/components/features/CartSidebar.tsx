@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCartStore } from "@/store/cartStore";
 import { useProductStore } from "@/store/productStore";
 import {
@@ -84,6 +84,20 @@ export function CartSidebar() {
   } = useCartStore();
   const { getProductById, allProducts, isLoading: isLoadingProducts } =
     useProductStore();
+  // O catálogo da loja é carregado uma vez por visita (cópia da home de até
+  // 60 s). Produto publicado depois disso parecia "indisponível" no
+  // carrinho. Antes de acusar, recarrega o catálogo uma vez.
+  const refreshedRef = useRef(false);
+  useEffect(() => {
+    if (isLoadingProducts || refreshedRef.current) return;
+    const missing = items.some(
+      (i) => i.type === "SIMPLE" && i.product && !allProducts.some((p) => p.id === i.product!.id),
+    );
+    if (missing) {
+      refreshedRef.current = true;
+      useProductStore.getState().fetchProducts();
+    }
+  }, [items, allProducts, isLoadingProducts]);
 
   const [isMounted, setIsMounted] = useState(false);
 
