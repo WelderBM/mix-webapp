@@ -28,7 +28,7 @@ import {
   balloonTypeImage,
   balloonVisualPx,
 } from "@/lib/balloonTypeArt";
-import { baseTypeId, isSoldOut } from "@/lib/intake/balloonCatalog";
+import { BRANDLESS_TYPES, baseTypeId, isSoldOut } from "@/lib/intake/balloonCatalog";
 import { FOIL_MAX_CHARS, FOIL_TYPE_ID, foilCharacters } from "@/lib/balloonFoil";
 import type { BalloonStock, BalloonStockDoc } from "@/types/balloon";
 // Gradients especiais para cores metálicas
@@ -72,20 +72,37 @@ interface BrandGroup {
 const brandKey = (b: string | undefined) =>
   (b ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
+// Primeiro passo do montador (dono, 23/10): um cartão por marca, São Roque
+// (a mais pedida) na frente, com o logo da marca quando cadastrado. Os
+// tipos em que a marca não importa (foil de letras e números) ficam à
+// parte, com cartão próprio, no fim.
+// Catálogo sem marca nenhuma (antes do Montar pelo Noturno): um grupo só.
 function groupByBrand(types: BalloonTypeConfig[]): BrandGroup[] {
-  const groups = new Map<string, BalloonTypeConfig[]>();
-  for (const t of types) {
-    const b = brandKey(t.brand);
-    groups.set(b, [...(groups.get(b) ?? []), t]);
+  const brandless = (t: BalloonTypeConfig) => BRANDLESS_TYPES.has(baseTypeId(t.id));
+  if (!types.some((t) => t.brand && !brandless(t))) {
+    return [{ brand: "", label: "", preferred: false, types }];
   }
-  return [...groups.entries()]
-    .map(([brand, ts]) => ({
-      brand,
-      label: ts.find((t) => t.brand)?.brand || "Outros balões",
-      preferred: brand === brandKey(PREFERRED_BRAND),
-      types: ts,
-    }))
-    .sort((a, b) => Number(b.preferred) - Number(a.preferred) || b.types.length - a.types.length);
+  const preferred = brandKey(PREFERRED_BRAND);
+  const groups = new Map<string, BrandGroup>();
+  for (const t of types) {
+    const k = brandKey(t.brand);
+    const g = brandless(t)
+      ? { brand: `tipo:${t.id}`, label: t.name, preferred: false }
+      : { brand: k, label: t.brand || "Outros balões", preferred: k === preferred };
+    const cur = groups.get(g.brand) ?? { ...g, types: [] };
+    cur.types.push(t);
+    groups.set(g.brand, cur);
+  }
+  const order = (g: BrandGroup) => (g.preferred ? 0 : g.brand.startsWith("tipo:") ? 2 : 1);
+  return [...groups.values()].sort(
+    (a, b) => order(a) - order(b) || b.types.length - a.types.length
+  );
+}
+
+// Foto do cartão da marca: a do Liso dela, se tiver; senão a primeira.
+function groupPhoto(g: BrandGroup): string | undefined {
+  const withPhoto = g.types.filter((t) => t.imageUrl);
+  return (withPhoto.find((t) => baseTypeId(t.id) === "simples") ?? withPhoto[0])?.imageUrl;
 }
 
 export function BalloonBuilder() {
@@ -228,7 +245,8 @@ export function BalloonBuilder() {
 
     const colorName = selectedColor.split("|")[0];
     // Marca no nome do item: a atendente pega o pacote da marca certa.
-    const brand = selectedType.brand;
+    // Foil: a marca não importa (e pode ter "Gate" salvo de antes).
+    const brand = BRANDLESS_TYPES.has(baseTypeId(selectedType.id)) ? undefined : selectedType.brand;
     const typeLabel =
       brand && !selectedType.name.includes(brand) ? `${selectedType.name} ${brand}` : selectedType.name;
     const cartItem = {
@@ -263,11 +281,9 @@ export function BalloonBuilder() {
   };
 
   const handleBack = () => {
-    if (step === 2 && availableSizes.length === 1) {
-      // Se voltou da cor e o tipo tem tamanho único, volta para tipo
-      setStep(0);
-      setSelectedTypeId("");
-      setSelectedSize(null);
+    if ((step === 2 && availableSizes.length === 1) || step === 1) {
+      // Volta para o tipo (ou para a marca, se o grupo só tem um tipo)
+      backToStart();
     } else if (step > 0) {
       setStep(step - 1);
     } else if (selectedBrand != null) {
@@ -294,8 +310,16 @@ export function BalloonBuilder() {
   const askBrand = brandGroups.length > 1 && selectedBrand == null;
   const shownTypes =
     brandGroups.length > 1 && selectedBrand != null
-      ? activeTypes.filter((t) => brandKey(t.brand) === selectedBrand)
+      ? brandGroups.find((g) => g.brand === selectedBrand)?.types ?? activeTypes
       : activeTypes;
+  // Grupo de um tipo só (ex.: Números & Letras): voltar ao passo 0 volta
+  // direto para a escolha da marca.
+  const backToStart = () => {
+    setStep(0);
+    setSelectedTypeId("");
+    setSelectedSize(null);
+    if (shownTypes.length === 1) setSelectedBrand(null);
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -345,7 +369,11 @@ export function BalloonBuilder() {
               {brandGroups.map((g) => (
                 <button
                   key={g.brand}
-                  onClick={() => setSelectedBrand(g.brand)}
+                  onClick={() => {
+                    setSelectedBrand(g.brand);
+                    // Um tipo só no cartão: vai direto para ele.
+                    if (g.types.length === 1) handleSelectType(g.types[0].id);
+                  }}
                   className={cn(
                     "group relative bg-white border-2 rounded-2xl p-4 hover:border-purple-500 hover:shadow-lg transition-all",
                     g.preferred ? "border-purple-300" : "border-slate-200"
@@ -356,12 +384,23 @@ export function BalloonBuilder() {
                       ★ Mais pedida
                     </span>
                   )}
-                  <div className="aspect-square bg-slate-50 rounded-xl mb-3 flex items-center justify-center overflow-hidden">
-                    <img
-                      src={balloonTypeImage(g.types[0].id)}
-                      alt=""
-                      className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500"
-                    />
+                  <div className="aspect-square bg-white rounded-xl mb-3 flex items-center justify-center overflow-hidden">
+                    {/* Foto do pacote do tipo principal da marca (admin › Balões ›
+                        Fotos dos pacotes); sem foto, a arte do tipo. */}
+                    {groupPhoto(g) ? (
+                      <img
+                        src={groupPhoto(g)}
+                        alt={`Pacote ${g.label}`}
+                        loading="lazy"
+                        className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <img
+                        src={balloonTypeImage(g.types[0].id)}
+                        alt=""
+                        className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500"
+                      />
+                    )}
                   </div>
                   <h4 className="font-bold text-sm text-center text-slate-800 group-hover:text-purple-600 transition-colors">
                     {g.label}
@@ -400,7 +439,7 @@ export function BalloonBuilder() {
                       <img 
                         src={type.imageUrl} 
                         alt={type.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        className="w-full h-full object-contain bg-white p-2 group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : balloonConfig.placeholderUrl ? (
                       <img

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
 import { BalloonCatalogFromNoturno } from "@/components/admin/BalloonCatalogFromNoturno";
+import { BalloonPackagePhotos } from "@/components/admin/BalloonPackagePhotos";
 import {
   Plus,
   Trash2,
@@ -178,6 +179,7 @@ export function BalloonsTab({
 
         {balloonTab === "edition" ? (
           <div className="space-y-6 animate-in fade-in duration-300">
+            <BalloonPackagePhotos config={balloonConfig} onChange={setBalloonConfig} />
             {/* Placeholder Global - Moved from SuperAdmin */}
             <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100 flex flex-col md:flex-row items-center gap-6 shadow-sm">
               <div className="flex-1 space-y-2">

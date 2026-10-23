@@ -133,7 +133,12 @@ export function homeBrands(items: StockItem[], config: BalloonConfig): HomeBrand
   return home;
 }
 
+// Tipos em que a marca não faz diferença para o cliente (o foil de letras
+// e números é parecido em todas — dono, 23/10): um tipo só, sem marca.
+export const BRANDLESS_TYPES = new Set(["foil_numeros"]);
+
 export function brandTypeId(base: string, brand: string | null | undefined, home: HomeBrands): string {
+  if (BRANDLESS_TYPES.has(base)) return base;
   if (!brand || !home[base] || key(brand) === key(home[base])) return base;
   return `${base}__${key(brand)}`;
 }
@@ -427,7 +432,9 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
       return {
         typeId: id,
         name: existing?.name ?? defaultTypeName(id, brand ?? null),
-        brand: existing?.brand ?? (brand ? brandTitle(brand) : null),
+        brand: BRANDLESS_TYPES.has(baseTypeId(id))
+          ? null
+          : existing?.brand ?? (brand ? brandTitle(brand) : null),
         exists: !!existing,
         sizes: [...a.sizes.entries()]
           .map(([size, s]) => {
@@ -489,7 +496,9 @@ export function applyCatalogProposal(
       types.push(t);
     }
     const target = t;
-    if (!target.brand && p.brand) target.brand = p.brand;
+    // Tipo em que a marca não importa (foil): tira marca salva antes ("Gate").
+    if (BRANDLESS_TYPES.has(baseTypeId(target.id))) delete target.brand;
+    else if (!target.brand && p.brand) target.brand = p.brand;
     for (const { s, price } of priced) {
       const cur = target.sizes.find((z) => z.size === s.size);
       const pack = choices.packs?.[`${p.typeId}|${s.size}`];

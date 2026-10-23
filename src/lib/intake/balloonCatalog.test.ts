@@ -272,7 +272,7 @@ describe("marca (o cliente escolhe a marca primeiro — dono, 23/10)", () => {
     expect(by.simples__riberball.colors.map((c) => c.name)).toEqual(["Roxo"]);
     expect(by.simples__regina).toMatchObject({ name: "Liso Regina", brand: "Regina" });
     expect(by.neon.colors.map((c) => c.name)).toEqual(["Verde"]);
-    expect(by.foil_numeros.brand).toBe("Gate");
+    expect(by.foil_numeros.brand).toBeNull(); // foil: a marca não importa (dono, 23/10)
     const out = applyCatalogProposal({ types: [], allColors: [] }, p, {
       include: {},
       prices: { "simples|7": 10, "simples|9": 16, "simples__riberball|7": 8 },
@@ -300,5 +300,10 @@ describe("marca (o cliente escolhe a marca primeiro — dono, 23/10)", () => {
   it("marca genérica DIVERSOS aparece como Outras marcas", () => {
     const p = proposeCatalog([...items, { family: "BALAO", name: "BALAO LISO GRANFESTA 9 50X1 SORTIDO", stock: 6, brand: "DIVERSOS" }], { types: [], allColors: [] });
     expect(p.find((t) => t.typeId === "simples__diversos")).toMatchObject({ name: "Liso Outras marcas", brand: "Outras marcas" });
+  });
+  it("foil com marca salva antes (Gate) perde a marca ao aplicar", () => {
+    const cfg = { allColors: [], types: [{ id: "foil_numeros", name: "Foil", brand: "Gate", sizes: [{ size: "40cm", price: 12, unitsPerPackage: 1 }], colors: ["Rose Gold"] }] };
+    const out = applyCatalogProposal(cfg, proposeCatalog(items, cfg), { include: {}, prices: {} });
+    expect("brand" in out.types.find((t) => t.id === "foil_numeros")!).toBe(false);
   });
 });
