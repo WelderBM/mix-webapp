@@ -766,9 +766,9 @@ function AreaGrid({
   const unassigned = progress[NO_AREA];
   return (
     <section aria-label="Áreas da loja" className="space-y-2">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+      <h2 className="text-lg font-bold text-slate-800">
         Em que área da loja você está?
-      </p>
+      </h2>
       <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {STORE_AREAS.map((a) => {
           const p = progress[a.id];
