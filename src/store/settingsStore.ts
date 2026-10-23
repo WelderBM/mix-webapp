@@ -7,11 +7,13 @@ interface SettingsStore {
   settings: StoreSettings;
   isLoading: boolean;
   fetchSettings: () => Promise<void>;
+  /** Aplica um settings/general lido em outro lugar (ex: onSnapshot do ThemeProvider). */
+  applySettings: (data: Partial<StoreSettings>) => void;
 }
 
 const DEFAULT_SETTINGS: StoreSettings = {
   id: "general",
-  storeName: "Mix WebApp",
+  storeName: "Mix Novidades",
   whatsappNumber: "5595984244194",
   theme: {
     primaryColor: "#7c3aed", // Roxo (Padrão atual)
@@ -52,6 +54,12 @@ const DEFAULT_SETTINGS: StoreSettings = {
 export const useSettingsStore = create<SettingsStore>((set) => ({
   settings: DEFAULT_SETTINGS,
   isLoading: true,
+
+  applySettings: (data) =>
+    set({
+      settings: { ...DEFAULT_SETTINGS, ...data } as StoreSettings,
+      isLoading: false,
+    }),
 
   fetchSettings: async () => {
     try {

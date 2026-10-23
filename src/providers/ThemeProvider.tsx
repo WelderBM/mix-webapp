@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { StoreSettings } from "@/types";
+import { useSettingsStore } from "@/store/settingsStore";
 
 interface ThemeSettings {
   primaryColor: string;
@@ -31,6 +32,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       if (docSnap.exists()) {
         const data = docSnap.data() as StoreSettings;
         setSettings(data);
+        // Alimenta a store também: telas que não chamam fetchSettings
+        // (Balões, Meu Pedido…) passam a mostrar o nome real da loja (#283).
+        useSettingsStore.getState().applySettings(data);
         if (data.theme) {
           setTheme(data.theme);
           updateCssVariables(data.theme);

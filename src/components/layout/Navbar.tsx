@@ -505,7 +505,9 @@ const Navbar = () => {
           </div>
 
           <div className="p-6 bg-white border-t text-center text-xs text-slate-400">
-            <p>Mix WebApp © 2024</p>
+            <p>
+              {storeName} © {new Date().getFullYear()}
+            </p>
           </div>
         </SheetContent>
       </Sheet>

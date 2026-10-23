@@ -140,7 +140,7 @@ export function Footer() {
       </div>
       <div className="border-t border-slate-800 mt-12 pt-8 text-center">
         <p className="text-xs text-slate-600 flex justify-center items-center gap-2">
-          © {new Date().getFullYear()} Mix WebApp. Todos os direitos reservados.
+          © {new Date().getFullYear()} {storeName}. Todos os direitos reservados.
           <Link
             href="/admin"
             className="ml-2 text-slate-700 hover:text-slate-500 transition-colors"

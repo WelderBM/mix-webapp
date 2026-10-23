@@ -15,7 +15,7 @@ describe("SettingsStore", () => {
     useSettingsStore.setState({
       settings: {
         id: "general",
-        storeName: "Mix WebApp",
+        storeName: "Mix Novidades",
         whatsappNumber: "5595984244194",
         theme: {
           primaryColor: "#7c3aed",
@@ -43,7 +43,7 @@ describe("SettingsStore", () => {
   describe("Initial state", () => {
     it("should have DEFAULT_SETTINGS as initial settings", () => {
       const store = useSettingsStore.getState();
-      expect(store.settings.storeName).toBe("Mix WebApp");
+      expect(store.settings.storeName).toBe("Mix Novidades");
       expect(store.settings.whatsappNumber).toBe("5595984244194");
       expect(store.settings.id).toBe("general");
     });
@@ -121,7 +121,7 @@ describe("SettingsStore", () => {
       await store.fetchSettings();
 
       const updatedStore = useSettingsStore.getState();
-      expect(updatedStore.settings.storeName).toBe("Mix WebApp");
+      expect(updatedStore.settings.storeName).toBe("Mix Novidades");
       expect(updatedStore.settings.whatsappNumber).toBe("5595984244194");
       expect(updatedStore.isLoading).toBe(false);
     });
@@ -199,6 +199,17 @@ describe("SettingsStore", () => {
       expect(updatedStore.settings.homeSections[0].title).toBe(
         "Featured Products"
       );
+    });
+  });
+
+  describe("applySettings", () => {
+    it("merges a doc read elsewhere over the defaults and clears loading (#283)", () => {
+      useSettingsStore.setState({ isLoading: true });
+      useSettingsStore.getState().applySettings({ storeName: "Loja X" });
+      const { settings, isLoading } = useSettingsStore.getState();
+      expect(settings.storeName).toBe("Loja X");
+      expect(settings.whatsappNumber).toBe("5595984244194");
+      expect(isLoading).toBe(false);
     });
   });
 });
