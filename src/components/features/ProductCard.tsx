@@ -132,7 +132,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             </p>
           </div>
         ) : (
-          <Link href={productHref} className="block cursor-pointer">
+          <Link href={productHref} className="block min-h-11 cursor-pointer">
             <h3 className="line-clamp-2 text-base font-semibold text-slate-800 group-hover:text-primary transition-colors">
               {product.name}
             </h3>
@@ -176,7 +176,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               onClick={handleAction}
               size="sm"
               className={cn(
-                "w-full rounded-xl font-bold shadow-sm transition-all duration-300",
+                "w-full min-h-11 rounded-xl font-bold shadow-sm transition-all duration-300",
                 "bg-purple-600 hover:bg-purple-700 text-white"
               )}
             >
@@ -191,7 +191,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               product.images.length > 1 ? (
                 <Link href={productHref} className="w-full block">
                   <Button
-                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200 gap-2 font-bold h-10 shadow-sm hover:shadow-md transition-all"
+                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-900 border border-slate-200 gap-2 font-bold h-11 shadow-sm hover:shadow-md transition-all"
                     variant="ghost"
                   >
                     <ShoppingCart size={16} className="text-slate-500" />
@@ -200,7 +200,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 </Link>
               ) : (
                 <Button
-                  className="w-full bg-green-600 hover:bg-green-700 text-white gap-2 font-bold shadow-green-200 shadow-md h-10 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white gap-2 font-bold shadow-green-200 shadow-md h-11 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
                   onClick={handleAction}
                   disabled={priceUnavailable}
                 >
