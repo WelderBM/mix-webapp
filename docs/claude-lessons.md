@@ -192,3 +192,9 @@ Três jeitos de a revisão automática "sumir" sem avisar, todos corrigidos em #
 2. **Etapa 1 local que nunca comenta** (limite de uso da conta): a execução do GitHub esperava para sempre. Hoje espera 15 min e segue sozinha.
 3. **Gate lendo o veredito antigo** quando o PR é revisado de novo: o regex pegava o primeiro `<!-- veredito -->`. Hoje só a revisão mais recente vale.
 E: o token `CLAUDE_CODE_OAUTH_TOKEN` é da **assinatura** (divide o limite de uso com as sessões interativas); `gh secret set` via `!` no Claude Code grava valor VAZIO (sem stdin interativo) — atualizar pela página do GitHub.
+
+### Arquivo com blob CRLF no repositório: script que reescreve o arquivo infla o diff em centenas de linhas
+Alguns arquivos estão gravados no repositório com CRLF (ex.: `BalloonBuilder.tsx`, `BalloonBuilder.test.tsx`, `cart.ts`), a maioria com LF. Com `core.autocrlf=true`, script que lê, troca `\r\n` por `\n` e regrava (ou `sed -i`/`tr`) faz o `git add` gravar LF por cima de um blob CRLF: o PR mostra o arquivo inteiro trocado (#275 tinha "1162 linhas" para 136 reais) e estraga o `git blame`. **Padrão:** antes do commit, `git cat-file -p origin/dev:<arq> | tr -cd '\r' | wc -c`; se > 0, garantir CRLF na cópia de trabalho e `git -c core.autocrlf=false add <arq>`; se 0, `git add` normal. Conferir `git diff --stat` — diff maior que a mudança é quebra de linha.
+
+### PR mergeado antes do push da correção da revisão: o commit fica órfão na branch
+O dono pode mergear assim que o CI passa, antes de eu enviar a correção dos achados. O push vai para a branch já mergeada e nunca chega ao `dev` (aconteceu no #275 e no #278). **Padrão:** `gh pr view N --json state` antes de cada push de correção; se `MERGED`, branch nova de `origin/dev` + `git cherry-pick` + PR de acompanhamento (#276, #279).
