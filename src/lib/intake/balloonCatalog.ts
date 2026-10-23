@@ -272,11 +272,6 @@ export function surveyCatalog(items: StockItem[], config: BalloonConfig): Catalo
   };
 }
 
-// Montador da loja: o Noturno é o estoque. Se ele tem o tipo, a cor só
-// aparece no tamanho em que há unidade — Roxo que só existe no 7" não
-// aparece no 9" (pedido do dono, 23/10). Tipo que o Noturno não tem
-// (cadastro manual) ou estoque ainda não importado: mostra tudo.
-// Nome comparado sem acento/espaço ("Preto Eban O" = "Preto Ébano").
 // Foil: o caractere é a última palavra do nome ("…ROSE A" → "A";
 // "…ROSE INTERROGACAO" → "?").
 export function foilCharOf(name: string): string | null {
@@ -320,6 +315,11 @@ export function foilShortage(
     .map(([ch]) => ch);
 }
 
+// Montador da loja: o Noturno é o estoque. Se ele tem o tipo, a cor só
+// aparece no tamanho em que há unidade — Roxo que só existe no 7" não
+// aparece no 9" (pedido do dono, 23/10). Tipo que o Noturno não tem
+// (cadastro manual) ou estoque ainda não importado: mostra tudo.
+// Nome comparado sem acento/espaço ("Preto Eban O" = "Preto Ébano").
 export function isSoldOut(
   stock: BalloonStock | null | undefined,
   typeId: string,
