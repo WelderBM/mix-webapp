@@ -254,7 +254,34 @@ describe("BalloonBuilder", () => {
 
     // Com "NA" dá certo; o A acabou e a tecla dele fica desligada.
     fireEvent.change(screen.getByPlaceholderText("Ex.: ANA ou 15"), { target: { value: "NA" } });
-    expect((screen.getByLabelText("Adicionar A") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText("A: já usado todo o estoque") as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: /Adicionar ao Carrinho/ }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("foil: o aviso de sem estoque some ao trocar de cor (revisão do #278)", async () => {
+    const mockData = {
+      types: [{ id: "foil_numeros", name: "Números & Letras (Foil)", sizes: [{ size: "40cm", price: 12, unitsPerPackage: 1 }], colors: ["Rose Gold", "Dourado"] }],
+      allColors: [],
+    };
+    (firestore.onSnapshot as any).mockImplementation((_ref: any, callback: any) => {
+      callback({ exists: () => true, data: () => mockData });
+      return () => {};
+    });
+    (firestore.getDoc as any).mockImplementation(async () => ({
+      exists: () => true,
+      data: () => ({
+        stock: { foil_numeros: { "40cm": { "Rose Gold": 1, Dourado: 1 } } },
+        chars: { "40cm": { "Rose Gold": { A: 1 }, Dourado: { "1": 1 } } },
+      }),
+    }));
+    render(<BalloonBuilder />);
+    fireEvent.click(await screen.findByText("Números & Letras (Foil)"));
+    fireEvent.click(await screen.findByText("Rose Gold"));
+    fireEvent.change(await screen.findByPlaceholderText("Ex.: ANA ou 15"), { target: { value: "1" } });
+    expect(screen.getByText("Sem estoque nesta cor: 1")).toBeTruthy();
+    fireEvent.click(screen.getByText("Voltar"));
+    fireEvent.click(await screen.findByText("Dourado"));
+    await screen.findByText("Quais letras ou números?");
+    expect(screen.queryByText(/Sem estoque nesta cor:/)).toBeNull();
   });
 });

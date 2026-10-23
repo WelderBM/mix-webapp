@@ -259,6 +259,8 @@ export function BalloonBuilder() {
   };
 
   const handleSelectColor = (color: string) => {
+    // Aviso de "sem estoque" era da cor anterior.
+    setFoilBlocked("");
     setSelectedColor(color);
     setStep(3);
   };
@@ -357,7 +359,7 @@ export function BalloonBuilder() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
+    <div className="max-w-4xl mx-auto p-3 sm:p-6 space-y-6">
       {/* Header */}
       <div className="text-center">
         <div className="flex justify-center mb-4">
@@ -617,7 +619,7 @@ export function BalloonBuilder() {
               <ArrowLeft size={16} className="mr-2" /> Voltar
             </Button>
 
-            <div className="bg-white rounded-2xl p-8 shadow-lg border-2 border-purple-200">
+            <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-lg border-2 border-purple-200">
               <div className="text-center mb-6">
                 <div
                   className="inline-flex items-center justify-center w-24 h-24 rounded-full mb-4"
@@ -665,7 +667,8 @@ export function BalloonBuilder() {
               {/* Teclado do foil: o que a cor tem; o que falta fica apagado. */}
               {isFoil && foilAvailable && (
                 <div className="mb-6">
-                  <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-10">
+                  {/* 5 colunas no celular: tecla com 44 px ou mais (alvo de toque). */}
+                  <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
                     {FOIL_KEYS.map((ch) => {
                       const left = (foilAvailable[ch] ?? 0) - characters.split("").filter((c) => c === ch).length * quantity;
                       const has = (foilAvailable[ch] ?? 0) > 0;
@@ -678,10 +681,10 @@ export function BalloonBuilder() {
                             setFoilBlocked("");
                             setCharacters((t) => t + ch);
                           }}
-                          aria-label={has ? `Adicionar ${ch}` : `${ch}: sem estoque`}
-                          title={has ? undefined : "Sem estoque nesta cor"}
+                          aria-label={!has ? `${ch}: sem estoque` : left < quantity ? `${ch}: já usado todo o estoque` : `Adicionar ${ch}`}
+                          title={!has ? "Sem estoque nesta cor" : left < quantity ? "Você já usou todos desta cor" : undefined}
                           className={cn(
-                            "h-11 rounded-lg border text-lg font-black transition-colors",
+                            "h-11 min-w-11 rounded-lg border text-lg font-black transition-colors",
                             has
                               ? "border-slate-200 bg-white text-slate-800 hover:border-purple-500 disabled:opacity-40"
                               : "border-slate-100 bg-slate-50 text-slate-300 line-through"
@@ -697,7 +700,10 @@ export function BalloonBuilder() {
                     {characters && (
                       <button
                         type="button"
-                        onClick={() => setCharacters((t) => t.slice(0, -1))}
+                        onClick={() => {
+                          setFoilBlocked("");
+                          setCharacters((t) => t.slice(0, -1));
+                        }}
                         className="min-h-11 px-3 font-bold text-purple-700"
                       >
                         Apagar último
