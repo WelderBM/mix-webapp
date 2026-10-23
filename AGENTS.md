@@ -62,3 +62,4 @@ As skills do repositório estão centralizadas no ambiente global (`~/.agents/sk
   - **Ao começar**: ler o `docs/sessoes/*.md` mais recente (estado, perguntas abertas ao dono, pendências).
   - **Na hora em que aparece**: achado de revisão que não vou corrigir agora, bug visto de passagem ou promessa ("corrijo depois") vira **issue** (passando pela triagem); pergunta ao dono sem resposta fica listada até ser respondida.
   - **Ao fechar a conversa**: documento de passagem em `docs/sessoes/AAAA-MM-DD-<assunto>.md` com o levantamento completo; onde guardar cada tipo de informação está em `docs/fluxo/guia-varias-conversas.md` §8.
+- **Prioridade (regra do dono, 23/10/2026)**: a próxima issue sai de `node scripts/prioridade.mjs` (fila autônoma, etiqueta `autonomo`); decisões ficam na fila do dono (`precisa-de-voce`). Toda issue nova nasce com os 6 eixos (`o:`, `s:`, `a:`, `e:`, `destrava`, `risco`) e uma `frente:`. Regra completa em `docs/fluxo/prioridade.md`.
