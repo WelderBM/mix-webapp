@@ -496,7 +496,9 @@ export function applyCatalogProposal(
       types.push(t);
     }
     const target = t;
-    if (!target.brand && p.brand) target.brand = p.brand;
+    // Tipo em que a marca não importa (foil): tira marca salva antes ("Gate").
+    if (BRANDLESS_TYPES.has(baseTypeId(target.id))) delete target.brand;
+    else if (!target.brand && p.brand) target.brand = p.brand;
     for (const { s, price } of priced) {
       const cur = target.sizes.find((z) => z.size === s.size);
       const pack = choices.packs?.[`${p.typeId}|${s.size}`];

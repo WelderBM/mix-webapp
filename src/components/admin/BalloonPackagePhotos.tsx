@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { Loader2, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,12 +36,14 @@ export function packageQuery(t: BalloonTypeConfig): string {
 
 interface Props {
   config: BalloonConfig;
-  onChange: (next: BalloonConfig) => void;
+  // Atualização funcional: o upload termina depois, e não pode desfazer o
+  // que a atendente editou nesse meio-tempo.
+  onChange: Dispatch<SetStateAction<BalloonConfig>>;
 }
 
 export function BalloonPackagePhotos({ config, onChange }: Props) {
   const [searching, setSearching] = useState<BalloonTypeConfig | null>(null);
-  const [uploading, setUploading] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<Set<string>>(new Set());
 
   if (config.types.length === 0) return null;
   // Agrupados por marca, na ordem do catálogo.
@@ -50,19 +52,19 @@ export function BalloonPackagePhotos({ config, onChange }: Props) {
   const missing = config.types.filter((t) => !t.imageUrl).length;
 
   const setPhoto = (id: string, url: string | null) =>
-    onChange({
-      ...config,
-      types: config.types.map((t) => {
+    onChange((prev) => ({
+      ...prev,
+      types: prev.types.map((t) => {
         if (t.id !== id) return t;
         const next = { ...t };
         if (url) next.imageUrl = url;
         else delete next.imageUrl; // o Firestore recusa undefined
         return next;
       }),
-    });
+    }));
 
   async function pick(t: BalloonTypeConfig, blob: Blob) {
-    setUploading(t.id);
+    setUploading((u) => new Set(u).add(t.id));
     try {
       const ext = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
       const snap = await uploadBytes(ref(storage, `balloons/types/${t.id}-${Date.now()}.${ext}`), blob, {
@@ -73,7 +75,11 @@ export function BalloonPackagePhotos({ config, onChange }: Props) {
     } catch {
       toast.error("Não foi possível enviar a foto. Tente de novo.");
     } finally {
-      setUploading(null);
+      setUploading((u) => {
+        const n = new Set(u);
+        n.delete(t.id);
+        return n;
+      });
     }
   }
 
@@ -95,7 +101,7 @@ export function BalloonPackagePhotos({ config, onChange }: Props) {
             {types.map((t) => (
               <li key={t.id} className="flex flex-wrap items-center gap-3 py-2">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white">
-                  {uploading === t.id ? (
+                  {uploading.has(t.id) ? (
                     <Loader2 className="animate-spin text-slate-400" size={20} />
                   ) : t.imageUrl ? (
                     <img src={t.imageUrl} alt={`Pacote ${t.name}`} className="h-full w-full object-contain p-1" />

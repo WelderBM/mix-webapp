@@ -1,13 +1,20 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
+import { useState } from "react";
+import { uploadBytes, getDownloadURL } from "firebase/storage";
 import { BalloonPackagePhotos, packageQuery } from "./BalloonPackagePhotos";
 import type { BalloonConfig } from "@/types/balloon";
 
 vi.mock("@/lib/firebase", () => ({ storage: {}, db: {} }));
 vi.mock("firebase/storage", () => ({ ref: vi.fn(), uploadBytes: vi.fn(), getDownloadURL: vi.fn() }));
 vi.mock("@/components/admin/ImageSearchDialog", () => ({
-  ImageSearchDialog: ({ initialQuery }: { initialQuery: string }) => <div>busca: {initialQuery}</div>,
+  ImageSearchDialog: ({ initialQuery, onPick }: { initialQuery: string; onPick: (b: Blob) => void }) => (
+    <div>
+      busca: {initialQuery}
+      <button onClick={() => onPick(new Blob(["x"], { type: "image/png" }))}>escolher</button>
+    </div>
+  ),
 }));
 
 const size = (s: string) => ({ size: s, price: 10, unitsPerPackage: 50 });
@@ -40,8 +47,34 @@ describe("fotos dos pacotes (admin › Balões)", () => {
     const onChange = vi.fn();
     render(<BalloonPackagePhotos config={config} onChange={onChange} />);
     fireEvent.click(screen.getByLabelText("Tirar a foto de Balão Simples (Liso)"));
-    const next = onChange.mock.calls[0][0] as BalloonConfig;
+    const next = (onChange.mock.calls[0][0] as (c: BalloonConfig) => BalloonConfig)(config);
     expect("imageUrl" in next.types[0]).toBe(false);
     expect(next.types[1]).toBe(config.types[1]);
+  });
+});
+
+describe("upload sem desfazer edições (revisão do #277)", () => {
+  it("a foto que chega depois não apaga o que mudou no meio-tempo", async () => {
+    let finish: () => void = () => {};
+    vi.mocked(uploadBytes).mockImplementation(
+      () => new Promise((r) => (finish = () => r({ ref: {} } as never))) as never,
+    );
+    vi.mocked(getDownloadURL).mockResolvedValue("https://exemplo/neon.png");
+    let current: BalloonConfig = config;
+    function Host() {
+      const [c, setC] = useState(config);
+      current = c;
+      return <BalloonPackagePhotos config={c} onChange={setC} />;
+    }
+    render(<Host />);
+    fireEvent.click(screen.getAllByText("Buscar foto do pacote")[0]); // Neon
+    fireEvent.click(screen.getByText("escolher")); // upload pendente
+    fireEvent.click(screen.getByLabelText("Tirar a foto de Balão Simples (Liso)"));
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(current.types[1].imageUrl).toBe("https://exemplo/neon.png"));
+    expect("imageUrl" in current.types[0]).toBe(false); // a edição continua valendo
   });
 });

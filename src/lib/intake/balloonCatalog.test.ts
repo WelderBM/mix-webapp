@@ -301,4 +301,9 @@ describe("marca (o cliente escolhe a marca primeiro — dono, 23/10)", () => {
     const p = proposeCatalog([...items, { family: "BALAO", name: "BALAO LISO GRANFESTA 9 50X1 SORTIDO", stock: 6, brand: "DIVERSOS" }], { types: [], allColors: [] });
     expect(p.find((t) => t.typeId === "simples__diversos")).toMatchObject({ name: "Liso Outras marcas", brand: "Outras marcas" });
   });
+  it("foil com marca salva antes (Gate) perde a marca ao aplicar", () => {
+    const cfg = { allColors: [], types: [{ id: "foil_numeros", name: "Foil", brand: "Gate", sizes: [{ size: "40cm", price: 12, unitsPerPackage: 1 }], colors: ["Rose Gold"] }] };
+    const out = applyCatalogProposal(cfg, proposeCatalog(items, cfg), { include: {}, prices: {} });
+    expect("brand" in out.types.find((t) => t.id === "foil_numeros")!).toBe(false);
+  });
 });

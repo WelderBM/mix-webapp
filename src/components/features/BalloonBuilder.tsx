@@ -99,6 +99,12 @@ function groupByBrand(types: BalloonTypeConfig[]): BrandGroup[] {
   );
 }
 
+// Foto do cartão da marca: a do Liso dela, se tiver; senão a primeira.
+function groupPhoto(g: BrandGroup): string | undefined {
+  const withPhoto = g.types.filter((t) => t.imageUrl);
+  return (withPhoto.find((t) => baseTypeId(t.id) === "simples") ?? withPhoto[0])?.imageUrl;
+}
+
 export function BalloonBuilder() {
   const { addItem, openCart } = useCartStore();
 
@@ -239,7 +245,8 @@ export function BalloonBuilder() {
 
     const colorName = selectedColor.split("|")[0];
     // Marca no nome do item: a atendente pega o pacote da marca certa.
-    const brand = selectedType.brand;
+    // Foil: a marca não importa (e pode ter "Gate" salvo de antes).
+    const brand = BRANDLESS_TYPES.has(baseTypeId(selectedType.id)) ? undefined : selectedType.brand;
     const typeLabel =
       brand && !selectedType.name.includes(brand) ? `${selectedType.name} ${brand}` : selectedType.name;
     const cartItem = {
@@ -380,9 +387,9 @@ export function BalloonBuilder() {
                   <div className="aspect-square bg-white rounded-xl mb-3 flex items-center justify-center overflow-hidden">
                     {/* Foto do pacote do tipo principal da marca (admin › Balões ›
                         Fotos dos pacotes); sem foto, a arte do tipo. */}
-                    {g.types.find((t) => t.imageUrl) ? (
+                    {groupPhoto(g) ? (
                       <img
-                        src={g.types.find((t) => t.imageUrl)!.imageUrl}
+                        src={groupPhoto(g)}
                         alt={`Pacote ${g.label}`}
                         loading="lazy"
                         className="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-500"
