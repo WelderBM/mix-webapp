@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groupProblems, planSync, issueBody, parseIssue, summaryMarkdown, MISSES_TO_CLOSE } from "./vistoria.mjs";
+import { groupProblems, planSync, priorityLabels, issueBody, parseIssue, summaryMarkdown, MISSES_TO_CLOSE } from "./vistoria.mjs";
 
 const page = (o) => ({
   route: "/",
@@ -72,7 +72,7 @@ describe("planSync", () => {
   it("problema novo cria issue com labels de vistoria, prioridade e tipo", () => {
     const [a] = planSync([group("a11y:button-name")], [], "2026-10-21");
     expect(a).toMatchObject({ type: "create", key: "a11y:button-name" });
-    expect(a.labels).toEqual(["vistoria", "P2", "acessibilidade", "frontend", "ux"]);
+    expect(a.labels).toEqual(["vistoria", "P2", "acessibilidade", "frontend", "ux", "backlog", "o:2", "s:2", "a:3", "e:p", "autonomo", "frente:home-rodape"]);
     expect(a.body).toMatch(/<!-- vistoria:a11y:button-name -->/);
   });
 
@@ -106,6 +106,17 @@ describe("planSync", () => {
     const human = { number: 9, state: "open", body: "issue escrita por gente" };
     expect(parseIssue(human)).toBeNull();
     expect(planSync([], [human], "d")).toEqual([]);
+  });
+});
+
+describe("priorityLabels (#290)", () => {
+  it("alcance e frente pela rota", () => {
+    expect(priorityLabels(group("toque:/natura", ["\"x\" 10×10px — `/natura` (celular, produção)"]))).toContain("a:1");
+    const fitas = priorityLabels(group("toque:/fitas", ["`/fitas` (celular, produção)"]));
+    expect(fitas).toEqual(expect.arrayContaining(["a:2", "frente:fitas"]));
+    const muitas = priorityLabels(group("a11y:x", ["`/` (c)", "`/fitas` (c)", "`/baloes` (c)"]));
+    expect(muitas).toEqual(expect.arrayContaining(["a:3", "frente:acessibilidade"]));
+    expect(priorityLabels({ ...group("toque:compartilhado"), kind: "toque" })).toContain("frente:cabecalho");
   });
 });
 
