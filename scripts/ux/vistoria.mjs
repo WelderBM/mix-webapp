@@ -158,7 +158,7 @@ const LABELS_BY_KIND = {
 const FRENTE_BY_ROUTE = { "/": "home-rodape", "/fitas": "fitas", "/baloes": "montador", "/admin/lancamento": "lancamento" };
 
 export function priorityLabels(g) {
-  const routes = new Set([...g.occurrences.join(" ").matchAll(/`(/[^`]*)`/g)].map((m) => m[1]));
+  const routes = new Set([...g.occurrences.join(" ").matchAll(/`(\/[^`]*)`/g)].map((m) => m[1]));
   const one = routes.size === 1 ? [...routes][0] : null;
   const shared = g.key === "toque:compartilhado" || routes.size >= 3;
   // Alcance: 3 = várias telas ou a home · 2 = uma tela muito usada · 1 = /natura e afins.
