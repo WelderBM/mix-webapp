@@ -68,17 +68,21 @@ interface BrandGroup {
   types: BalloonTypeConfig[];
 }
 
+// Marca digitada à mão no admin ("Sao Roque", "são roque") é a mesma.
+const brandKey = (b: string | undefined) =>
+  (b ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
 function groupByBrand(types: BalloonTypeConfig[]): BrandGroup[] {
   const groups = new Map<string, BalloonTypeConfig[]>();
   for (const t of types) {
-    const b = t.brand ?? "";
+    const b = brandKey(t.brand);
     groups.set(b, [...(groups.get(b) ?? []), t]);
   }
   return [...groups.entries()]
     .map(([brand, ts]) => ({
       brand,
-      label: brand || "Outros balões",
-      preferred: brand === PREFERRED_BRAND,
+      label: ts.find((t) => t.brand)?.brand || "Outros balões",
+      preferred: brand === brandKey(PREFERRED_BRAND),
       types: ts,
     }))
     .sort((a, b) => Number(b.preferred) - Number(a.preferred) || b.types.length - a.types.length);
@@ -290,7 +294,7 @@ export function BalloonBuilder() {
   const askBrand = brandGroups.length > 1 && selectedBrand == null;
   const shownTypes =
     brandGroups.length > 1 && selectedBrand != null
-      ? activeTypes.filter((t) => (t.brand ?? "") === selectedBrand)
+      ? activeTypes.filter((t) => brandKey(t.brand) === selectedBrand)
       : activeTypes;
 
   return (
@@ -363,7 +367,7 @@ export function BalloonBuilder() {
                     {g.label}
                   </h4>
                   <p className="text-xs text-slate-500 text-center mt-1 line-clamp-2">
-                    {g.types.map((t) => t.name.replace(g.brand, "").trim() || t.name).join(" · ")}
+                    {g.types.map((t) => t.name.replace(g.label, "").trim() || t.name).join(" · ")}
                   </p>
                 </button>
               ))}
@@ -375,13 +379,13 @@ export function BalloonBuilder() {
         {step === 0 && !askBrand && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             {brandGroups.length > 1 && (
-              <Button variant="ghost" onClick={handleBack} className="mb-4" size="sm">
+              <Button variant="ghost" onClick={handleBack} className="mb-4 min-h-11" size="sm">
                 <ArrowLeft size={16} className="mr-2" /> Trocar marca
               </Button>
             )}
             <h3 className="text-xl font-bold text-center mb-6">
               Escolha o Tipo de Balão
-              {brandGroups.length > 1 && selectedBrand ? ` — ${selectedBrand}` : ""}
+              {brandGroups.length > 1 && selectedBrand != null ? ` — ${brandGroups.find((g) => g.brand === selectedBrand)?.label ?? ""}` : ""}
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {shownTypes.map((type) => (
@@ -433,7 +437,7 @@ export function BalloonBuilder() {
             <Button
               variant="ghost"
               onClick={handleBack}
-              className="mb-4"
+              className="mb-4 min-h-11"
               size="sm"
             >
               <ArrowLeft size={16} className="mr-2" /> Voltar
@@ -486,7 +490,7 @@ export function BalloonBuilder() {
             <Button
               variant="ghost"
               onClick={handleBack}
-              className="mb-4"
+              className="mb-4 min-h-11"
               size="sm"
             >
               <ArrowLeft size={16} className="mr-2" /> Voltar
@@ -533,7 +537,7 @@ export function BalloonBuilder() {
             <Button
               variant="ghost"
               onClick={handleBack}
-              className="mb-4"
+              className="mb-4 min-h-11"
               size="sm"
             >
               <ArrowLeft size={16} className="mr-2" /> Voltar

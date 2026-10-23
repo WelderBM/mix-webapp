@@ -106,7 +106,8 @@ const titleCase = (s: string) =>
 // tipo à parte, com preço próprio: "simples__riberball".
 export const baseTypeId = (typeId: string) => typeId.split("__")[0];
 
-const BRAND_TITLE: Record<string, string> = { "SAO ROQUE": "São Roque" };
+// "DIVERSOS" é marca genérica no Noturno: para o cliente, "Outras marcas".
+const BRAND_TITLE: Record<string, string> = { "SAO ROQUE": "São Roque", DIVERSOS: "Outras marcas" };
 export function brandTitle(brand: string): string {
   const b = brand.trim().toUpperCase();
   return BRAND_TITLE[b] ?? titleCase(b).replace(/ (E|De|Da|Do) /g, (w) => w.toLowerCase());
@@ -163,7 +164,11 @@ export function matchBalloon(
 ): CatalogMatch | null {
   const t = balloonTypeOf(name);
   if (!t) return null;
-  const typeId = brand ? brandTypeId(t.typeId, brand.brand, brand.home) : t.typeId;
+  let typeId = brand ? brandTypeId(t.typeId, brand.brand, brand.home) : t.typeId;
+  // Tipo da marca ainda não criado (o Montar pelo Noturno cria, com
+  // preço): o item segue no tipo da casa, como antes. Senão uma
+  // importação feita antes do Montar sumiria com cores da loja.
+  if (typeId !== t.typeId && !config.types.some((x) => x.id === typeId)) typeId = t.typeId;
   const type = config.types.find((x) => x.id === typeId);
   if (!type) return null;
   const size = t.size && type.sizes.some((s) => s.size === t.size) ? t.size : null;
