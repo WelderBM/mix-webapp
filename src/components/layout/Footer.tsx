@@ -124,6 +124,7 @@ export function Footer() {
         {/* Coluna 3: Mapa */}
         <div className="rounded-2xl overflow-hidden shadow-2xl border border-slate-700 h-64 md:h-full bg-slate-800 relative group">
           <iframe
+            title="Mapa: localização da Mix Novidades em Boa Vista"
             src={publicMapUrl}
             width="100%"
             height="100%"
