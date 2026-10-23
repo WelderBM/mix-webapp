@@ -318,7 +318,8 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
     t.sizes.set(m.size, s);
     const colorName = m.color ?? m.rawColor;
     if (colorName) {
-      const k = key(colorName);
+      // Cor com tom ("Preto Ébano|#1B1B1B"): a chave é só o nome.
+      const k = key(colorName.split("|")[0]);
       const c = t.colors.get(k) ?? { name: colorName, stock: 0, inCatalog: m.color != null };
       c.stock += qty;
       t.colors.set(k, c);
@@ -419,7 +420,7 @@ export function applyCatalogProposal(
     target.colors = target.colors.map((c) => rename.get(c) ?? c);
     for (const c of p.colors) {
       const name = rename.get(c.name) ?? c.name;
-      if (!target.colors.some((x) => key(x.split("|")[0]) === key(name))) target.colors.push(name);
+      if (!target.colors.some((x) => key(x.split("|")[0]) === key(name.split("|")[0]))) target.colors.push(name);
     }
   }
   return { ...config, types };
