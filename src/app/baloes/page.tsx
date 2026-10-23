@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { BalloonBuilder } from "@/components/features/BalloonBuilder";
+import { CustomBalloonShelf } from "@/components/features/CustomBalloonShelf";
 import { StoreHeader } from "@/components/layout/StoreHeader";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -42,6 +43,8 @@ export default function BaloesPage() {
             <div className="p-4 sm:p-8">
               <BalloonBuilder />
             </div>
+
+            <CustomBalloonShelf />
           </div>
 
           {/* Info Cards */}

@@ -1,6 +1,7 @@
 import type { Category } from "@/types";
 import type { IntakeItem } from "@/types/intake";
 import { normalizeText } from "./search";
+import { balloonTypeOf } from "./balloonCatalog";
 
 // Subcategorias semânticas (issue #232, levantamento da loja de 21/10):
 // "FITA" e "PAPEL" no Noturno juntam coisas bem diferentes. Aqui a família
@@ -66,6 +67,8 @@ const BOX_FAMILIES: Record<string, string> = {
 
 const PAPER_FAMILIES: Record<string, string> = { EVA: "EVA", CARTOLINA: "Cartolina" };
 
+export const CUSTOM_BALLOON_SUBCATEGORY = "Balões personalizados";
+
 export function classifySubcategory(item: Item): TaxonomyGuess | null {
   const fam = item.family ?? "";
   const name = (item.name ?? "").toUpperCase();
@@ -81,6 +84,11 @@ export function classifySubcategory(item: Item): TaxonomyGuess | null {
     return r ? { category: "Papéis", subcategory: r.subcategory } : null;
   }
   if (fam in PAPER_FAMILIES) return { category: "Papéis", subcategory: PAPER_FAMILIES[fam] };
+  // Balão que o montador não vende (temático, formato, gigante): produto
+  // comum, agrupado em "Balões personalizados" na página de balões.
+  if (fam === "BALAO" && !balloonTypeOf(name)) {
+    return { category: "Balões", subcategory: CUSTOM_BALLOON_SUBCATEGORY };
+  }
   if (fam in BOX_FAMILIES) return { category: "Caixas", subcategory: BOX_FAMILIES[fam] };
   return null;
 }

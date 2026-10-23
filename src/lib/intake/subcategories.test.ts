@@ -57,6 +57,16 @@ describe("classifySubcategory (nomes reais do Noturno)", () => {
   });
 });
 
+describe("balões personalizados", () => {
+  it("balão que o montador não vende vai para Balões › Balões personalizados; o do catálogo, não", () => {
+    const bal = (name: string) => ({ family: "BALAO", name, suggestedType: "STANDARD_ITEM" as const });
+    for (const n of ["BALAO 9 TEMA BOLINHA C/25 VERMELHO/BRANCO", "BALAO GIGANTE LISO BRANCO", "BALAO METAL C25 CM CORACAO AZUL CROMO"]) {
+      expect(classifySubcategory(bal(n)), n).toEqual({ category: "Balões", subcategory: "Balões personalizados" });
+    }
+    expect(classifySubcategory(bal("BALAO 9 LISO C/ 50 ROXO UVA"))).toBeNull();
+  });
+});
+
 describe("matchSubcategory", () => {
   const cats = [{ name: "Fitas", subcategories: [{ id: "a", name: "fita para laco", order: 0 }] }];
   it("casa por texto normalizado na categoria escolhida", () => {

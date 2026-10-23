@@ -108,6 +108,12 @@ export function mergeIntake(
     // pendente. Assim um pulado devolvido à mão para pendente depois não é
     // movido contra a escolha da atendente. Migração só num sentido: item
     // em "No catálogo" volta à fila só à mão ("Voltar para pendentes").
+    // A regra do catálogo ficou mais estrita (temático, coração, gigante
+    // não são do montador): o que estava "No catálogo" e não é mais volta
+    // para a fila. "No catálogo" só é posto automaticamente, então é seguro.
+    if (prev.status === "catalogo" && !isCatalogBalloon(next)) {
+      changed.status = "pendente";
+    }
     if (!prev.catalogChecked && isCatalogBalloon(next)) {
       changed.catalogChecked = true;
       if (prev.status === "pendente") changed.status = "catalogo";

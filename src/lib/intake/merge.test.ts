@@ -101,6 +101,12 @@ describe("balões do catálogo (#259)", () => {
     expect(r2.writes).toEqual([]);
   });
 
+  it("temático que estava 'No catálogo' (regra antiga) volta para a fila", () => {
+    const tema = { description: "BALAO 9 TEMA BOLINHA C/25 VERMELHO/BRANCO" };
+    const antigo = stored(tema, { status: "catalogo", catalogChecked: true });
+    expect(mergeIntake(new Map([["1", antigo]]), [src(tema)]).writes[0].data).toMatchObject({ status: "pendente" });
+  });
+
   it("publicado ou pulado: status nunca muda, só fica marcado como verificado", () => {
     const pulado = stored(latex, { status: "pulado" });
     expect(mergeIntake(new Map([["1", pulado]]), [src(latex)]).writes[0].data).toEqual({ catalogChecked: true });
