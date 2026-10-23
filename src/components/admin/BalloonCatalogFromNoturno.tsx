@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import type { BalloonConfig } from "@/types/balloon";
 import {
   applyCatalogProposal,
+  baseTypeId,
   proposeCatalog,
   type ProposalType,
 } from "@/lib/intake/balloonCatalog";
@@ -40,7 +41,7 @@ const brl = (n: number) =>
 
 export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply }: Props) {
   const [items, setItems] = useState<
-    { family: string | null; name: string; stock: number; inLatestImport?: boolean }[] | null
+    { family: string | null; name: string; stock: number; inLatestImport?: boolean; brand?: string | null }[] | null
   >(null);
   const [error, setError] = useState<string | null>(null);
   const [include, setInclude] = useState<Record<string, boolean>>({});
@@ -70,7 +71,7 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
         setItems(
           snap.docs.map((d) => {
             const x = d.data();
-            return { family: x.family, name: x.name, stock: x.stock, inLatestImport: x.inLatestImport };
+            return { family: x.family, name: x.name, stock: x.stock, inLatestImport: x.inLatestImport, brand: x.brand ?? null };
           }),
         ),
       )
@@ -144,6 +145,11 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
                     className="h-5 w-5 accent-purple-600"
                   />
                   <span className="font-bold text-slate-800">{p.name}</span>
+                  {p.brand && !p.name.includes(p.brand) && (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                      {p.brand}
+                    </span>
+                  )}
                   {!p.exists && (
                     <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
                       tipo novo
@@ -158,7 +164,7 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
                           <span className="w-14 shrink-0 font-bold text-slate-800">
                             {s.size}
                             {/* Polegadas; canudo "260" é o modelo, cm já vem escrito. */}
-                            {/^\d/.test(s.size) && !s.size.endsWith("cm") && p.typeId !== "canudo" ? '"' : ""}
+                            {/^\d/.test(s.size) && !s.size.endsWith("cm") && baseTypeId(p.typeId) !== "canudo" ? '"' : ""}
                           </span>
                           <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-xs text-slate-500">
                             <label

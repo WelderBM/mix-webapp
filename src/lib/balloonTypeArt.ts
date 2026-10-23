@@ -17,10 +17,14 @@ const LOOKS: Record<string, Look> = {
   cintilante: { shape: "latex", colors: ["#db2777", "#2563eb", "#16a34a"], metallic: true },
   uniq: { shape: "latex", colors: ["#b08497"], metallic: false },
   canudo: { shape: "latex", colors: ["#f97316", "#22c55e", "#a855f7"], metallic: false },
+  neon: { shape: "latex", colors: ["#39ff14", "#ff2bd6", "#fff01f"], metallic: false },
   // Letras E números: o cartão mostra os dois.
   foil_numeros: { shape: "letra", colors: ["#d4a017"], metallic: true, glyph: "A1" },
 };
 const FALLBACK: Look = { shape: "latex", colors: ["#a855f7"], metallic: false };
+
+// Tipo de outra marca ("simples__riberball") usa a arte do tipo base.
+const baseOf = (typeId: string) => typeId.split("__")[0];
 
 const toDataUrl = (svg: string) => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 
@@ -76,6 +80,7 @@ function draw(typeId: string, look: Look, card: boolean): string {
 
 // Cartão do tipo: buquê (ou a letra, no foil) no material do tipo.
 export function balloonTypeImage(typeId: string): string {
+  typeId = baseOf(typeId);
   const k = `t:${typeId}`;
   if (!cache.has(k)) {
     const look = LOOKS[typeId] ?? FALLBACK;
@@ -86,6 +91,7 @@ export function balloonTypeImage(typeId: string): string {
 
 // Etapa do tamanho: um balão só, sem fundo (vai dentro do botão).
 export function balloonSizeImage(typeId: string): string {
+  typeId = baseOf(typeId);
   const k = `s:${typeId}`;
   if (!cache.has(k)) {
     const look = LOOKS[typeId] ?? FALLBACK;
@@ -96,6 +102,7 @@ export function balloonSizeImage(typeId: string): string {
 
 // "9" → 9 pol; "40cm" → 16 pol; "75cm" → 30; canudo "260" não é polegada.
 export function sizeInInches(typeId: string, size: string): number | null {
+  typeId = baseOf(typeId);
   if (typeId === "canudo") return null;
   const cm = /^(\d+(?:[.,]\d+)?)\s*cm$/i.exec(size.trim());
   if (cm) return Math.round(Number(cm[1].replace(",", ".")) / 2.54);
@@ -113,6 +120,7 @@ export function balloonVisualPx(typeId: string, size: string): number {
 
 // Rótulo do tamanho: 9" · 40 cm · 260 (canudo).
 export function balloonSizeLabel(typeId: string, size: string): string {
+  typeId = baseOf(typeId);
   if (/cm$/i.test(size.trim())) return size.replace(/\s*cm$/i, " cm");
   if (typeId === "canudo") return size;
   return `${size}"`;
@@ -121,5 +129,6 @@ export function balloonSizeLabel(typeId: string, size: string): string {
 // Explicação curta abaixo do tamanho quando o número sozinho não diz nada
 // ao cliente: 260 é o código do balão de modelar (fino e comprido).
 export function balloonSizeHint(typeId: string): string | null {
+  typeId = baseOf(typeId);
   return typeId === "canudo" ? "de modelar, fino e comprido" : null;
 }

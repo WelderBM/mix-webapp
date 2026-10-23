@@ -11,6 +11,9 @@ export interface BalloonTypeConfig {
   colors: string[];
   active?: boolean; // New field for toggling visibility
   imageUrl?: string; // Image for the specific balloon type
+  // Marca ("São Roque", "Riberball"…): o montador da loja pede a marca
+  // primeiro. Tipo de outra marca tem id "base__marca" ("simples__riberball").
+  brand?: string;
 }
 
 export interface BalloonConfig {

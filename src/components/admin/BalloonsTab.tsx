@@ -258,6 +258,11 @@ export function BalloonsTab({
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded">
                             {type.colors.length} cores
                           </span>
+                          {type.brand && (
+                            <span className="text-[10px] font-bold text-purple-700 uppercase tracking-widest bg-purple-50 px-1.5 py-0.5 rounded">
+                              {type.brand}
+                            </span>
+                          )}
                           {type.active === false && (
                             <Badge variant="outline" className="text-[9px] h-4 bg-red-50 text-red-600 border-red-200 uppercase font-black">
                               Inativo
@@ -289,6 +294,23 @@ export function BalloonsTab({
                                 });
                               }}
                               className="bg-white border-slate-200 h-10 font-bold text-slate-800"
+                            />
+                            {/* Marca: o cliente escolhe a marca primeiro na loja. */}
+                            <Input
+                              value={type.brand ?? ""}
+                              placeholder="Marca"
+                              aria-label="Marca"
+                              onChange={(e) => {
+                                const newTypes = [...balloonConfig.types];
+                                // Vazio: tira o campo (o Firestore recusa undefined).
+                                if (e.target.value) newTypes[typeIndex].brand = e.target.value;
+                                else delete newTypes[typeIndex].brand;
+                                setBalloonConfig({
+                                  ...balloonConfig,
+                                  types: newTypes,
+                                });
+                              }}
+                              className="bg-white border-slate-200 h-10 w-32 shrink-0 text-slate-800"
                             />
 
                             <div className="flex items-center gap-2 bg-white px-3 border border-slate-200 rounded-md shrink-0 h-10 shadow-sm">

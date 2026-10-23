@@ -174,4 +174,41 @@ describe("BalloonBuilder", () => {
     expect(screen.queryByText("Verde")).toBeNull(); // o Noturno não tem no 9"
     expect(screen.queryByText("Preto")).toBeNull(); // esgotada: some
   });
+
+  it("pede a marca primeiro: São Roque na frente; o item leva a marca (dono, 23/10)", async () => {
+    const mockData = {
+      types: [
+        { id: "simples__riberball", name: "Liso Riberball", brand: "Riberball", sizes: [{ size: "7", price: 8, unitsPerPackage: 50 }], colors: ["Roxo"] },
+        { id: "simples", name: "Liso", brand: "São Roque", sizes: [{ size: "7", price: 10, unitsPerPackage: 50 }], colors: ["Roxo Uva"] },
+        { id: "neon", name: "Neon", brand: "São Roque", sizes: [{ size: "5", price: 9, unitsPerPackage: 25 }], colors: ["Verde"] },
+      ],
+      allColors: [],
+    };
+    (firestore.onSnapshot as any).mockImplementation((_ref: any, callback: any) => {
+      callback({ exists: () => true, data: () => mockData });
+      return () => {};
+    });
+    (firestore.getDoc as any).mockImplementation(async () => ({ exists: () => false, data: () => undefined }));
+
+    render(<BalloonBuilder />);
+    await waitFor(() => screen.getByText("Escolha a Marca"));
+    const cards = screen.getAllByRole("button").map((b) => b.textContent ?? "");
+    expect(cards.findIndex((t) => t.includes("São Roque"))).toBeLessThan(cards.findIndex((t) => t.includes("Riberball")));
+    expect(screen.getByText("★ Mais pedida")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Riberball"));
+    await waitFor(() => screen.getByText("Liso Riberball"));
+    expect(screen.queryByText("Neon")).toBeNull();
+
+    fireEvent.click(screen.getByText("Liso Riberball"));
+    await waitFor(() => screen.getByText("Escolha a Cor"));
+    fireEvent.click(screen.getByText("Roxo"));
+    fireEvent.click(await screen.findByRole("button", { name: /Adicionar/i }));
+    expect(addItemMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kitName: expect.stringContaining("Liso Riberball"),
+        balloonDetails: expect.objectContaining({ brand: "Riberball", typeId: "simples__riberball" }),
+      }),
+    );
+  });
 });

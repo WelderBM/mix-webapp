@@ -63,6 +63,8 @@ export function balloonTypeOf(name: string): { typeId: string; size: string | nu
   else if (/\bCANDY\b/.test(n)) typeId = "candy";
   else if (/\bCINTILANTE\b/.test(n)) typeId = "cintilante";
   else if (/\bMETALLIC\b|\bPEROLADO\b/.test(n)) typeId = "metalico";
+  // Neon: tipo próprio (antes caía no Liso como "Verde", "Rosa"…).
+  else if (/\bNEON\b/.test(n)) typeId = "neon";
   else if (/\bLISO\b|\bRED\b|\bGRANFESTA\b|\bN\.\d|\bC\/ ?\d+/.test(n)) typeId = "simples";
   if (!typeId) return null;
   const m = /^BALAO (?:[A-Z ]+? )?(\d{1,2}(?:[.,]\d)?)\b/.exec(n) ?? /\bN\.(\d)\b/.exec(n);
@@ -96,6 +98,45 @@ const key = (s: string) => normalizeText(s).replace(/[^a-z0-9]/g, "");
 const titleCase = (s: string) =>
   s.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 
+// ── Marca ────────────────────────────────────────────────────────────
+// Cada tipo do montador é de UMA marca (o cliente escolhe a marca
+// primeiro — decisão do dono, 23/10). A marca "da casa" de cada tipo é a
+// que o catálogo já registra ou, sem registro, a que mais aparece no
+// Noturno (São Roque no liso, Gate no foil). Balão de outra marca vira um
+// tipo à parte, com preço próprio: "simples__riberball".
+export const baseTypeId = (typeId: string) => typeId.split("__")[0];
+
+const BRAND_TITLE: Record<string, string> = { "SAO ROQUE": "São Roque" };
+export function brandTitle(brand: string): string {
+  const b = brand.trim().toUpperCase();
+  return BRAND_TITLE[b] ?? titleCase(b).replace(/ (E|De|Da|Do) /g, (w) => w.toLowerCase());
+}
+
+export type HomeBrands = Record<string, string>; // tipo base → marca
+
+export function homeBrands(items: StockItem[], config: BalloonConfig): HomeBrands {
+  const count: Record<string, Record<string, number>> = {};
+  for (const i of items) {
+    if (i.family !== "BALAO" || i.inLatestImport === false || !i.brand) continue;
+    const t = balloonTypeOf(i.name);
+    if (!t) continue;
+    const c = (count[t.typeId] ??= {});
+    c[i.brand] = (c[i.brand] ?? 0) + 1;
+  }
+  const home: HomeBrands = {};
+  for (const [base, byBrand] of Object.entries(count)) {
+    home[base] = Object.entries(byBrand).sort((a, b) => b[1] - a[1])[0][0];
+  }
+  // O registrado no catálogo manda: a casa não muda sozinha numa importação.
+  for (const t of config.types) if (!t.id.includes("__") && t.brand) home[t.id] = t.brand;
+  return home;
+}
+
+export function brandTypeId(base: string, brand: string | null | undefined, home: HomeBrands): string {
+  if (!brand || !home[base] || key(brand) === key(home[base])) return base;
+  return `${base}__${key(brand)}`;
+}
+
 export function matchCatalogColor(type: BalloonTypeConfig, words: string): string | null {
   if (!words) return null;
   const w = key(words);
@@ -113,10 +154,17 @@ export function matchCatalogColor(type: BalloonTypeConfig, words: string): strin
   return null;
 }
 
-export function matchBalloon(name: string, config: BalloonConfig): CatalogMatch | null {
+export function matchBalloon(
+  name: string,
+  config: BalloonConfig,
+  // Marca do item no Noturno + marca da casa de cada tipo (ver acima).
+  // Sem isso, tudo cai no tipo da casa.
+  brand?: { brand?: string | null; home: HomeBrands },
+): CatalogMatch | null {
   const t = balloonTypeOf(name);
   if (!t) return null;
-  const type = config.types.find((x) => x.id === t.typeId);
+  const typeId = brand ? brandTypeId(t.typeId, brand.brand, brand.home) : t.typeId;
+  const type = config.types.find((x) => x.id === typeId);
   if (!type) return null;
   const size = t.size && type.sizes.some((s) => s.size === t.size) ? t.size : null;
   const words =
@@ -124,7 +172,7 @@ export function matchBalloon(name: string, config: BalloonConfig): CatalogMatch 
       ? colorWords(name.toUpperCase().replace(/\s+[A-Z0-9&]$/, ""))
       : colorWords(name);
   return {
-    typeId: t.typeId,
+    typeId,
     size: size ?? t.size,
     color: matchCatalogColor(type, words),
     rawColor: titleCase(words),
@@ -142,7 +190,13 @@ export interface CatalogSurvey {
   notCatalog: number; // formatos/temáticos: seguem como produto
 }
 
-type StockItem = { family: string | null; name: string; stock: number; inLatestImport?: boolean };
+type StockItem = {
+  family: string | null;
+  name: string;
+  stock: number;
+  inLatestImport?: boolean;
+  brand?: string | null;
+};
 
 export function surveyCatalog(items: StockItem[], config: BalloonConfig): CatalogSurvey {
   const stock: BalloonStock = {};
@@ -150,9 +204,10 @@ export function surveyCatalog(items: StockItem[], config: BalloonConfig): Catalo
   const newSizes = new Map<string, CatalogSurvey["newSizes"][number]>();
   let matched = 0;
   let notCatalog = 0;
+  const home = homeBrands(items, config);
   for (const i of items) {
     if (i.family !== "BALAO" || i.inLatestImport === false) continue;
-    const m = matchBalloon(i.name, config);
+    const m = matchBalloon(i.name, config, { brand: i.brand, home });
     if (!m) {
       notCatalog++;
       continue;
@@ -230,7 +285,7 @@ export function withAddedColors(
     if (mine.length === 0) return t;
     const colors = [...t.colors];
     for (const c of mine) {
-      if (!colors.some((x) => key(x) === key(c))) colors.push(c);
+      if (!colors.some((x) => key(x.split("|")[0]) === key(c))) colors.push(c);
     }
     return { ...t, colors };
   });
@@ -248,8 +303,20 @@ export const DEFAULT_TYPE_NAMES: Record<string, string> = {
   cintilante: "Cintilante",
   canudo: "Canudo / 260",
   uniq: "Linha Uniq",
+  neon: "Neon",
   foil_numeros: "Números & Letras (Foil)",
 };
+
+// Tipo de outra marca leva a marca no nome ("Liso Riberball"): é o que
+// aparece no cartão, no carrinho e no pedido (a atendente pega o pacote
+// certo).
+const SHORT_TYPE_NAMES: Record<string, string> = { simples: "Liso" };
+export function defaultTypeName(typeId: string, brand: string | null): string {
+  const base = baseTypeId(typeId);
+  const name = DEFAULT_TYPE_NAMES[base] ?? base;
+  if (base === typeId || !brand) return name;
+  return `${SHORT_TYPE_NAMES[base] ?? name} ${brandTitle(brand)}`;
+}
 
 export interface ProposalSize {
   size: string;
@@ -265,6 +332,7 @@ export interface ProposalSize {
 export interface ProposalType {
   typeId: string;
   name: string;
+  brand: string | null; // "São Roque", "Riberball"…
   exists: boolean;
   sizes: ProposalSize[];
   colors: { name: string; stock: number; inCatalog: boolean }[];
@@ -293,27 +361,39 @@ type Acc = {
 const wordCount = (s: string) => s.trim().split(/\s+/).length;
 
 export function proposeCatalog(items: StockItem[], config: BalloonConfig): ProposalType[] {
-  const ids = Object.keys(DEFAULT_TYPE_NAMES);
+  const home = homeBrands(items, config);
+  // Tipos que o Noturno pede (um por tipo base × marca), na ordem: os da
+  // casa primeiro, depois os de outras marcas.
+  const brandOf = new Map<string, string | null>();
+  for (const base of Object.keys(DEFAULT_TYPE_NAMES)) brandOf.set(base, home[base] ?? null);
+  for (const i of items) {
+    if (i.family !== "BALAO" || i.inLatestImport === false) continue;
+    const t = balloonTypeOf(i.name);
+    if (!t) continue;
+    const id = brandTypeId(t.typeId, i.brand, home);
+    if (!brandOf.has(id)) brandOf.set(id, i.brand ?? null);
+  }
+  const ids = [...brandOf.keys()];
   const full: BalloonConfig = {
     ...config,
     types: [
       ...config.types,
       ...ids
         .filter((id) => !config.types.some((t) => t.id === id))
-        .map((id) => ({ id, name: DEFAULT_TYPE_NAMES[id], sizes: [], colors: [] })),
+        .map((id) => ({ id, name: defaultTypeName(id, brandOf.get(id) ?? null), sizes: [], colors: [] })),
     ],
   };
   const acc = new Map<string, Acc>();
   for (const i of items) {
     if (i.family !== "BALAO" || i.inLatestImport === false) continue;
-    const m = matchBalloon(i.name, full);
+    const m = matchBalloon(i.name, full, { brand: i.brand, home });
     if (!m || !m.size) continue;
     const qty = Math.max(0, i.stock);
     const t: Acc = acc.get(m.typeId) ?? { sizes: new Map(), colors: new Map(), renames: new Map() };
     acc.set(m.typeId, t);
     const s = t.sizes.get(m.size) ?? { stock: 0, packs: new Map<number, number>() };
     s.stock += qty;
-    const pack = packOf(i.name, m.typeId);
+    const pack = packOf(i.name, baseTypeId(m.typeId));
     if (pack) s.packs.set(pack, (s.packs.get(pack) ?? 0) + 1);
     t.sizes.set(m.size, s);
     const colorName = m.color ?? m.rawColor;
@@ -338,9 +418,11 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
     .map((id) => {
       const existing = config.types.find((t) => t.id === id);
       const a = acc.get(id)!;
+      const brand = brandOf.get(id);
       return {
         typeId: id,
-        name: existing?.name ?? DEFAULT_TYPE_NAMES[id],
+        name: existing?.name ?? defaultTypeName(id, brand ?? null),
+        brand: existing?.brand ?? (brand ? brandTitle(brand) : null),
         exists: !!existing,
         sizes: [...a.sizes.entries()]
           .map(([size, s]) => {
@@ -402,6 +484,7 @@ export function applyCatalogProposal(
       types.push(t);
     }
     const target = t;
+    if (!target.brand && p.brand) target.brand = p.brand;
     for (const { s, price } of priced) {
       const cur = target.sizes.find((z) => z.size === s.size);
       const pack = choices.packs?.[`${p.typeId}|${s.size}`];
