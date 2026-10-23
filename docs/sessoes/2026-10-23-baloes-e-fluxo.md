@@ -18,7 +18,7 @@
 
 ## Estado dos PRs
 
-Todos no `dev`; nenhum aberto.
+Todos no `dev`, exceto o **#281** (este documento, o guia de conversas, o mapa de skills e o medidor de prioridade), que espera o seu merge porque mexe no `AGENTS.md`. A revisão não achou nada que bloqueie.
 
 | PR | O quê |
 |---|---|
@@ -53,7 +53,13 @@ Todos no `dev`; nenhum aberto.
    - é o bloco que o `next dev` escreve sozinho;
    - commitar junto com algo, ou descartar.
 8. (#289) **Pasta de trabalho antiga `mix-webapp-wt1`** (branch `fix/admin-auth-pwa-icons`), de outra sessão: manter ou apagar?
-9. **Levar para produção** (etapa 3 do plano): merge `dev` → `master` é seu, depois do teste ponta a ponta.
+9. **Medidor de prioridade → quadro e marcos:** aplicar a regra que deixa as colunas do quadro e os marcos calculados pela pontuação?
+   - Urgent = objetivo 5; Todo = 10+ pontos; Backlog = <10; marco pelo objetivo.
+   - Hoje: só a #56 (13 pontos) está em Urgent; 29 issues em Todo sem distinção; lembrete, resumo e épico ocupando o Todo.
+   - Muda o significado do Urgent e dos marcos que você definiu, por isso espera seu "pode".
+10. **Quadro 4 do GitHub** ("untitled") é cópia do "Navegador Espaço-Tempo" (outro repositório): apagar? E dar nome ao quadro da Mix (quadro 2, hoje "untitled")?
+11. **Merge do #281.**
+12. **Levar para produção** (etapa 3 do plano): merge `dev` → `master` é seu, depois do teste ponta a ponta.
 
 ## Passos do dono (no admin do staging)
 
@@ -72,6 +78,8 @@ Todos no `dev`; nenhum aberto.
 5. **Primeira medição de tokens:** numa conversa nova, pedir o `token-optimizer`. Ele mostra antes/depois e só muda algo com a sua aprovação.
 
 ## Pendências minhas (prometidas)
+
+0. **Próxima tarefa pela fila autônoma:** #283 (nome da loja, 21 pontos). Ver `node scripts/prioridade.mjs`.
 
 1. (#282) **Imagens quebradas no montador:**
    - "Linha Uniq";
@@ -98,6 +106,8 @@ Todos no `dev`; nenhum aberto.
 **⚪ Menores, de código:**
 - #273: um tipo cadastrado à mão num tamanho que o Noturno ainda não importou some da loja até a próxima importação. É a regra pedida; só fica o registro.
 
+**Achado na verificação de marcos e quadro (23/10):** a vistoria de UX cria issue sem `backlog` e sem pontuação (#290; etiquetas corrigidas à mão).
+
 **Backlog já planejado** (etapa 5 do plano), sem mudança:
 - #147, #105, #220–#228;
 - depois #162 (Sentry), #203 (IA, decisão de custo), #253, #56.
@@ -116,13 +126,16 @@ Todos no `dev`; nenhum aberto.
 - **Foil:** limitado às letras/números com estoque, contando repetidas por conjunto.
 - **Revisão de UX:** depois do merge em `dev`; achado vira issue.
 - **Fluxo:** PR aberto não para o trabalho (skill `fluxo-continuo`); um assunto por conversa; "fecha a conversa" faz este levantamento.
+- **Prioridade:** 6 eixos em etiquetas (`o:`, `s:`, `a:`, `e:`, `destrava`, `risco`), pontuação 3·O + 2·S + A + D − E − R, desempate em 6 degraus, filas autônoma (`autonomo`) e do dono (`precisa-de-voce`), agrupamento por `frente:` (mesmo lugar no código). Regra em `docs/fluxo/prioridade.md`; 40 issues pontuadas.
+- **Continuidade:** issue na hora em que o achado ou a promessa aparece; ao começar, ler a última `docs/sessoes/`; ao fechar, levantamento em 8 fontes (regra no `AGENTS.md`).
+- **Skills:** 7 instaladas (frontend-design, web-design-guidelines, vercel-react-best-practices, ui-ux-pro-max, writing-plans, verification-before-completion, stop-slop) + Token Optimizer; origem e motivo na memória do agente.
 - **Dono:** dev solo, empresa **Nevalo**; a Mix Novidades é cliente (licenças avaliadas pela Nevalo).
 
 ## Primeira mensagem da próxima conversa
 
 ```
 Contexto: balões e fluxo — continuação de 23/10 (ver docs/sessoes/2026-10-23-baloes-e-fluxo.md).
-Estado: tudo no dev (#269–#280), nada em produção ainda.
-Pendente comigo: itens 1–9 de "Esperando o dono" no documento.
-Próximo passo: rodar o token-optimizer; depois corrigir as imagens quebradas dos cartões de marca e o nome da loja.
+Estado: tudo no dev (#269–#280); #281 (docs + medidor de prioridade) esperando meu merge; nada em produção ainda.
+Pendente comigo: itens 1–12 de "Esperando o dono" no documento (destaque: regra quadro/marcos, item 9).
+Próximo passo: rodar o token-optimizer; depois seguir a fila autônoma (node scripts/prioridade.mjs), começando pela #283.
 ```
