@@ -28,9 +28,18 @@ import {
   balloonTypeImage,
   balloonVisualPx,
 } from "@/lib/balloonTypeArt";
-import { BRANDLESS_TYPES, baseTypeId, isSoldOut } from "@/lib/intake/balloonCatalog";
+import {
+  BRANDLESS_TYPES,
+  baseTypeId,
+  foilCharStock,
+  foilShortage,
+  isSoldOut,
+} from "@/lib/intake/balloonCatalog";
 import { FOIL_MAX_CHARS, FOIL_TYPE_ID, foilCharacters } from "@/lib/balloonFoil";
-import type { BalloonStock, BalloonStockDoc } from "@/types/balloon";
+import type { BalloonStock, BalloonStockDoc, FoilCharStock } from "@/types/balloon";
+
+// Teclado do foil: a ordem em que os caracteres aparecem.
+const FOIL_KEYS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789&?".split("");
 // Gradients especiais para cores metálicas
 const SPECIAL_GRADIENTS: Record<string, string> = {
   Ouro: "linear-gradient(135deg, #FFD700 0%, #FDB931 100%)",
@@ -114,6 +123,9 @@ export function BalloonBuilder() {
   });
   const [loading, setLoading] = useState(true);
   const [balloonStock, setBalloonStock] = useState<BalloonStock | null>(null);
+  // Foil: estoque de cada letra/número por cor (mesmo documento).
+  const [foilChars, setFoilChars] = useState<FoilCharStock | null>(null);
+  const [foilBlocked, setFoilBlocked] = useState("");
 
   // Selection state
   const [step, setStep] = useState(0); // 0=tipo, 1=tamanho, 2=cor, 3=quantidade
@@ -167,6 +179,7 @@ export function BalloonBuilder() {
       .then((s) => {
         if (isMounted && s.exists()) {
           setBalloonStock((s.data() as BalloonStockDoc).stock ?? null);
+          setFoilChars((s.data() as BalloonStockDoc).chars ?? null);
         }
       })
       .catch(() => {});
@@ -204,6 +217,23 @@ export function BalloonBuilder() {
   const isFoil = baseTypeId(selectedTypeId) === FOIL_TYPE_ID;
   // Foil: um balão por caractere; a quantidade conta conjuntos ("ANA" × 2).
   const piecesPerSet = isFoil ? characters.length : 1;
+  // Letras e números que a cor escolhida tem (null = sem informação).
+  const foilAvailable =
+    isFoil && selectedSize && selectedColor
+      ? foilCharStock(foilChars, selectedSize.size, selectedColor)
+      : null;
+  const foilShort = isFoil ? foilShortage(characters, quantity, foilAvailable) : [];
+  // Digitado: caractere que a cor não tem não entra, e o cliente vê o porquê.
+  const typeFoil = (raw: string) => {
+    const clean = foilCharacters(raw);
+    if (!foilAvailable) {
+      setCharacters(clean);
+      return;
+    }
+    const missing = [...new Set(clean.split("").filter((c) => !(foilAvailable[c] > 0)))];
+    setFoilBlocked(missing.join(" "));
+    setCharacters(clean.split("").filter((c) => foilAvailable[c] > 0).join(""));
+  };
   const currentPrice = useMemo(() => {
     if (!selectedSize) return 0;
     return selectedSize.price * piecesPerSet * quantity;
@@ -242,6 +272,10 @@ export function BalloonBuilder() {
       toast.error("Digite as letras ou números que você quer.");
       return;
     }
+    if (foilShort.length > 0) {
+      toast.error(`Não temos ${foilShort.join(", ")} suficiente(s) nessa cor.`);
+      return;
+    }
 
     const colorName = selectedColor.split("|")[0];
     // Marca no nome do item: a atendente pega o pacote da marca certa.
@@ -278,6 +312,7 @@ export function BalloonBuilder() {
     setSelectedColor("");
     setQuantity(1);
     setCharacters("");
+    setFoilBlocked("");
   };
 
   const handleBack = () => {
@@ -607,7 +642,7 @@ export function BalloonBuilder() {
                   </span>
                   <input
                     value={characters}
-                    onChange={(e) => setCharacters(foilCharacters(e.target.value))}
+                    onChange={(e) => typeFoil(e.target.value)}
                     maxLength={FOIL_MAX_CHARS}
                     autoCapitalize="characters"
                     autoComplete="off"
@@ -619,7 +654,62 @@ export function BalloonBuilder() {
                       ? `${characters.length} balão(ões), um por caractere.`
                       : "Cada letra ou número é um balão."}
                   </span>
+                  {foilBlocked && (
+                    <span role="alert" className="mt-1 block text-sm font-medium text-red-600">
+                      Sem estoque nesta cor: {foilBlocked}
+                    </span>
+                  )}
                 </label>
+              )}
+
+              {/* Teclado do foil: o que a cor tem; o que falta fica apagado. */}
+              {isFoil && foilAvailable && (
+                <div className="mb-6">
+                  <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-10">
+                    {FOIL_KEYS.map((ch) => {
+                      const left = (foilAvailable[ch] ?? 0) - characters.split("").filter((c) => c === ch).length * quantity;
+                      const has = (foilAvailable[ch] ?? 0) > 0;
+                      return (
+                        <button
+                          key={ch}
+                          type="button"
+                          disabled={!has || left < quantity || characters.length >= FOIL_MAX_CHARS}
+                          onClick={() => {
+                            setFoilBlocked("");
+                            setCharacters((t) => t + ch);
+                          }}
+                          aria-label={has ? `Adicionar ${ch}` : `${ch}: sem estoque`}
+                          title={has ? undefined : "Sem estoque nesta cor"}
+                          className={cn(
+                            "h-11 rounded-lg border text-lg font-black transition-colors",
+                            has
+                              ? "border-slate-200 bg-white text-slate-800 hover:border-purple-500 disabled:opacity-40"
+                              : "border-slate-100 bg-slate-50 text-slate-300 line-through"
+                          )}
+                        >
+                          {ch}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                    <span>Riscado: sem estoque nesta cor.</span>
+                    {characters && (
+                      <button
+                        type="button"
+                        onClick={() => setCharacters((t) => t.slice(0, -1))}
+                        className="min-h-11 px-3 font-bold text-purple-700"
+                      >
+                        Apagar último
+                      </button>
+                    )}
+                  </div>
+                  {foilShort.length > 0 && (
+                    <p role="alert" className="mt-2 text-sm font-medium text-red-600">
+                      Não temos {foilShort.join(", ")} suficiente(s) para {quantity} conjunto(s).
+                    </p>
+                  )}
+                </div>
               )}
 
               {isFoil && (
@@ -658,7 +748,7 @@ export function BalloonBuilder() {
 
               <Button
                 onClick={handleAddToCart}
-                disabled={isFoil && !characters}
+                disabled={isFoil && (!characters || foilShort.length > 0)}
                 className="w-full h-14 px-8 text-lg font-bold bg-purple-600 hover:bg-purple-700 rounded-full"
               >
                 <ShoppingCart className="mr-2" size={20} />

@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import type { BalloonConfig } from "@/types/balloon";
 import {
   applyCatalogProposal,
+  foilCharOf,
+  foilCharStock,
+  foilShortage,
   homeBrands,
   isSoldOut,
   matchBalloon,
@@ -305,5 +308,39 @@ describe("marca (o cliente escolhe a marca primeiro — dono, 23/10)", () => {
     const cfg = { allColors: [], types: [{ id: "foil_numeros", name: "Foil", brand: "Gate", sizes: [{ size: "40cm", price: 12, unitsPerPackage: 1 }], colors: ["Rose Gold"] }] };
     const out = applyCatalogProposal(cfg, proposeCatalog(items, cfg), { include: {}, prices: {} });
     expect("brand" in out.types.find((t) => t.id === "foil_numeros")!).toBe(false);
+  });
+});
+
+describe("foil: estoque por letra e número (dono, 23/10)", () => {
+  it("lê o caractere do nome do Noturno, inclusive o ?", () => {
+    expect(foilCharOf("BALAO METALIZADO 16 40CM ROSE A")).toBe("A");
+    expect(foilCharOf("BALAO METALIZADO 1640 CM ROSE 2")).toBe("2");
+    expect(foilCharOf("BALAO METALIZADO 1640 CM ROSE INTERROGACAO")).toBe("?");
+    expect(foilCharOf("BALAO METALIZADO FELIZ ANIVERSARIO")).toBeNull();
+    expect(matchBalloon("BALAO METALIZADO 1640 CM ROSE INTERROGACAO", config)).toMatchObject({ typeId: "foil_numeros", color: "Rose Gold" });
+  });
+
+  it("o levantamento guarda o estoque de cada caractere por cor", () => {
+    const s = surveyCatalog(
+      [
+        { family: "BALAO", name: "BALAO METALIZADO 16 40CM ROSE A", stock: 3 },
+        { family: "BALAO", name: "BALAO METALIZADO 16 40CM ROSE N", stock: 1 },
+        { family: "BALAO", name: "BALAO METALIZADO 1640 CM ROSE 5", stock: 0 },
+        { family: "BALAO", name: "BALAO METALIZADO 1640 CM PRATEADO INTERROGACAO", stock: 2 },
+      ],
+      config,
+    );
+    expect(s.chars).toEqual({ "40cm": { "Rose Gold": { A: 3, N: 1, "5": 0 }, Prata: { "?": 2 } } });
+  });
+
+  it("disponível por cor (nome sem acento/espaço; junta grafias) e o que falta para o pedido", () => {
+    const chars = { "40cm": { "Arco Iris": { A: 2 }, Arcoiris: { "1": 1 } } };
+    expect(foilCharStock(chars, "40cm", "Arcoíris")).toEqual({ A: 2, "1": 1 });
+    expect(foilCharStock(chars, "40cm", "Prata")).toBeNull();
+    expect(foilCharStock(null, "40cm", "Prata")).toBeNull();
+    const av = { A: 3, N: 1 };
+    expect(foilShortage("ANA", 1, av)).toEqual([]);
+    expect(foilShortage("ANA", 2, av)).toEqual(["A", "N"]); // 4 A e 2 N
+    expect(foilShortage("ANA", 1, null)).toEqual([]); // sem informação: não limita
   });
 });

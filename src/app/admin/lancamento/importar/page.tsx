@@ -281,9 +281,11 @@ export default function NoturnoImportPage() {
       });
       // Estoque dos balões para o montador da loja (cor esgotada some).
       if (balloonConfig) {
-        const { stock } = surveyCatalog(analysis.items, balloonConfig);
+        // chars: estoque de cada letra/número do foil, por cor.
+        const { stock, chars } = surveyCatalog(analysis.items, balloonConfig);
         await setDoc(doc(db, "settings", "balloonStock"), {
           stock,
+          chars,
           updatedAt: serverTimestamp(),
         });
       }
