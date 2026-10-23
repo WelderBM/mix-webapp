@@ -137,7 +137,7 @@ export function toMarkdown(report, prNumber, baseline = null) {
     "",
     `Prints e relatório completo: artefato **ux-visual-pr-${prNumber}** na execução do workflow.`,
     "",
-    "<sub>Revisão paralela e não bloqueante: não segura o merge em `dev`. Achado 🟡 aqui marca `precisa-de-voce`.</sub>",
+    "<sub>Revisão depois do merge em `dev`: não segura nenhum PR. Achado 🟡 aqui vira issue de correção.</sub>",
     `<!-- veredito-ux-medicoes: {"importantes":${findings.length}} -->`
   );
   return { markdown: lines.join("\n"), importantes: findings.length };
