@@ -58,3 +58,8 @@ As skills do repositório estão centralizadas no ambiente global (`~/.agents/sk
 - **Produção**: Firebase `mix-webapp` | Domain: `www.mixnovidades.com`
 - **Staging**: Firebase `mix-webapp-staging` (usado em preview Vercel e `.env` local)
 - **Documentação de Lições**: `docs/claude-lessons.md` — Registro obrigatório de qualquer gotcha, bug sutil ou decisão de arquitetura descoberta durante a sessão.
+- **Continuidade entre conversas (regra do dono, 23/10/2026)** — nada minimamente importante pode ficar só no chat:
+  - **Ao começar**: ler o `docs/sessoes/*.md` mais recente (estado, perguntas abertas ao dono, pendências).
+  - **Na hora em que aparece**: achado de revisão que não vou corrigir agora, bug visto de passagem ou promessa ("corrijo depois") vira **issue** (passando pela triagem); pergunta ao dono sem resposta fica listada até ser respondida.
+  - **Ao fechar a conversa**: documento de passagem em `docs/sessoes/AAAA-MM-DD-<assunto>.md` com o levantamento completo; onde guardar cada tipo de informação está em `docs/fluxo/guia-varias-conversas.md` §8.
+- **Prioridade (regra do dono, 23/10/2026)**: a próxima issue sai de `node scripts/prioridade.mjs` (fila autônoma, etiqueta `autonomo`); decisões ficam na fila do dono (`precisa-de-voce`). Toda issue nova nasce com os 6 eixos (`o:`, `s:`, `a:`, `e:`, `destrava`, `risco`) e uma `frente:`. Regra completa em `docs/fluxo/prioridade.md`.
