@@ -292,4 +292,13 @@ describe("marca (o cliente escolhe a marca primeiro — dono, 23/10)", () => {
     expect(s.stock.simples).toEqual({ "7": { "Roxo Uva": 9 } });
     expect(s.stock.simples__riberball).toEqual({ "7": { Roxo: 6 } });
   });
+
+  it("antes do Montar criar o tipo da marca, o estoque segue no tipo da casa (nada some da loja)", () => {
+    const cfg = { allColors: [], types: [{ id: "simples", name: "Liso", sizes: [{ size: "7", price: 10, unitsPerPackage: 50 }], colors: ["Roxo"] }] };
+    expect(surveyCatalog(items, cfg).stock.simples).toEqual({ "7": { "Roxo Uva": 9, Roxo: 6 } });
+  });
+  it("marca genérica DIVERSOS aparece como Outras marcas", () => {
+    const p = proposeCatalog([...items, { family: "BALAO", name: "BALAO LISO GRANFESTA 9 50X1 SORTIDO", stock: 6, brand: "DIVERSOS" }], { types: [], allColors: [] });
+    expect(p.find((t) => t.typeId === "simples__diversos")).toMatchObject({ name: "Liso Outras marcas", brand: "Outras marcas" });
+  });
 });
