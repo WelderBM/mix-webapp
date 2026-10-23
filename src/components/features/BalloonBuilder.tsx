@@ -413,7 +413,9 @@ export function BalloonBuilder() {
             <h3 className="text-xl font-bold text-center mb-6">
               Escolha a Marca
             </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* flex + justify-center: poucas marcas ficam centradas sob o
+                título no desktop, em vez de coladas à esquerda (#284). */}
+            <div className="flex flex-wrap justify-center gap-4">
               {brandGroups.map((g) => (
                 <button
                   key={g.brand}
@@ -423,7 +425,7 @@ export function BalloonBuilder() {
                     if (g.types.length === 1) handleSelectType(g.types[0].id);
                   }}
                   className={cn(
-                    "group relative bg-white border-2 rounded-2xl p-4 hover:border-purple-500 hover:shadow-lg transition-all",
+                    "group relative w-[calc(50%-0.5rem)] md:w-48 bg-white border-2 rounded-2xl p-4 hover:border-purple-500 hover:shadow-lg transition-all",
                     g.preferred ? "border-purple-300" : "border-slate-200"
                   )}
                 >
@@ -455,7 +457,10 @@ export function BalloonBuilder() {
                     {g.label}
                   </h4>
                   <p className="text-xs text-slate-500 text-center mt-1 line-clamp-2">
-                    {g.types.map((t) => t.name.replace(g.label, "").trim() || t.name).join(" · ")}
+                    {/* Marca com muitos tipos: a contagem cabe; a lista cortava (#284). */}
+                    {g.types.length > 2
+                      ? `${g.types.length} tipos`
+                      : g.types.map((t) => t.name.replace(g.label, "").trim() || t.name).join(" · ")}
                   </p>
                 </button>
               ))}
