@@ -16,7 +16,7 @@ export const SectionCustomBanner = ({ section }: SectionCustomBannerProps) => {
         alt={section.title}
         name={section.title}
         fill
-        sizes="100vw"
+        sizes="(min-width: 1184px) 1152px, 100vw"
         className="object-cover"
       />
       <div className="absolute inset-0 bg-black/10 hover:bg-transparent transition-colors" />
