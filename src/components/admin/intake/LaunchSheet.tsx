@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { BookOpenCheck, Camera, History, Loader2, Plus, RotateCcw, Sparkles, X } from "lucide-react";
+import { BookOpenCheck, Camera, History, ImagePlus, Loader2, Plus, RotateCcw, Sparkles, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -25,6 +25,8 @@ import { pricePerUnit } from "@/lib/intake/pack";
 import { matchSubcategory } from "@/lib/intake/subcategories";
 import { attributePlural, type VariantGroup } from "@/lib/intake/groups";
 import { parseBalloon } from "@/lib/intake/balloons";
+import { ImageSearchDialog } from "@/components/admin/ImageSearchDialog";
+import { imageSearchEnabled } from "@/lib/imageSearch/client";
 import {
   DRAFT_VERSION,
   deleteDraft,
@@ -106,6 +108,16 @@ export function LaunchSheet({
   // desfazer poria a foto no card de OUTRO produto.
   const undoToastRef = useRef<string | number | null>(null);
   const [processingPhoto, setProcessingPhoto] = useState(false);
+  // Foto da internet (#268): só aparece com a chave configurada no servidor.
+  const [canSearchPhoto, setCanSearchPhoto] = useState(false);
+  const [searchingPhoto, setSearchingPhoto] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    imageSearchEnabled().then((v) => alive && setCanSearchPhoto(v));
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   // Rascunho (#233): valores com que o card abriu, e de qual item o
@@ -628,6 +640,29 @@ export function LaunchSheet({
                 )}
               </div>
             )}
+            {canSearchPhoto && photos.length < MAX_PHOTOS && (
+              // Sem o produto à mão para fotografar, ou foto ruim: a
+              // atendente escolhe uma da internet conferindo a cor (#268).
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full gap-2"
+                disabled={processingPhoto || saving}
+                onClick={() => setSearchingPhoto(true)}
+              >
+                <ImagePlus size={18} /> Buscar foto na internet
+              </Button>
+            )}
+            <ImageSearchDialog
+              open={searchingPhoto}
+              onOpenChange={setSearchingPhoto}
+              initialQuery={(name || item.name).trim()}
+              onPick={(blob) =>
+                setPhotos((list) =>
+                  list.length >= MAX_PHOTOS ? list : [...list, { blob, preview: URL.createObjectURL(blob) }],
+                )
+              }
+            />
             <input
               ref={fileRef}
               type="file"
