@@ -27,7 +27,11 @@ export interface BalloonConfig {
 // `settings/balloons`, que o admin regrava inteiro ao salvar.
 export type BalloonStock = Record<string, Record<string, Record<string, number>>>;
 
+// Foil de letras e números: tamanho → cor → caractere → quantidade.
+export type FoilCharStock = Record<string, Record<string, Record<string, number>>>;
+
 export interface BalloonStockDoc {
   stock: BalloonStock;
+  chars?: FoilCharStock;
   updatedAt?: unknown;
 }

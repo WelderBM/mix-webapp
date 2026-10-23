@@ -5,13 +5,13 @@ import { balloonSizeLabel } from "@/lib/balloonTypeArt";
 export const FOIL_TYPE_ID = "foil_numeros";
 export const FOIL_MAX_CHARS = 20;
 
-// Maiúsculas, sem acento, só letras, números e "&" (o que a loja tem).
+// Maiúsculas, sem acento, só letras, números, "&" e "?" (o que a loja tem).
 export function foilCharacters(input: string): string {
   return input
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toUpperCase()
-    .replace(/[^A-Z0-9&]/g, "")
+    .replace(/[^A-Z0-9&?]/g, "")
     .slice(0, FOIL_MAX_CHARS);
 }
 

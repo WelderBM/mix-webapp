@@ -1,4 +1,4 @@
-import type { BalloonConfig, BalloonStock, BalloonTypeConfig } from "@/types/balloon";
+import type { BalloonConfig, BalloonStock, BalloonTypeConfig, FoilCharStock } from "@/types/balloon";
 import { normalizeText } from "./search";
 
 // Balões do Noturno × catálogo de balões do site (`settings/balloons`:
@@ -47,8 +47,8 @@ const COLOR_ALIAS: Record<string, string> = {
 
 export function balloonTypeOf(name: string): { typeId: string; size: string | null } | null {
   const n = name.toUpperCase();
-  if (/\b(16 ?40 ?CM|1640 ?CM)\b.*\s[A-Z0-9&]$/.test(n)) return { typeId: "foil_numeros", size: "40cm" };
-  if (/\b32 ?75 ?CM\b.*\s[A-Z0-9&]$/.test(n)) return { typeId: "foil_numeros", size: "75cm" };
+  if (/\b(16 ?40 ?CM|1640 ?CM)\b.*\s([A-Z0-9&]|INTERROGACAO)$/.test(n)) return { typeId: "foil_numeros", size: "40cm" };
+  if (/\b32 ?75 ?CM\b.*\s([A-Z0-9&]|INTERROGACAO)$/.test(n)) return { typeId: "foil_numeros", size: "75cm" };
   if (/\bCANUDO\b|\b260\b/.test(n)) return { typeId: "canudo", size: "260" };
   // Bobo/bubble: balão transparente especial, não é o látex do catálogo.
   if (/\bBOBO\b|\bBUBBLE\b/.test(n)) return null;
@@ -179,7 +179,7 @@ export function matchBalloon(
   const size = t.size && type.sizes.some((s) => s.size === t.size) ? t.size : null;
   const words =
     t.typeId === "foil_numeros"
-      ? colorWords(name.toUpperCase().replace(/\s+[A-Z0-9&]$/, ""))
+      ? colorWords(name.toUpperCase().replace(/\s+([A-Z0-9&]|INTERROGACAO)$/, ""))
       : colorWords(name);
   return {
     typeId,
@@ -192,6 +192,7 @@ export function matchBalloon(
 
 export interface CatalogSurvey {
   stock: BalloonStock;
+  chars: FoilCharStock;
   matched: number;
   // Cor do Noturno que o catálogo não tem (sugestão de cor nova).
   newColors: { typeId: string; size: string | null; color: string; stock: number; items: number }[];
@@ -210,6 +211,7 @@ type StockItem = {
 
 export function surveyCatalog(items: StockItem[], config: BalloonConfig): CatalogSurvey {
   const stock: BalloonStock = {};
+  const chars: FoilCharStock = {};
   const newColors = new Map<string, CatalogSurvey["newColors"][number]>();
   const newSizes = new Map<string, CatalogSurvey["newSizes"][number]>();
   let matched = 0;
@@ -241,6 +243,12 @@ export function surveyCatalog(items: StockItem[], config: BalloonConfig): Catalo
     if (stockName) {
       const byColor = ((stock[m.typeId] ??= {})[m.size!] ??= {});
       byColor[stockName] = (byColor[stockName] ?? 0) + qty;
+      // Foil: estoque de cada letra/número da cor ("ROSE A", "ROSE 2").
+      const ch = baseTypeId(m.typeId) === "foil_numeros" ? foilCharOf(i.name) : null;
+      if (ch) {
+        const byChar = ((chars[m.size!] ??= {})[stockName] ??= {});
+        byChar[ch] = (byChar[ch] ?? 0) + qty;
+      }
     }
     if (!m.color) {
       if (m.rawColor) {
@@ -256,6 +264,7 @@ export function surveyCatalog(items: StockItem[], config: BalloonConfig): Catalo
   }
   return {
     stock,
+    chars,
     matched,
     newColors: [...newColors.values()].sort((a, b) => b.stock - a.stock),
     newSizes: [...newSizes.values()].sort((a, b) => b.stock - a.stock),
@@ -268,6 +277,49 @@ export function surveyCatalog(items: StockItem[], config: BalloonConfig): Catalo
 // aparece no 9" (pedido do dono, 23/10). Tipo que o Noturno não tem
 // (cadastro manual) ou estoque ainda não importado: mostra tudo.
 // Nome comparado sem acento/espaço ("Preto Eban O" = "Preto Ébano").
+// Foil: o caractere é a última palavra do nome ("…ROSE A" → "A";
+// "…ROSE INTERROGACAO" → "?").
+export function foilCharOf(name: string): string | null {
+  const last = /\s(\S+)$/.exec(name.trim().toUpperCase())?.[1];
+  if (!last) return null;
+  if (last === "INTERROGACAO") return "?";
+  return /^[A-Z0-9&]$/.test(last) ? last : null;
+}
+
+// Foil no montador: quantos de cada caractere a cor tem naquele tamanho.
+// null = sem informação do Noturno (não limita nada).
+export function foilCharStock(
+  chars: FoilCharStock | null | undefined,
+  size: string,
+  color: string,
+): Record<string, number> | null {
+  const bySize = chars?.[size];
+  if (!bySize) return null;
+  const k = key(color.split("|")[0]);
+  const out: Record<string, number> = {};
+  let found = false;
+  for (const [name, byChar] of Object.entries(bySize)) {
+    if (key(name.split("|")[0]) !== k) continue;
+    found = true;
+    for (const [ch, q] of Object.entries(byChar)) out[ch] = (out[ch] ?? 0) + q;
+  }
+  return found ? out : null;
+}
+
+// Caracteres que faltam para o pedido: "ANA" × 2 conjuntos precisa de 4 A.
+export function foilShortage(
+  text: string,
+  sets: number,
+  available: Record<string, number> | null,
+): string[] {
+  if (!available) return [];
+  const need: Record<string, number> = {};
+  for (const ch of text) need[ch] = (need[ch] ?? 0) + sets;
+  return Object.entries(need)
+    .filter(([ch, n]) => (available[ch] ?? 0) < n)
+    .map(([ch]) => ch);
+}
+
 export function isSoldOut(
   stock: BalloonStock | null | undefined,
   typeId: string,

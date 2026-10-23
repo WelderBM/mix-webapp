@@ -216,4 +216,45 @@ describe("BalloonBuilder", () => {
       }),
     );
   });
+
+  it("foil: só deixa usar letra/número que a cor tem, e conta as repetidas (dono, 23/10)", async () => {
+    const mockData = {
+      types: [{ id: "foil_numeros", name: "Números & Letras (Foil)", sizes: [{ size: "40cm", price: 12, unitsPerPackage: 1 }], colors: ["Rose Gold"] }],
+      allColors: [],
+    };
+    (firestore.onSnapshot as any).mockImplementation((_ref: any, callback: any) => {
+      callback({ exists: () => true, data: () => mockData });
+      return () => {};
+    });
+    (firestore.getDoc as any).mockImplementation(async () => ({
+      exists: () => true,
+      data: () => ({
+        stock: { foil_numeros: { "40cm": { "Rose Gold": 6 } } },
+        chars: { "40cm": { "Rose Gold": { A: 1, N: 3, "5": 0 } } },
+      }),
+    }));
+
+    render(<BalloonBuilder />);
+    fireEvent.click(await screen.findByText("Números & Letras (Foil)"));
+    fireEvent.click(await screen.findByText("Rose Gold"));
+    await screen.findByText("Quais letras ou números?");
+
+    // Riscado: sem estoque nesta cor.
+    expect((screen.getByLabelText("5: sem estoque") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText("V: sem estoque") as HTMLButtonElement).disabled).toBe(true);
+
+    // Digitado: o que não tem não entra, e o cliente vê o porquê.
+    fireEvent.change(screen.getByPlaceholderText("Ex.: ANA ou 15"), { target: { value: "ANAV" } });
+    expect((screen.getByPlaceholderText("Ex.: ANA ou 15") as HTMLInputElement).value).toBe("ANA");
+    expect(screen.getByText("Sem estoque nesta cor: V")).toBeTruthy();
+
+    // "ANA" precisa de 2 A e só há 1: avisa e não deixa adicionar.
+    expect(screen.getByText(/Não temos A suficiente/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: /Adicionar ao Carrinho/ }) as HTMLButtonElement).disabled).toBe(true);
+
+    // Com "NA" dá certo; o A acabou e a tecla dele fica desligada.
+    fireEvent.change(screen.getByPlaceholderText("Ex.: ANA ou 15"), { target: { value: "NA" } });
+    expect((screen.getByLabelText("Adicionar A") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /Adicionar ao Carrinho/ }) as HTMLButtonElement).disabled).toBe(false);
+  });
 });
