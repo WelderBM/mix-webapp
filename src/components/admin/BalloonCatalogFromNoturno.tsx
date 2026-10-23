@@ -46,6 +46,7 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
   const [include, setInclude] = useState<Record<string, boolean>>({});
   const [prices, setPrices] = useState<Record<string, string>>({});
   const [packs, setPacks] = useState<Record<string, string>>({});
+  const [removeStale, setRemoveStale] = useState<Record<string, boolean>>({});
 
   // Tudo digitado vale só para esta abertura: ao fechar, limpa — senão um
   // preço antigo voltaria e sobrescreveria uma correção feita na Edição.
@@ -54,6 +55,7 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
       setPrices({});
       setPacks({});
       setInclude({});
+      setRemoveStale({});
       setItems(null); // relê a fila na próxima abertura
     }
     onOpenChange(next);
@@ -93,7 +95,9 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
     for (const [k, v] of Object.entries(prices)) typed[k] = parsePrice(v);
     const typedPacks: Record<string, number | null> = {};
     for (const [k, v] of Object.entries(packs)) typedPacks[k] = v ? Number(v) : null;
-    onApply(applyCatalogProposal(config, proposal, { include, prices: typed, packs: typedPacks }));
+    onApply(
+      applyCatalogProposal(config, proposal, { include, prices: typed, packs: typedPacks, removeStale }),
+    );
     toast.success(
       "Catálogo montado. Na Edição, confira os nomes das cores novas e toque em Salvar Configurações.",
     );
@@ -109,7 +113,8 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
             Tipos, tamanhos, pacote e cores com estoque vêm do Noturno. Digite o
             preço da etiqueta de cada tamanho novo (o preço é do PACOTE; em
             branco ou zero, mantém o atual). Confira o pacote marcado em
-            amarelo. Nada do catálogo atual é apagado.
+            amarelo. Cor que o Noturno não tem sai do catálogo (dá para
+            desmarcar); nome quebrado é corrigido.
           </DialogDescription>
         </DialogHeader>
 
@@ -223,6 +228,28 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
                         </>
                       )}
                     </p>
+                    {p.renames.length > 0 && (
+                      <p className="text-xs text-slate-500">
+                        <strong className="text-slate-700">{p.renames.length} nome(s) corrigido(s):</strong>{" "}
+                        {p.renames.map((r) => `${r.from} → ${r.to}`).join(", ")}
+                      </p>
+                    )}
+                    {p.stale.length > 0 && (
+                      <label className="flex items-start gap-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
+                        <input
+                          type="checkbox"
+                          checked={removeStale[p.typeId] !== false}
+                          onChange={(e) => setRemoveStale((x) => ({ ...x, [p.typeId]: e.target.checked }))}
+                          className="mt-0.5 h-5 w-5 shrink-0 accent-purple-600"
+                        />
+                        <span>
+                          <strong>
+                            Remover {p.stale.length} cor(es) que o Noturno não tem:
+                          </strong>{" "}
+                          {p.stale.map((c) => c.split("|")[0]).join(", ")}
+                        </span>
+                      </label>
+                    )}
                   </>
                 )}
               </section>

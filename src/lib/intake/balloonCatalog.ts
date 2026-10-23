@@ -26,13 +26,15 @@ const ABBREV: Record<string, string> = {
   AZ: "AZUL", VM: "VERMELHO", AM: "AMARELO", RX: "ROXO", PRATEADO: "PRATA",
   PRATEADA: "PRATA", DOURADA: "DOURADO", OURO: "DOURADO", SHOCK: "CHOQUE",
   RS: "ROSA", HOTTELA: "HORTELA",
+  // Grafias diferentes da mesma cor no Noturno.
+  EUCLIPTO: "EUCALIPTO", SORTIDOS: "SORTIDO",
 };
 
 // Palavras que não são cor (tipo, embalagem, medidas).
 const NOISE = new Set([
   "BALAO", "LISO", "RED", "CANDY", "COLORS", "UNIQ", "METALLIC", "BALLOON",
   "CINTILANTE", "CANUDO", "METALIZADO", "METAL", "NEON", "GRANFESTA", "UND",
-  "UND.", "UN", "UNID", "C", "POR", "CM", "M", "N",
+  "UND.", "UN", "UNID", "UNIDADE", "C", "POR", "CM", "M", "N",
   // Marca/linha, não cor: "AMARELO ART LATEX", "BASIC BRANCO".
   "ART", "LATEX", "BASIC",
 ]);
@@ -53,7 +55,9 @@ export function balloonTypeOf(name: string): { typeId: string; size: string | nu
   // Foil de formato (coração, estrela…) e temáticos: produto, não catálogo.
   if (/\bMETAL\b|\bMETALIZADO\b/.test(n)) return null;
   // Temático (estampa), coração/estrela de látex e gigante: personalizados.
-  if (/\b(TEMA|CORACAO|ESTRELA|GIGANTE)\b/.test(n)) return null;
+  // Estampados sem a palavra TEMA ("HEROIS C/25", "FELIZ ANIVERSARIO N 10")
+  // também: senão "Herois Sortido" vira cor do Liso.
+  if (/\b(TEMA|CORACAO|ESTRELA|GIGANTE|HEROIS|FLAMINGO|ANIVERSARIO|DECORACAO|LOVE|FELICIDADES|FANTASIA|KIT|UNICORNIO|BOLINHA|PATINHA)\b/.test(n)) return null;
   let typeId: string | null = null;
   if (/\bUNIQ\b/.test(n)) typeId = "uniq";
   else if (/\bCANDY\b/.test(n)) typeId = "candy";
@@ -84,6 +88,7 @@ export function colorWords(name: string): string {
       return out;
     }, [])
     .join(" ")
+    .replace(/\bEUCA LIPTO\b/, "EUCALIPTO")
     .trim();
 }
 
@@ -102,7 +107,7 @@ export function matchCatalogColor(type: BalloonTypeConfig, words: string): strin
   // "ROXO AMETISTA" viravam "Roxo"; "NEW PINK" virava "Pink").
   const tries = [w, `${w}candy`, `${w}perolado`, `${w}uniq`, COLOR_ALIAS[w]].filter(Boolean);
   for (const t of tries) {
-    const exact = type.colors.find((c) => key(c) === t);
+    const exact = type.colors.find((c) => key(c.split("|")[0]) === t);
     if (exact) return exact;
   }
   return null;
@@ -165,6 +170,13 @@ export function surveyCatalog(items: StockItem[], config: BalloonConfig): Catalo
       }
       continue;
     }
+    // O estoque guarda também a cor que o catálogo ainda não tem: quando
+    // ela entrar (Montar pelo Noturno), o montador já sabe se há unidade.
+    const stockName = m.color ?? m.rawColor;
+    if (stockName) {
+      const byColor = ((stock[m.typeId] ??= {})[m.size!] ??= {});
+      byColor[stockName] = (byColor[stockName] ?? 0) + qty;
+    }
     if (!m.color) {
       if (m.rawColor) {
         const k = `${m.typeId}|${m.size}|${key(m.rawColor)}`;
@@ -176,9 +188,6 @@ export function surveyCatalog(items: StockItem[], config: BalloonConfig): Catalo
       continue;
     }
     matched++;
-    const bySize = (stock[m.typeId] ??= {});
-    const byColor = (bySize[m.size!] ??= {});
-    byColor[m.color] = (byColor[m.color] ?? 0) + qty;
   }
   return {
     stock,
@@ -189,17 +198,25 @@ export function surveyCatalog(items: StockItem[], config: BalloonConfig): Catalo
   };
 }
 
-// Montador da loja: cor ESGOTADA = o Noturno confirmou estoque zero
-// naquele tamanho. Cor sem informação (não casou no cruzamento) continua
-// aparecendo — erro de leitura nunca esconde balão que existe.
+// Montador da loja: o Noturno é o estoque. Se ele tem o tipo, a cor só
+// aparece no tamanho em que há unidade — Roxo que só existe no 7" não
+// aparece no 9" (pedido do dono, 23/10). Tipo que o Noturno não tem
+// (cadastro manual) ou estoque ainda não importado: mostra tudo.
+// Nome comparado sem acento/espaço ("Preto Eban O" = "Preto Ébano").
 export function isSoldOut(
   stock: BalloonStock | null | undefined,
   typeId: string,
   size: string,
   color: string,
 ): boolean {
-  const q = stock?.[typeId]?.[size]?.[color];
-  return q !== undefined && q <= 0;
+  const byType = stock?.[typeId];
+  if (!byType) return false;
+  const bySize = byType[size];
+  if (!bySize) return true;
+  const k = key(color.split("|")[0]);
+  let q = 0;
+  for (const [name, n] of Object.entries(bySize)) if (key(name.split("|")[0]) === k) q += n;
+  return q <= 0;
 }
 
 // "Adicionar ao catálogo": devolve os tipos com as cores novas incluídas
@@ -251,6 +268,12 @@ export interface ProposalType {
   exists: boolean;
   sizes: ProposalSize[];
   colors: { name: string; stock: number; inCatalog: boolean }[];
+  // Cor do catálogo sem NENHUM item no Noturno (nem zerado): sobra de
+  // cadastro antigo ("Tema Unicornio…", "Basic Azul"). Sai ao aplicar,
+  // a menos que a atendente desmarque.
+  stale: string[];
+  // Nome quebrado salvo antes ("Branco Pola R") → nome certo ("Branco Polar").
+  renames: { from: string; to: string }[];
 }
 
 function packOf(name: string, typeId: string): number | null {
@@ -264,7 +287,10 @@ const sizeOrder = (s: string) => parseFloat(s) || 0;
 type Acc = {
   sizes: Map<string, { stock: number; packs: Map<number, number> }>;
   colors: Map<string, { name: string; stock: number; inCatalog: boolean }>;
+  renames: Map<string, string>; // nome no catálogo → nome do Noturno
 };
+
+const wordCount = (s: string) => s.trim().split(/\s+/).length;
 
 export function proposeCatalog(items: StockItem[], config: BalloonConfig): ProposalType[] {
   const ids = Object.keys(DEFAULT_TYPE_NAMES);
@@ -283,7 +309,7 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
     const m = matchBalloon(i.name, full);
     if (!m || !m.size) continue;
     const qty = Math.max(0, i.stock);
-    const t: Acc = acc.get(m.typeId) ?? { sizes: new Map(), colors: new Map() };
+    const t: Acc = acc.get(m.typeId) ?? { sizes: new Map(), colors: new Map(), renames: new Map() };
     acc.set(m.typeId, t);
     const s = t.sizes.get(m.size) ?? { stock: 0, packs: new Map<number, number>() };
     s.stock += qty;
@@ -296,6 +322,14 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
       const c = t.colors.get(k) ?? { name: colorName, stock: 0, inCatalog: m.color != null };
       c.stock += qty;
       t.colors.set(k, c);
+    }
+    // Mesma cor, mas o catálogo guardou o nome quebrado como veio do
+    // Noturno ("Branco Pola R" de "BR POLA R"): corrige. Só quando a
+    // quebra está no próprio nome do Noturno — "Rosa Tutti Frutti" e
+    // "Arco Iris" escritos à mão ficam como estão.
+    if (m.color && m.rawColor && wordCount(m.color) > wordCount(m.rawColor)) {
+      const tail = normalizeText(m.color.split("|")[0]).split(/\s+/).slice(1).join(" ");
+      if (tail && ` ${normalizeText(i.name)} `.includes(` ${tail} `)) t.renames.set(m.color, m.rawColor);
     }
   }
   return ids
@@ -331,6 +365,8 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
         colors: [...a.colors.values()]
           .filter((c) => c.stock > 0)
           .sort((x, y) => y.stock - x.stock),
+        stale: (existing?.colors ?? []).filter((c) => !a.colors.has(key(c.split("|")[0]))),
+        renames: [...a.renames.entries()].map(([from, to]) => ({ from, to })),
       };
     });
 }
@@ -338,7 +374,8 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
 // Aplica a proposta: cria tipos que faltam e acrescenta tamanhos (com o
 // preço digitado) e cores com estoque. Tamanho novo sem preço fica de
 // fora — não dá para vender sem preço. Preço digitado num tamanho que já
-// existe atualiza o preço.
+// existe atualiza o preço. Corrige nomes quebrados e tira as cores que o
+// Noturno não tem (salvo se a atendente desmarcar a limpeza do tipo).
 export function applyCatalogProposal(
   config: BalloonConfig,
   proposal: ProposalType[],
@@ -347,6 +384,8 @@ export function applyCatalogProposal(
     prices: Record<string, number | null>;
     // Pacote corrigido pela atendente ("typeId|size" → unidades).
     packs?: Record<string, number | null>;
+    // typeId → false mantém as cores que o Noturno não tem.
+    removeStale?: Record<string, boolean>;
   },
 ): BalloonConfig {
   const types = config.types.map((t) => ({ ...t, sizes: t.sizes.map((s) => ({ ...s })), colors: [...t.colors] }));
@@ -372,8 +411,15 @@ export function applyCatalogProposal(
       } else target.sizes.push({ size: s.size, price, unitsPerPackage: units });
     }
     target.sizes.sort((x, y) => sizeOrder(x.size) - sizeOrder(y.size));
+    if (choices.removeStale?.[p.typeId] !== false) {
+      const stale = new Set(p.stale);
+      target.colors = target.colors.filter((c) => !stale.has(c));
+    }
+    const rename = new Map(p.renames.map((r) => [r.from, r.to]));
+    target.colors = target.colors.map((c) => rename.get(c) ?? c);
     for (const c of p.colors) {
-      if (!target.colors.some((x) => key(x) === key(c.name))) target.colors.push(c.name);
+      const name = rename.get(c.name) ?? c.name;
+      if (!target.colors.some((x) => key(x.split("|")[0]) === key(name))) target.colors.push(name);
     }
   }
   return { ...config, types };

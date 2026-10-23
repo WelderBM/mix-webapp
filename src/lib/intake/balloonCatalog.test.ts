@@ -64,7 +64,7 @@ describe("matchBalloon (nomes reais do Noturno)", () => {
     expect(matchBalloon("BALAO 6,5 LISO BASIC VERMELHO C/50UND", roxo)?.rawColor).toBe("Vermelho");
   });
   it("temático, coração de látex e gigante não são do catálogo", () => {
-    for (const n of ["BALAO 9 TEMA BOLINHA C/25 VERMELHO/BRANCO", "BALAO CORACAO 11 LISO P/UNID VERMELHO QUENTE", "BALAO GIGANTE LISO BRANCO"]) {
+    for (const n of ["BALAO 9 TEMA BOLINHA C/25 VERMELHO/BRANCO", "BALAO CORACAO 11 LISO P/UNID VERMELHO QUENTE", "BALAO GIGANTE LISO BRANCO", "BALAO FELIZ ANIVERSARIO N 10 C/50 UND.", "BALAO 9 FLAMINGO C/25 SORTIDO"]) {
       expect(matchBalloon(n, config), n).toBeNull();
     }
   });
@@ -93,7 +93,8 @@ describe("surveyCatalog (levantamento)", () => {
       ],
       config,
     );
-    expect(s.stock).toEqual({ simples: { "9": { "Verde Folha": 12, Preto: 0 } } });
+    // Cor que o catálogo ainda não tem também entra no estoque.
+    expect(s.stock).toEqual({ simples: { "9": { "Verde Folha": 12, Preto: 0, "Azul Petroleo": 22 } } });
     expect(s.newColors).toEqual([{ typeId: "simples", size: "9", color: "Azul Petroleo", stock: 22, items: 1 }]);
     expect(s.newSizes).toEqual([{ typeId: "simples", size: "11", stock: 5, items: 1 }]);
     expect(s.notCatalog).toBe(1);
@@ -102,11 +103,20 @@ describe("surveyCatalog (levantamento)", () => {
 
 describe("isSoldOut (montador)", () => {
   const stock = { simples: { "9": { Preto: 0, "Verde Folha": 12 } } };
-  it("esconde só o que o Noturno confirma zerado", () => {
+  it("cor só aparece no tamanho em que o Noturno tem unidade (pedido do dono, 23/10)", () => {
     expect(isSoldOut(stock, "simples", "9", "Preto")).toBe(true);
     expect(isSoldOut(stock, "simples", "9", "Verde Folha")).toBe(false);
-    expect(isSoldOut(stock, "simples", "9", "Branco")).toBe(false); // sem informação: mostra
+    expect(isSoldOut(stock, "simples", "9", "Branco")).toBe(true); // Noturno não tem no 9"
+    expect(isSoldOut(stock, "simples", "7", "Verde Folha")).toBe(true); // nada no 7"
+  });
+  it("sem estoque do tipo (cadastro manual ou não importado): mostra", () => {
     expect(isSoldOut(null, "simples", "9", "Preto")).toBe(false);
+    expect(isSoldOut(stock, "candy", "9", "Rosa Candy")).toBe(false);
+  });
+  it("compara o nome sem acento, espaço nem tom (#hex)", () => {
+    const st = { simples: { "9": { "Branco Polar": 4, "Preto Ébano": 2 } } };
+    expect(isSoldOut(st, "simples", "9", "Branco Pola R")).toBe(false);
+    expect(isSoldOut(st, "simples", "9", "Preto Ebano|#1B1B1B")).toBe(false);
   });
 });
 
@@ -174,13 +184,44 @@ describe("montar o catálogo pelo Noturno", () => {
     expect(out.types[0].sizes).toEqual([{ size: "9", price: 8, unitsPerPackage: 25 }]);
   });
 
-  it("mescla com o existente: mantém preço, acrescenta tamanho e cor, nunca apaga", () => {
+  it("mescla com o existente: mantém preço, acrescenta tamanho e cor; tira cor que o Noturno não tem", () => {
     const p = proposeCatalog(items, config);
+    expect(p.find((t) => t.typeId === "simples")!.stale).toEqual(["Rosa Choque", "Rosa Tutti Frutti", "Branco"]);
     const out = applyCatalogProposal(config, p, { include: {}, prices: { "simples|11": 18 } });
     const s = out.types.find((t) => t.id === "simples")!;
     expect(s.sizes.map((z) => [z.size, z.price])).toEqual([["7", 10], ["9", 16], ["11", 18], ["16", 20]]);
-    expect(s.colors).toEqual([...config.types[0].colors, "Azul Petroleo"]);
+    expect(s.colors).toEqual(["Verde Folha", "Preto", "Azul Petroleo"]);
+    // Desmarcando a limpeza, nada sai.
+    const keep = applyCatalogProposal(config, p, { include: {}, prices: {}, removeStale: { simples: false } });
+    expect(keep.types[0].colors).toEqual([...config.types[0].colors, "Azul Petroleo"]);
     expect(out.types.find((t) => t.id === "metalico")).toEqual(config.types[2]);
     expect(config.types[0].sizes).toHaveLength(3); // não muta a entrada
+  });
+
+  it("corrige nome quebrado salvo antes e junta grafias da mesma cor (staging, 23/10)", () => {
+    const old = {
+      types: [{
+        id: "simples", name: "Liso", sizes: [{ size: "9", price: 16, unitsPerPackage: 50 }],
+        colors: ["Branco Pola R", "Verde Euca Lipto", "Verde Euclipto", "Sortidos", "Preto Ébano",
+          "Tema Unicornio Charm Sortido", "Herois Sortido", "Basic Azul"],
+      }],
+      allColors: [],
+    };
+    const noturno = [
+      { family: "BALAO", name: "BALAO 9 LISO RED C/50 BR POLA R", stock: 5 },
+      { family: "BALAO", name: "BALAO 9 LISO C/50 VERDE EUCALIPTO", stock: 3 },
+      { family: "BALAO", name: "BALAO 9 LISO RED C/10 VD EUCA LIPTO", stock: 2 },
+      { family: "BALAO", name: "BALAO 9 LISO RED C/50 VERDE EUCLIPTO", stock: 1 },
+      { family: "BALAO", name: "BALAO LISO GRANFESTA 9 50X1 SORTIDO", stock: 6 },
+      { family: "BALAO", name: "BALAO 9 LISO RED C/50 PR EBAN O", stock: 4 },
+      { family: "BALAO", name: "BALAO 9 HEROIS C/25 SORTIDO", stock: 5 },
+      { family: "BALAO", name: "BALAO 9 TEMA UNICORNIO CHARM C/25 SORTIDO", stock: 3 },
+    ];
+    const p = proposeCatalog(noturno, old);
+    const out = applyCatalogProposal(old, p, { include: {}, prices: {} });
+    expect(out.types[0].colors).toEqual(["Branco Polar", "Verde Eucalipto", "Preto Ébano", "Sortido"]);
+    expect(p[0].renames).toEqual(
+      expect.arrayContaining([{ from: "Branco Pola R", to: "Branco Polar" }, { from: "Verde Euca Lipto", to: "Verde Eucalipto" }]),
+    );
   });
 });

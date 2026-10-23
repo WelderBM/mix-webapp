@@ -113,21 +113,68 @@ export const SAO_ROQUE_COLORS: Record<string, string> = {
   "pink metalico": "#FF007F",
   "verde metalico": "#005C29",
 
+  // Cores do Noturno que não estavam na tabela (apareciam cinza, 23/10).
+  "roxo uva": "#6F2DA8",
+  "roxo ametista": "#9966CC",
+  "verde hortela": "#3EB489",
+  "verde eucalipto": "#3A8F7A",
+  "verde lima": "#9FE22F",
+  "branco polar": "#F7FBFF",
+  "preto ebano": "#1B1B1B",
+  "laranja mandarim": "#FF8C00",
+  "new pink": "#FF6EC7",
+  "azul petroleo": "#1F4E5F",
+  "azul oceano": "#0077BE",
+  "azul claro": "#87CEEB",
+  "rosa purpura": "#C71585",
+  "rosa forte": "#E75480",
+  "rosa claro": "#F4C2C2",
+  "amarelo ocre": "#CC9A06",
+  "amarelo rose": "#F6D1A0",
+  bordo: "#800020",
+  violeta: "#8F00FF",
+  coral: "#FF7F50",
+  mocha: "#967969",
+  transparente: "#EAF6FB",
+  cristal: "#EAF6FB",
+  // Linha Uniq (nomes do Noturno).
+  "preto vermelho onix": "#3B0D0D",
+  "amarelo dourado": "#E1B530",
+  "rosa quartz": "#F7CAC9",
+  "rosa blossom": "#F4A7B9",
+  "rosa profundo": "#C2185B",
+  "azul topazio": "#1E90C8",
+  "marrom terra": "#8B5A2B",
+  "azul ciano": "#00B7EB",
+  "roxo purple": "#7B2D8E",
+  // Mistura de cores: o montador da loja desenha o arco-íris.
+  "arco iris": "#B57EDC",
+
   // Especiais
   sortido: "#AAAAAA", // Cinza neutro representando mix
 };
+
+// Nome sem acento, caixa ou espaço: "Verde Hortelã" = "verde hortela" e
+// "Branco Pola R" (nome quebrado do Noturno) = "branco polar".
+const compact = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const BY_COMPACT = new Map(Object.entries(SAO_ROQUE_COLORS).map(([k, v]) => [compact(k), v]));
 
 /**
  * Tries to find the best matching hex color for a given color name
  * using simple fuzzy matching against the São Roque database.
  */
 export function suggestHexColor(colorName: string): string | null {
-  const normalizedInput = colorName.toLowerCase().trim();
+  const normalizedInput = colorName
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+  if (!normalizedInput) return null;
 
   // 1. Direct match
-  if (SAO_ROQUE_COLORS[normalizedInput]) {
-    return SAO_ROQUE_COLORS[normalizedInput];
-  }
+  const direct = BY_COMPACT.get(compact(normalizedInput));
+  if (direct) return direct;
 
   // 2. Contains match (e.g. "Azul" matches "Azul Baby" -> returns first found)
   // We prioritize keys that start with the input for better accuracy
