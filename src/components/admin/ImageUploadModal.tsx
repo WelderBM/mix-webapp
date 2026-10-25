@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -111,6 +112,9 @@ export function ImageUploadModal({
             <DialogTitle className="text-xl font-bold text-slate-800">
               {multiple ? "Subir Galeria" : "Escolher Imagem"}
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              {multiple ? "Envie várias imagens para a galeria." : "Envie ou escolha uma imagem."}
+            </DialogDescription>
           </div>
         </DialogHeader>
         

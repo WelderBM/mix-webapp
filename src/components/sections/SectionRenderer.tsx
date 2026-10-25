@@ -56,12 +56,15 @@ interface SectionRendererProps {
   section: StoreSection;
   products: Product[];
   onScrollRequest?: () => void;
+  /** Seção dentro do grid de 2 colunas da home (define o `sizes` do banner). */
+  inGrid?: boolean;
 }
 
 export const SectionRenderer = ({
   section,
   products,
   onScrollRequest,
+  inGrid,
 }: SectionRendererProps) => {
   const renderContent = () => {
     switch (section.type) {
@@ -81,7 +84,7 @@ export const SectionRenderer = ({
         return <SectionNaturaBanner onScrollRequest={onScrollRequest} />;
 
       case "custom_banner":
-        return <SectionCustomBanner section={section} />;
+        return <SectionCustomBanner section={section} inGrid={inGrid} />;
 
       default:
         return null;

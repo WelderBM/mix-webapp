@@ -18,6 +18,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -464,6 +465,9 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
         <DialogContent className="sm:max-w-3xl sm:max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Seção Natura</DialogTitle>
+            <DialogDescription className="sr-only">
+              Altere o conteúdo e a aparência da seção Natura.
+            </DialogDescription>
           </DialogHeader>
 
           {editingSection && (
@@ -629,6 +633,9 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
         <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Bloco de Texto SEO</DialogTitle>
+            <DialogDescription className="sr-only">
+              Altere o texto de SEO exibido na página.
+            </DialogDescription>
           </DialogHeader>
 
           {editingSeoBlock && (
