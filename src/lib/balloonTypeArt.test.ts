@@ -66,6 +66,8 @@ describe("sizeScale (#322)", () => {
     expect(sizeScale("foil_numeros", ["70-75cm"], 170)[0].cm).toBe(76);
     expect(sizeScale("simples", ["5"], 50)[0].px).toBe(8); // mínimo visível
     expect(sizeScale("canudo", ["260"], 170)).toEqual([]);
+  });
+});
 
 describe("balloonColorImage (#321)", () => {
   const svg = (u: string) => decodeURIComponent(u.replace("data:image/svg+xml;utf8,", ""));
