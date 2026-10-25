@@ -254,7 +254,7 @@ function FitasContent() {
               </div>
 
               {closedRolls.length === 0 ? (
-                <div className="text-center py-20 text-slate-400 bg-slate-50 rounded-xl border-2 border-dashed mx-4 sm:mx-0">
+                <div className="text-center py-20 text-slate-500 bg-slate-50 rounded-xl border-2 border-dashed mx-4 sm:mx-0">
                   <Package size={48} className="mx-auto mb-4 opacity-20" />
                   <p>Nenhum rolo fechado disponível agora.</p>
                   {/* Estado vazio com saída: as outras abas (#285). */}
@@ -458,12 +458,12 @@ function FitasContent() {
                             <p className="text-sm font-bold text-primary line-clamp-2 leading-tight px-2">
                               {selectedMeterProduct?.name}
                             </p>
-                            <p className="text-xs text-slate-400 mt-1">
+                            <p className="text-xs text-slate-500 mt-1">
                               {meterAmount} metros
                             </p>
                           </div>
                         ) : (
-                          <div className="text-slate-400 flex flex-col items-center">
+                          <div className="text-slate-500 flex flex-col items-center">
                             <Ruler size={32} className="opacity-40 mb-2" />
                             <p className="text-sm">Selecione uma fita</p>
                           </div>
