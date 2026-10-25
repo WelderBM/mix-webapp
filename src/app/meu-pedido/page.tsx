@@ -260,7 +260,7 @@ export function TrackOrderContent() {
                 placeholder="Cole o ID do pedido aqui..."
                 value={orderId}
                 onChange={(e) => setOrderId(e.target.value)}
-                aria-label="Número do pedido"
+                aria-label="ID do pedido"
                 className="h-11 bg-slate-50 font-mono text-sm"
               />
               <Button
