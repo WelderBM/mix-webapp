@@ -198,3 +198,6 @@ Alguns arquivos estão gravados no repositório com CRLF (ex.: `BalloonBuilder.t
 
 ### PR mergeado antes do push da correção da revisão: o commit fica órfão na branch
 O dono pode mergear assim que o CI passa, antes de eu enviar a correção dos achados. O push vai para a branch já mergeada e nunca chega ao `dev` (aconteceu no #275 e no #278). **Padrão:** `gh pr view N --json state` antes de cada push de correção; se `MERGED`, branch nova de `origin/dev` + `git cherry-pick` + PR de acompanhamento (#276, #279).
+
+### Fila autônoma "vazia" não é motivo para parar
+Em 25/10, parei com trabalho disponível. Usei "independente = não toca os arquivos do PR aberto" ao pé da letra e deixei o #147 de lado, mas o #302 só mudava uma linha distante no mesmo arquivo. Também deixei de ver a #307, que estava em "sem pontuação" (fora das duas filas), e deixei dois PRs com 🟡 já corrigido esperando o dono, quando bastava a label `revisar`. **Padrão:** antes de parar, passar pelo checklist de `docs/fluxo/prioridade.md` § 6.
