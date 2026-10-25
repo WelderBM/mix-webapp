@@ -87,11 +87,11 @@ function star(fill: string, stroke: string): string {
 // do lado da sombra e a especular põe o brilho metálico.
 function puffFilter(id: string): string {
   return `<filter id="${id}" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
-    <feGaussianBlur in="SourceAlpha" stdDeviation="14" result="b"/>
-    <feDiffuseLighting in="b" surfaceScale="7" diffuseConstant="1.15" lighting-color="#ffffff" result="d">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="9" result="b"/>
+    <feDiffuseLighting in="b" surfaceScale="6" diffuseConstant="1.15" lighting-color="#ffffff" result="d">
       <feDistantLight azimuth="225" elevation="55"/>
     </feDiffuseLighting>
-    <feSpecularLighting in="b" surfaceScale="7" specularConstant="0.95" specularExponent="32" lighting-color="#ffffff" result="s">
+    <feSpecularLighting in="b" surfaceScale="6" specularConstant="0.95" specularExponent="32" lighting-color="#ffffff" result="s">
       <feDistantLight azimuth="225" elevation="55"/>
     </feSpecularLighting>
     <feComposite in="SourceGraphic" in2="d" operator="arithmetic" k1="0.98" k2="0" k3="0" k4="0" result="lit"/>
@@ -106,16 +106,16 @@ function puffFilter(id: string): string {
 // relevo de luz. Fonte pesada com traço largo = cantos redondos.
 function glyph(text: string, fill: string, stroke: string, puffId: string): string {
   const t = (attrs: string) => `<text x="256" y="262" text-anchor="middle" dominant-baseline="middle"
-                font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900"
-                font-size="${text.length > 1 ? 230 : 330}" stroke-linejoin="round" stroke-linecap="round"
+                font-family="Arial, Helvetica, sans-serif" font-weight="700"
+                font-size="${text.length > 1 ? 240 : 340}" stroke-linejoin="round" stroke-linecap="round"
                 ${attrs}>${esc(text)}</text>`;
   return [
     // Borda da costura (mais escura).
-    t(`fill="${stroke}" stroke="${stroke}" stroke-width="48"`),
+    t(`fill="${stroke}" stroke="${stroke}" stroke-width="24"`),
     // Serrilhado da costura: pontinhos claros ao longo da borda.
-    t(`fill="none" stroke="#ffffff" stroke-width="44" stroke-dasharray="3 9" opacity="0.35"`),
+    t(`fill="none" stroke="#ffffff" stroke-width="20" stroke-dasharray="2 7" opacity="0.4"`),
     // Corpo estufado na cor, com relevo.
-    t(`fill="${fill}" stroke="${fill}" stroke-width="34" filter="url(#${puffId})"`),
+    t(`fill="${fill}" stroke="${fill}" stroke-width="12" filter="url(#${puffId})"`),
   ].join("");
 }
 
