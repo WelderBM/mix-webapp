@@ -76,15 +76,26 @@ export function ribbonLabel(name: string): string {
   return rest ? titleCase(rest) : "Lisa";
 }
 
+// Fita que a tela por linha consegue agrupar: pendente, de laço, com linha
+// e metragem no nome. A MESMA regra decide o que sai da fila comum
+// (splitBowRibbons): sem isso, "FITA PLASTICA GLITTER AZUL CLARO C/" (sem
+// metragem) saía da fila e não entrava em linha nenhuma (revisão do #332).
+export function isLineRibbon(i: Pick<IntakeItem, "family" | "name" | "suggestedType" | "status">): boolean {
+  return (
+    i.status === "pendente" &&
+    isPlasticRibbon(i) &&
+    RE_LINE.test(i.name.toUpperCase()) &&
+    !!extractRollMeters(i.name)
+  );
+}
+
 // Só pendentes: o que já foi lançado (ou pulado) não volta.
 export function groupRibbonLines<T extends Item>(items: T[]): RibbonLine<T>[] {
   const map = new Map<string, RibbonLine<T>>();
   for (const i of items) {
-    if (i.status !== "pendente" || !isPlasticRibbon(i)) continue;
-    const n = i.name.toUpperCase();
-    const line = RE_LINE.exec(n)?.[1];
-    const meters = extractRollMeters(i.name);
-    if (!line || !meters) continue; // sem metragem não dá para vender por metro
+    if (!isLineRibbon(i)) continue; // sem metragem não dá para vender por metro
+    const line = RE_LINE.exec(i.name.toUpperCase())![1];
+    const meters = extractRollMeters(i.name)!;
     const w = widthMm(i.name);
     const key = `${line}|${w ?? "?"}|${meters}`;
     const g =
@@ -166,6 +177,6 @@ export function splitBowRibbons<T extends Pick<IntakeItem, "family" | "name" | "
 ): { queue: T[]; bow: T[] } {
   const queue: T[] = [];
   const bow: T[] = [];
-  for (const i of items) (i.status === "pendente" && isPlasticRibbon(i) ? bow : queue).push(i);
+  for (const i of items) (isLineRibbon(i) ? bow : queue).push(i);
   return { queue, bow };
 }
