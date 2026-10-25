@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  balloonColorImage,
   balloonSizeHint,
   balloonSizeImage,
   balloonSizeLabel,
@@ -51,5 +52,24 @@ describe("arte do montador de balões", () => {
     expect(balloonSizeLabel("foil_numeros", "45cm")).toBe('45 cm · 18"');
     expect(balloonSizeLabel("foil_numeros", "70-75cm")).toBe('70–75 cm · 28–30"');
     expect(balloonSizeLabel("canudo", "260")).toBe("260");
+  });
+});
+
+describe("balloonColorImage (#321)", () => {
+  const svg = (u: string) => decodeURIComponent(u.replace("data:image/svg+xml;utf8,", ""));
+  it("látex na cor escolhida", () => {
+    const s = svg(balloonColorImage("simples", "#ff0000"));
+    expect(s).toContain("#ff0000");
+    expect(s).not.toContain("<text");
+  });
+  it("foil desenha a letra/número pedido, na cor, com brilho metálico", () => {
+    const a = svg(balloonColorImage("foil_numeros", "#c0c0c0", "0"));
+    expect(a).toMatch(/>0<\/text>/);
+    expect(a).toContain("linearGradient");
+    expect(svg(balloonColorImage("foil_numeros", "#c0c0c0"))).toMatch(/>A<\/text>/);
+  });
+  it("arco-íris usa as várias cores; marca usa a arte do tipo base", () => {
+    expect(svg(balloonColorImage("simples", ["#ff0000", "#00ff00"]))).toContain("#00ff00");
+    expect(balloonColorImage("simples__riberball", "#123456")).toBe(balloonColorImage("simples", "#123456"));
   });
 });

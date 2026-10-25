@@ -100,6 +100,21 @@ export function balloonSizeImage(typeId: string): string {
   return cache.get(k)!;
 }
 
+// Balão de UMA cor no material do tipo (#321): látex fosco/metálico/
+// cintilante, canudo ou, no foil, a letra/número em forma de balão. Usado
+// no passo da cor e no resumo do montador, no lugar do quadrado de cor.
+export function balloonColorImage(typeId: string, hex: string | string[], glyph?: string): string {
+  const base = baseOf(typeId);
+  const colors = Array.isArray(hex) ? hex : [hex];
+  const k = `c:${base}:${colors.join(",")}:${glyph ?? ""}`;
+  if (!cache.has(k)) {
+    const look = LOOKS[base] ?? FALLBACK;
+    const g = look.shape === "letra" ? (glyph || "A") : undefined;
+    cache.set(k, toDataUrl(draw(base, { ...look, colors, glyph: g }, false)));
+  }
+  return cache.get(k)!;
+}
+
 // "9" → 9 pol; "40cm" → 16 pol; "75cm" → 30; canudo "260" não é polegada.
 export function sizeInInches(typeId: string, size: string): number | null {
   typeId = baseOf(typeId);
