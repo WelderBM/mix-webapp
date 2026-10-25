@@ -35,6 +35,14 @@ describe("fitas de plástico por linha (nomes reais do Noturno)", () => {
     expect(queue).toEqual([feita, tecido]);
   });
 
+  it("fita de laço sem metragem fica na fila comum (não some das duas telas)", () => {
+    const semMetro = fita("FITA PLASTICA GLITTER AZUL CLARO C/");
+    const { queue, bow } = splitBowRibbons([semMetro]);
+    expect(bow).toEqual([]);
+    expect(queue).toEqual([semMetro]);
+    expect(groupRibbonLines([semMetro])).toEqual([]);
+  });
+
   it("agrupa por linha × largura × metragem; só pendentes", () => {
     const lines = groupRibbonLines([
       fita("FITA MAXI AMOR SEM FIM 32MMX100M ROSA", 3),
