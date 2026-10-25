@@ -12,7 +12,7 @@ describe("balão foil de letras e números", () => {
   it("rótulo do item com a unidade certa e os caracteres", () => {
     expect(
       balloonItemLabel({ typeId: "foil_numeros", typeName: "Números & Letras (Foil)", size: "40cm", characters: "ANA" }),
-    ).toBe("Números & Letras (Foil) 40 cm: ANA");
-    expect(balloonItemLabel({ typeId: "simples", typeName: "Balão Simples", size: "9" })).toBe('Balão Simples 9"');
+    ).toBe('Números & Letras (Foil) 40 cm · 16": ANA');
+    expect(balloonItemLabel({ typeId: "simples", typeName: "Balão Simples", size: "9" })).toBe('Balão Simples 9" · 23 cm');
   });
 });
