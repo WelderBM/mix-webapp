@@ -248,7 +248,7 @@ function FitasContent() {
                 <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
                   <Lock size={20} className="text-primary" /> Estoque Lacrado
                 </h3>
-                <span className="text-xs sm:text-sm text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
+                <span className="text-xs sm:text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
                   {closedRolls.length} opções
                 </span>
               </div>
