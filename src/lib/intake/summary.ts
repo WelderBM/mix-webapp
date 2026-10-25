@@ -1,6 +1,7 @@
 import type { IntakeItem, IntakeWorkflowStatus } from "@/types/intake";
 import type { IntakeWrite } from "./merge";
 import { areaForItem, RIBBON_FAMILY } from "./areas";
+import { statusTransitionDeltas } from "./publish";
 
 // Resumo da fila (`intake_meta/summary`, issue #199): famílias com
 // contagem por status, pra tela de lançamento abrir com UMA leitura em
@@ -65,9 +66,9 @@ export function summaryDeltas(
   };
   for (const item of items) {
     if (item.status === to) continue;
-    add(["byStatus", item.status], -1);
-    add(["byStatus", to], 1);
-    const familyPending = (to === "pendente" ? 1 : 0) - (item.status === "pendente" ? 1 : 0);
+    // Mesma regra de transição usada no resto do lançamento (uma fonte só).
+    const { byStatus, familyPending } = statusTransitionDeltas(item.status, to);
+    for (const [status, delta] of Object.entries(byStatus)) add(["byStatus", status], delta ?? 0);
     if (familyPending !== 0) {
       add(["families", item.family ?? NO_FAMILY, "pending"], familyPending);
       if (item.family === RIBBON_FAMILY) {
