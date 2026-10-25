@@ -539,6 +539,12 @@ export function applyCatalogProposal(
   for (const p of proposal) {
     if (choices.include[p.typeId] === false) continue;
     let t = types.find((x) => x.id === p.typeId);
+    // Preço 0 digitado = "não vender este tamanho" (#318): sai do catálogo.
+    // Em branco continua mantendo o preço atual.
+    const dropped = new Set(
+      p.sizes.filter((s) => choices.prices[`${p.typeId}|${s.size}`] === 0).map((s) => s.size),
+    );
+    if (t && dropped.size) t.sizes = t.sizes.filter((z) => !dropped.has(z.size));
     const priced = p.sizes
       .map((s) => ({ s, price: choices.prices[`${p.typeId}|${s.size}`] ?? s.currentPrice }))
       .filter((x): x is { s: ProposalSize; price: number } => x.price != null && x.price > 0);

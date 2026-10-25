@@ -88,7 +88,9 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
   const priceKey = (typeId: string, size: string) => `${typeId}|${size}`;
   const missingPrices = proposal
     .filter((p) => include[p.typeId] !== false)
-    .flatMap((p) => p.sizes.filter((s) => s.currentPrice == null && !parsePrice(prices[priceKey(p.typeId, s.size)] ?? "")))
+    .flatMap((p) =>
+      p.sizes.filter((s) => s.currentPrice == null && parsePrice(prices[priceKey(p.typeId, s.size)] ?? "") == null),
+    )
     .length;
 
   function apply() {
@@ -113,7 +115,8 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
           <DialogDescription>
             Tipos, tamanhos, pacote e cores com estoque vêm do Noturno. Digite o
             preço da etiqueta de cada tamanho novo (o preço é do PACOTE; em
-            branco ou zero, mantém o atual). Confira o pacote marcado em
+            branco, mantém o atual; <strong>0 tira o tamanho da venda</strong>,
+            por exemplo quando a loja não tem). Confira o pacote marcado em
             amarelo. Cor que o Noturno não tem sai do catálogo (dá para
             desmarcar); nome quebrado é corrigido.
           </DialogDescription>
@@ -159,8 +162,13 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
                 {on && (
                   <>
                     <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100">
-                      {p.sizes.map((s) => (
-                        <li key={s.size} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5 text-sm">
+                      {p.sizes.map((s) => {
+                        const off = parsePrice(prices[priceKey(p.typeId, s.size)] ?? "") === 0;
+                        return (
+                        <li
+                          key={s.size}
+                          className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5 text-sm ${off ? "bg-slate-50" : ""}`}
+                        >
                           <span className="w-14 shrink-0 font-bold text-slate-800">
                             {s.size}
                             {/* Polegadas; canudo "260" é o modelo, cm já vem escrito. */}
@@ -200,7 +208,8 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
                               <strong className="text-amber-800">confira na embalagem</strong>
                             )}
                             · {Math.round(s.stock).toLocaleString("pt-BR")} em estoque
-                            {s.currentPrice == null && <strong className="ml-1 text-amber-700">· novo</strong>}
+                            {s.currentPrice == null && !off && <strong className="ml-1 text-amber-700">· novo</strong>}
+                            {off && <strong className="ml-1 text-red-700">· não vai vender</strong>}
                           </span>
                           <div className="relative w-28 shrink-0">
                             <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
@@ -221,7 +230,8 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
                             />
                           </div>
                         </li>
-                      ))}
+                        );
+                      })}
                     </ul>
                     <p className="text-xs text-slate-500">
                       {p.colors.length} cores com estoque
