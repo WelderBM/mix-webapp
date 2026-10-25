@@ -118,6 +118,18 @@ describe("priorityLabels (#290)", () => {
     expect(muitas).toEqual(expect.arrayContaining(["a:3", "frente:acessibilidade"]));
     expect(priorityLabels({ ...group("toque:compartilhado"), kind: "toque" })).toContain("frente:cabecalho");
   });
+
+  it("grupos toque:<rota> reais (ocorrências sem rota) usam a rota da chave", () => {
+    const reports = prod([
+      page({ route: "/", metrics: { small: [{ label: "a", w: 10, h: 10 }], overflowPx: 0 } }),
+      page({ route: "/natura", metrics: { small: [{ label: "b", w: 10, h: 10 }], overflowPx: 0 } }),
+      page({ route: "/fitas", metrics: { small: [{ label: "c", w: 10, h: 10 }], overflowPx: 0 } }),
+    ]);
+    const by = Object.fromEntries(groupProblems(reports).map((g) => [g.key, priorityLabels(g)]));
+    expect(by["toque:/"]).toContain("a:3");
+    expect(by["toque:/natura"]).toContain("a:1");
+    expect(by["toque:/fitas"]).toEqual(expect.arrayContaining(["a:2", "frente:fitas"]));
+  });
 });
 
 describe("summaryMarkdown", () => {
