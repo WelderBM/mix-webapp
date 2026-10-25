@@ -114,6 +114,11 @@ interface ProductFormDialogProps {
   customKitEnabled: boolean;
 }
 
+// Campo de preço não preenchido (vazio, só espaços ou ausente) — separa
+// "esqueceu o preço" de "digitou zero" na mensagem de erro (#146).
+const isBlank = (v: unknown) =>
+  v === undefined || v === null || String(v).trim() === "";
+
 const initialFormState: ProductFormData = {
   id: "",
   name: PLACEHOLDER_PRODUCT_NAME,
@@ -371,7 +376,11 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         return;
       }
       if (!(Number(formData.rollPrice) > 0)) {
-        toast.error("O preço do rolo fechado é obrigatório e deve ser maior que zero.");
+        toast.error(
+          isBlank(formData.rollPrice)
+            ? "Informe o preço do rolo fechado (o da etiqueta, ex.: 40,00)."
+            : "O preço do rolo fechado precisa ser maior que zero.",
+        );
         return;
       }
       const rawMeterPrice = formData.price;
@@ -384,7 +393,11 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         return;
       }
     } else if (!(Number(formData.price) > 0)) {
-      toast.error("O preço deve ser maior que zero.");
+      toast.error(
+        isBlank(formData.price)
+          ? "Informe o preço da etiqueta (ex.: 25,90)."
+          : "O preço precisa ser maior que zero.",
+      );
       return;
     }
 
@@ -845,8 +858,13 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                           )
                         }
                         placeholder="Ex: 100"
+                        inputMode="decimal"
                         required
                       />
+                      <p className="text-xs text-slate-500">
+                        Metragem escrita na etiqueta do rolo (ex.: 10, 50 ou
+                        100 m).
+                      </p>
                     </div>
 
                     <div className="space-y-2">
@@ -860,6 +878,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                           handleInputChange("rollPrice", e.target.value)
                         }
                         placeholder="Ex: 40.00"
+                        inputMode="decimal"
                         required
                       />
                     </div>
@@ -880,6 +899,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                           handleInputChange("price", e.target.value)
                         }
                         placeholder="Pode confirmar depois, ao abrir o rolo"
+                        inputMode="decimal"
                       />
                     </div>
 
@@ -905,6 +925,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                             )
                           }
                           placeholder="Ex: 25.5"
+                          inputMode="decimal"
                         />
                       </div>
                     )}
@@ -935,8 +956,12 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                           handleInputChange("price", e.target.value)
                         }
                         placeholder="Ex: 25.90"
+                        inputMode="decimal"
                         required
                       />
+                      <p className="text-xs text-slate-500">
+                        O preço da etiqueta, em reais.
+                      </p>
                     </div>
 
                     <div className="space-y-2">
@@ -954,6 +979,12 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                           <SelectItem value="pct">PACOTE (pct)</SelectItem>
                         </SelectContent>
                       </Select>
+                      {formData.unit === "pct" && (
+                        <p className="text-xs text-slate-500">
+                          Pacote: o preço é do pacote inteiro. Confira na
+                          etiqueta se o valor é do pacote ou de uma unidade.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -966,7 +997,12 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                     onChange={(e) =>
                       handleInputChange("description", e.target.value)
                     }
+                    placeholder="Ex: Balão metalizado de 45 cm, enche com gás hélio. Ótimo para decoração de aniversário."
                   />
+                  <p className="text-xs text-slate-500">
+                    Aparece na página do produto e ajuda a loja a ser achada no
+                    Google: material, tamanho e para que serve.
+                  </p>
                 </div>
               </div>
             )}
