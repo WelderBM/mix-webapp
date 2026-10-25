@@ -6,6 +6,10 @@ import {
   getCartItemUnitPrice,
   getCartItemUnavailableReason,
   sumCartItemTotals,
+  countCartItems,
+  describeCartAddition,
+  getCartItemCount,
+  isPerMeterCartItem,
 } from "./cart-pricing";
 import { CartItem } from "@/types/cart";
 import { Product } from "@/types/product";
@@ -265,5 +269,44 @@ describe("getCartItemTotalOrNull", () => {
   it("devolve o total normal quando há preço", () => {
     const kit = { cartId: "kit", type: "CUSTOM_KIT", quantity: 2, kitTotalAmount: 50 } as CartItem;
     expect(getCartItemTotalOrNull(kit)).toBe(100);
+  });
+});
+
+describe("contagem do ícone do carrinho (#340)", () => {
+  const meter = (q: number): CartItem => ({
+    cartId: "m",
+    type: "SIMPLE",
+    product: makeRibbon(),
+    quantity: q,
+  });
+
+  it("fita por metro conta 1 item, não a metragem", () => {
+    expect(isPerMeterCartItem(meter(2.5))).toBe(true);
+    expect(getCartItemCount(meter(2.5))).toBe(1);
+  });
+
+  it("rolo fechado e laço contam unidades", () => {
+    const roll: CartItem = {
+      cartId: "r",
+      type: "SIMPLE",
+      product: makeRibbon({
+        ribbonInventory: { status: "FECHADO", remainingMeters: 100, totalRollMeters: 100 },
+      }),
+      quantity: 2,
+    };
+    const bow: CartItem = {
+      cartId: "b",
+      type: "CUSTOM_RIBBON",
+      product: makeRibbon(),
+      quantity: 1,
+      kitTotalAmount: 7,
+    };
+    expect(isPerMeterCartItem(roll)).toBe(false);
+    expect(isPerMeterCartItem(bow)).toBe(false);
+    expect(countCartItems([meter(2.5), roll, bow])).toBe(4);
+  });
+
+  it("aviso de fita por metro mostra a metragem com vírgula", () => {
+    expect(describeCartAddition(meter(2.5))).toBe("2,5 m de Fita Laminada");
   });
 });

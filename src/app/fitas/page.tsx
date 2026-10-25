@@ -139,7 +139,6 @@ function FitasContent() {
       quantity: 1,
       kitTotalAmount: rollPrice,
     });
-    toast.success("Rolo fechado adicionado ao carrinho!");
   };
 
   const handleAddMeter = () => {
@@ -158,14 +157,6 @@ function FitasContent() {
       quantity: meterAmount,
       kitTotalAmount: totalPrice,
     });
-    toast.success(
-      <div className="flex flex-col">
-        <span className="font-bold">Adicionado!</span>
-        <span className="text-xs">
-          {meterAmount}m de {product.name}
-        </span>
-      </div>
-    );
     setSelectedRibbonId("");
     setMeterAmount(1);
 
