@@ -129,7 +129,7 @@ export default async function NaturaPage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-300">
             <a href="#produtos">
-              <Button className="h-14 px-8 text-lg font-bold rounded-full bg-green-600 hover:bg-green-700 shadow-xl shadow-green-900/50 transition-all hover:scale-105">
+              <Button className="h-14 px-8 text-lg font-bold rounded-full bg-green-700 hover:bg-green-800 shadow-xl shadow-green-900/50 transition-all hover:scale-105">
                 Ver Produtos Natura
               </Button>
             </a>

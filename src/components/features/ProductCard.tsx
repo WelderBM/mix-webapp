@@ -149,7 +149,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               {product.originalPrice != null &&
                 finalPrice != null &&
                 product.originalPrice > finalPrice && (
-                  <span className="text-xs text-slate-400 line-through">
+                  <span className="text-xs text-slate-500 line-through">
                     R$ {product.originalPrice.toFixed(2)}
                   </span>
                 )}
@@ -158,12 +158,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   <span className="text-lg font-extrabold text-primary whitespace-nowrap">
                     {formatCurrency(finalPrice)}
                   </span>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter shrink-0">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter shrink-0">
                     / {getEffectiveUnitLabel(product)}
                   </span>
                 </div>
               ) : (
-                <span className="text-sm font-bold text-slate-400">
+                <span className="text-sm font-bold text-slate-500">
                   Preço indisponível
                 </span>
               )}
