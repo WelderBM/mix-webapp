@@ -248,8 +248,8 @@ describe("BalloonBuilder", () => {
     expect((screen.getByLabelText("V: sem estoque") as HTMLButtonElement).disabled).toBe(true);
 
     // Digitado: o que não tem não entra, e o cliente vê o porquê.
-    fireEvent.change(screen.getByPlaceholderText("Ex.: ANA ou 15"), { target: { value: "ANAV" } });
-    expect((screen.getByPlaceholderText("Ex.: ANA ou 15") as HTMLInputElement).value).toBe("ANA");
+    fireEvent.change(screen.getByPlaceholderText("Ex.: ANA ou FELIZ 15 ANOS"), { target: { value: "ANAV" } });
+    expect((screen.getByPlaceholderText("Ex.: ANA ou FELIZ 15 ANOS") as HTMLInputElement).value).toBe("ANA");
     expect(screen.getByText("Sem estoque nesta cor: V")).toBeTruthy();
 
     // "ANA" precisa de 2 A e só há 1: avisa e não deixa adicionar.
@@ -257,9 +257,14 @@ describe("BalloonBuilder", () => {
     expect((screen.getByRole("button", { name: /Adicionar ao Carrinho/ }) as HTMLButtonElement).disabled).toBe(true);
 
     // Com "NA" dá certo; o A acabou e a tecla dele fica desligada.
-    fireEvent.change(screen.getByPlaceholderText("Ex.: ANA ou 15"), { target: { value: "NA" } });
+    fireEvent.change(screen.getByPlaceholderText("Ex.: ANA ou FELIZ 15 ANOS"), { target: { value: "NA" } });
     expect((screen.getByLabelText("A: já usado todo o estoque") as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: /Adicionar ao Carrinho/ }) as HTMLButtonElement).disabled).toBe(false);
+
+    // Espaço separa palavras e não é balão (#342): "NA N" = 3 balões em 2 palavras.
+    fireEvent.change(screen.getByPlaceholderText("Ex.: ANA ou FELIZ 15 ANOS"), { target: { value: "na  n" } });
+    expect((screen.getByPlaceholderText("Ex.: ANA ou FELIZ 15 ANOS") as HTMLInputElement).value).toBe("NA N");
+    expect(screen.getByText(/3 balão\(ões\) em 2 palavras/)).toBeTruthy();
   });
 
   it("foil: o aviso de sem estoque some ao trocar de cor (revisão do #278)", async () => {
@@ -281,7 +286,7 @@ describe("BalloonBuilder", () => {
     render(<BalloonBuilder />);
     fireEvent.click(await screen.findByText("Números & Letras (Foil)"));
     fireEvent.click(await screen.findByText("Rose Gold"));
-    fireEvent.change(await screen.findByPlaceholderText("Ex.: ANA ou 15"), { target: { value: "1" } });
+    fireEvent.change(await screen.findByPlaceholderText("Ex.: ANA ou FELIZ 15 ANOS"), { target: { value: "1" } });
     expect(screen.getByText("Sem estoque nesta cor: 1")).toBeTruthy();
     fireEvent.click(screen.getByText("Voltar"));
     fireEvent.click(await screen.findByText("Dourado"));
