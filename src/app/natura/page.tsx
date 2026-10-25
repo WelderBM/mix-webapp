@@ -127,19 +127,18 @@ export default async function NaturaPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-6 duration-700 delay-300">
-            <a href="#produtos">
-              <Button className="h-14 px-8 text-lg font-bold rounded-full bg-green-700 hover:bg-green-800 shadow-xl shadow-green-900/50 transition-all hover:scale-105">
-                Ver Produtos Natura
-              </Button>
-            </a>
-            <Link href="https://wa.me/5595984244194" target="_blank">
-              <Button
-                variant="outline"
-                className="h-14 px-8 text-lg font-bold rounded-full text-white border-white/20 hover:bg-white/10 hover:border-white transition-all bg-transparent"
-              >
+            <Button asChild className="h-14 px-8 text-lg font-bold rounded-full bg-green-700 hover:bg-green-800 shadow-xl shadow-green-900/50 transition-all hover:scale-105">
+              <a href="#produtos">Ver Produtos Natura</a>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="h-14 px-8 text-lg font-bold rounded-full text-white border-white/20 hover:bg-white/10 hover:border-white transition-all bg-transparent"
+            >
+              <Link href="https://wa.me/5595984244194" target="_blank" rel="noopener noreferrer">
                 <Phone className="mr-2 h-5 w-5" /> Falar no WhatsApp
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
         </div>
       </section>
@@ -393,11 +392,11 @@ export default async function NaturaPage() {
           <h2 className="text-3xl md:text-4xl font-black mb-6">
             Descubra a beleza Natura
           </h2>
-          <a href="#produtos">
-            <Button className="h-16 px-10 text-xl font-bold bg-white text-green-900 hover:bg-slate-100 rounded-full shadow-lg hover:scale-105 transition-all">
+          <Button asChild className="h-16 px-10 text-xl font-bold bg-white text-green-900 hover:bg-slate-100 rounded-full shadow-lg hover:scale-105 transition-all">
+            <a href="#produtos">
               Ver Todos os Produtos <ArrowRight className="ml-2" />
-            </Button>
-          </a>
+            </a>
+          </Button>
         </div>
       </section>
 
