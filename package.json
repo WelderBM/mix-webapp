@@ -11,7 +11,8 @@
     "seed:staging": "tsx scripts/seed-staging.ts",
     "audit:ribbon-prices": "tsx scripts/audit-ribbon-prices.ts",
     "sprint:plan": "node scripts/sprint-plan.mjs",
-    "export:production-catalog": "tsx scripts/export-production-catalog.ts"
+    "export:production-catalog": "tsx scripts/export-production-catalog.ts",
+    "promote:balloons": "tsx scripts/promote-balloons.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
