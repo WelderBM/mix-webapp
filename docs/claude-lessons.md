@@ -201,3 +201,9 @@ O dono pode mergear assim que o CI passa, antes de eu enviar a correção dos ac
 
 ### Fila autônoma "vazia" não é motivo para parar
 Em 25/10, parei com trabalho disponível. Usei "independente = não toca os arquivos do PR aberto" ao pé da letra e deixei o #147 de lado, mas o #302 só mudava uma linha distante no mesmo arquivo. Também deixei de ver a #307, que estava em "sem pontuação" (fora das duas filas), e deixei dois PRs com 🟡 já corrigido esperando o dono, quando bastava a label `revisar`. **Padrão:** antes de parar, passar pelo checklist de `docs/fluxo/prioridade.md` § 6.
+
+### Firestore: no máximo 500 `increment()`/`serverTimestamp()` no MESMO documento por batch
+O limite de 500 gravações por batch é conhecido; o de **500 field transforms por documento** não. Cada `increment()` conta. Gravando o resumo (`intake_meta/summary`) item por item, ~6 transforms por fita × 84 cores = 504 → `cannot have more than 500 field transforms on a single document`, e o batch inteiro falha. **Padrão:** contador agregado num documento só = somar os ajustes por campo antes (`summaryDeltas`) e fazer **uma** atualização por batch/transação. Achado real: #316 (PR #325).
+
+### Duas telas que dividem um conjunto precisam da MESMA regra
+"Fila comum" e "fitas por linha" se completam: o que sai de uma tem de entrar na outra. Elas usavam regras diferentes (`isPlasticRibbon` × `isPlasticRibbon` + linha + metragem), e fitas sem metragem ou sem palavra de linha (ECOPACK, `FITA PLASTICA GLITTER … C/`) sumiam das duas. **Padrão:** um predicado só (`isLineRibbon`) usado pelos dois lados. Valor calculado na importação (`suggestedSubcategory`) também fica velho quando a regra muda: a tela calcula ao vivo (`classifySubcategory`). Achados reais: revisões do #326 e do #332 (PRs #332, #335).
