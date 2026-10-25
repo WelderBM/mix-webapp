@@ -236,7 +236,8 @@ export default function NoturnoImportPage() {
           // produto conta só as cores que ele ainda tem (#253).
           const snap = await getDoc(ref);
           if (!snap.exists()) throw { code: "not-found" };
-          return updateDoc(ref, groupStock(snap.data().variants, u));
+          const data = snap.data();
+          return updateDoc(ref, groupStock(data.variants, u, data.inStock));
         }),
       );
       // Só "produto não existe" (apagado à mão no admin) é ignorado. Qualquer

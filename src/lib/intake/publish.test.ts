@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  appendGroupVariants,
   buildGroupProductFromIntake,
   validateGroup,
   buildProductFromIntake,
@@ -209,5 +210,34 @@ describe("lançamento em grupo (#201)", () => {
     expect(validateGroup([m("1", "Azul", 1), m("2", "Verde", 1)])).toBeNull();
     const many = Array.from({ length: 201 }, (_, k) => m(String(k), `Cor ${k}`, 1));
     expect(validateGroup(many)).toMatch(/grande demais/);
+  });
+});
+
+describe("appendGroupVariants (#253)", () => {
+  const existing = [
+    { id: "1", type: "Cor", name: "Azul", inStock: false, attributes: { Cor: "Azul" } },
+  ];
+
+  it("acrescenta a cor nova com o código do Noturno e recalcula o estoque", () => {
+    const r = appendGroupVariants(existing, [
+      { item: item({ sourceCode: "2", stock: 3 }), label: "Verde" },
+    ]);
+    expect(r).toEqual({
+      inStock: true,
+      variants: [
+        existing[0],
+        { id: "2", type: "Cor", name: "Verde", inStock: true, attributes: { Cor: "Verde" } },
+      ],
+    });
+  });
+
+  it("código que já é variação não duplica", () => {
+    const r = appendGroupVariants(existing, [{ item: item({ sourceCode: "1" }), label: "Azul" }]);
+    expect(r).toEqual({ inStock: false, variants: existing });
+  });
+
+  it("nome repetido com código diferente é erro", () => {
+    const r = appendGroupVariants(existing, [{ item: item({ sourceCode: "9" }), label: " azul " }]);
+    expect(r).toEqual({ error: 'O produto já tem uma opção "azul".' });
   });
 });

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { BookOpenCheck, Camera, History, ImagePlus, Loader2, Plus, RotateCcw, Sparkles, X } from "lucide-react";
+import { BookOpenCheck, Camera, History, ImagePlus, Layers, Loader2, Plus, RotateCcw, Sparkles, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -23,7 +23,12 @@ import {
 } from "@/lib/intake/publish";
 import { pricePerUnit } from "@/lib/intake/pack";
 import { matchSubcategory } from "@/lib/intake/subcategories";
-import { attributePlural, type VariantGroup } from "@/lib/intake/groups";
+import {
+  attributePlural,
+  splitForGroup,
+  type PublishedGroup,
+  type VariantGroup,
+} from "@/lib/intake/groups";
 import { parseBalloon } from "@/lib/intake/balloons";
 import { ImageSearchDialog } from "@/components/admin/ImageSearchDialog";
 import { imageSearchEnabled } from "@/lib/imageSearch/client";
@@ -72,6 +77,9 @@ interface Props {
   // variações. `item` é o primeiro do grupo (dados comuns).
   group?: VariantGroup<IntakeItem> | null;
   onGroupChanged?: (changes: { prev: IntakeItem; updated: IntakeItem }[]) => void;
+  // Produto já lançado em grupo com a mesma base (#253): oferece entrar
+  // como cor dele em vez de criar um segundo produto com o mesmo nome.
+  publishedGroup?: PublishedGroup | null;
 }
 
 type VariantRow = { item: IntakeItem; label: string; include: boolean };
@@ -84,6 +92,7 @@ export function LaunchSheet({
   onChanged,
   group = null,
   onGroupChanged,
+  publishedGroup = null,
 }: Props) {
   // Rascunho do grupo em chave própria: não mistura com o de um item.
   const draftId = item ? (group ? `g:${group.key}` : item.id) : "";
@@ -422,6 +431,48 @@ export function LaunchSheet({
     }
   }
 
+  async function addToPublishedGroup() {
+    if (!item || !publishedGroup) return;
+    const split = splitForGroup(item);
+    const chosen = group
+      ? variants
+          .filter((v) => v.include)
+          .map((v) => ({ item: v.item, label: v.label, attribute: group.attribute }))
+      : [{ item, label: split.label ?? item.name, attribute: split.attribute }];
+    if (chosen.length === 0) {
+      toast.error("Marque pelo menos uma opção.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { addToGroupProduct } = await import("@/lib/intake/actions");
+      await addToGroupProduct(chosen, publishedGroup.productId, userEmail);
+      hydratedRef.current = null;
+      deleteDraft(draftId);
+      toast.success(
+        chosen.length === 1
+          ? `"${chosen[0].label}" entrou no produto da loja.`
+          : `${chosen.length} opções entraram no produto da loja.`,
+      );
+      const changes = chosen.map(({ item: it }) => ({
+        prev: it,
+        updated: { ...it, status: "publicado" as const, productId: publishedGroup.productId },
+      }));
+      if (group) onGroupChanged?.(changes);
+      else onChanged(changes[0].updated);
+      onClose();
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message.startsWith("O produto")
+          ? err.message
+          : "Não foi possível salvar. Verifique a conexão e tente de novo.",
+      );
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function changeStatus(
     to: Exclude<IntakeWorkflowStatus, "publicado">,
     message: string,
@@ -510,6 +561,34 @@ export function LaunchSheet({
           </div>
         ) : (
           <div className="space-y-4 p-4">
+            {publishedGroup && (
+              <div className="space-y-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
+                <p>
+                  <Layers size={16} className="mr-1 inline align-text-bottom" />
+                  Este produto já está na loja com {publishedGroup.labels.length}{" "}
+                  {attributePlural(publishedGroup.attribute)}:{" "}
+                  <span className="break-words font-medium">
+                    {publishedGroup.labels.slice(0, 6).join(", ")}
+                    {publishedGroup.labels.length > 6 && "…"}
+                  </span>
+                  . Para não criar um produto repetido, acrescente a ele.
+                </p>
+                <Button
+                  className="h-12 w-full bg-purple-600 hover:bg-purple-700"
+                  disabled={saving}
+                  onClick={addToPublishedGroup}
+                >
+                  {saving ? (
+                    <Loader2 size={16} className="mr-2 animate-spin" />
+                  ) : (
+                    <Plus size={16} className="mr-2" />
+                  )}
+                  {group
+                    ? `Acrescentar ao produto da loja`
+                    : `Acrescentar como ${publishedGroup.attribute.toLowerCase()} do produto`}
+                </Button>
+              </div>
+            )}
             {restored && (
               <div
                 role="status"

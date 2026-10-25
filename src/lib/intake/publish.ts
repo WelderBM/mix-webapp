@@ -1,4 +1,4 @@
-import type { Category, Product, ProductImage, Unit } from "@/types";
+import type { Category, Product, ProductImage, ProductVariant, Unit } from "@/types";
 import type { IntakeItem, IntakeWorkflowStatus } from "@/types/intake";
 import { normalizeText } from "./search";
 
@@ -191,6 +191,38 @@ export function buildGroupProductFromIntake(
       attributes: { [m.attribute ?? "Cor"]: m.label.trim() },
     })),
   };
+}
+
+// Cor nova num produto já lançado em grupo (#253): acrescenta uma variação
+// por item, com o código do Noturno como id (o stockSync acha por ele).
+// Código que já é variação do produto não duplica; nome repetido é erro.
+export function appendGroupVariants(
+  existing: ProductVariant[] | undefined,
+  members: GroupMember[],
+): { variants: ProductVariant[]; inStock: boolean } | { error: string } {
+  const current = existing ?? [];
+  const ids = new Set(current.map((v) => v.id));
+  const names = new Set(current.map((v) => v.name.trim().toLowerCase()));
+  const added: ProductVariant[] = [];
+  for (const m of members) {
+    if (ids.has(m.item.sourceCode)) continue;
+    const name = m.label.trim();
+    if (!name) return { error: "Toda opção precisa de um nome." };
+    if (names.has(name.toLowerCase()))
+      return { error: `O produto já tem uma opção "${name}".` };
+    names.add(name.toLowerCase());
+    const type = m.attribute ?? "Cor";
+    added.push({
+      id: m.item.sourceCode,
+      type,
+      name,
+      inStock: m.item.stock > 0,
+      attributes: { [type]: name },
+    });
+  }
+  const variants = [...current, ...added];
+  // Mesma regra da loja e do stockSync: só `inStock === false` é esgotado.
+  return { variants, inStock: variants.some((v) => v.inStock !== false) };
 }
 
 // Cada cor = 2 gravações (variação no produto + item da fila) num batch

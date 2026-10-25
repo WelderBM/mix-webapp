@@ -120,6 +120,14 @@ describe("produto lançado em grupo (#201)", () => {
     expect(groupStock(vs, { inStock: false, variants: { a: false } }).inStock).toBe(true);
   });
 
+  it("groupStock com todas as cores apagadas mantém o estoque atual", () => {
+    // Cor apagada que volta no Noturno não decide mais o estoque.
+    expect(groupStock([], { inStock: true, variants: { a: true } }, false)).toEqual({
+      inStock: false,
+      variants: [],
+    });
+  });
+
   it("groupStock sem variações gravadas usa o cálculo da fila", () => {
     expect(groupStock(undefined, { inStock: true, variants: { a: true } })).toEqual({
       inStock: true,

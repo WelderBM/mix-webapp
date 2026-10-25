@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   FieldPath,
+  getDoc,
   increment,
   serverTimestamp,
   writeBatch,
@@ -12,6 +13,7 @@ import { db, storage } from "@/lib/firebase";
 import type { IntakeItem, IntakeWorkflowStatus } from "@/types/intake";
 import type { Product } from "@/types";
 import {
+  appendGroupVariants,
   buildGroupProductFromIntake,
   buildProductFromIntake,
   statusTransitionDeltas,
@@ -166,6 +168,36 @@ export async function publishIntakeGroup(
   }
   await batch.commit();
   return productRef.id;
+}
+
+// Cor nova num produto já lançado em grupo (#253): variações acrescentadas
+// + itens publicados apontando para o MESMO produto, num batch só.
+export async function addToGroupProduct(
+  members: GroupMember[],
+  productId: string,
+  userEmail: string | null,
+): Promise<void> {
+  assertNotCatalogBalloon(members.map((m) => m.item));
+  const productRef = doc(db, "products", productId);
+  const snap = await getDoc(productRef);
+  if (!snap.exists()) throw new Error("O produto não existe mais na loja.");
+  const result = appendGroupVariants(
+    (snap.data() as Product).variants,
+    members,
+  );
+  if ("error" in result) throw new Error(result.error);
+  const batch = writeBatch(db);
+  batch.update(productRef, result);
+  for (const { item } of members) {
+    batch.update(doc(db, "intake_items", item.id), {
+      status: "publicado",
+      productId,
+      publishedAt: serverTimestamp(),
+      publishedBy: userEmail,
+    });
+    addSummaryDeltas(batch, item, "publicado", userEmail);
+  }
+  await batch.commit();
 }
 
 // Pular / "não vender online" do grupo inteiro num batch só (tudo ou
