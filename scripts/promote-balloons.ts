@@ -22,6 +22,7 @@
 //   STAGING_KEY=<chave-do-staging.json> PROD_KEY=<chave-de-produção.json> \
 //     npm run promote:balloons                  # simulação
 //   ... npm run promote:balloons -- --apply     # grava em produção
+//   ... npm run promote:balloons -- --restore backups/balloons-<data>.json [--apply]
 //
 // Opcional: PROD_STORAGE_BUCKET (padrão: <projeto>.firebasestorage.app).
 
@@ -79,7 +80,33 @@ const stagingDb = getFirestore(stagingApp);
 const prodDb = getFirestore(prodApp);
 const prodBucketName = process.env.PROD_STORAGE_BUCKET || `${prod.projectId}.firebasestorage.app`;
 
+// Volta atrás: regrava em produção o que a cópia de segurança guardou.
+async function restore(file: string) {
+  const b = JSON.parse(readFileSync(resolve(file), "utf-8")) as {
+    projectId: string;
+    balloons: BalloonConfig | null;
+    balloonStock: Record<string, unknown> | null;
+  };
+  if (b.projectId !== prod.projectId) {
+    abort(`A cópia é do projeto "${b.projectId}", não de "${prod.projectId}".`);
+  }
+  const now = (await prodDb.doc("settings/balloons").get()).data() as BalloonConfig | undefined;
+  console.log(`\nRestaurar ${file} em ${prod.projectId} (${APPLY ? "GRAVANDO" : "simulação"})\n`);
+  const lines = b.balloons ? describeCatalogChange(now ?? null, b.balloons) : ["(a cópia não tinha catálogo)"];
+  console.log(lines.length ? lines.join("\n") : "Nenhuma mudança.");
+  if (!APPLY) return console.log("\nSimulação: nada foi gravado. Rode de novo com --apply.\n");
+  if (b.balloons) await prodDb.doc("settings/balloons").set(b.balloons);
+  if (b.balloonStock) await prodDb.doc("settings/balloonStock").set(b.balloonStock);
+  console.log("\n✔ Restaurado.\n");
+}
+
 async function main() {
+  const r = process.argv.indexOf("--restore");
+  if (r >= 0) {
+    const file = process.argv[r + 1];
+    if (!file) abort("Use: --restore backups/balloons-<data>.json");
+    return restore(file);
+  }
   console.log(`\nOrigem: ${staging.projectId} → destino: ${prod.projectId} (${APPLY ? "GRAVANDO" : "simulação"})\n`);
 
   const src = (await stagingDb.doc("settings/balloons").get()).data() as BalloonConfig | undefined;
@@ -99,8 +126,7 @@ async function main() {
     toCopy.push({ url, ...ref });
   }
 
-  const preview = rewriteImageUrls(src, new Map(toCopy.map((c) => [c.url, "(foto copiada)"])));
-  const changes = describeCatalogChange(current, preview);
+  const changes = describeCatalogChange(current, src);
   console.log(changes.length ? changes.join("\n") : "Nenhuma mudança de tipo, tamanho, preço ou cor.");
   console.log(`\nFotos a copiar para ${prodBucketName}: ${toCopy.length}`);
   if (WITH_STOCK) console.log("Estoque (settings/balloonStock) também será copiado.");
@@ -125,15 +151,28 @@ async function main() {
 
   const stagingStorage = getStorage(stagingApp);
   for (const c of toCopy) {
-    const [buf] = await stagingStorage.bucket(c.bucket).file(c.path).download();
-    const [meta] = await stagingStorage.bucket(c.bucket).file(c.path).getMetadata();
-    const token = randomUUID();
-    await prodBucket.file(c.path).save(buf, {
-      contentType: meta.contentType,
-      metadata: { metadata: { firebaseStorageDownloadTokens: token } },
-    });
+    // Foto já copiada antes (mesmo caminho = mesmo arquivo: o upload do
+    // admin põe data no nome): reaproveita o token dela e não regrava.
+    // Regravar trocaria o token e quebraria os links do catálogo vivo e
+    // do backup de uma execução anterior.
+    const target = prodBucket.file(c.path);
+    const [exists] = await target.exists();
+    let token: string | undefined;
+    if (exists) {
+      const [meta] = await target.getMetadata();
+      token = String(meta.metadata?.firebaseStorageDownloadTokens ?? "").split(",")[0] || undefined;
+    }
+    if (!token) {
+      const [buf] = await stagingStorage.bucket(c.bucket).file(c.path).download();
+      const [meta] = await stagingStorage.bucket(c.bucket).file(c.path).getMetadata();
+      token = randomUUID();
+      await target.save(buf, {
+        contentType: meta.contentType,
+        metadata: { metadata: { firebaseStorageDownloadTokens: token } },
+      });
+      console.log(`  foto copiada: ${c.path}`);
+    } else console.log(`  foto já existia: ${c.path}`);
     urlMap.set(c.url, downloadUrl(prodBucketName, c.path, token));
-    console.log(`  foto: ${c.path}`);
   }
 
   await prodDb.doc("settings/balloons").set(rewriteImageUrls(src, urlMap));

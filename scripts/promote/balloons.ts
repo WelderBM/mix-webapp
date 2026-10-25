@@ -50,6 +50,16 @@ export function rewriteImageUrls(config: BalloonConfig, map: Map<string, string>
   return out;
 }
 
+// Mesma foto = mesmo caminho no Storage (o bucket e o token mudam entre
+// staging e produção). Link que não é do Storage compara inteiro.
+export function samePhoto(a?: string, b?: string): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const pa = parseStorageUrl(a);
+  const pb = parseStorageUrl(b);
+  return !!pa && !!pb && pa.path === pb.path;
+}
+
 const brl = (n: number) => `R$ ${n.toFixed(2).replace(".", ",")}`;
 
 // Resumo legível do que muda em produção, tipo a tipo.
@@ -70,9 +80,12 @@ export function describeCatalogChange(prod: BalloonConfig | null, next: BalloonC
     const newSizes = new Map(t.sizes.map((s) => [s.size, s]));
     for (const s of t.sizes) {
       const o = oldSizes.get(s.size);
-      if (!o) diffs.push(`+${s.size} ${brl(s.price)}`);
-      else if (o.price !== s.price) diffs.push(`${s.size} ${brl(o.price)}→${brl(s.price)}`);
-      else if (o.unitsPerPackage !== s.unitsPerPackage)
+      if (!o) {
+        diffs.push(`+${s.size} ${brl(s.price)}`);
+        continue;
+      }
+      if (o.price !== s.price) diffs.push(`${s.size} ${brl(o.price)}→${brl(s.price)}`);
+      if (o.unitsPerPackage !== s.unitsPerPackage)
         diffs.push(`${s.size} pacote ${o.unitsPerPackage}→${s.unitsPerPackage}`);
     }
     for (const s of old.sizes) if (!newSizes.has(s.size)) diffs.push(`−${s.size}`);
@@ -83,7 +96,7 @@ export function describeCatalogChange(prod: BalloonConfig | null, next: BalloonC
     if (added) diffs.push(`+${added} cores`);
     if (removed) diffs.push(`−${removed} cores`);
     if ((old.active !== false) !== (t.active !== false)) diffs.push(t.active === false ? "desativado" : "ativado");
-    if (old.imageUrl !== t.imageUrl) diffs.push("foto");
+    if (!samePhoto(old.imageUrl, t.imageUrl)) diffs.push("foto");
     if (diffs.length) lines.push(`~ ${label}: ${diffs.join(", ")}`);
   }
   for (const [id, t] of before) if (!after.has(id)) lines.push(`− ${t.name}: sai do catálogo`);

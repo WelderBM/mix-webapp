@@ -6,6 +6,7 @@ import {
   downloadUrl,
   parseStorageUrl,
   rewriteImageUrls,
+  samePhoto,
 } from "./balloons";
 
 const url = downloadUrl("mix-webapp-staging.firebasestorage.app", "balloons/candy 9.webp", "tok");
@@ -57,5 +58,26 @@ describe("promover balões (#319)", () => {
     expect(line).toContain("−1 cores");
     expect(describeCatalogChange(prod, cfg({ types: [] }))).toEqual(["− Candy Colors: sai do catálogo"]);
     expect(describeCatalogChange(prod, cfg())).toEqual([]);
+  });
+});
+
+describe("promover balões: comparação (⚪ do #329)", () => {
+  it("preço e pacote mudando juntos aparecem os dois", () => {
+    const prod = cfg();
+    const next = cfg();
+    next.types[0].sizes = [
+      { size: "5", price: 17.5, unitsPerPackage: 25 },
+      { size: "9", price: 30, unitsPerPackage: 50 },
+    ];
+    const [line] = describeCatalogChange(prod, next);
+    expect(line).toContain("9 R$ 27,00→R$ 30,00");
+    expect(line).toContain("9 pacote 25→50");
+  });
+
+  it("mesma foto em outro bucket/token não conta como mudança", () => {
+    const prodCfg = cfg();
+    prodCfg.types[0].imageUrl = downloadUrl("mix-webapp.firebasestorage.app", "balloons/candy 9.webp", "outro");
+    expect(describeCatalogChange(prodCfg, cfg())).toEqual([]);
+    expect(samePhoto(url, downloadUrl("b", "outra.webp", "t"))).toBe(false);
   });
 });
