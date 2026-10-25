@@ -80,3 +80,63 @@ export function BalloonSizeScale({ typeId, sizes }: { typeId: string; sizes: str
     </figure>
   );
 }
+
+// Foil (#344): o texto que a cliente digitou, na cor escolhida, em tamanho
+// real ao lado da pessoa de 1,70 m. Cada palavra é um grupo; as letras
+// ficam encostadas como na festa (a imagem tem sobra dos lados).
+export function FoilTextScale({
+  typeId,
+  size,
+  text,
+  hexes,
+}: {
+  typeId: string;
+  size: string;
+  text: string;
+  hexes: string[];
+}) {
+  const [scaled] = sizeScale(typeId, [size], HEIGHT);
+  const words = text.split(" ").filter(Boolean);
+  if (!scaled || words.length === 0) return null;
+  const img = Math.round(scaled.px / FOIL.ratio);
+  const side = -Math.round(img * 0.2);
+  return (
+    <figure className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-3" aria-hidden="true">
+      <div className="overflow-x-auto overflow-y-hidden">
+        <div className="mx-auto flex w-max items-end gap-3">
+          <Column img={personSilhouetteImage()} px={HEIGHT} label="1,70 m" minHeight={HEIGHT} />
+          {words.map((word, w) => (
+            <div key={`${word}-${w}`} className="flex shrink-0 flex-col items-center">
+              <div
+                className="flex items-end border-b-2 border-slate-300"
+                style={{ height: HEIGHT, paddingInline: -side }}
+              >
+                {word.split("").map((ch, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element -- SVG gerado no navegador
+                  <img
+                    key={`${ch}-${i}`}
+                    src={balloonColorImage(typeId, hexes, ch)}
+                    alt=""
+                    style={{
+                      height: img,
+                      width: img,
+                      maxWidth: "none",
+                      marginInline: side,
+                      marginBottom: -Math.round(img * FOIL.below),
+                    }}
+                  />
+                ))}
+              </div>
+              <span className="mt-1 whitespace-nowrap text-[11px] leading-tight text-slate-600">
+                {balloonSizeLabel(typeId, size).split(" · ")[0]}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <figcaption className="mt-2 text-center text-xs text-slate-500">
+        Seu texto no tamanho real, ao lado de uma pessoa de 1,70 m
+      </figcaption>
+    </figure>
+  );
+}

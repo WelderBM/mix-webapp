@@ -125,10 +125,10 @@ describe("BalloonBuilder", () => {
     fireEvent.click(screen.getByText("Liso"));
 
     // 2. Wait for Size selection
-    await waitFor(() => screen.getByText(/9"/));
+    await waitFor(() => screen.getAllByText(/9"/)[0]);
 
     // 3. Click on size (should auto-transition to next step)
-    fireEvent.click(screen.getByText(/9"/));
+    fireEvent.click(screen.getAllByText(/9"/)[0]);
 
     // Should see Step 2 title (Color selection)
     await waitFor(() => {
@@ -165,9 +165,9 @@ describe("BalloonBuilder", () => {
     render(<BalloonBuilder />);
     await waitFor(() => screen.getByText("Liso"));
     fireEvent.click(screen.getByText("Liso"));
-    await waitFor(() => screen.getByText(/9"/));
+    await waitFor(() => screen.getAllByText(/9"/)[0]);
     expect(screen.queryByText(/7"/)).toBeNull(); // nada no 7": tamanho some
-    fireEvent.click(screen.getByText(/9"/));
+    fireEvent.click(screen.getAllByText(/9"/)[0]);
     await waitFor(() => screen.getByText("Escolha a Cor"));
 
     expect(screen.getByText("Azul")).toBeTruthy();
