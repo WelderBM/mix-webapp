@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -86,6 +87,9 @@ export function SystemPasswordPrompt({
           <DialogTitle className="flex items-center gap-2">
             <Lock size={18} /> Área restrita
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Digite a senha do sistema para continuar.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input

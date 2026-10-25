@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -394,6 +395,9 @@ export function SectionsTab({
         <DialogContent className="sm:h-[85vh] flex flex-col bg-slate-50">
           <DialogHeader>
             <DialogTitle>Configurar Seção</DialogTitle>
+            <DialogDescription className="sr-only">
+              Escolha o tipo, o conteúdo e a aparência desta seção da loja.
+            </DialogDescription>
           </DialogHeader>
           <div className="overflow-y-auto p-1 space-y-6">
             <div className="bg-white p-4 rounded-xl border shadow-sm space-y-4">

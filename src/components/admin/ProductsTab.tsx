@@ -30,6 +30,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -290,6 +291,9 @@ export function ProductsTab({
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Categorias e Subcategorias</DialogTitle>
+            <DialogDescription className="sr-only">
+              Gerencie as categorias e subcategorias dos produtos.
+            </DialogDescription>
           </DialogHeader>
           <CategoryManager categories={categories} products={allProducts} />
         </DialogContent>
@@ -300,6 +304,9 @@ export function ProductsTab({
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Tags e Coleções</DialogTitle>
+            <DialogDescription className="sr-only">
+              Gerencie as tags e coleções usadas nos produtos.
+            </DialogDescription>
           </DialogHeader>
           <TagManager tags={tags} products={allProducts} />
         </DialogContent>

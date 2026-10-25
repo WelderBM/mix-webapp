@@ -24,6 +24,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -491,6 +492,9 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
                 <Settings2 className="text-red-500" /> Ferramentas de Sistema
                 (Danger Zone)
               </DialogTitle>
+              <DialogDescription className="sr-only">
+                Ferramentas avançadas de manutenção. Ações aqui podem afetar os dados da loja inteira.
+              </DialogDescription>
             </DialogHeader>
             <SuperAdminZone />
           </DialogContent>

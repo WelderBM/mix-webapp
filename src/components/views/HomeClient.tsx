@@ -67,6 +67,7 @@ export default function HomeClient({
                   section={section}
                   products={productsToRender}
                   onScrollRequest={handleScrollToShelves}
+                  inGrid
                 />
               </div>
             ))}

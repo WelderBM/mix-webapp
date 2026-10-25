@@ -4,9 +4,22 @@ import { StoreSection } from "@/types";
 
 interface SectionCustomBannerProps {
   section: StoreSection;
+  inGrid?: boolean;
 }
 
-export const SectionCustomBanner = ({ section }: SectionCustomBannerProps) => {
+// Grid da home: max-w-6xl com px-4 (1120px úteis), 2 colunas a partir de md;
+// banner "half" ocupa uma coluna. Fora do grid (/natura), largura total (#105).
+const bannerSizes = (section: StoreSection, inGrid?: boolean) => {
+  if (!inGrid) return "100vw";
+  return section.width === "full"
+    ? "(min-width: 1152px) 1120px, 100vw"
+    : "(min-width: 1152px) 548px, (min-width: 768px) 50vw, 100vw";
+};
+
+export const SectionCustomBanner = ({
+  section,
+  inGrid,
+}: SectionCustomBannerProps) => {
   if (!section.bannerUrl) return null;
 
   const content = (
@@ -16,7 +29,7 @@ export const SectionCustomBanner = ({ section }: SectionCustomBannerProps) => {
         alt={section.title}
         name={section.title}
         fill
-        sizes="(min-width: 1184px) 1152px, 100vw"
+        sizes={bannerSizes(section, inGrid)}
         className="object-cover"
       />
       <div className="absolute inset-0 bg-black/10 hover:bg-transparent transition-colors" />

@@ -553,8 +553,9 @@ export function CartSidebar() {
 
                 <div className="px-6 pb-28 space-y-4">
                   <div className="space-y-2">
-                    <Label>Seu Nome</Label>
+                    <Label htmlFor="checkout-name">Seu Nome</Label>
                     <Input
+                      id="checkout-name"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                       placeholder="Digite seu nome"
@@ -562,8 +563,11 @@ export function CartSidebar() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Seu Telefone / WhatsApp *</Label>
+                    <Label htmlFor="checkout-phone">
+                      Seu Telefone / WhatsApp *
+                    </Label>
                     <Input
+                      id="checkout-phone"
                       value={customerPhone}
                       onChange={(e) => {
                         let value = e.target.value.replace(/\D/g, "");
@@ -654,9 +658,12 @@ export function CartSidebar() {
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="col-span-1">
-                            <Label className="text-xs">CEP</Label>
+                            <Label htmlFor="checkout-cep" className="text-xs">
+                              CEP
+                            </Label>
                             <div className="relative">
                               <Input
+                                id="checkout-cep"
                                 value={cep}
                                 onChange={(e) => {
                                   let value = e.target.value.replace(/\D/g, "");
@@ -685,8 +692,14 @@ export function CartSidebar() {
                             </div>
                           </div>
                           <div className="col-span-1">
-                            <Label className="text-xs">Número</Label>
+                            <Label
+                              htmlFor="checkout-number"
+                              className="text-xs"
+                            >
+                              Número
+                            </Label>
                             <Input
+                              id="checkout-number"
                               value={number}
                               onChange={(e) => setNumber(e.target.value)}
                               placeholder="Nº"
@@ -698,8 +711,11 @@ export function CartSidebar() {
                         </div>
 
                         <div>
-                          <Label className="text-xs">Rua</Label>
+                          <Label htmlFor="checkout-street" className="text-xs">
+                            Rua
+                          </Label>
                           <Input
+                            id="checkout-street"
                             value={street}
                             onChange={(e) => setStreet(e.target.value)}
                             placeholder="Nome da rua"
@@ -709,8 +725,14 @@ export function CartSidebar() {
                         </div>
 
                         <div>
-                          <Label className="text-xs">Bairro</Label>
+                          <Label
+                            htmlFor="checkout-neighborhood"
+                            className="text-xs"
+                          >
+                            Bairro
+                          </Label>
                           <Input
+                            id="checkout-neighborhood"
                             value={neighborhood}
                             onChange={(e) => setNeighborhood(e.target.value)}
                             placeholder="Bairro"
@@ -719,8 +741,11 @@ export function CartSidebar() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs">Cidade (Fixo)</Label>
+                          <Label htmlFor="checkout-city" className="text-xs">
+                            Cidade (Fixo)
+                          </Label>
                           <Input
+                            id="checkout-city"
                             value={`${city} - ${uf}`}
                             readOnly
                             className={cn(
@@ -730,10 +755,14 @@ export function CartSidebar() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs">
+                          <Label
+                            htmlFor="checkout-reference"
+                            className="text-xs"
+                          >
                             Ponto de referência (Opcional)
                           </Label>
                           <Input
+                            id="checkout-reference"
                             value={addressReference}
                             onChange={(e) =>
                               setAddressReference(e.target.value)
@@ -805,12 +834,12 @@ export function CartSidebar() {
                   )}
 
                   <div className="space-y-2">
-                    <Label>Forma de Pagamento</Label>
+                    <Label htmlFor="checkout-payment">Forma de Pagamento</Label>
                     <Select
                       value={paymentMethod}
                       onValueChange={(v: any) => setPaymentMethod(v)}
                     >
-                      <SelectTrigger className="bg-white">
+                      <SelectTrigger id="checkout-payment" className="bg-white">
                         <SelectValue placeholder="Selecione..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -837,10 +866,11 @@ export function CartSidebar() {
                     )}
                     {paymentMethod === "cash" && (
                       <div className="space-y-1 mt-2">
-                        <Label className="text-xs">
+                        <Label htmlFor="checkout-change" className="text-xs">
                           Troco para quanto? (Opcional)
                         </Label>
                         <Input
+                          id="checkout-change"
                           value={cashChangeFor}
                           onChange={(e) => setCashChangeFor(e.target.value)}
                           placeholder="Ex: R$ 50"
@@ -852,8 +882,11 @@ export function CartSidebar() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Observação (Opcional)</Label>
+                    <Label htmlFor="checkout-observation">
+                      Observação (Opcional)
+                    </Label>
                     <Textarea
+                      id="checkout-observation"
                       placeholder="Ex: Deixar na portaria, embrulhar pra presente..."
                       value={observation}
                       onChange={(e) => setObservation(e.target.value)}

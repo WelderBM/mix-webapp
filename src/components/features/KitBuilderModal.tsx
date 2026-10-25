@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -173,6 +174,9 @@ export function KitBuilderModal() {
             <DialogTitle className="text-2xl font-bold flex items-center gap-2">
               <Gift className="text-primary" /> Montador de Presentes
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Escolha os itens do seu presente, passo a passo.
+            </DialogDescription>
             <span className="text-sm font-bold text-primary">
               {formatCurrency(kitTotal)}
             </span>
