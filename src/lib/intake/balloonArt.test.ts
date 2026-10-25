@@ -16,7 +16,7 @@ describe("arte da letra foil (#343)", () => {
   it("tem relevo de luz e costura na borda", () => {
     const svg = balloonSvg(letra(["#d4a017"]), "2", { caption: false, background: false });
     expect(svg).toContain("<feSpecularLighting");
-    expect(svg).toContain('stroke-dasharray="3 9"');
+    expect(svg).toContain('stroke-dasharray="2 7"');
     expect(svg).toContain(">2</text>");
   });
 
