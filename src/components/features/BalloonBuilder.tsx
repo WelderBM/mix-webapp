@@ -204,10 +204,13 @@ export function BalloonBuilder() {
     [balloonConfig.types, selectedTypeId]
   );
 
-  // Tamanho sem nenhuma cor em estoque no Noturno não aparece.
+  // Tamanho sem nenhuma cor em estoque no Noturno não aparece, nem tamanho
+  // sem preço (nunca vender por R$ 0, #318).
   const sizesInStock = (type: BalloonTypeConfig) =>
-    type.sizes.filter((s) =>
-      type.colors.some((c) => !isSoldOut(balloonStock, type.id, s.size, c))
+    type.sizes.filter(
+      (s) =>
+        s.price > 0 &&
+        type.colors.some((c) => !isSoldOut(balloonStock, type.id, s.size, c))
     );
   const availableSizes = useMemo(
     () => (selectedType ? sizesInStock(selectedType) : []),

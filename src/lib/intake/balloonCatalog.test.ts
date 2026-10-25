@@ -188,6 +188,14 @@ describe("montar o catálogo pelo Noturno", () => {
     expect(out.types[0].sizes).toEqual([{ size: "9", price: 8, unitsPerPackage: 25 }]);
   });
 
+  it("preço 0 tira o tamanho do catálogo; em branco mantém (#318)", () => {
+    const p = proposeCatalog(items, config);
+    const out = applyCatalogProposal(config, p, { include: {}, prices: { "simples|9": 0 } });
+    expect(out.types.find((t) => t.id === "simples")!.sizes.map((z) => z.size)).not.toContain("9");
+    const keep = applyCatalogProposal(config, p, { include: {}, prices: {} });
+    expect(keep.types.find((t) => t.id === "simples")!.sizes.find((z) => z.size === "9")?.price).toBe(16);
+  });
+
   it("mescla com o existente: mantém preço, acrescenta tamanho e cor; tira cor que o Noturno não tem", () => {
     const p = proposeCatalog(items, config);
     expect(p.find((t) => t.typeId === "simples")!.stale).toEqual(["Rosa Choque", "Rosa Tutti Frutti", "Branco"]);
