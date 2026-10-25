@@ -23,7 +23,8 @@
 
 1. Maior pontuação.
 2. Destrava mais.
-3. **Não conflita com PR aberto:** issue de uma frente que já tem PR aberto vai para o fim.
+3. **Não conflita com PR aberto:** issue de uma frente que já tem PR aberto vai para o fim
+   (vai para o fim, não sai da fila; ver § 6.1).
 4. **Mesma frente da última tarefa:** contexto fresco, menos tokens.
 5. Menor esforço.
 6. **Número menor:** nunca empata.
@@ -61,3 +62,31 @@ Frentes atuais: `pre-producao`, `montador`, `fitas`, `home-rodape`,
   ideia vira urgente e vice-versa.
 - **Pesos** (3 e 2) são o chute inicial de 23/10. Se a ordem do script não
   bater com a intuição do dono por ~2 semanas, ajustar aqui e no script.
+
+## 6. Antes de parar
+
+A fila autônoma parecer vazia não é motivo para parar. Em 25/10, parei
+com trabalho disponível: deixei o #147 de lado porque mexia num arquivo do
+#302, embora em outra parte; não triei a #307 (12 achados de UX); e deixei
+dois PRs esperando o dono, quando uma revisão nova bastava. Só paro depois
+de passar por estes itens, nesta ordem:
+
+1. **Conflito se mede por trecho, não por arquivo.** Mexer no mesmo arquivo
+   de um PR aberto é permitido quando as mudanças ficam longe uma da outra:
+   o git junta as duas sem conflito. Se as linhas forem as mesmas ou
+   vizinhas, abro um PR empilhado (branch e base = a branch do PR aberto,
+   com o número dele no corpo) ou espero o merge.
+2. **PR com 🟡 já corrigido:** ponho a label `revisar`. A cadeia revisa de
+   novo e, se vier limpa, faz o merge sozinha. Sem a label, o PR fica
+   parado esperando o dono à toa.
+3. **"Sem pontuação" no script:** as issues abertas pela revisão visual ou
+   pela vistoria ficam fora das duas filas até alguém pontuar. Pontuo, e as
+   que não precisam de decisão ganham `autonomo`.
+4. **Lacunas que eu mesmo apontei:** teste que faltou, conferência no
+   navegador, ⚪ que ficou para depois. Isso também é tarefa.
+5. Só então paro, e listo o topo da fila do dono.
+
+**Issues da vistoria** (marcador `<!-- vistoria:` no corpo) não se fecham à
+mão: a vistoria mede produção e fecha a issue depois de 2 rodadas limpas.
+As outras fecham pelo workflow `close-issues-on-dev.yml` quando o PR com
+`Closes #N` entra em `dev`.
