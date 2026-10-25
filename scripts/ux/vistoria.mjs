@@ -151,7 +151,6 @@ const LABELS_BY_KIND = {
   erro: ["bug", "frontend"],
 };
 
-// Compara a vistoria atual com as issues existentes e devolve o que fazer.
 // Pontuação de prioridade de achado automático (docs/fluxo/prioridade.md).
 // A issue já nasce com ela e com `backlog`: issue criada pelo GITHUB_TOKEN
 // não dispara o sync-backlog-label.yml (#290).
@@ -173,6 +172,7 @@ export function priorityLabels(g) {
   return ["backlog", "o:2", "s:2", `a:${alcance}`, "e:p", "autonomo", `frente:${frente}`];
 }
 
+// Compara a vistoria atual com as issues existentes e devolve o que fazer.
 export function planSync(groups, existingIssues, today = "") {
   const existing = new Map();
   for (const i of existingIssues.map(parseIssue).filter(Boolean)) existing.set(i.key, i);
