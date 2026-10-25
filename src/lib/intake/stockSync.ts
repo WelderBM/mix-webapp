@@ -64,6 +64,22 @@ export function applyVariantStock<V extends { id: string; inStock: boolean }>(
   );
 }
 
+// Estoque do produto em grupo calculado sobre as variações que ele TEM
+// gravadas (#253): uma cor apagada à mão no admin continua na fila como
+// publicada e não pode manter o produto "em estoque". Mesma regra da loja:
+// só `inStock === false` é esgotado. Sem variações gravadas, vale o cálculo
+// da fila.
+export function groupStock<V extends { id: string; inStock: boolean }>(
+  variants: V[] | undefined,
+  update: Pick<ProductStockUpdate, "inStock" | "variants">,
+): { inStock: boolean; variants: V[] } {
+  const next = applyVariantStock(variants, update.variants ?? {});
+  return {
+    inStock: next.length > 0 ? next.some((v) => v.inStock !== false) : update.inStock,
+    variants: next,
+  };
+}
+
 // Única falha que a sincronização pode ignorar: o produto não existe mais
 // (apagado à mão no admin). Rede, cota ou permissão precisam interromper a
 // importação ANTES de gravar a fila — senão a fila fica igual ao arquivo e

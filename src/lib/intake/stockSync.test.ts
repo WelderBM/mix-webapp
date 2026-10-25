@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { applyVariantStock, computeStockSync, isIgnorableSyncError } from "./stockSync";
+import {
+  applyVariantStock,
+  computeStockSync,
+  groupStock,
+  isIgnorableSyncError,
+} from "./stockSync";
 import type { IntakeItem } from "@/types/intake";
 
 const item = (o: Partial<IntakeItem>): IntakeItem =>
@@ -95,5 +100,30 @@ describe("produto lançado em grupo (#201)", () => {
       { id: "a", name: "Azul", inStock: false },
       { id: "manual", name: "Extra", inStock: true },
     ]);
+  });
+
+  it("groupStock ignora cor apagada do produto que ainda está na fila", () => {
+    // "b" foi apagada à mão no admin, mas o item dela segue publicado e com
+    // estoque: não pode manter o produto à venda (#253).
+    const vs = [{ id: "a", name: "Azul", inStock: true }];
+    expect(groupStock(vs, { inStock: true, variants: { a: false, b: true } })).toEqual({
+      inStock: false,
+      variants: [{ id: "a", name: "Azul", inStock: false }],
+    });
+  });
+
+  it("groupStock conta variação manual e trata inStock ausente como disponível", () => {
+    const vs = [
+      { id: "a", name: "Azul", inStock: true },
+      { id: "manual", name: "Extra" } as { id: string; name: string; inStock: boolean },
+    ];
+    expect(groupStock(vs, { inStock: false, variants: { a: false } }).inStock).toBe(true);
+  });
+
+  it("groupStock sem variações gravadas usa o cálculo da fila", () => {
+    expect(groupStock(undefined, { inStock: true, variants: { a: true } })).toEqual({
+      inStock: true,
+      variants: [],
+    });
   });
 });
