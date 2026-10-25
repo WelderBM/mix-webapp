@@ -46,3 +46,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cópias de segurança do promote:balloons (#319) — dados de produção, nunca commitar
+backups/
