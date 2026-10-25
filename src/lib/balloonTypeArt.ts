@@ -106,9 +106,11 @@ export function balloonSizeImage(typeId: string): string {
 export function balloonColorImage(typeId: string, hex: string | string[], glyph?: string): string {
   const base = baseOf(typeId);
   const all = Array.isArray(hex) ? hex : [hex];
+  const look0 = LOOKS[base] ?? FALLBACK;
   // Degradê de 2 tons (Ouro, Prata, Rose Gold…) é UMA cor: a primeira mantém
-  // o reflexo metálico. Faixas só para o arco-íris (3+). Canudo: um tubo só.
-  const colors = all.length >= 3 && base !== "canudo" ? all : all.slice(0, 1);
+  // o reflexo metálico. Faixas do arco-íris (3+) só na letra do foil: no
+  // látex, várias cores viram buquê de 3 balões, e a cliente escolhe UM.
+  const colors = all.length >= 3 && look0.shape === "letra" ? all : all.slice(0, 1);
   const k = `c:${base}:${colors.join(",")}:${glyph ?? ""}`;
   if (!cache.has(k)) {
     const look = LOOKS[base] ?? FALLBACK;

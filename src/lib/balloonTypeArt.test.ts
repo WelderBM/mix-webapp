@@ -69,7 +69,10 @@ describe("balloonColorImage (#321)", () => {
     expect(svg(balloonColorImage("foil_numeros", "#c0c0c0"))).toMatch(/>A<\/text>/);
   });
   it("arco-íris usa as várias cores; marca usa a arte do tipo base", () => {
-    expect(svg(balloonColorImage("simples", ["#ff0000", "#00ff00", "#0000ff"]))).toContain("#00ff00");
+    expect(svg(balloonColorImage("foil_numeros", ["#ff0000", "#00ff00", "#0000ff"], "A"))).toContain("#00ff00");
+    // Látex arco-íris: um balão só (não buquê de 3).
+    const latex = svg(balloonColorImage("simples", ["#ff0000", "#00ff00", "#0000ff", "#ffff00"]));
+    expect(latex).toBe(svg(balloonColorImage("simples", "#ff0000")));
     expect(balloonColorImage("simples__riberball", "#123456")).toBe(balloonColorImage("simples", "#123456"));
   });
 });
