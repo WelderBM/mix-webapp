@@ -144,7 +144,7 @@ export function Footer() {
           © {new Date().getFullYear()} {storeName}. Todos os direitos reservados.
           <Link
             href="/admin"
-            className="ml-2 text-slate-700 hover:text-slate-500 transition-colors"
+            className="ml-1 inline-flex min-h-11 min-w-11 items-center justify-center text-slate-700 hover:text-slate-500 transition-colors"
             aria-label="Acesso Administrativo"
           >
             <Lock size={12} />

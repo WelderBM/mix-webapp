@@ -36,7 +36,7 @@ export function StoreHeader() {
               href="https://maps.google.com/?q=Rua+Pedro+Aldemar+Bantim,+945,+Doutor+Silvio+Botelho,+Boa+Vista+-+RR"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 hover:text-purple-400 transition-colors bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10"
+              className="flex min-h-11 items-center gap-2 hover:text-purple-400 transition-colors bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10"
             >
               <MapPin size={16} className="text-purple-400" />
               Dr. Silvio Botelho, Boa Vista - RR
