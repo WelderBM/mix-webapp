@@ -106,6 +106,9 @@ export function sizeInInches(typeId: string, size: string): number | null {
   if (typeId === "canudo") return null;
   const cm = /^(\d+(?:[.,]\d+)?)\s*cm$/i.exec(size.trim());
   if (cm) return Math.round(Number(cm[1].replace(",", ".")) / 2.54);
+  // Faixa "70-75cm": o maior lado decide o desenho.
+  const range = /^\d+\s*[-–]\s*(\d+)\s*cm$/i.exec(size.trim());
+  if (range) return Math.round(Number(range[1]) / 2.54);
   const n = Number(size.replace(",", "."));
   return Number.isFinite(n) && n > 0 ? n : null;
 }
@@ -118,12 +121,26 @@ export function balloonVisualPx(typeId: string, size: string): number {
   return Math.round(Math.min(96, Math.max(44, 28 + inches * 4.25)));
 }
 
-// Rótulo do tamanho: 9" · 40 cm · 260 (canudo).
+// Rótulo do tamanho com as DUAS medidas (#320): 9" · 23 cm,
+// 40 cm · 16", 70–75 cm · 28–30". Canudo "260" é o modelo, não medida.
+const fmt = (n: number) => String(n).replace(".", ",");
 export function balloonSizeLabel(typeId: string, size: string): string {
   typeId = baseOf(typeId);
-  if (/cm$/i.test(size.trim())) return size.replace(/\s*cm$/i, " cm");
+  const s = size.trim();
+  const range = /^(\d+)\s*[-–]\s*(\d+)\s*cm$/i.exec(s);
+  if (range) {
+    const [a, b] = [Number(range[1]), Number(range[2])];
+    return `${a}–${b} cm · ${Math.round(a / 2.54)}–${Math.round(b / 2.54)}"`;
+  }
+  const cm = /^(\d+(?:[.,]\d+)?)\s*cm$/i.exec(s);
+  if (cm) {
+    const n = Number(cm[1].replace(",", "."));
+    return `${fmt(n)} cm · ${Math.round(n / 2.54)}"`;
+  }
   if (typeId === "canudo") return size;
-  return `${size}"`;
+  const inches = Number(s.replace(",", "."));
+  if (!Number.isFinite(inches) || inches <= 0) return size;
+  return `${fmt(inches)}" · ${Math.round(inches * 2.54)} cm`;
 }
 
 // Explicação curta abaixo do tamanho quando o número sozinho não diz nada

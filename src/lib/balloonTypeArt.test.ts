@@ -44,9 +44,12 @@ describe("arte do montador de balões", () => {
   });
 
   it("rótulo certo para cada unidade", () => {
-    expect(balloonSizeLabel("simples", "9")).toBe('9"');
-    expect(balloonSizeLabel("simples", "6.5")).toBe('6.5"');
-    expect(balloonSizeLabel("foil_numeros", "40cm")).toBe("40 cm");
+    // As duas medidas (#320).
+    expect(balloonSizeLabel("simples", "9")).toBe('9" · 23 cm');
+    expect(balloonSizeLabel("simples", "6.5")).toBe('6,5" · 17 cm');
+    expect(balloonSizeLabel("foil_numeros", "40cm")).toBe('40 cm · 16"');
+    expect(balloonSizeLabel("foil_numeros", "45cm")).toBe('45 cm · 18"');
+    expect(balloonSizeLabel("foil_numeros", "70-75cm")).toBe('70–75 cm · 28–30"');
     expect(balloonSizeLabel("canudo", "260")).toBe("260");
   });
 });
