@@ -31,8 +31,9 @@ const RIBBON_RULES: Rule[] = [
   // Polipropileno perolado e Fidepla decorativa (as "Lisa 15/20mm") NÃO são
   // fita de laço da loja (dono, 25/10, #317): ficam sem subcategoria e vão
   // para a fila comum. "LISA" sozinha é só acabamento; a Master Lisa casa
-  // pelo MASTER.
-  { test: /\b(MAXI|MASTER|PLASTICA|LINE|ECOPACK)\b/, subcategory: "Fita para laço" },
+  // pelo MASTER. ECOPACK (fita de papel kraft) também saiu: sem linha, ela
+  // sumia da tela por linha E da fila (revisão do #326).
+  { test: /\b(MAXI|MASTER|PLASTICA|LINE)\b/, subcategory: "Fita para laço" },
   { test: /\b(XADREZ|RENDA)\b/, subcategory: "Cetim e tecido" },
 ];
 

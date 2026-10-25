@@ -21,6 +21,7 @@ describe("fitas de plástico por linha (nomes reais do Noturno)", () => {
     expect(isPlasticRibbon(fita("FITA POLIPROP. 02.5 CM X 50.0 MT BN PEROLADO"))).toBe(false);
     expect(isPlasticRibbon(fita("FITA LISA FIDEPLA DECORATIVA 15MMX30M VEDE ESC."))).toBe(false);
     expect(isPlasticRibbon(fita("FITA MASTER 16MMX50M LISA PRATA"))).toBe(true);
+    expect(isPlasticRibbon(fita("FITA ECOPACK 10 36X50 MARROM"))).toBe(false);
     expect(isPlasticRibbon(fita("FITA CETIM 10MM 50M ROSA"))).toBe(false);
     expect(isPlasticRibbon(fita("FITA ADESIVA 38MIC 48X30", 5, "pendente", "STANDARD_ITEM"))).toBe(false);
   });
@@ -63,7 +64,6 @@ describe("fitas de plástico por linha (nomes reais do Noturno)", () => {
     expect(ribbonLabel("FITA MAXI FM 100L 16MMX50 AZUL ESCURO")).toBe("Azul Escuro");
     expect(ribbonLabel("FITA MAXI FM03D 32MMX100 AMARELO")).toBe("Amarelo");
     expect(ribbonLabel("FITA PLASTICA GLITTER AZUL CLARO C/")).toBe("Glitter Azul Claro");
-    expect(ribbonLabel("FITA POLIPROP. 02.5 CM X 50.0 MT BN PEROLADO")).toBe("Bn Perolado");
   });
 
   it("produto RIBBON: rolo fechado cheio, dois preços, montador de laço", () => {

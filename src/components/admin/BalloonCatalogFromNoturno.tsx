@@ -165,71 +165,71 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
                       {p.sizes.map((s) => {
                         const off = parsePrice(prices[priceKey(p.typeId, s.size)] ?? "") === 0;
                         return (
-                        <li
-                          key={s.size}
-                          className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5 text-sm ${off ? "bg-slate-50" : ""}`}
-                        >
-                          <span className="w-14 shrink-0 font-bold text-slate-800">
-                            {s.size}
-                            {/* Polegadas; canudo "260" é o modelo, cm já vem escrito. */}
-                            {/^\d/.test(s.size) && !s.size.endsWith("cm") && baseTypeId(p.typeId) !== "canudo" ? '"' : ""}
-                          </span>
-                          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-xs text-slate-500">
-                            <label
-                              className={`flex items-center gap-1 rounded px-1 ${
-                                s.packSource === "padrao" || s.packSource === "misto"
-                                  ? "bg-amber-100 text-amber-900"
-                                  : ""
-                              }`}
-                              title={
-                                s.packSource === "padrao"
-                                  ? "O nome não diz quantos vêm: confira na embalagem"
-                                  : s.packSource === "misto"
-                                    ? "Os nomes discordam: confira na embalagem"
-                                    : undefined
-                              }
-                            >
-                              pacote c/
+                          <li
+                            key={s.size}
+                            className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1.5 text-sm ${off ? "bg-slate-50" : ""}`}
+                          >
+                            <span className="w-14 shrink-0 font-bold text-slate-800">
+                              {s.size}
+                              {/* Polegadas; canudo "260" é o modelo, cm já vem escrito. */}
+                              {/^\d/.test(s.size) && !s.size.endsWith("cm") && baseTypeId(p.typeId) !== "canudo" ? '"' : ""}
+                            </span>
+                            <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-xs text-slate-500">
+                              <label
+                                className={`flex items-center gap-1 rounded px-1 ${
+                                  s.packSource === "padrao" || s.packSource === "misto"
+                                    ? "bg-amber-100 text-amber-900"
+                                    : ""
+                                }`}
+                                title={
+                                  s.packSource === "padrao"
+                                    ? "O nome não diz quantos vêm: confira na embalagem"
+                                    : s.packSource === "misto"
+                                      ? "Os nomes discordam: confira na embalagem"
+                                      : undefined
+                                }
+                              >
+                                pacote c/
+                                <input
+                                  inputMode="numeric"
+                                  aria-label={`Unidades por pacote ${p.name} ${s.size}`}
+                                  placeholder={String(s.unitsPerPackage)}
+                                  value={packs[priceKey(p.typeId, s.size)] ?? ""}
+                                  onChange={(e) =>
+                                    setPacks((x) => ({
+                                      ...x,
+                                      [priceKey(p.typeId, s.size)]: e.target.value.replace(/\D/g, ""),
+                                    }))
+                                  }
+                                  className="h-11 w-14 rounded border border-slate-300 bg-white px-1 text-base text-slate-800"
+                                />
+                              </label>
+                              {(s.packSource === "padrao" || s.packSource === "misto") && (
+                                <strong className="text-amber-800">confira na embalagem</strong>
+                              )}
+                              · {Math.round(s.stock).toLocaleString("pt-BR")} em estoque
+                              {s.currentPrice == null && !off && <strong className="ml-1 text-amber-700">· novo</strong>}
+                              {off && <strong className="ml-1 text-red-700">· não vai vender</strong>}
+                            </span>
+                            <div className="relative w-28 shrink-0">
+                              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                                R$
+                              </span>
                               <input
-                                inputMode="numeric"
-                                aria-label={`Unidades por pacote ${p.name} ${s.size}`}
-                                placeholder={String(s.unitsPerPackage)}
-                                value={packs[priceKey(p.typeId, s.size)] ?? ""}
+                                inputMode="decimal"
+                                aria-label={`Preço do pacote ${p.name} ${s.size}`}
+                                placeholder={s.currentPrice != null ? brl(s.currentPrice).replace("R$", "").trim() : "preço"}
+                                value={prices[priceKey(p.typeId, s.size)] ?? ""}
                                 onChange={(e) =>
-                                  setPacks((x) => ({
+                                  setPrices((x) => ({
                                     ...x,
-                                    [priceKey(p.typeId, s.size)]: e.target.value.replace(/\D/g, ""),
+                                    [priceKey(p.typeId, s.size)]: e.target.value.replace(/[^\d.,]/g, ""),
                                   }))
                                 }
-                                className="h-11 w-14 rounded border border-slate-300 bg-white px-1 text-base text-slate-800"
+                                className="h-11 w-full rounded-md border border-slate-300 pl-8 pr-2 text-base"
                               />
-                            </label>
-                            {(s.packSource === "padrao" || s.packSource === "misto") && (
-                              <strong className="text-amber-800">confira na embalagem</strong>
-                            )}
-                            · {Math.round(s.stock).toLocaleString("pt-BR")} em estoque
-                            {s.currentPrice == null && !off && <strong className="ml-1 text-amber-700">· novo</strong>}
-                            {off && <strong className="ml-1 text-red-700">· não vai vender</strong>}
-                          </span>
-                          <div className="relative w-28 shrink-0">
-                            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                              R$
-                            </span>
-                            <input
-                              inputMode="decimal"
-                              aria-label={`Preço do pacote ${p.name} ${s.size}`}
-                              placeholder={s.currentPrice != null ? brl(s.currentPrice).replace("R$", "").trim() : "preço"}
-                              value={prices[priceKey(p.typeId, s.size)] ?? ""}
-                              onChange={(e) =>
-                                setPrices((x) => ({
-                                  ...x,
-                                  [priceKey(p.typeId, s.size)]: e.target.value.replace(/[^\d.,]/g, ""),
-                                }))
-                              }
-                              className="h-11 w-full rounded-md border border-slate-300 pl-8 pr-2 text-base"
-                            />
-                          </div>
-                        </li>
+                            </div>
+                          </li>
                         );
                       })}
                     </ul>

@@ -13,16 +13,14 @@ import { normalizeText } from "./search";
 // No inventário real (20/10): 177 fitas de plástico em 14 linhas; só a
 // Maxi 32mm × 100m tem 101 cores.
 
-const LINE_WORDS = ["MAXI", "MASTER", "PLASTICA", "POLIPROP", "LINE", "FIDEPLA", "LISA"];
+// Mesmas palavras da regra "Fita para laço" (subcategories.ts, #317).
+const LINE_WORDS = ["MAXI", "MASTER", "PLASTICA", "LINE"];
 const RE_LINE = new RegExp(`\\b(${LINE_WORDS.join("|")})\\b`);
 const LINE_LABEL: Record<string, string> = {
   MAXI: "Maxi",
   MASTER: "Master",
   PLASTICA: "Plástica",
-  POLIPROP: "Polipropileno",
   LINE: "Line",
-  FIDEPLA: "Fidepla",
-  LISA: "Lisa",
 };
 
 type Item = Pick<IntakeItem, "id" | "sourceCode" | "family" | "name" | "suggestedType" | "status" | "stock">;
