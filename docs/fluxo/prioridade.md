@@ -75,10 +75,13 @@ de passar por estes itens, nesta ordem:
    de um PR aberto é permitido quando as mudanças ficam longe uma da outra:
    o git junta as duas sem conflito. Se as linhas forem as mesmas ou
    vizinhas, abro um PR empilhado (branch e base = a branch do PR aberto,
-   com o número dele no corpo) ou espero o merge.
+   com o número dele no corpo) ou espero o merge. O workflow de fechar
+   issues só olha PRs para `dev`: o `Closes #N` do PR empilhado precisa
+   ser copiado para o corpo do PR pai.
 2. **PR com 🟡 já corrigido:** ponho a label `revisar`. A cadeia revisa de
-   novo e, se vier limpa, faz o merge sozinha. Sem a label, o PR fica
-   parado esperando o dono à toa.
+   novo; se vier limpa **e** o PR for de baixo risco (até 150 linhas, sem
+   arquivo sensível), o merge acontece sozinho. Se não for, o PR continua
+   com o dono, mas agora com a revisão limpa, que é o que ele precisa ver.
 3. **"Sem pontuação" no script:** as issues abertas pela revisão visual ou
    pela vistoria ficam fora das duas filas até alguém pontuar. Pontuo, e as
    que não precisam de decisão ganham `autonomo`.
