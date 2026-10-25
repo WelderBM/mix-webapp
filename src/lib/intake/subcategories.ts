@@ -28,7 +28,11 @@ interface Rule {
 // decide se nada mais decidiu.
 const RIBBON_RULES: Rule[] = [
   { test: /\b(CETIM|ORGANZA|LUREX|TNT|GORGURAO|JUTA|VELUDO|SINIMBU)\b/, subcategory: "Cetim e tecido" },
-  { test: /\b(MAXI|MASTER|PLASTICA|POLIPROP|LINE|ECOPACK|FIDEPLA|LISA)\b/, subcategory: "Fita para laço" },
+  // Polipropileno perolado e Fidepla decorativa (as "Lisa 15/20mm") NÃO são
+  // fita de laço da loja (dono, 25/10, #317): ficam sem subcategoria e vão
+  // para a fila comum. "LISA" sozinha é só acabamento; a Master Lisa casa
+  // pelo MASTER.
+  { test: /\b(MAXI|MASTER|PLASTICA|LINE|ECOPACK)\b/, subcategory: "Fita para laço" },
   { test: /\b(XADREZ|RENDA)\b/, subcategory: "Cetim e tecido" },
 ];
 
