@@ -93,7 +93,7 @@ describe("BalloonBuilder", () => {
     expect(screen.getByText("Liso")).toBeTruthy();
 
     // Size should NOT be visible yet
-    expect(screen.queryByText('9"')).toBeNull();
+    expect(screen.queryByText(/9"/)).toBeNull();
   });
 
   it("should allow selecting a size and transitioning to step 2", async () => {

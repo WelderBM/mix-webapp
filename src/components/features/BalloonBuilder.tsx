@@ -303,7 +303,7 @@ export function BalloonBuilder() {
       cartId: crypto.randomUUID(),
       type: "CUSTOM_BALLOON" as const,
       quantity,
-      kitName: `${typeLabel} ${balloonSizeLabel(selectedType.id, selectedSize.size)}${isFoil ? ` "${characters}"` : ""} - ${colorName}`,
+      kitName: `${typeLabel} ${balloonSizeLabel(selectedType.id, selectedSize.size)}${isFoil ? `: ${characters}` : ""} - ${colorName}`,
       kitTotalAmount: selectedSize.price * piecesPerSet,
       balloonDetails: {
         typeId: selectedType.id,
