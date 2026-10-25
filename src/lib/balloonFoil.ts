@@ -16,7 +16,7 @@ export function foilCharacters(input: string): string {
 }
 
 // Nome do balão no carrinho, no pedido e no WhatsApp:
-// "Balão Simples 9\"" · "Números & Letras (Foil) 40 cm: ANA".
+// 'Balão Simples 9" · 23 cm' · 'Números & Letras (Foil) 40 cm · 16": ANA'.
 export function balloonItemLabel(d: {
   typeId: string;
   typeName: string;
