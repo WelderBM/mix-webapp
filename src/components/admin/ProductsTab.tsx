@@ -48,6 +48,11 @@ import {
   ChevronRight,
   Tags,
 } from "lucide-react";
+import {
+  buildNameIndex,
+  filterAdminProducts,
+  PRODUCTS_PAGE_SIZE,
+} from "./productsTabFilter";
 
 interface ProductsTabProps {
   allProducts: Product[];
@@ -86,18 +91,24 @@ export function ProductsTab({
     () => searchParams.get("tags") === "1"
   );
 
-  // Espera parar de digitar antes de gravar na URL, pra não disparar um
-  // router.replace a cada tecla.
+  // O que a lista usa para filtrar: atualiza só quando a pessoa para de
+  // digitar (#147), junto com a URL (sem router.replace a cada tecla).
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+  const [shown, setShown] = useState(PRODUCTS_PAGE_SIZE);
+
   useEffect(() => {
     const timeout = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setShown(PRODUCTS_PAGE_SIZE);
       patchParams({ nome: searchTerm || undefined });
-    }, 400);
+    }, 300);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
   const handleTypeFilterChange = (value: string) => {
     setTypeFilter(value);
+    setShown(PRODUCTS_PAGE_SIZE);
     patchParams({ tipo: value === "ALL" ? undefined : value });
   };
 
@@ -111,17 +122,20 @@ export function ProductsTab({
     patchParams({ tags: open ? "1" : undefined });
   };
 
-  const filteredProducts = useMemo(() => {
-    return allProducts.filter((product) => {
-      const matchesSearch = product.name
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
-      const matchesType = typeFilter === "ALL" || product.type === typeFilter;
-      const matchesCategory =
-        categoryFilter === "ALL" || product.category === categoryFilter;
-      return matchesSearch && matchesType && matchesCategory;
-    });
-  }, [allProducts, searchTerm, typeFilter, categoryFilter]);
+  const nameIndex = useMemo(() => buildNameIndex(allProducts), [allProducts]);
+
+  const filteredProducts = useMemo(
+    () =>
+      filterAdminProducts(
+        allProducts,
+        nameIndex,
+        debouncedSearch,
+        typeFilter,
+        categoryFilter,
+      ),
+    [allProducts, nameIndex, debouncedSearch, typeFilter, categoryFilter],
+  );
+  const visibleProducts = filteredProducts.slice(0, shown);
 
   const visibleTypeFilterOptions = useMemo(
     () => getVisibleProductTypes(customKitEnabled),
@@ -206,7 +220,7 @@ export function ProductsTab({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredProducts.map((product) => (
+            {visibleProducts.map((product) => (
               <TableRow
                 key={product.id}
                 onClick={() => setProductToView(product)}
@@ -271,6 +285,21 @@ export function ProductsTab({
             )}
           </TableBody>
         </Table>
+        {filteredProducts.length > shown && (
+          <div className="mt-3 flex flex-col items-center gap-2">
+            <p className="text-sm text-slate-500">
+              Mostrando {shown} de {filteredProducts.length} produtos
+            </p>
+            <Button
+              variant="outline"
+              className="h-12 w-full sm:w-auto sm:px-8"
+              onClick={() => setShown((n) => n + PRODUCTS_PAGE_SIZE)}
+            >
+              Mostrar mais{" "}
+              {Math.min(PRODUCTS_PAGE_SIZE, filteredProducts.length - shown)}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* MODAL ÚNICO DE PRODUTO (ver/editar/excluir/ver na loja) */}
