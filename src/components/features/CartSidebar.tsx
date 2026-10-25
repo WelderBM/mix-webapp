@@ -786,10 +786,11 @@ export function CartSidebar() {
                       (feedback de revisão do PR #148). */}
                   {deliveryMethod === "delivery" && (
                     <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                      <Label className="text-blue-800">
+                      <Label id="checkout-payer" className="text-blue-800">
                         Para quem você vai realizar o pagamento?
                       </Label>
                       <RadioGroup
+                        aria-labelledby="checkout-payer"
                         value={pixPaymentDestination}
                         onValueChange={(v: "store" | "carrier") => {
                           setPixPaymentDestination(v);
