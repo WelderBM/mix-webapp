@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyWrites, buildIntakeSummary, coreProgress, sortedFamilies, NO_FAMILY } from "./summary";
+import { applyWrites, summaryDeltas, buildIntakeSummary, coreProgress, sortedFamilies, NO_FAMILY } from "./summary";
 import type { IntakeItem } from "@/types/intake";
 
 const item = (o: Partial<IntakeItem>): IntakeItem =>
@@ -84,5 +84,30 @@ describe("placar", () => {
       item({ id: "4", family: "CANETA", isCoreFamily: false, status: "publicado" }),
     ]);
     expect(coreProgress(s)).toEqual({ done: 2, total: 3 });
+  });
+});
+
+describe("summaryDeltas (limite de 500 transforms)", () => {
+  const fita = (i: number) =>
+    ({ status: "pendente", family: "FITA", name: `FITA MAXI 32MMX100 COR ${i}`, suggestedType: "RIBBON", stock: 2, unitCost: 5 }) as IntakeItem;
+
+  it("84 fitas viram poucos campos somados, não 6 por fita", () => {
+    const d = summaryDeltas(Array.from({ length: 84 }, (_, i) => fita(i)), "publicado", "a@x");
+    expect(d.length).toBeLessThan(10);
+    const get = (...p: string[]) => d.find((x) => x.path.join("/") === p.join("/"))?.delta;
+    expect(get("byStatus", "pendente")).toBe(-84);
+    expect(get("byStatus", "publicado")).toBe(84);
+    expect(get("families", "FITA", "pending")).toBe(-84);
+    expect(get("publishedStockValue")).toBe(84 * 10);
+    expect(get("publishedBy", "a@x")).toBe(84);
+  });
+
+  it("item já no status de destino não conta", () => {
+    expect(summaryDeltas([{ ...fita(1), status: "publicado" }], "publicado")).toEqual([]);
+  });
+
+  it("pular não mexe no placar", () => {
+    const d = summaryDeltas([fita(1)], "pulado");
+    expect(d.some((x) => x.path[0] === "publishedBy" || x.path[0] === "publishedStockValue")).toBe(false);
   });
 });

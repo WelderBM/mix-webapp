@@ -46,6 +46,43 @@ export function stockValue(i: Pick<IntakeItem, "stock" | "unitCost">): number {
 
 export const NO_FAMILY = "(sem família)";
 
+// Ajustes do resumo para uma leva de itens mudando de status, SOMADOS por
+// campo. Cada increment() é uma "field transform" e o Firestore aceita no
+// máximo 500 por documento num mesmo batch: gravando item por item, uma
+// linha de 84 fitas passava disso (~6 por item). Somado, são no máximo
+// algumas dezenas, qualquer que seja o tamanho da leva.
+export function summaryDeltas(
+  items: Pick<IntakeItem, "status" | "family" | "name" | "suggestedType" | "stock" | "unitCost">[],
+  to: IntakeWorkflowStatus,
+  userEmail: string | null = null,
+): { path: string[]; delta: number }[] {
+  const acc = new Map<string, { path: string[]; delta: number }>();
+  const add = (path: string[], delta: number) => {
+    const k = JSON.stringify(path);
+    const cur = acc.get(k);
+    if (cur) cur.delta += delta;
+    else acc.set(k, { path, delta });
+  };
+  for (const item of items) {
+    if (item.status === to) continue;
+    add(["byStatus", item.status], -1);
+    add(["byStatus", to], 1);
+    const familyPending = (to === "pendente" ? 1 : 0) - (item.status === "pendente" ? 1 : 0);
+    if (familyPending !== 0) {
+      add(["families", item.family ?? NO_FAMILY, "pending"], familyPending);
+      if (item.family === RIBBON_FAMILY) {
+        add(["ribbonAreas", String(areaForItem(item)), "pending"], familyPending);
+      }
+    }
+    // Placar (#202): valor em estoque publicado e contagem por atendente.
+    if (to === "publicado") {
+      add(["publishedStockValue"], stockValue(item));
+      add(["publishedBy", userEmail || "(desconhecido)"], 1);
+    }
+  }
+  return [...acc.values()].filter((d) => d.delta !== 0);
+}
+
 export function buildIntakeSummary(
   items: Iterable<SummaryInput>,
 ): IntakeSummary {
