@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  balloonColorImage,
   balloonSizeHint,
   balloonSizeImage,
   balloonSizeLabel,
@@ -51,5 +52,40 @@ describe("arte do montador de balões", () => {
     expect(balloonSizeLabel("foil_numeros", "45cm")).toBe('45 cm · 18"');
     expect(balloonSizeLabel("foil_numeros", "70-75cm")).toBe('70–75 cm · 28–30"');
     expect(balloonSizeLabel("canudo", "260")).toBe("260");
+  });
+});
+
+describe("balloonColorImage (#321)", () => {
+  const svg = (u: string) => decodeURIComponent(u.replace("data:image/svg+xml;utf8,", ""));
+  it("látex na cor escolhida", () => {
+    const s = svg(balloonColorImage("simples", "#ff0000"));
+    expect(s).toContain("#ff0000");
+    expect(s).not.toContain("<text");
+  });
+  it("foil desenha a letra/número pedido, na cor, com brilho metálico", () => {
+    const a = svg(balloonColorImage("foil_numeros", "#c0c0c0", "0"));
+    expect(a).toMatch(/>0<\/text>/);
+    expect(a).toContain("linearGradient");
+    expect(svg(balloonColorImage("foil_numeros", "#c0c0c0"))).toMatch(/>A<\/text>/);
+  });
+  it("arco-íris usa as várias cores; marca usa a arte do tipo base", () => {
+    expect(svg(balloonColorImage("foil_numeros", ["#ff0000", "#00ff00", "#0000ff"], "A"))).toContain("#00ff00");
+    // Látex arco-íris: um balão só (não buquê de 3).
+    const latex = svg(balloonColorImage("simples", ["#ff0000", "#00ff00", "#0000ff", "#ffff00"]));
+    expect(latex).toBe(svg(balloonColorImage("simples", "#ff0000")));
+    expect(balloonColorImage("simples__riberball", "#123456")).toBe(balloonColorImage("simples", "#123456"));
+  });
+});
+
+describe("balloonColorImage: cores de degradê (⚪ do #334)", () => {
+  const svg = (u: string) => decodeURIComponent(u.replace("data:image/svg+xml;utf8,", ""));
+  it("canudo com 2 tons desenha um tubo só, sem cor indefinida", () => {
+    const s = svg(balloonColorImage("canudo", ["#FFD700", "#FDB931"]));
+    expect(s).not.toContain("undefined");
+    expect(s.match(/stroke-width="42"/g)?.length).toBe(1);
+  });
+  it("Ouro no foil usa o ramo metálico de uma cor (não faixas)", () => {
+    const one = svg(balloonColorImage("foil_numeros", ["#FFD700"], "A"));
+    expect(svg(balloonColorImage("foil_numeros", ["#FFD700", "#FDB931"], "A"))).toBe(one);
   });
 });

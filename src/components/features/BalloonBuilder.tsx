@@ -22,6 +22,7 @@ import {
 } from "@/types/balloon";
 import { suggestHexColor } from "@/lib/balloonColors";
 import {
+  balloonColorImage,
   balloonSizeHint,
   balloonSizeImage,
   balloonSizeLabel,
@@ -65,6 +66,15 @@ const getBalloonColor = (colorName: string) => {
   );
   if (gradientKey) return SPECIAL_GRADIENTS[gradientKey];
   return suggestHexColor(colorName) ?? "#EEEEEE";
+};
+
+// Cores da arte do balão (#321): as do degradê especial (metálico,
+// arco-íris) ou a cor sugerida pelo nome.
+const balloonHexes = (colorName: string): string[] => {
+  const css = getBalloonColor(colorName);
+  if (!css.includes("gradient")) return [css];
+  const hexes = css.match(/#[0-9a-fA-F]{6}/g);
+  return hexes?.length ? hexes : ["#E5E7EB"]; // Cristal: transparente claro
 };
 
 // Marca mais pedida pelos clientes: vem primeiro, com destaque.
@@ -602,8 +612,7 @@ export function BalloonBuilder() {
             </p>
             <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {availableColors.map((color) => {
-                const [colorName, colorHex] = color.split("|");
-                const bgColor = getBalloonColor(colorName);
+                const [colorName] = color.split("|");
 
                 return (
                   <button
@@ -611,13 +620,16 @@ export function BalloonBuilder() {
                     onClick={() => handleSelectColor(color)}
                     className="group flex flex-col items-center gap-2"
                   >
-                    <div
-                      className="w-full aspect-square rounded-xl border-2 border-slate-200 hover:border-purple-500 hover:scale-110 transition-all relative overflow-hidden"
-                      style={{
-                        background: bgColor,
-                      }}
-                    >
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                    {/* O balão na cor (no foil, a letra), não só um quadrado (#321). */}
+                    <div className="w-full aspect-square rounded-xl border-2 border-slate-200 bg-slate-50 group-hover:border-purple-500 transition-colors relative overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- SVG gerado no navegador */}
+                      <img
+                        src={balloonColorImage(selectedType.id, balloonHexes(colorName), isFoil ? "A" : undefined)}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="absolute inset-0 h-full w-full object-contain p-1 transition-transform group-hover:scale-105"
+                      />
                     </div>
                     <span className="text-xs font-medium text-slate-700 text-center leading-tight">
                       {colorName}
@@ -643,14 +655,30 @@ export function BalloonBuilder() {
 
             <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-lg border-2 border-purple-200">
               <div className="text-center mb-6">
-                <div
-                  className="inline-flex items-center justify-center w-24 h-24 rounded-full mb-4"
-                  style={{
-                    background: getBalloonColor(selectedColor.split("|")[0]),
-                    border: "4px solid white",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  }}
-                />
+                {/* Prévia: o balão na cor; no foil, o que a cliente digitou (#321). */}
+                <div className="mb-4 flex flex-wrap items-end justify-center gap-1" aria-hidden="true">
+                  {(isFoil ? (characters || "A").split("").slice(0, FOIL_MAX_CHARS) : [""]).map((ch, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element -- SVG gerado no navegador
+                    <img
+                      key={`${ch}-${i}`}
+                      src={balloonColorImage(
+                        selectedType.id,
+                        balloonHexes(selectedColor.split("|")[0]),
+                        isFoil ? ch : undefined,
+                      )}
+                      alt=""
+                      className={
+                        !isFoil
+                          ? "h-24 w-24"
+                          : characters.length > 12
+                            ? "h-8 w-8"
+                            : characters.length > 6
+                              ? "h-10 w-10"
+                              : "h-16 w-16"
+                      }
+                    />
+                  ))}
+                </div>
                 <h3 className="text-2xl font-black text-slate-800">
                   {selectedType.name} {balloonSizeLabel(selectedType.id, selectedSize.size)}
                 </h3>
