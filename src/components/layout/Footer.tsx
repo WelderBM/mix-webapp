@@ -34,37 +34,37 @@ export function Footer() {
           </div>
 
           {/* Links Rápidos (NOVO) */}
-          <div className="flex flex-col gap-2 text-sm">
+          <div className="flex flex-col text-sm">
             <h4 className="font-bold text-white uppercase text-xs tracking-wider mb-1">
               Acesso Rápido
             </h4>
             <Link
               href="/"
-              className="hover:text-purple-400 flex items-center gap-2"
+              className="hover:text-purple-400 flex min-h-11 items-center gap-2"
             >
               <Home size={14} /> Início
             </Link>
             <Link
               href="/fitas"
-              className="hover:text-purple-400 flex items-center gap-2"
+              className="hover:text-purple-400 flex min-h-11 items-center gap-2"
             >
               <Scissors size={14} /> Central de Fitas
             </Link>
             <Link
               href="/baloes"
-              className="hover:text-purple-400 flex items-center gap-2"
+              className="hover:text-purple-400 flex min-h-11 items-center gap-2"
             >
               <PartyPopper size={14} /> Orçamento de Balões
             </Link>
             <Link
               href="/fitas?aba=service" // Atalho direto
-              className="hover:text-purple-400 flex items-center gap-2"
+              className="hover:text-purple-400 flex min-h-11 items-center gap-2"
             >
               <Gift size={14} /> Criar Laço Personalizado
             </Link>
             <Link
               href="/meu-pedido"
-              className="hover:text-purple-400 flex items-center gap-2"
+              className="hover:text-purple-400 flex min-h-11 items-center gap-2"
             >
               <Package size={14} /> Rastrear Pedido
             </Link>
@@ -78,7 +78,7 @@ export function Footer() {
             href="https://maps.google.com/?q=Mix+Novidades+Boa+Vista"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-start gap-3 group cursor-pointer hover:text-white transition-colors"
+            className="flex min-h-11 items-start gap-3 group cursor-pointer hover:text-white transition-colors"
           >
             <div className="bg-slate-800 p-2 rounded-lg group-hover:bg-purple-600 transition-colors">
               <MapPin className="text-white shrink-0" size={20} />
@@ -95,7 +95,7 @@ export function Footer() {
             href="https://wa.me/5595984244194"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 group cursor-pointer hover:text-white transition-colors"
+            className="flex min-h-11 items-center gap-3 group cursor-pointer hover:text-white transition-colors"
           >
             <div className="bg-slate-800 p-2 rounded-lg group-hover:bg-green-600 transition-colors">
               <Phone className="text-white shrink-0" size={20} />
@@ -144,7 +144,7 @@ export function Footer() {
           © {new Date().getFullYear()} {storeName}. Todos os direitos reservados.
           <Link
             href="/admin"
-            className="ml-2 text-slate-700 hover:text-slate-500 transition-colors"
+            className="ml-1 inline-flex min-h-11 min-w-11 items-center justify-center text-slate-700 hover:text-slate-500 transition-colors"
             aria-label="Acesso Administrativo"
           >
             <Lock size={12} />
