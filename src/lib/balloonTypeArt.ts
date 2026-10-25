@@ -133,6 +133,42 @@ export function sizeInInches(typeId: string, size: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+// Comparação de tamanho (#322): uma pessoa de 1,70 m e cada balão na MESMA
+// escala. `heightPx` é a altura da pessoa no desenho. O balão nunca fica
+// menor que 8 px (o 5" ao lado de um adulto é quase um ponto).
+export const PERSON_CM = 170;
+export function sizeScale(
+  typeId: string,
+  sizes: string[],
+  heightPx: number,
+): { size: string; cm: number; px: number }[] {
+  return sizes
+    .map((size) => {
+      const inches = sizeInInches(typeId, size);
+      if (inches == null) return null;
+      const cm = Math.round(inches * 2.54);
+      return { size, cm, px: Math.max(8, Math.round((heightPx * cm) / PERSON_CM)) };
+    })
+    .filter((x): x is { size: string; cm: number; px: number } => x !== null);
+}
+
+// Silhueta neutra de adulto (cabeça + corpo), sem rosto: só referência.
+export function personSilhouetteImage(): string {
+  const k = "person";
+  if (!cache.has(k)) {
+    cache.set(
+      k,
+      toDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="170" viewBox="0 0 60 170">
+  <g fill="#cbd5e1">
+    <circle cx="30" cy="13" r="11"/>
+    <path d="M14 30 Q30 24 46 30 L52 84 Q53 90 48 90 L45 90 L43 62 L42 100 L40 166 Q40 170 35 170 L32 170 L31 108 L29 108 L28 170 L25 170 Q20 170 20 166 L18 100 L17 62 L15 90 L12 90 Q7 90 8 84 Z"/>
+  </g>
+</svg>`),
+    );
+  }
+  return cache.get(k)!;
+}
+
 // Lado do desenho em px: proporcional às polegadas, entre 44 e 96 (cabe
 // no botão de 2 colunas num celular de 360 px, mesmo no hover).
 export function balloonVisualPx(typeId: string, size: string): number {
