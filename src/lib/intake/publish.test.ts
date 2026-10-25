@@ -238,6 +238,6 @@ describe("appendGroupVariants (#253)", () => {
 
   it("nome repetido com código diferente é erro", () => {
     const r = appendGroupVariants(existing, [{ item: item({ sourceCode: "9" }), label: " azul " }]);
-    expect(r).toEqual({ error: 'O produto já tem uma opção "azul".' });
+    expect("error" in r && r.error).toMatch(/^O produto já tem uma opção "azul"./);
   });
 });

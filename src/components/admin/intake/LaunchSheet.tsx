@@ -462,8 +462,10 @@ export function LaunchSheet({
       else onChanged(changes[0].updated);
       onClose();
     } catch (err) {
+      // Erro nosso (validação) tem mensagem para a atendente; erro do
+      // Firestore (rede, permissão) traz `code` e cai na mensagem genérica.
       toast.error(
-        err instanceof Error && err.message.startsWith("O produto")
+        err instanceof Error && !("code" in err)
           ? err.message
           : "Não foi possível salvar. Verifique a conexão e tente de novo.",
       );

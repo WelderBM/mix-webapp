@@ -209,7 +209,9 @@ export function appendGroupVariants(
     const name = m.label.trim();
     if (!name) return { error: "Toda opção precisa de um nome." };
     if (names.has(name.toLowerCase()))
-      return { error: `O produto já tem uma opção "${name}".` };
+      return {
+        error: `O produto já tem uma opção "${name}". Se for a mesma cor com código novo no Noturno, edite o produto ou pule este item.`,
+      };
     names.add(name.toLowerCase());
     const type = m.attribute ?? "Cor";
     added.push({

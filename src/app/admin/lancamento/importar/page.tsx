@@ -233,11 +233,14 @@ export default function NoturnoImportPage() {
           const ref = doc(db, "products", u.productId);
           if (!u.variants) return updateDoc(ref, { inStock: u.inStock });
           // Produto lançado em grupo (#201): atualiza cada cor; o estoque do
-          // produto conta só as cores que ele ainda tem (#253).
-          const snap = await getDoc(ref);
-          if (!snap.exists()) throw { code: "not-found" };
-          const data = snap.data();
-          return updateDoc(ref, groupStock(data.variants, u, data.inStock));
+          // produto conta só as cores que ele ainda tem (#253). Transação:
+          // uma cor acrescentada pela fila ao mesmo tempo não se perde.
+          return runTransaction(db, async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists()) throw { code: "not-found" };
+            const data = snap.data();
+            tx.update(ref, groupStock(data.variants, u, data.inStock));
+          });
         }),
       );
       // Só "produto não existe" (apagado à mão no admin) é ignorado. Qualquer
