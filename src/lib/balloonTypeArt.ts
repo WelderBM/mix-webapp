@@ -105,7 +105,10 @@ export function balloonSizeImage(typeId: string): string {
 // no passo da cor e no resumo do montador, no lugar do quadrado de cor.
 export function balloonColorImage(typeId: string, hex: string | string[], glyph?: string): string {
   const base = baseOf(typeId);
-  const colors = Array.isArray(hex) ? hex : [hex];
+  const all = Array.isArray(hex) ? hex : [hex];
+  // Degradê de 2 tons (Ouro, Prata, Rose Gold…) é UMA cor: a primeira mantém
+  // o reflexo metálico. Faixas só para o arco-íris (3+). Canudo: um tubo só.
+  const colors = all.length >= 3 && base !== "canudo" ? all : all.slice(0, 1);
   const k = `c:${base}:${colors.join(",")}:${glyph ?? ""}`;
   if (!cache.has(k)) {
     const look = LOOKS[base] ?? FALLBACK;

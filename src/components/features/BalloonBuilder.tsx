@@ -667,7 +667,15 @@ export function BalloonBuilder() {
                         isFoil ? ch : undefined,
                       )}
                       alt=""
-                      className={isFoil ? "h-16 w-16" : "h-24 w-24"}
+                      className={
+                        !isFoil
+                          ? "h-24 w-24"
+                          : characters.length > 12
+                            ? "h-8 w-8"
+                            : characters.length > 6
+                              ? "h-10 w-10"
+                              : "h-16 w-16"
+                      }
                     />
                   ))}
                 </div>

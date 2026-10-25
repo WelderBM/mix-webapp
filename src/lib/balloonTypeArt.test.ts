@@ -69,7 +69,20 @@ describe("balloonColorImage (#321)", () => {
     expect(svg(balloonColorImage("foil_numeros", "#c0c0c0"))).toMatch(/>A<\/text>/);
   });
   it("arco-íris usa as várias cores; marca usa a arte do tipo base", () => {
-    expect(svg(balloonColorImage("simples", ["#ff0000", "#00ff00"]))).toContain("#00ff00");
+    expect(svg(balloonColorImage("simples", ["#ff0000", "#00ff00", "#0000ff"]))).toContain("#00ff00");
     expect(balloonColorImage("simples__riberball", "#123456")).toBe(balloonColorImage("simples", "#123456"));
+  });
+});
+
+describe("balloonColorImage: cores de degradê (⚪ do #334)", () => {
+  const svg = (u: string) => decodeURIComponent(u.replace("data:image/svg+xml;utf8,", ""));
+  it("canudo com 2 tons desenha um tubo só, sem cor indefinida", () => {
+    const s = svg(balloonColorImage("canudo", ["#FFD700", "#FDB931"]));
+    expect(s).not.toContain("undefined");
+    expect(s.match(/stroke-width="42"/g)?.length).toBe(1);
+  });
+  it("Ouro no foil usa o ramo metálico de uma cor (não faixas)", () => {
+    const one = svg(balloonColorImage("foil_numeros", ["#FFD700"], "A"));
+    expect(svg(balloonColorImage("foil_numeros", ["#FFD700", "#FDB931"], "A"))).toBe(one);
   });
 });
