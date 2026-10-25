@@ -60,8 +60,14 @@ export function CartIcon() {
     : 0;
 
   return (
-    <Button variant="ghost" size="icon" className="relative" onClick={openCart}>
-      <ShoppingCart className="h-5 w-5 text-slate-700" />
+    <Button
+      variant="ghost"
+      size="icon"
+      className="relative h-11 w-11"
+      onClick={openCart}
+      aria-label={count > 0 ? `Abrir carrinho, ${count} ${count === 1 ? "item" : "itens"}` : "Abrir carrinho"}
+    >
+      <ShoppingCart className="h-5 w-5 text-slate-700" aria-hidden="true" />
       {count > 0 && (
         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
           {count}
