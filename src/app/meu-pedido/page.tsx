@@ -234,11 +234,16 @@ export function TrackOrderContent() {
       <div className="w-full max-w-md space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full">
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="size-11 rounded-full"
+          >
+            <Link href="/" aria-label="Voltar para a loja">
               <ArrowLeft size={24} />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
           <h1 className="text-2xl font-bold text-slate-800">Rastrear Pedido</h1>
         </div>
 
@@ -255,12 +260,14 @@ export function TrackOrderContent() {
                 placeholder="Cole o ID do pedido aqui..."
                 value={orderId}
                 onChange={(e) => setOrderId(e.target.value)}
-                className="bg-slate-50 font-mono text-sm"
+                aria-label="Número do pedido"
+                className="h-11 bg-slate-50 font-mono text-sm"
               />
               <Button
                 type="submit"
                 disabled={loading}
-                className="bg-purple-600 hover:bg-purple-700 w-12 shrink-0 p-0"
+                aria-label="Buscar pedido"
+                className="bg-purple-600 hover:bg-purple-700 h-11 w-12 shrink-0 p-0"
               >
                 {loading ? (
                   <Loader2 className="animate-spin" />

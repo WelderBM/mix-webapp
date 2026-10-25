@@ -215,7 +215,7 @@ function FitasContent() {
               <TabsList className="w-full md:w-auto grid grid-cols-3 h-auto p-1 bg-slate-100 rounded-xl">
                 <TabsTrigger
                   value="rolls"
-                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
+                  className="min-h-11 py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
                   <Lock className="w-4 h-4" />{" "}
                   <span className="md:inline">
@@ -224,14 +224,14 @@ function FitasContent() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="meter"
-                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
+                  className="min-h-11 py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
                   <Scissors className="w-4 h-4" />{" "}
                   <span className="md:inline">Por Metro</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="service"
-                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
+                  className="min-h-11 py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
                   <Gift className="w-4 h-4" />{" "}
                   <span className="md:inline">Criar Laço</span>
