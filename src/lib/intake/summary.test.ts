@@ -111,3 +111,24 @@ describe("summaryDeltas (limite de 500 transforms)", () => {
     expect(d.some((x) => x.path[0] === "publishedBy" || x.path[0] === "publishedStockValue")).toBe(false);
   });
 });
+
+describe("summaryDeltas: fita por área e leva mista", () => {
+  const item = (o: Partial<IntakeItem>) =>
+    ({ status: "pendente", family: "FITA", name: "FITA MAXI 32MMX100 AZUL", suggestedType: "RIBBON", stock: 1, unitCost: 1, ...o }) as IntakeItem;
+
+  it("fita de laço desconta a área dela; adesiva vai para a área 5", () => {
+    const d = summaryDeltas([item({}), item({ suggestedType: "STANDARD_ITEM", name: "FITA ADESIVA 48X50" })], "publicado");
+    const areas = d.filter((x) => x.path[0] === "ribbonAreas");
+    expect(areas.reduce((n, x) => n + x.delta, 0)).toBe(-2);
+    expect(areas.find((x) => x.path[1] === "5")?.delta).toBe(-1);
+  });
+
+  it("leva com origens diferentes soma cada status certo", () => {
+    const d = summaryDeltas([item({}), item({ status: "pulado" }), item({ status: "publicado" })], "publicado");
+    const get = (...p: string[]) => d.find((x) => x.path.join("/") === p.join("/"))?.delta;
+    expect(get("byStatus", "pendente")).toBe(-1);
+    expect(get("byStatus", "pulado")).toBe(-1);
+    expect(get("byStatus", "publicado")).toBe(2);
+    expect(get("families", "FITA", "pending")).toBe(-1); // só o que era pendente
+  });
+});
