@@ -3,6 +3,7 @@
 // Balão é a maior família do Noturno (655 itens); 88% caem num formato
 // conhecido. Os temáticos (leão, margarida, "revelação"…) devolvem null —
 // esses precisam de foto de verdade.
+import { RAINBOW_HEXES } from "@/lib/balloonColors";
 
 export type BalloonShape = "letra" | "numero" | "coracao" | "estrela" | "redondo" | "latex";
 
@@ -18,7 +19,7 @@ export interface BalloonInfo {
 
 // Cor → hex. Ordem importa: compostas antes das simples.
 const COLOR_TABLE: [RegExp, string, string[]][] = [
-  [/\bARCO ?IRIS\b|\bACO IRIS\b|\bARCOIRIS\b/, "Arco-íris", ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7"]],
+  [/\bARCO ?IRIS\b|\bACO IRIS\b|\bARCOIRIS\b/, "Arco-íris", RAINBOW_HEXES],
   [/\bSORTID[OA]S?\b|\bCANDY\b|\bCOLOR(IDO)?\b|\bMULTICOR\b/, "Sortido", ["#f472b6", "#60a5fa", "#facc15", "#4ade80"]],
   [/\bROSE ?GOLD\b|\bROSE\b/, "Rose gold", ["#e8a598"]],
   [/\bAZUL (BABY|BEBE|CLARO)\b/, "Azul bebê", ["#93c5fd"]],

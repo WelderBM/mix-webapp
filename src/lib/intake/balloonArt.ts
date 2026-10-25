@@ -27,7 +27,14 @@ function fillDefs(id: string, info: BalloonInfo): string {
     const stops = info.colors
       .map((c, i) => `<stop offset="${(i * step).toFixed(0)}%" stop-color="${c}"/>`)
       .join("");
-    return `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1">${stops}</linearGradient>`;
+    // Letra/número arco-íris: faixas de cima para baixo, como o foil real,
+    // medidas na altura da letra desenhada (a caixa do texto é mais alta
+    // que a letra e cortaria o rosa e o azul das pontas).
+    const vertical = info.shape === "letra" || info.shape === "numero";
+    const axis = vertical
+      ? 'gradientUnits="userSpaceOnUse" x1="0" y1="130" x2="0" y2="395"'
+      : 'x1="0" y1="0" x2="1" y2="1"';
+    return `<linearGradient id="${id}" ${axis}>${stops}</linearGradient>`;
   }
   const c = info.colors[0];
   return info.metallic
@@ -75,11 +82,41 @@ function star(fill: string, stroke: string): string {
           <ellipse cx="205" cy="200" rx="18" ry="34" fill="#fff" opacity="0.4" transform="rotate(-30 205 200)"/>`;
 }
 
-function glyph(text: string, fill: string, stroke: string): string {
-  return `<text x="256" y="268" text-anchor="middle" dominant-baseline="middle"
+// Relevo do foil (#343): a luz bate no alto-esquerdo de um corpo estufado.
+// O desfoque da silhueta vira um "volume"; a luz difusa escurece a borda
+// do lado da sombra e a especular põe o brilho metálico.
+function puffFilter(id: string): string {
+  return `<filter id="${id}" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="14" result="b"/>
+    <feDiffuseLighting in="b" surfaceScale="7" diffuseConstant="1.15" lighting-color="#ffffff" result="d">
+      <feDistantLight azimuth="225" elevation="55"/>
+    </feDiffuseLighting>
+    <feSpecularLighting in="b" surfaceScale="7" specularConstant="0.95" specularExponent="32" lighting-color="#ffffff" result="s">
+      <feDistantLight azimuth="225" elevation="55"/>
+    </feSpecularLighting>
+    <feComposite in="SourceGraphic" in2="d" operator="arithmetic" k1="0.98" k2="0" k3="0" k4="0" result="lit"/>
+    <feComposite in="s" in2="SourceAlpha" operator="in" result="shine"/>
+    <feComposite in="lit" in2="shine" operator="arithmetic" k1="0" k2="1" k3="0.45" k4="0" result="out"/>
+    <feComposite in="out" in2="SourceAlpha" operator="in"/>
+  </filter>`;
+}
+
+// Letra/número foil o mais perto do real (#343): contorno grosso e
+// arredondado (balão estufado), costura serrilhada na borda e o corpo com
+// relevo de luz. Fonte pesada com traço largo = cantos redondos.
+function glyph(text: string, fill: string, stroke: string, puffId: string): string {
+  const t = (attrs: string) => `<text x="256" y="262" text-anchor="middle" dominant-baseline="middle"
                 font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900"
-                font-size="${text.length > 1 ? 250 : 360}" fill="${fill}" stroke="${stroke}"
-                stroke-width="8" paint-order="stroke" stroke-linejoin="round">${esc(text)}</text>`;
+                font-size="${text.length > 1 ? 230 : 330}" stroke-linejoin="round" stroke-linecap="round"
+                ${attrs}>${esc(text)}</text>`;
+  return [
+    // Borda da costura (mais escura).
+    t(`fill="${stroke}" stroke="${stroke}" stroke-width="48"`),
+    // Serrilhado da costura: pontinhos claros ao longo da borda.
+    t(`fill="none" stroke="#ffffff" stroke-width="44" stroke-dasharray="3 9" opacity="0.35"`),
+    // Corpo estufado na cor, com relevo.
+    t(`fill="${fill}" stroke="${fill}" stroke-width="34" filter="url(#${puffId})"`),
+  ].join("");
 }
 
 export function balloonSvg(
@@ -101,7 +138,8 @@ export function balloonSvg(
   switch (info.shape) {
     case "letra":
     case "numero":
-      body = glyph(glyphOverride ?? info.glyph ?? "A", fill, stroke);
+      body = glyph(glyphOverride ?? info.glyph ?? "A", fill, stroke, `${id}-puff`);
+      extraDefs = puffFilter(`${id}-puff`);
       break;
     case "coracao":
       body = heart(fill, stroke);

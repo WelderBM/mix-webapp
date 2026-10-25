@@ -20,7 +20,7 @@ import {
   BalloonTypeConfig,
   BalloonSizeConfig,
 } from "@/types/balloon";
-import { suggestHexColor } from "@/lib/balloonColors";
+import { RAINBOW_HEXES, suggestHexColor } from "@/lib/balloonColors";
 import {
   balloonColorImage,
   balloonSizeHint,
@@ -55,8 +55,8 @@ const SPECIAL_GRADIENTS: Record<string, string> = {
   Cromado: "linear-gradient(135deg, #CFD8DC 0%, #90A4AE 100%)",
   Cristal:
     "radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.2) 100%)",
-  "Arco Iris":
-    "linear-gradient(135deg, #FF3B30 0%, #FF9500 20%, #FFCC00 40%, #34C759 60%, #007AFF 80%, #AF52DE 100%)",
+  // Degradê de cima para baixo, como o balão de verdade (#343).
+  "Arco Iris": `linear-gradient(180deg, ${RAINBOW_HEXES.join(", ")})`,
 };
 
 const getBalloonColor = (colorName: string) => {
