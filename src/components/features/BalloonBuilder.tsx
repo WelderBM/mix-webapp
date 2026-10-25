@@ -36,7 +36,7 @@ import {
   foilShortage,
   isSoldOut,
 } from "@/lib/intake/balloonCatalog";
-import { FOIL_MAX_CHARS, FOIL_TYPE_ID, foilCharacters } from "@/lib/balloonFoil";
+import { FOIL_TYPE_ID, foilCharacters, foilPieces, foilWords } from "@/lib/balloonFoil";
 import { BalloonSizeScale } from "@/components/features/BalloonSizeScale";
 import type { BalloonStock, BalloonStockDoc, FoilCharStock } from "@/types/balloon";
 
@@ -241,13 +241,16 @@ export function BalloonBuilder() {
 
   const isFoil = baseTypeId(selectedTypeId) === FOIL_TYPE_ID;
   // Foil: um balão por caractere; a quantidade conta conjuntos ("ANA" × 2).
-  const piecesPerSet = isFoil ? characters.length : 1;
+  // Espaço separa palavras e não é balão (#342).
+  const foilText = characters.trim();
+  const pieces = foilPieces(characters);
+  const piecesPerSet = isFoil ? pieces.length : 1;
   // Letras e números que a cor escolhida tem (null = sem informação).
   const foilAvailable =
     isFoil && selectedSize && selectedColor
       ? foilCharStock(foilChars, selectedSize.size, selectedColor)
       : null;
-  const foilShort = isFoil ? foilShortage(characters, quantity, foilAvailable) : [];
+  const foilShort = isFoil ? foilShortage(pieces, quantity, foilAvailable) : [];
   // Digitado: caractere que a cor não tem não entra, e o cliente vê o porquê.
   const typeFoil = (raw: string) => {
     const clean = foilCharacters(raw);
@@ -255,9 +258,11 @@ export function BalloonBuilder() {
       setCharacters(clean);
       return;
     }
-    const missing = [...new Set(clean.split("").filter((c) => !(foilAvailable[c] > 0)))];
+    const missing = [...new Set(foilPieces(clean).split("").filter((c) => !(foilAvailable[c] > 0)))];
     setFoilBlocked(missing.join(" "));
-    setCharacters(clean.split("").filter((c) => foilAvailable[c] > 0).join(""));
+    setCharacters(
+      foilCharacters(clean.split("").filter((c) => c === " " || foilAvailable[c] > 0).join(""))
+    );
   };
   const currentPrice = useMemo(() => {
     if (!selectedSize) return 0;
@@ -295,7 +300,7 @@ export function BalloonBuilder() {
       toast.error("Selecione todas as opções");
       return;
     }
-    if (isFoil && !characters) {
+    if (isFoil && !pieces) {
       toast.error("Digite as letras ou números que você quer.");
       return;
     }
@@ -314,7 +319,7 @@ export function BalloonBuilder() {
       cartId: crypto.randomUUID(),
       type: "CUSTOM_BALLOON" as const,
       quantity,
-      kitName: `${typeLabel} ${balloonSizeLabel(selectedType.id, selectedSize.size)}${isFoil ? `: ${characters}` : ""} - ${colorName}`,
+      kitName: `${typeLabel} ${balloonSizeLabel(selectedType.id, selectedSize.size)}${isFoil ? `: ${foilWords(foilText).join(" / ")}` : ""} - ${colorName}`,
       kitTotalAmount: selectedSize.price * piecesPerSet,
       balloonDetails: {
         typeId: selectedType.id,
@@ -324,7 +329,7 @@ export function BalloonBuilder() {
         color: colorName,
         colorHex: selectedColor.split("|")[1] || "#EEEEEE",
         unitsPerPackage: selectedSize.unitsPerPackage,
-        ...(isFoil ? { characters } : {}),
+        ...(isFoil ? { characters: foilText } : {}),
       },
     };
 
@@ -662,28 +667,37 @@ export function BalloonBuilder() {
             <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-lg border-2 border-purple-200">
               <div className="text-center mb-6">
                 {/* Prévia: o balão na cor; no foil, o que a cliente digitou (#321). */}
-                <div className="mb-4 flex flex-wrap items-end justify-center gap-1" aria-hidden="true">
-                  {(isFoil ? (characters || "A").split("").slice(0, FOIL_MAX_CHARS) : [""]).map((ch, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element -- SVG gerado no navegador
-                    <img
-                      key={`${ch}-${i}`}
-                      src={balloonColorImage(
-                        selectedType.id,
-                        balloonHexes(selectedColor.split("|")[0]),
-                        isFoil ? ch : undefined,
-                      )}
-                      alt=""
-                      className={
-                        !isFoil
-                          ? "h-24 w-24"
-                          : characters.length > 12
-                            ? "h-8 w-8"
-                            : characters.length > 6
-                              ? "h-10 w-10"
-                              : "h-16 w-16"
-                      }
-                    />
-                  ))}
+                {/* Foil: uma linha por palavra, como fica montado na festa (#342). */}
+                <div className="mb-4 flex flex-col items-center gap-2" aria-hidden="true">
+                  {(isFoil ? (foilWords(characters).length ? foilWords(characters) : ["A"]) : [""]).map((word, w, words) => {
+                    const longest = Math.max(...words.map((x) => x.length));
+                    const size = !isFoil
+                      ? "h-24 w-24"
+                      : longest > 12
+                        ? "h-6 w-6"
+                        : longest > 8
+                          ? "h-8 w-8"
+                          : longest > 5
+                            ? "h-11 w-11"
+                            : "h-16 w-16";
+                    return (
+                      <div key={`${word}-${w}`} className="flex flex-wrap items-end justify-center gap-1">
+                        {(isFoil ? word.split("") : [""]).map((ch, i) => (
+                          // eslint-disable-next-line @next/next/no-img-element -- SVG gerado no navegador
+                          <img
+                            key={`${ch}-${i}`}
+                            src={balloonColorImage(
+                              selectedType.id,
+                              balloonHexes(selectedColor.split("|")[0]),
+                              isFoil ? ch : undefined,
+                            )}
+                            alt=""
+                            className={size}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
                 <h3 className="text-2xl font-black text-slate-800">
                   {selectedType.name} {balloonSizeLabel(selectedType.id, selectedSize.size)}
@@ -701,16 +715,29 @@ export function BalloonBuilder() {
                   <input
                     value={characters}
                     onChange={(e) => typeFoil(e.target.value)}
-                    maxLength={FOIL_MAX_CHARS}
                     autoCapitalize="characters"
                     autoComplete="off"
-                    placeholder="Ex.: ANA ou 15"
-                    className="h-12 w-full rounded-xl border-2 border-slate-200 px-4 text-center text-2xl font-black tracking-widest outline-none focus:border-purple-500"
+                    placeholder="Ex.: ANA ou FELIZ 15 ANOS"
+                    className={cn(
+                      "h-12 w-full rounded-xl border-2 border-slate-200 px-4 text-center font-black outline-none focus:border-purple-500",
+                      // A fonte diminui para o texto inteiro caber no campo.
+                      characters.length > 24
+                        ? "text-sm tracking-normal"
+                        : characters.length > 16
+                          ? "text-base tracking-wide"
+                          : characters.length > 10
+                            ? "text-xl tracking-wider"
+                            : "text-2xl tracking-widest"
+                    )}
                   />
                   <span className="mt-1 block text-xs text-slate-500">
-                    {characters
-                      ? `${characters.length} balão(ões), um por caractere.`
-                      : "Cada letra ou número é um balão."}
+                    {pieces
+                      ? `${pieces.length} balão(ões)${
+                          foilWords(characters).length > 1
+                            ? ` em ${foilWords(characters).length} palavras`
+                            : ""
+                        }. Espaço separa as palavras e não é balão.`
+                      : "Cada letra ou número é um balão. Use espaço para separar palavras."}
                   </span>
                   {foilBlocked && (
                     <span role="alert" className="mt-1 block text-sm font-medium text-red-600">
@@ -732,7 +759,7 @@ export function BalloonBuilder() {
                         <button
                           key={ch}
                           type="button"
-                          disabled={!has || left < quantity || characters.length >= FOIL_MAX_CHARS}
+                          disabled={!has || left < quantity}
                           onClick={() => {
                             setFoilBlocked("");
                             setCharacters((t) => t + ch);
@@ -751,6 +778,14 @@ export function BalloonBuilder() {
                       );
                     })}
                   </div>
+                  <button
+                    type="button"
+                    disabled={!pieces || characters.endsWith(" ")}
+                    onClick={() => setCharacters((t) => foilCharacters(t + " "))}
+                    className="mt-1.5 h-11 w-full rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:border-purple-500 disabled:opacity-40"
+                  >
+                    Espaço (nova palavra)
+                  </button>
                   <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
                     <span>Riscado: sem estoque nesta cor.</span>
                     {characters && (
