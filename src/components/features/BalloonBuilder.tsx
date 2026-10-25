@@ -36,6 +36,7 @@ import {
   isSoldOut,
 } from "@/lib/intake/balloonCatalog";
 import { FOIL_MAX_CHARS, FOIL_TYPE_ID, foilCharacters } from "@/lib/balloonFoil";
+import { BalloonSizeScale } from "@/components/features/BalloonSizeScale";
 import type { BalloonStock, BalloonStockDoc, FoilCharStock } from "@/types/balloon";
 
 // Teclado do foil: a ordem em que os caracteres aparecem.
@@ -543,6 +544,11 @@ export function BalloonBuilder() {
             <h3 className="text-xl font-bold text-center mb-6">
               Escolha o Tamanho - {selectedType.name}
             </h3>
+            {/* Pessoa de 1,70 m ao lado dos balões, na mesma escala (#322). */}
+            <BalloonSizeScale
+              typeId={selectedType.id}
+              sizes={availableSizes.map((s) => s.size)}
+            />
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {availableSizes.map((size) => {
                 // Proporcional às polegadas (40 cm ≈ 16"); canudo, fixo.

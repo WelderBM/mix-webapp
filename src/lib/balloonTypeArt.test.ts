@@ -3,6 +3,7 @@ import {
   balloonSizeHint,
   balloonSizeImage,
   balloonSizeLabel,
+  sizeScale,
   balloonTypeImage,
   balloonVisualPx,
   sizeInInches,
@@ -51,5 +52,18 @@ describe("arte do montador de balões", () => {
     expect(balloonSizeLabel("foil_numeros", "45cm")).toBe('45 cm · 18"');
     expect(balloonSizeLabel("foil_numeros", "70-75cm")).toBe('70–75 cm · 28–30"');
     expect(balloonSizeLabel("canudo", "260")).toBe("260");
+  });
+});
+
+describe("sizeScale (#322)", () => {
+  it("balões na escala de uma pessoa de 1,70 m", () => {
+    const s = sizeScale("simples", ["9", "16"], 170);
+    expect(s).toEqual([
+      { size: "9", cm: 23, px: 23 },
+      { size: "16", cm: 41, px: 41 },
+    ]);
+    expect(sizeScale("foil_numeros", ["70-75cm"], 170)[0].cm).toBe(76);
+    expect(sizeScale("simples", ["5"], 50)[0].px).toBe(8); // mínimo visível
+    expect(sizeScale("canudo", ["260"], 170)).toEqual([]);
   });
 });
