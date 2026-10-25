@@ -33,7 +33,13 @@ import { statusTransitionDeltas } from "@/lib/intake/publish";
 import { useCategoryStore } from "@/store/categoryStore";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LaunchSheet } from "@/components/admin/intake/LaunchSheet";
-import { attributePlural, buildGroups, type VariantGroup } from "@/lib/intake/groups";
+import {
+  attributePlural,
+  buildGroups,
+  groupKeyFor,
+  publishedGroupsByKey,
+  type VariantGroup,
+} from "@/lib/intake/groups";
 import { splitBowRibbons } from "@/lib/intake/ribbonLines";
 import { splitCatalogBalloons } from "@/lib/intake/merge";
 import {
@@ -338,6 +344,14 @@ export default function IntakeQueuePage() {
     ].sort((a, b) => b.priority - a.priority);
   }, [listed]);
 
+  // Produtos já lançados em grupo, por chave (#253): pendente da mesma base
+  // ganha "acrescentar ao produto da loja" no card.
+  const publishedGroups = useMemo(() => publishedGroupsByKey(items ?? []), [items]);
+  const selectedPublishedGroup =
+    selected?.status === "pendente"
+      ? (publishedGroups.get(selectedGroup?.key ?? groupKeyFor(selected) ?? "") ?? null)
+      : null;
+
   const families = useMemo(
     () => (summary ? sortedFamilies(summary) : []),
     [summary],
@@ -590,6 +604,7 @@ export default function IntakeQueuePage() {
         categories={categories}
         userEmail={user.email}
         group={selectedGroup}
+        publishedGroup={selectedPublishedGroup}
         onClose={() => {
           setSelected(null);
           setSelectedGroup(null);

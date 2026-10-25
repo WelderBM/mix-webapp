@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildGroups, groupKeyFor, splitVariantName } from "./groups";
+import { buildGroups, groupKeyFor, publishedGroupsByKey, splitVariantName } from "./groups";
 
 const it_ = (sourceCode: string, name: string, family = "ZIPER", suggestedType = "STANDARD_ITEM") =>
   ({ sourceCode, name, family, suggestedType }) as {
@@ -86,5 +86,37 @@ describe("buildGroups", () => {
       "Colorido cor 300 (cód. 1)",
       "Colorido cor 300 (cód. 2)",
     ]);
+  });
+});
+
+describe("publishedGroupsByKey (#253)", () => {
+  const pub = (code: string, name: string, productId: string | null, status = "publicado") => ({
+    ...it_(code, name),
+    status,
+    productId,
+  });
+
+  it("acha o produto em grupo pela base e ignora publicado solto e pendente", () => {
+    const map = publishedGroupsByKey([
+      pub("1", "ZIPER NYLON 15CM AZUL", "p1"),
+      pub("2", "ZIPER NYLON 15CM VERDE", "p1"),
+      pub("3", "ZIPER NYLON 15CM ROSA", null, "pendente"),
+      pub("4", "CANETA GEL PRETA", "p2"),
+    ]);
+    const key = groupKeyFor(it_("3", "ZIPER NYLON 15CM ROSA"))!;
+    expect(map.get(key)).toMatchObject({ productId: "p1", attribute: "Cor" });
+    expect(map.get(key)?.labels).toHaveLength(2);
+    expect(map.get(groupKeyFor(it_("5", "CANETA GEL AZUL"))!)).toBeUndefined();
+  });
+
+  it("dois produtos com a mesma base: fica o de mais opções", () => {
+    const map = publishedGroupsByKey([
+      pub("1", "ZIPER NYLON 15CM AZUL", "p1"),
+      pub("2", "ZIPER NYLON 15CM VERDE", "p1"),
+      pub("3", "ZIPER NYLON 15CM ROSA", "p2"),
+      pub("4", "ZIPER NYLON 15CM LILAS", "p2"),
+      pub("5", "ZIPER NYLON 15CM BRANCO", "p2"),
+    ]);
+    expect(map.get(groupKeyFor(it_("6", "ZIPER NYLON 15CM PRETO"))!)?.productId).toBe("p2");
   });
 });

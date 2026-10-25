@@ -92,6 +92,41 @@ export function groupKeyFor(item: GroupInput): string | null {
     : `${item.family ?? ""}|${attribute}|${normalizeText(base)}`;
 }
 
+// Produto já publicado em grupo, por chave de grupo (#253): 2+ itens
+// publicados com a mesma chave apontando para o mesmo produto. Serve para
+// oferecer "adicionar como cor" a um pendente da mesma base, em vez de
+// lançar um segundo produto com o mesmo nome. Sai dos itens já carregados
+// (a fila lê a família inteira), sem leitura extra.
+export interface PublishedGroup {
+  productId: string;
+  labels: string[];
+  attribute: GroupAttribute;
+}
+
+export function publishedGroupsByKey(
+  items: (GroupInput & { status: string; productId?: string | null })[],
+): Map<string, PublishedGroup> {
+  const byKey = new Map<string, Map<string, PublishedGroup>>();
+  for (const i of items) {
+    if (i.status !== "publicado" || !i.productId) continue;
+    const key = groupKeyFor(i);
+    if (!key) continue;
+    const { label, attribute } = splitForGroup(i);
+    const products = byKey.get(key) ?? new Map<string, PublishedGroup>();
+    const g = products.get(i.productId) ?? { productId: i.productId, labels: [], attribute };
+    g.labels.push(label!);
+    products.set(i.productId, g);
+    byKey.set(key, products);
+  }
+  const out = new Map<string, PublishedGroup>();
+  for (const [key, products] of byKey) {
+    // Mais de um produto com a mesma base: o de mais opções é "o" grupo.
+    const best = [...products.values()].sort((a, b) => b.labels.length - a.labels.length)[0];
+    if (best.labels.length >= 2) out.set(key, best);
+  }
+  return out;
+}
+
 export interface VariantGroup<T> {
   key: string;
   base: string; // nome base para exibir ("Zíper nylon 15cm")

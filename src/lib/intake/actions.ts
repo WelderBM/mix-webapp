@@ -3,8 +3,10 @@ import {
   doc,
   FieldPath,
   increment,
+  runTransaction,
   serverTimestamp,
   writeBatch,
+  type Transaction,
   type WriteBatch,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -12,8 +14,10 @@ import { db, storage } from "@/lib/firebase";
 import type { IntakeItem, IntakeWorkflowStatus } from "@/types/intake";
 import type { Product } from "@/types";
 import {
+  appendGroupVariants,
   buildGroupProductFromIntake,
   buildProductFromIntake,
+  MAX_GROUP_SIZE,
   statusTransitionDeltas,
   type GroupMember,
   type LaunchInput,
@@ -35,7 +39,7 @@ function assertNotCatalogBalloon(items: Pick<IntakeItem, "family" | "name">[]) {
 // item ainda "pendente", nem placar desencontrado).
 
 function addSummaryDeltas(
-  batch: WriteBatch,
+  batch: WriteBatch | Transaction,
   item: IntakeItem,
   to: IntakeWorkflowStatus,
   userEmail: string | null = null,
@@ -70,7 +74,8 @@ function addSummaryDeltas(
   }
   if (updates.length === 0) return;
   const [field, value, ...rest] = updates;
-  batch.update(
+  // Batch e transação têm o mesmo update(ref, campo, valor, ...).
+  (batch as WriteBatch).update(
     doc(db, "intake_meta", "summary"),
     field as FieldPath,
     value,
@@ -166,6 +171,44 @@ export async function publishIntakeGroup(
   }
   await batch.commit();
   return productRef.id;
+}
+
+// Cor nova num produto já lançado em grupo (#253): variações acrescentadas
+// + itens publicados apontando para o MESMO produto. Transação, não batch:
+// a lista de variações é lida e regravada inteira, e outra atendente (ou a
+// reimportação) gravando no mesmo produto ao mesmo tempo apagaria a cor
+// nova. A transação refaz a leitura se o produto mudou no meio.
+export async function addToGroupProduct(
+  members: GroupMember[],
+  productId: string,
+  userEmail: string | null,
+): Promise<void> {
+  assertNotCatalogBalloon(members.map((m) => m.item));
+  if (members.length > MAX_GROUP_SIZE) {
+    throw new Error(
+      `Grupo grande demais: acrescente no máximo ${MAX_GROUP_SIZE} opções de uma vez.`,
+    );
+  }
+  const productRef = doc(db, "products", productId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(productRef);
+    if (!snap.exists()) throw new Error("O produto não existe mais na loja.");
+    const result = appendGroupVariants(
+      (snap.data() as Product).variants,
+      members,
+    );
+    if ("error" in result) throw new Error(result.error);
+    tx.update(productRef, result);
+    for (const { item } of members) {
+      tx.update(doc(db, "intake_items", item.id), {
+        status: "publicado",
+        productId,
+        publishedAt: serverTimestamp(),
+        publishedBy: userEmail,
+      });
+      addSummaryDeltas(tx, item, "publicado", userEmail);
+    }
+  });
 }
 
 // Pular / "não vender online" do grupo inteiro num batch só (tudo ou
