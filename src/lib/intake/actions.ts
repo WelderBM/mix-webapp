@@ -18,12 +18,10 @@ import {
   buildGroupProductFromIntake,
   buildProductFromIntake,
   MAX_GROUP_SIZE,
-  statusTransitionDeltas,
   type GroupMember,
   type LaunchInput,
 } from "./publish";
-import { NO_FAMILY, stockValue } from "./summary";
-import { areaForItem, RIBBON_FAMILY } from "./areas";
+import { summaryDeltas } from "./summary";
 import { isCatalogBalloon } from "./merge";
 
 // Balão do catálogo do montador nunca vira produto da loja (o montador já
@@ -40,38 +38,16 @@ function assertNotCatalogBalloon(items: Pick<IntakeItem, "family" | "name">[]) {
 
 function addSummaryDeltas(
   batch: WriteBatch | Transaction,
-  item: IntakeItem,
+  items: IntakeItem[],
   to: IntakeWorkflowStatus,
   userEmail: string | null = null,
 ) {
-  const { byStatus, familyPending } = statusTransitionDeltas(item.status, to);
-  const updates: unknown[] = [];
-  for (const [status, delta] of Object.entries(byStatus)) {
-    updates.push(new FieldPath("byStatus", status), increment(delta));
-  }
-  if (familyPending !== 0) {
-    updates.push(
-      new FieldPath("families", item.family ?? NO_FAMILY, "pending"),
-      increment(familyPending),
-    );
-    if (item.family === RIBBON_FAMILY) {
-      updates.push(
-        new FieldPath("ribbonAreas", String(areaForItem(item)), "pending"),
-        increment(familyPending),
-      );
-    }
-  }
-  // Placar (#202): valor em estoque publicado e contagem por atendente.
-  if (to === "publicado" && item.status !== "publicado") {
-    updates.push(
-      new FieldPath("publishedStockValue"),
-      increment(stockValue(item)),
-    );
-    updates.push(
-      new FieldPath("publishedBy", userEmail || "(desconhecido)"),
-      increment(1),
-    );
-  }
+  // Uma única gravação no resumo por batch, com os ajustes já somados
+  // (limite de 500 transforms por documento, ver summaryDeltas).
+  const updates = summaryDeltas(items, to, userEmail).flatMap(({ path, delta }) => [
+    new FieldPath(...path),
+    increment(delta),
+  ]);
   if (updates.length === 0) return;
   const [field, value, ...rest] = updates;
   // Batch e transação têm o mesmo update(ref, campo, valor, ...).
@@ -121,7 +97,7 @@ export async function publishIntakeItem(
     publishedAt: serverTimestamp(),
     publishedBy: userEmail,
   });
-  addSummaryDeltas(batch, item, "publicado", userEmail);
+  addSummaryDeltas(batch, [item], "publicado", userEmail);
   await batch.commit();
   return productRef.id;
 }
@@ -137,7 +113,7 @@ export async function setIntakeStatus(
     statusChangedAt: serverTimestamp(),
     statusChangedBy: userEmail,
   });
-  addSummaryDeltas(batch, item, to);
+  addSummaryDeltas(batch, [item], to);
   await batch.commit();
 }
 
@@ -167,8 +143,8 @@ export async function publishIntakeGroup(
       publishedAt: serverTimestamp(),
       publishedBy: userEmail,
     });
-    addSummaryDeltas(batch, item, "publicado", userEmail);
   }
+  addSummaryDeltas(batch, members.map((m) => m.item), "publicado", userEmail);
   await batch.commit();
   return productRef.id;
 }
@@ -206,8 +182,8 @@ export async function addToGroupProduct(
         publishedAt: serverTimestamp(),
         publishedBy: userEmail,
       });
-      addSummaryDeltas(tx, item, "publicado", userEmail);
     }
+    addSummaryDeltas(tx, members.map((m) => m.item), "publicado", userEmail);
   });
 }
 
@@ -226,13 +202,13 @@ export async function setIntakeStatusMany(
       statusChangedAt: serverTimestamp(),
       statusChangedBy: userEmail,
     });
-    addSummaryDeltas(batch, item, to);
   }
+  addSummaryDeltas(batch, items, to);
   await batch.commit();
 }
 
 // Fitas por linha (#259): cada cor vira um produto RIBBON e o item da fila
-// fica publicado apontando para ele. Lotes de 150 cores (3 gravações por
+// fica publicado apontando para ele. Lotes de 150 cores (2 gravações por
 // cor, limite do batch é 500). Cada lote é tudo-ou-nada; um lote que
 // falhar não desfaz os anteriores — a tela relê e mostra o que sobrou.
 export async function publishRibbonLine(
@@ -243,7 +219,8 @@ export async function publishRibbonLine(
   const ids: string[] = [];
   for (let i = 0; i < entries.length; i += 150) {
     const batch = writeBatch(db);
-    for (const { item, product } of entries.slice(i, i + 150)) {
+    const chunk = entries.slice(i, i + 150);
+    for (const { item, product } of chunk) {
       const productRef = doc(collection(db, "products"));
       const clean = Object.fromEntries(
         Object.entries(product).filter(([, v]) => v !== undefined),
@@ -255,9 +232,9 @@ export async function publishRibbonLine(
         publishedAt: serverTimestamp(),
         publishedBy: userEmail,
       });
-      addSummaryDeltas(batch, item, "publicado", userEmail);
       ids.push(productRef.id);
     }
+    addSummaryDeltas(batch, chunk.map((e) => e.item), "publicado", userEmail);
     await batch.commit();
     onProgress?.(Math.min(entries.length, i + 150));
   }
