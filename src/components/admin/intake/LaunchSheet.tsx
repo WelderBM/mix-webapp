@@ -22,7 +22,7 @@ import {
   validateLaunch,
 } from "@/lib/intake/publish";
 import { pricePerUnit } from "@/lib/intake/pack";
-import { matchSubcategory } from "@/lib/intake/subcategories";
+import { classifySubcategory, matchSubcategory } from "@/lib/intake/subcategories";
 import {
   attributePlural,
   splitForGroup,
@@ -176,7 +176,7 @@ export function LaunchSheet({
       priceText: "",
       categoryName: suggestedCategory,
       subcategoryName:
-        matchSubcategory(item.suggestedSubcategory, suggestedCategory, categories) ?? "",
+        matchSubcategory(classifySubcategory(item)?.subcategory ?? null, suggestedCategory, categories) ?? "",
       unit: null,
       packText: item.packQty && item.packQty > 1 ? String(item.packQty) : "",
       metersText: meters ? String(meters) : "",
@@ -924,7 +924,7 @@ export function LaunchSheet({
                     setCategoryName(next);
                     // Troca de categoria: reaplica a sugestão na nova (ou limpa).
                     setSubcategoryName(
-                      matchSubcategory(item.suggestedSubcategory, next, categories) ?? "",
+                      matchSubcategory(classifySubcategory(item)?.subcategory ?? null, next, categories) ?? "",
                     );
                   }}
                   className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base"

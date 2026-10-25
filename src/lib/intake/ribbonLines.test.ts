@@ -17,6 +17,10 @@ describe("fitas de plástico por linha (nomes reais do Noturno)", () => {
   it("separa plástico para laço de tecido e adesiva", () => {
     expect(isPlasticRibbon(fita("FITA MAXI FM03D 32MMX100 AMARELO"))).toBe(true);
     expect(isPlasticRibbon(fita("FITA TNT LISA 40MMX50M AZUL ESCURO"))).toBe(false);
+    // Não são fita de laço da loja (#317).
+    expect(isPlasticRibbon(fita("FITA POLIPROP. 02.5 CM X 50.0 MT BN PEROLADO"))).toBe(false);
+    expect(isPlasticRibbon(fita("FITA LISA FIDEPLA DECORATIVA 15MMX30M VEDE ESC."))).toBe(false);
+    expect(isPlasticRibbon(fita("FITA MASTER 16MMX50M LISA PRATA"))).toBe(true);
     expect(isPlasticRibbon(fita("FITA CETIM 10MM 50M ROSA"))).toBe(false);
     expect(isPlasticRibbon(fita("FITA ADESIVA 38MIC 48X30", 5, "pendente", "STANDARD_ITEM"))).toBe(false);
   });
