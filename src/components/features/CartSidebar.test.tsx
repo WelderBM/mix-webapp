@@ -127,12 +127,10 @@ describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
     // não devem existir na árvore até o usuário escolher Entrega.
     expect(screen.queryByText("CEP")).toBeNull();
     expect(screen.queryByText("Ponto de referência (Opcional)")).toBeNull();
-    expect(
-      screen.queryByText("Para quem você vai realizar o pagamento?")
-    ).toBeNull();
+    expect(screen.queryByText(/Entrega por motoboy/)).toBeNull();
   });
 
-  it("selecionar Entrega revela endereço estruturado e o bloco 'para quem paga'", () => {
+  it("selecionar Entrega revela endereço estruturado e o aviso da corrida do motoboy (#346)", () => {
     render(<CartSidebar />);
 
     fireEvent.click(screen.getByRole("radio", { name: "Entrega" }));
@@ -142,9 +140,9 @@ describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
     expect(screen.getByText("Rua")).toBeTruthy();
     expect(screen.getByText("Bairro")).toBeTruthy();
     expect(screen.getByText("Ponto de referência (Opcional)")).toBeTruthy();
-    expect(
-      screen.getByText("Para quem você vai realizar o pagamento?")
-    ).toBeTruthy();
+    expect(screen.getByText(/Entrega por motoboy/)).toBeTruthy();
+    // Na entrega não há pergunta "para quem paga": sai da forma de pagamento.
+    expect(screen.queryByText("Para quem você vai realizar o pagamento?")).toBeNull();
   });
 
   it("selecionar Dinheiro revela 'Troco para quanto?' e viaja no payload/mensagem", async () => {
@@ -265,6 +263,22 @@ describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
     });
     // Observação continua vazia — endereço não foi empurrado pra lá.
     expect(payload.observation).toBeNull();
+    // Entrega + Pix (#346): paga à loja o pedido + a corrida.
+    expect(payload.pixPaymentDestination).toBe("store");
+
+    await waitFor(() => expect((window.open as any)).toHaveBeenCalled());
+    const whatsappUrl = (window.open as any).mock.calls[0][0] as string;
+    const message = decodeURIComponent(whatsappUrl.split("text=")[1]);
+    expect(message).toContain("(para a loja: pedido + corrida)");
+    expect(message).toContain("Corrida do motoboy: R$ 10 a R$ 15, a confirmar");
+  });
+
+  it("Entrega não oferece cartão (#346)", async () => {
+    render(<CartSidebar />);
+    fireEvent.click(screen.getByRole("radio", { name: "Entrega" }));
+    fireEvent.click(screen.getByRole("combobox"));
+    const credit = await screen.findByRole("option", { name: /Cartão de Crédito/ });
+    expect(credit.getAttribute("aria-disabled")).toBe("true");
   });
 });
 

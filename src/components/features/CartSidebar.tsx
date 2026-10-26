@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -45,6 +44,9 @@ import {
 import { isSealedRibbonRoll, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 import { SafeImage } from "../ui/SafeImage";
 import { OrderSuccessModal } from "@/components/features/OrderSuccessModal";
+
+// Corrida do motoboy terceirizado: varia com a distância (#346).
+const DELIVERY_FEE_TEXT = "R$ 10 a R$ 15";
 
 // Componente CartIcon EXPORTADO para uso no Navbar
 export function CartIcon() {
@@ -139,15 +141,24 @@ export function CartSidebar() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [observation, setObservation] = useState("");
 
-  // "Para quem paga" só faz sentido em Entrega (moto-táxi). Na Retirada
-  // esse valor fica oculto na UI e precisa ficar travado em "store" pra não
-  // vazar um "carrier" residual (selecionado antes de voltar pra Retirar)
-  // nem na validação nem na mensagem de WhatsApp (#72).
+  // Regras da loja (#346): na Retirada vale qualquer forma de pagamento.
+  // Na Entrega o motoboy é terceirizado e só aceita Pix ou dinheiro:
+  // - Pix: o cliente paga à LOJA o pedido + a corrida, e a loja paga o motoboy;
+  // - Dinheiro: o cliente paga ao MOTOBOY o pedido + a corrida.
+  // Então "para quem paga" sai da forma de pagamento, sem pergunta na tela.
   useEffect(() => {
-    if (deliveryMethod === "pickup" && pixPaymentDestination !== "store") {
-      setPixPaymentDestination("store");
+    if (
+      deliveryMethod === "delivery" &&
+      (paymentMethod === "credit_card" || paymentMethod === "debit_card")
+    ) {
+      setPaymentMethod("pix");
     }
-  }, [deliveryMethod, pixPaymentDestination]);
+  }, [deliveryMethod, paymentMethod]);
+  useEffect(() => {
+    const want =
+      deliveryMethod === "delivery" && paymentMethod === "cash" ? "carrier" : "store";
+    if (pixPaymentDestination !== want) setPixPaymentDestination(want);
+  }, [deliveryMethod, paymentMethod, pixPaymentDestination]);
 
   // "Troco para quanto?" só existe quando o método é Dinheiro — limpa o
   // valor ao trocar de método pra não sobrar residual escondido no payload.
@@ -334,12 +345,12 @@ export function CartSidebar() {
           : "Dinheiro"
       }`;
 
-      // Destino do PIX só é relevante em Entrega (loja x moto-táxi); na
-      // Retirada é sempre a loja e não precisa aparecer na mensagem.
-      if (paymentMethod === "pix" && deliveryMethod === "delivery") {
-        message += ` (Destino: ${
-          pixPaymentDestination === "store" ? "Loja" : "Moto Táxi"
-        })`;
+      // Entrega: quem recebe e o que inclui (#346). Na Retirada não precisa.
+      if (deliveryMethod === "delivery") {
+        message +=
+          paymentMethod === "cash"
+            ? " (ao motoboy na entrega: pedido + corrida)"
+            : " (para a loja: pedido + corrida)";
       }
 
       if (paymentMethod === "cash" && cashChangeFor.trim()) {
@@ -351,6 +362,7 @@ export function CartSidebar() {
       }\n`;
 
       if (deliveryMethod === "delivery") {
+        message += `Corrida do motoboy: ${DELIVERY_FEE_TEXT}, a confirmar\n`;
         message += `Endereço: ${street}, ${number} - ${neighborhood}\n`;
         if (addressReference.trim()) {
           message += `Referência: ${addressReference.trim()}\n`;
@@ -782,61 +794,27 @@ export function CartSidebar() {
                     )}
                   </div>
 
-                  {/* Só existe em Entrega — na Retirada não há moto-táxi,
-                      então a pergunta é ruído puro e o valor fica travado
-                      internamente em "store" (ver effect acima, #72).
-                      Vem ANTES de "Forma de Pagamento" porque é a decisão
-                      que restringe a outra: Moto Táxi só aceita PIX ou
-                      Dinheiro, então quem paga precisa ser escolhido
-                      primeiro pra essa restrição fazer sentido na tela
-                      (feedback de revisão do PR #148). */}
+                  {/* Entrega (#346): motoboy terceirizado, só Pix ou dinheiro.
+                      Quem recebe sai da forma de pagamento. */}
                   {deliveryMethod === "delivery" && (
-                    <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                      <Label id="checkout-payer" className="text-blue-800">
-                        Para quem você vai realizar o pagamento?
-                      </Label>
-                      <RadioGroup
-                        aria-labelledby="checkout-payer"
-                        value={pixPaymentDestination}
-                        onValueChange={(v: "store" | "carrier") => {
-                          setPixPaymentDestination(v);
-                          if (
-                            v === "carrier" &&
-                            paymentMethod !== "cash" &&
-                            paymentMethod !== "pix"
-                          ) {
-                            setPaymentMethod("pix");
-                          }
-                        }}
-                        className="flex flex-col gap-2 mt-1"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem
-                            value="store"
-                            id="pay-store"
-                            className="text-blue-600 border-blue-400"
-                          />
-                          <Label
-                            htmlFor="pay-store"
-                            className="font-normal cursor-pointer"
-                          >
-                            Pagar para a <b>Loja</b> (Chave da Loja)
-                          </Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem
-                            value="carrier"
-                            id="pay-carrier"
-                            className="text-blue-600 border-blue-400"
-                          />
-                          <Label
-                            htmlFor="pay-carrier"
-                            className="font-normal cursor-pointer"
-                          >
-                            Pagar para o <b>Moto Táxi</b> (Na entrega)
-                          </Label>
-                        </div>
-                      </RadioGroup>
+                    <div className="space-y-1.5 p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-900">
+                      <p className="font-semibold">
+                        Entrega por motoboy: corrida de {DELIVERY_FEE_TEXT}
+                      </p>
+                      <p className="text-xs">
+                        O valor depende da distância (quase sempre R$ 10) e a
+                        gente confirma pelo WhatsApp. Na entrega aceitamos só
+                        Pix ou dinheiro:
+                      </p>
+                      <ul className="text-xs list-disc pl-4 space-y-0.5">
+                        <li>
+                          <b>Pix:</b> você paga para a loja o pedido + a corrida.
+                        </li>
+                        <li>
+                          <b>Dinheiro:</b> você paga ao motoboy o pedido + a
+                          corrida, na entrega.
+                        </li>
+                      </ul>
                     </div>
                   )}
 
@@ -853,22 +831,23 @@ export function CartSidebar() {
                         <SelectItem value="pix">💠 PIX</SelectItem>
                         <SelectItem
                           value="credit_card"
-                          disabled={pixPaymentDestination === "carrier"}
+                          disabled={deliveryMethod === "delivery"}
                         >
                           💳 Cartão de Crédito
                         </SelectItem>
                         <SelectItem
                           value="debit_card"
-                          disabled={pixPaymentDestination === "carrier"}
+                          disabled={deliveryMethod === "delivery"}
                         >
                           💳 Cartão de Débito
                         </SelectItem>
                         <SelectItem value="cash">💵 Dinheiro</SelectItem>
                       </SelectContent>
                     </Select>
-                    {pixPaymentDestination === "carrier" && (
+                    {deliveryMethod === "delivery" && (
                       <p className="text-xs text-blue-600 mt-1">
-                        * Moto Táxi aceita apenas <b>PIX</b> ou <b>Dinheiro</b>.
+                        * Na entrega: só <b>Pix</b> ou <b>Dinheiro</b>. Cartão
+                        só na retirada.
                       </p>
                     )}
                     {paymentMethod === "cash" && (
@@ -910,6 +889,11 @@ export function CartSidebar() {
                     {formatCurrency(sumCartItemTotals(items))}
                   </span>
                 </div>
+                {deliveryMethod === "delivery" && (
+                  <p className="-mt-2 mb-2 text-right text-xs text-slate-500">
+                    + corrida do motoboy ({DELIVERY_FEE_TEXT}, a confirmar)
+                  </p>
+                )}
                 <Button
                   onClick={handleCheckout}
                   disabled={isCheckingOut}
