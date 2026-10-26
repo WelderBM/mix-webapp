@@ -207,3 +207,11 @@ O limite de 500 gravações por batch é conhecido; o de **500 field transforms 
 
 ### Duas telas que dividem um conjunto precisam da MESMA regra
 "Fila comum" e "fitas por linha" se completam: o que sai de uma tem de entrar na outra. Elas usavam regras diferentes (`isPlasticRibbon` × `isPlasticRibbon` + linha + metragem), e fitas sem metragem ou sem palavra de linha (ECOPACK, `FITA PLASTICA GLITTER … C/`) sumiam das duas. **Padrão:** um predicado só (`isLineRibbon`) usado pelos dois lados. Valor calculado na importação (`suggestedSubcategory`) também fica velho quando a regra muda: a tela calcula ao vivo (`classifySubcategory`). Achados reais: revisões do #326 e do #332 (PRs #332, #335).
+
+### `git -c core.autocrlf=false add -A` grava CRLF em TODOS os arquivos LF
+Complemento da lição do CRLF acima. Com `-A`, o `autocrlf=false` vale para a árvore inteira, e cada arquivo LF no repositório (CRLF na cópia de trabalho) entra como "modificado". O #348 subiu com 231 arquivos para 11 reais. **Padrão:** decidir arquivo por arquivo pelo `git ls-files --eol`:
+`git status --porcelain | sed 's/^...//' | while read f; do [ "$(git ls-files --eol "$f" | awk '{print $1}')" = i/crlf ] && git -c core.autocrlf=false add "$f" || git add "$f"; done`
+Também: `sed -i` no Git Bash tira o `\r` (o `BalloonBuilder.test.tsx` virou LF no #349), e o heredoc da ferramenta Bash às vezes come `\` (um `\b` de regex virou `\b`, que é backspace). Para editar código, usar a ferramenta Edit ou um script Node que preserve o fim de linha.
+
+### Worktree nova: sem `node_modules` e sem chaves do Firebase
+`git worktree add` não leva `node_modules`: rodar `npm ci` (~3 min) antes de `tsc`/`vitest`. Junção para o `node_modules` de outra worktree só serve se o `package-lock.json` for igual. O `.env.local` da pasta principal só tem `UX_ADMIN_*`, sem as `NEXT_PUBLIC_FIREBASE_*`, então `next build` local falha ao coletar dados de página. Nesse caso o build fica com o preview da Vercel no PR, e a descrição do PR diz isso.
