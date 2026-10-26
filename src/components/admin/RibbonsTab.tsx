@@ -679,6 +679,7 @@ export function RibbonsTab({
                     <ImageUploadModal
                       value={model.imageUrl}
                       folder="laco/models"
+                      searchHint={model.name ? `laço ${model.name}` : undefined}
                       onChange={(url) => {
                         const updated = [...(settings.bowModels || [])];
                         updated[idx] = { ...updated[idx], imageUrl: url };

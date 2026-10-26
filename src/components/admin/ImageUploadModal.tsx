@@ -13,6 +13,7 @@ import {
 import { ImageUpload } from "./ImageUpload";
 import { Image as ImageIcon, Pencil, Trash2, Plus } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { PhotoSearchSuggestions } from "./PhotoSearchSuggestions";
 
 interface ImageUploadModalProps {
   value?: string;
@@ -23,6 +24,8 @@ interface ImageUploadModalProps {
   label?: string;
   className?: string;
   disabled?: boolean;
+  // Nome do produto (ou do item): vira sugestões de busca de foto (#347).
+  searchHint?: string;
 }
 
 export function ImageUploadModal({
@@ -34,6 +37,7 @@ export function ImageUploadModal({
   label = "Alterar Imagem",
   className,
   disabled = false,
+  searchHint,
 }: ImageUploadModalProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -133,6 +137,16 @@ export function ImageUploadModal({
               if (!multiple) setIsOpen(false);
             }}
             disabled={disabled}
+          />
+          <PhotoSearchSuggestions
+            hint={searchHint}
+            folder={folder}
+            disabled={disabled}
+            onUploaded={(url) => {
+              if (multiple && onUploadComplete) onUploadComplete([url]);
+              else if (onChange) onChange(url);
+              setIsOpen(false);
+            }}
           />
         </div>
       </DialogContent>

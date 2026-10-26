@@ -346,6 +346,7 @@ export function BalloonsTab({
                           </Label>
                           <ImageUploadModal
                             value={type.imageUrl || ""}
+                            searchHint={type.name ? `balão ${type.name}` : undefined}
                             onChange={(url) => {
                               const newTypes = [...balloonConfig.types];
                               newTypes[typeIndex].imageUrl = url;
