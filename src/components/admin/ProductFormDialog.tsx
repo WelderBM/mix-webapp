@@ -1032,6 +1032,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
                 <div className="space-y-2 border-t pt-4">
                   <ProductImageManager
+                    productName={formData.name}
                     images={formData.images || []}
                     onChange={(newImages: ProductImage[]) => {
                       const cover =
