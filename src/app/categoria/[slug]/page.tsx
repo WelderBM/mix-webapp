@@ -18,6 +18,11 @@ import { ProductCard } from "@/components/features/ProductCard";
 import { BackButton } from "@/components/ui/BackButton";
 import { filterProductsByCategory } from "@/lib/categories";
 import { cn } from "@/lib/utils";
+import { useShowMore } from "@/hooks/useShowMore";
+import { ShowMoreButton } from "@/components/ui/ShowMoreButton";
+
+// Produtos por vez na categoria (#345): celular simples não carrega tudo.
+const PAGE = 24;
 
 function CategoriaContent() {
   const params = useParams();
@@ -67,6 +72,8 @@ function CategoriaContent() {
       activeSubcategory?.name
     );
   }, [allProducts, category, activeSubcategory]);
+
+  const page = useShowMore(products, PAGE, `${slug}|${subParam ?? ""}`);
 
   const isLoading = categoriesLoading || productsLoading;
 
@@ -173,11 +180,12 @@ function CategoriaContent() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-                {products.map((product) => (
+                {page.visible.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}
               </div>
             )}
+            <ShowMoreButton remaining={page.remaining} pageSize={PAGE} onClick={page.showMore} />
           </div>
         </div>
       </div>
