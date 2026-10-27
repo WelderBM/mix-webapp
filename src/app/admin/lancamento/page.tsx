@@ -386,6 +386,7 @@ export default function IntakeQueuePage() {
             size="icon"
             asChild
             aria-label="Voltar ao admin"
+            className="size-11 shrink-0"
           >
             <Link href="/admin">
               <ArrowLeft size={20} />
@@ -752,6 +753,7 @@ function Scoreboard({
       </div>
       <div
         role="progressbar"
+        aria-label="Revenda conferida"
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
