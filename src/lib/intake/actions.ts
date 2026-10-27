@@ -1,10 +1,15 @@
 import {
   collection,
+  deleteField,
   doc,
+  documentId,
   FieldPath,
+  getDocs,
   increment,
+  query,
   runTransaction,
   serverTimestamp,
+  where,
   writeBatch,
   type Transaction,
   type WriteBatch,
@@ -23,6 +28,8 @@ import {
 } from "./publish";
 import { summaryDeltas } from "./summary";
 import { isCatalogBalloon } from "./merge";
+import { removeProductsFromSections } from "@/lib/sections";
+import type { StoreSection } from "@/types";
 
 // Balão do catálogo do montador nunca vira produto da loja (o montador já
 // vende por tipo × tamanho × cor). Trava aqui também, além da fila.
@@ -239,4 +246,112 @@ export async function publishRibbonLine(
     onProgress?.(Math.min(entries.length, i + 150));
   }
   return ids;
+}
+
+// ── Exclusão de produto (#363) ───────────────────────────────────────
+// Apagar só `products/{id}` deixava o item da fila "publicado" apontando
+// para nada: some da fila e não dá para recadastrar. Agora o item volta
+// para "pendente" (placar ajustado) junto com a exclusão.
+
+const IN_LIMIT = 30; // máximo de valores num `where(..., "in", ...)`
+const BATCH_OPS = 450; // folga sob o limite de 500 gravações por batch
+
+async function itemsLinkedTo(productIds: string[]): Promise<IntakeItem[]> {
+  const out: IntakeItem[] = [];
+  for (let i = 0; i < productIds.length; i += IN_LIMIT) {
+    const snap = await getDocs(
+      query(collection(db, "intake_items"), where("productId", "in", productIds.slice(i, i + IN_LIMIT))),
+    );
+    snap.forEach((d) => out.push({ ...(d.data() as IntakeItem), id: d.id }));
+  }
+  return out;
+}
+
+function reopenItem(batch: WriteBatch, item: IntakeItem, userEmail: string | null) {
+  batch.update(doc(db, "intake_items", item.id), {
+    status: "pendente",
+    productId: deleteField(),
+    statusChangedAt: serverTimestamp(),
+    statusChangedBy: userEmail,
+  });
+}
+
+// Exclui os produtos, devolve os itens ligados para a fila e tira os ids
+// das vitrines manuais. Lotes de até 450 gravações; cada lote leva o
+// produto junto com os itens dele (tudo ou nada por produto).
+export async function deleteProducts(
+  productIds: string[],
+  userEmail: string | null,
+  onProgress?: (done: number) => void,
+): Promise<{ reopened: number }> {
+  const ids = [...new Set(productIds)];
+  if (ids.length === 0) return { reopened: 0 };
+  const byProduct = new Map<string, IntakeItem[]>();
+  for (const item of await itemsLinkedTo(ids)) {
+    const list = byProduct.get(item.productId!) ?? [];
+    list.push(item);
+    byProduct.set(item.productId!, list);
+  }
+
+  let batch = writeBatch(db);
+  let ops = 0;
+  let pending: IntakeItem[] = [];
+  let done = 0;
+  const flush = async () => {
+    if (ops === 0) return;
+    addSummaryDeltas(batch, pending, "pendente");
+    await batch.commit();
+    onProgress?.(done);
+    batch = writeBatch(db);
+    ops = 0;
+    pending = [];
+  };
+  for (const id of ids) {
+    const items = byProduct.get(id) ?? [];
+    if (ops + 1 + items.length > BATCH_OPS) await flush();
+    batch.delete(doc(db, "products", id));
+    for (const item of items) reopenItem(batch, item, userEmail);
+    pending.push(...items);
+    ops += 1 + items.length;
+    done++;
+  }
+  await flush();
+
+  // Vitrine: lida na hora (não do estado da tela) para não regravar
+  // outra mudança feita em paralelo.
+  await runTransaction(db, async (tx) => {
+    const ref = doc(db, "settings", "general");
+    const snap = await tx.get(ref);
+    const sections = (snap.data()?.homeSections ?? []) as StoreSection[];
+    const next = removeProductsFromSections(sections, new Set(ids));
+    if (next) tx.update(ref, { homeSections: next });
+  });
+
+  return { reopened: [...byProduct.values()].reduce((n, l) => n + l.length, 0) };
+}
+
+// Itens "publicado" cujo produto já foi apagado (antes do #363). Lê só
+// os publicados e confere a existência dos produtos em lotes de 30.
+export async function findOrphanedItems(): Promise<IntakeItem[]> {
+  const snap = await getDocs(query(collection(db, "intake_items"), where("status", "==", "publicado")));
+  const items = snap.docs.map((d) => ({ ...(d.data() as IntakeItem), id: d.id }));
+  const productIds = [...new Set(items.map((i) => i.productId).filter((x): x is string => !!x))];
+  const existing = new Set<string>();
+  for (let i = 0; i < productIds.length; i += IN_LIMIT) {
+    const found = await getDocs(
+      query(collection(db, "products"), where(documentId(), "in", productIds.slice(i, i + IN_LIMIT))),
+    );
+    found.forEach((d) => existing.add(d.id));
+  }
+  return items.filter((i) => !!i.productId && !existing.has(i.productId));
+}
+
+export async function reopenItems(items: IntakeItem[], userEmail: string | null): Promise<void> {
+  for (let i = 0; i < items.length; i += BATCH_OPS) {
+    const chunk = items.slice(i, i + BATCH_OPS);
+    const batch = writeBatch(db);
+    for (const item of chunk) reopenItem(batch, item, userEmail);
+    addSummaryDeltas(batch, chunk, "pendente");
+    await batch.commit();
+  }
 }

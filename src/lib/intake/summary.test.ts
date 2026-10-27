@@ -102,6 +102,17 @@ describe("summaryDeltas (limite de 500 transforms)", () => {
     expect(get("publishedBy", "a@x")).toBe(84);
   });
 
+  it("produto excluído: publicado volta a pendente e desconta o placar (#363)", () => {
+    const pub = { ...fita(1), status: "publicado", publishedBy: "b@x" } as IntakeItem;
+    const d = summaryDeltas([pub, pub], "pendente");
+    const get = (...p: string[]) => d.find((x) => x.path.join("/") === p.join("/"))?.delta;
+    expect(get("byStatus", "publicado")).toBe(-2);
+    expect(get("byStatus", "pendente")).toBe(2);
+    expect(get("families", "FITA", "pending")).toBe(2);
+    expect(get("publishedStockValue")).toBe(-20);
+    expect(get("publishedBy", "b@x")).toBe(-2);
+  });
+
   it("item já no status de destino não conta", () => {
     expect(summaryDeltas([{ ...fita(1), status: "publicado" }], "publicado")).toEqual([]);
   });

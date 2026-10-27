@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { doc, deleteDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
+import { deleteProducts } from "@/lib/intake/actions";
 import { toast } from "sonner";
 import { Product } from "@/types";
 import {
@@ -74,8 +74,12 @@ export function ProductInfoModal({
   const handleDelete = async () => {
     setDeleting(true);
     try {
-      await deleteDoc(doc(db, "products", product.id));
-      toast.success("Produto excluído.");
+      const { reopened } = await deleteProducts([product.id], auth.currentUser?.email ?? null);
+      toast.success(
+        reopened > 0
+          ? `Produto excluído. ${reopened} item(ns) voltou(aram) para a fila do Noturno.`
+          : "Produto excluído."
+      );
       setConfirmOpen(false);
       onOpenChange(false);
       onDeleted();

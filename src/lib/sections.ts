@@ -21,6 +21,27 @@ export const normalizeSectionSource = (
   return { mode: "manual", productIds: section.productIds ?? [] };
 };
 
+// Produto excluído (#363): sai das vitrines manuais, senão a seção
+// continua contando "8 produtos" que não existem. null = nada mudou.
+export const removeProductsFromSections = (
+  sections: StoreSection[],
+  deleted: Set<string>
+): StoreSection[] | null => {
+  let changed = false;
+  const next = sections.map((s) => {
+    const source = normalizeSectionSource(s);
+    if (source.mode !== "manual") return s;
+    const kept = source.productIds.filter((id) => !deleted.has(id));
+    if (kept.length === source.productIds.length) return s;
+    changed = true;
+    // Formato legado (só `productIds`) vira `source` na mesma gravação.
+    const rest: StoreSection = { ...s };
+    delete rest.productIds;
+    return { ...rest, source: { mode: "manual" as const, productIds: kept } };
+  });
+  return changed ? next : null;
+};
+
 // Limiar de "estoque baixo" pra fita (RIBBON) com rolo aberto — único tipo
 // de produto com quantidade real modelada hoje (`ribbonInventory`). Os
 // demais tipos só têm `inStock` booleano (sem quantidade numérica), então

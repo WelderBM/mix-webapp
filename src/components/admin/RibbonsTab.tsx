@@ -1,8 +1,9 @@
 "use client";
 
 import { Dispatch, SetStateAction, useState } from "react";
-import { doc, deleteDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { deleteProducts } from "@/lib/intake/actions";
 import { Product, StoreSettings, getModelSizeIds } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,8 +78,10 @@ export function RibbonsTab({
     if (!fitaToDelete) return;
     setDeletingFita(true);
     try {
-      await deleteDoc(doc(db, "products", fitaToDelete.id));
-      toast.success("Fita excluída");
+      const { reopened } = await deleteProducts([fitaToDelete.id], auth.currentUser?.email ?? null);
+      toast.success(
+        reopened > 0 ? "Fita excluída. Ela voltou para a fila do Noturno." : "Fita excluída"
+      );
       setFitaToDelete(null);
     } catch {
       toast.error("Erro ao excluir fita.");

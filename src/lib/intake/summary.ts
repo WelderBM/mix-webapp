@@ -53,7 +53,8 @@ export const NO_FAMILY = "(sem família)";
 // linha de 84 fitas passava disso (~6 por item). Somado, são no máximo
 // algumas dezenas, qualquer que seja o tamanho da leva.
 export function summaryDeltas(
-  items: Pick<IntakeItem, "status" | "family" | "name" | "suggestedType" | "stock" | "unitCost">[],
+  items: (Pick<IntakeItem, "status" | "family" | "name" | "suggestedType" | "stock" | "unitCost"> &
+    Partial<Pick<IntakeItem, "publishedBy">>)[],
   to: IntakeWorkflowStatus,
   userEmail: string | null = null,
 ): { path: string[]; delta: number }[] {
@@ -79,6 +80,12 @@ export function summaryDeltas(
     if (to === "publicado") {
       add(["publishedStockValue"], stockValue(item));
       add(["publishedBy", userEmail || "(desconhecido)"], 1);
+    }
+    // Produto excluído (#363): o item sai de "publicado" e desconta o placar
+    // de quem publicou.
+    if (item.status === "publicado") {
+      add(["publishedStockValue"], -stockValue(item));
+      add(["publishedBy", item.publishedBy || "(desconhecido)"], -1);
     }
   }
   return [...acc.values()].filter((d) => d.delta !== 0);
