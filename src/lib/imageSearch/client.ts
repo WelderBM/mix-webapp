@@ -51,3 +51,23 @@ export async function fetchChosenImage(url: string): Promise<Blob> {
   const blob = await res.blob();
   return compressImage(new File([blob], "foto", { type: blob.type }));
 }
+
+// Fotos reais das fitas no cadastro pelo Noturno (relatório 27/10): o
+// servidor acha as fotos (fabricante ou busca) em levas de 20.
+export async function findRibbonPhotos(
+  items: { id: string; name: string; ean?: string | null; brand?: string | null }[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<Record<string, { urls: string[]; source: string | null }>> {
+  const out: Record<string, { urls: string[]; source: string | null }> = {};
+  for (let i = 0; i < items.length; i += 20) {
+    onProgress?.(i, items.length);
+    const res = await fetch("/api/admin/ribbon-photos", {
+      method: "POST",
+      headers: await authHeaders(),
+      body: JSON.stringify({ items: items.slice(i, i + 20) }),
+    });
+    if (!res.ok) throw await errorOf(res);
+    Object.assign(out, ((await res.json()) as { photos: typeof out }).photos);
+  }
+  return out;
+}
