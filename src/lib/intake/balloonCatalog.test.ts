@@ -84,6 +84,9 @@ describe("matchBalloon (nomes reais do Noturno)", () => {
     expect(colorWords("BALAO METAL C70-75 CM N.9 ROSE GOLD")).toBe("ROSE GOLD");
     expect(colorWords("BALAO METALIZADO OURO 40CM N.3")).toBe("DOURADO");
     expect(foilCharOf("BALAO METAL C70-75 CM N.9 NACARADO")).toBe("9");
+    // Palavra quebrada no fim não vira caractere nem corta a cor (revisão do #369).
+    expect(foilCharOf("BALAO METAL C70-75 CM N.5 NACARAD O")).toBe("5");
+    expect(matchBalloon("BALAO METAL C70-75 CM N.5 NACARAD O", config)?.rawColor).toBe("Nacarado");
     // Sem "N.x": kit e látex "N.7" continuam fora do foil.
     expect(balloonTypeOf("BALAO METAL. 70-75 CM KIT 2026 DR")).toBeNull();
     expect(balloonTypeOf("BALAO ROXO N.7 C/50 UND.")?.typeId).toBe("simples");

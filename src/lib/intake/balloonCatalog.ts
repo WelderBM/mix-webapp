@@ -187,7 +187,9 @@ export function matchBalloon(
   if (!type) return null;
   const size = t.size && type.sizes.some((s) => s.size === t.size) ? t.size : null;
   const words =
-    t.typeId === "foil_numeros"
+    // Foil "N.x": o colorWords já tira o "N.0"; a última palavra é cor
+    // (talvez quebrada, "NACARAD O"), não o caractere.
+    t.typeId === "foil_numeros" && !FOIL_NX.test(name.toUpperCase())
       ? colorWords(name.toUpperCase().replace(/\s+([A-Z0-9&]|INTERROGACAO)$/, ""))
       : colorWords(name);
   return {
@@ -284,12 +286,14 @@ export function surveyCatalog(items: StockItem[], config: BalloonConfig): Catalo
 // Foil: o caractere é a última palavra do nome ("…ROSE A" → "A";
 // "…ROSE INTERROGACAO" → "?").
 export function foilCharOf(name: string): string | null {
+  // "…C70-75 CM N.0 PRATA": o algarismo vem no "N.x" (#364). Vale antes
+  // da última palavra, que pode ser um pedaço quebrado ("NACARAD O").
+  const nx = FOIL_NX.exec(name.toUpperCase());
+  if (nx) return nx[2];
   const last = /\s(\S+)$/.exec(name.trim().toUpperCase())?.[1];
   if (!last) return null;
   if (last === "INTERROGACAO") return "?";
-  if (/^[A-Z0-9&]$/.test(last)) return last;
-  // "…C70-75 CM N.0 PRATA": o algarismo vem no "N.x" (#364).
-  return FOIL_NX.exec(name.toUpperCase())?.[2] ?? null;
+  return /^[A-Z0-9&]$/.test(last) ? last : null;
 }
 
 // Foil no montador: quantos de cada caractere a cor tem naquele tamanho.
