@@ -21,6 +21,8 @@ on:
     types: [created]
 
 permissions:
+  # actions: write: disparar o fechamento de issues depois do merge automático.
+  actions: write
   contents: write
   pull-requests: write
   issues: write
@@ -230,6 +232,10 @@ jobs:
           if [ "$AUTO" = "true" ]; then
             gh pr edit "$PR" --remove-label precisa-de-voce >/dev/null 2>&1 || true
             if gh pr merge "$PR" --merge; then
+              # Merge com GITHUB_TOKEN não fecha issue nem dispara outro
+              # workflow (só workflow_dispatch): chama o fechamento das issues.
+              gh workflow run close-issues-on-dev.yml --ref dev -f pr="$PR" \
+                || echo "::warning::Não disparou o fechamento das issues do PR #$PR (a reconciliação diária cobre)."
               gh pr comment "$PR" --body "✅ **Entrou em \`dev\` automaticamente**: baixo risco, os dois revisores sem achados bloqueantes ou importantes, CI verde. Produção continua manual."
             else
               flag_owner

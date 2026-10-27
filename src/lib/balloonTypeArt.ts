@@ -71,6 +71,58 @@ function canudoSvg(colors: string[], background: boolean): string {
 
 const cache = new Map<string, string>();
 
+// Cor "Sortido" (relatório 27/10): 3 balões de cores diferentes, bem
+// juntos e sobrepostos, no material do tipo: o neon brilha, o metálico
+// reflete, o candy é pastel.
+// Só o que difere do cartão do tipo: metálico e uniq têm uma cor só no
+// cartão; os outros reaproveitam as 3 cores dele (revisão do #388).
+const MIX: Record<string, string[]> = {
+  metalico: ["#d4a017", "#c0c7cf", "#d48e7e"], // ouro, prata, rose gold
+  uniq: ["#b08497", "#c9a27e", "#8fa89a"],
+};
+
+
+// Neon: um halo colorido atrás do buquê, como o balão aceso na luz negra.
+function withNeonGlow(svg: string): string {
+  const glow = `<radialGradient id="neon-glow" cx="50%" cy="45%" r="50%">
+    <stop offset="0%" stop-color="#ff2bd6" stop-opacity="0.35"/>
+    <stop offset="60%" stop-color="#39ff14" stop-opacity="0.15"/>
+    <stop offset="100%" stop-color="#39ff14" stop-opacity="0"/>
+  </radialGradient>`;
+  return svg
+    .replace("</defs>", `${glow}</defs><circle cx="256" cy="210" r="230" fill="url(#neon-glow)"/>`);
+}
+
+export function balloonMixImage(typeId: string): string {
+  const base = baseOf(typeId);
+  const k = `m:${base}`;
+  if (!cache.has(k)) {
+    const look = LOOKS[base] ?? FALLBACK;
+    const colors =
+      MIX[base] ?? (look.colors.length >= 3 ? look.colors : LOOKS.simples.colors);
+    let svg: string;
+    if (base === "canudo") svg = canudoSvg(colors, false);
+    else {
+      svg = balloonSvg(info({ ...look, shape: "latex", colors }, true), undefined, {
+        caption: false,
+        background: false,
+        tight: true,
+      });
+      if (base === "cintilante") svg = withSparkles(svg);
+      if (base === "neon") svg = withNeonGlow(svg);
+    }
+    cache.set(k, toDataUrl(svg));
+  }
+  return cache.get(k)!;
+}
+
+// "Sortido", "Colorido", "Multicor" (e "Sortido Pastel"…): cor que é
+// mistura, não uma cor só.
+export const isMixColor = (name: string) =>
+  /^(sortid[oa]s?|colorid[oa]s?|multicor(es)?)(\s|$)/.test(
+    name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()
+  );
+
 // Cartão do tipo (buquê, com fundo) ou tamanho (um só, sem fundo).
 function draw(typeId: string, look: Look, card: boolean): string {
   if (typeId === "canudo") return canudoSvg(look.colors, card);

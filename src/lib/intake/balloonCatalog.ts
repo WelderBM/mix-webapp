@@ -330,6 +330,35 @@ export function foilShortage(
     .map(([ch]) => ch);
 }
 
+// Texto digitado que cabe no estoque: cada caractere só entra enquanto
+// sobra unidade para todos os conjuntos. Antes só barrava o que tinha 0, e
+// dava para digitar "666666" com dois 6 (relatório 27/10). Espaço sempre
+// entra (separa palavras, não é balão).
+export function foilFit(
+  text: string,
+  sets: number,
+  available: Record<string, number> | null,
+): { text: string; blocked: string[] } {
+  if (!available) return { text, blocked: [] };
+  const used: Record<string, number> = {};
+  const blocked = new Set<string>();
+  let out = "";
+  for (const ch of text) {
+    if (ch === " ") {
+      out += ch;
+      continue;
+    }
+    const n = (used[ch] ?? 0) + 1;
+    if (n * Math.max(1, sets) <= (available[ch] ?? 0)) {
+      used[ch] = n;
+      out += ch;
+    } else {
+      blocked.add(ch);
+    }
+  }
+  return { text: out, blocked: [...blocked] };
+}
+
 // Montador da loja: o Noturno é o estoque. Se ele tem o tipo, a cor só
 // aparece no tamanho em que há unidade — Roxo que só existe no 7" não
 // aparece no 9" (pedido do dono, 23/10). Tipo que o Noturno não tem
