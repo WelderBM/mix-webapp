@@ -34,6 +34,29 @@ describe("matchCatalog (fotos da Albano)", () => {
     expect(matchCatalog({ name: "FITA MAXI LISO 32MMX100M AMARELO" }, catalog)).toBeNull(); // existe, mas sem foto
   });
 
+  it("não põe foto de estampa em fita lisa (revisão #392)", () => {
+    const cat = [
+      p("Fita Maxi Chevron 32mmx100m Vermelho"),
+      p("Fita Maxi Escamas 32mmx100m Vermelho"),
+      p("Fita Maxi Lisa 32mmx100m Vermelha"),
+      p("Fita Maxi Pois 16mmx50m Rosa"),
+      p("Fita Maxi PaperLook Te Amo Mãe 16mmx50m Barbante/Ouro"),
+      p("Fita Maxi Paper Look Glow 32mmx100m Barbante/Ouro"),
+    ];
+    const m = (name: string) => matchCatalog({ name }, cat)?.name ?? null;
+    // Empate entre estampas e a lisa: sem modelo no nome, é a lisa.
+    expect(m("FITA MAXI 32MMX100M VERMELHO")).toBe("Fita Maxi Lisa 32mmx100m Vermelha");
+    // Só a estampa existe: sem modelo, não chuta.
+    expect(m("FITA MAXI 16MMX50M ROSA")).toBeNull();
+    // Mais de 1 palavra sobrando, ou outra largura com palavra a mais: outra fita.
+    expect(m("FITA MAXI PAPERLOOK 16MMX50 BARBANTE/OURO")).toBeNull();
+  });
+
+  it("empate entre estampas sem a lisa: nenhuma", () => {
+    const cat = [p("Fita Maxi Paperlook Chevron 32mmx100m Rosa"), p("Fita Maxi Paperlook Escamas 32mmx100m Rosa")];
+    expect(matchCatalog({ name: "FITA MAXI PAPERLOOK 32MMX100M ROSA" }, cat)).toBeNull();
+  });
+
   it("prefere a mesma largura", () => {
     const cat = [p("Fita Maxi Lilás 16mmx50m"), p("Fita Maxi Lilás 32mmx100m")];
     expect(matchCatalog({ name: "FITA MAXI 32MMX100M LILAS" }, cat)?.name).toBe("Fita Maxi Lilás 32mmx100m");

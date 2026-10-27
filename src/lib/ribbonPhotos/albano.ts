@@ -21,15 +21,17 @@ let cache: { at: number; data: CatalogProduct[] } | null = null;
 const decode = (s: string) =>
   s.replace(/&#(\d+);/g, (_, n: string) => String.fromCharCode(Number(n))).replace(/&amp;/g, "&");
 
-async function page(n: number, fetchImpl: FetchLike): Promise<CatalogProduct[]> {
+async function page(n: number, fetchImpl: FetchLike): Promise<CatalogProduct[] | null> {
   try {
     const res = await fetchImpl(
       `https://albano.com.br/wp-json/wc/store/v1/products?search=fita&per_page=100&page=${n}`,
       { headers: UA, signal: AbortSignal.timeout(15_000) },
     );
-    if (!res.ok) return [];
+    // Página depois da última: a loja responde 400 ou lista vazia (não é falha).
+    if (res.status === 400) return [];
+    if (!res.ok) return null;
     const list = (await res.json()) as StoreProduct[];
-    if (!Array.isArray(list)) return [];
+    if (!Array.isArray(list)) return null;
     return list.map((p) => ({
       name: decode(p.name ?? ""),
       sku: p.sku ?? "",
@@ -38,15 +40,17 @@ async function page(n: number, fetchImpl: FetchLike): Promise<CatalogProduct[]> 
         .filter((u) => u.startsWith("https://")),
     }));
   } catch {
-    return []; // página que falhou: o resto ainda serve (o que faltar vai para a busca)
+    return null; // página que falhou: o resto ainda serve, mas não fica guardado
   }
 }
 
 export async function albanoCatalog(fetchImpl: FetchLike = fetch): Promise<CatalogProduct[]> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.data;
   const pages = await Promise.all(Array.from({ length: PAGES }, (_, i) => page(i + 1, fetchImpl)));
-  const data = pages.flat();
-  if (data.length > 0) cache = { at: Date.now(), data };
+  const data = pages.flatMap((p) => p ?? []);
+  // Só guarda o catálogo inteiro: pela metade, fitas da Albano iriam para a
+  // busca (crédito gasto, foto fora do padrão) por 6 h.
+  if (data.length > 0 && pages.every((p) => p !== null)) cache = { at: Date.now(), data };
   return data;
 }
 

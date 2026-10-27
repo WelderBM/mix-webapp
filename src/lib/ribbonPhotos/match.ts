@@ -15,6 +15,13 @@ const GENDER: Record<string, string> = {
   PRETA: "PRETO", DOURADA: "DOURADO", PRATEADA: "PRATEADO", ESCURA: "ESCURO", CLARA: "CLARO",
 };
 const NOISE = new Set(["FITA", "P", "METRO", "C", "UN", "UND", "COM", "DE", "E"]);
+// Linha e cores: um nome só com estas palavras não diz o modelo (é a lisa).
+const PLAIN = new Set(
+  ("MAXI PLASTICA CETIM GORGURAO AZUL VERMELHO ROSA PINK LILAS VERDE AMARELO BRANCO PRETO OURO PRATA " +
+    "MARINHO ESCURO CLARO LARANJA ROXO MARROM BEGE BEIGE NUDE CAQUI AMEIXA MERLOT ROSE BARBANTE CHA BALE " +
+    "PETALA LAVANDA CINZA DOURADO PRATEADO TIFFANY TURQUESA VINHO BORDO CORAL SALMAO FUCSIA CREME PEROLA " +
+    "NATURAL AREIA PETROLEO CHERRY PO BEBE CEREJA GRAFITE CHUMBO OFF WHITE").split(" "),
+);
 
 const base = (s: string) =>
   s
@@ -58,17 +65,36 @@ export function matchCatalog(
   const want = ribbonTokens(item.name);
   if (want.size < 2) return null;
   const w = widthOf(item.name);
-  let best: { p: CatalogProduct; score: number } | null = null;
+  // No máximo 1 palavra a mais no catálogo: mais que isso é outra estampa
+  // ("PAPERLOOK BARBANTE/OURO" não é "PaperLook Te Amo Mãe Barbante/Ouro").
+  const plain = [...want].every((t) => PLAIN.has(t));
+  const cands: { p: CatalogProduct; score: number; lisa: boolean }[] = [];
   for (const p of withPhoto) {
     const have = ribbonTokens(p.name);
     let all = true;
     for (const t of want) if (!have.has(t)) { all = false; break; }
     if (!all) continue;
     const extra = have.size - want.size;
-    const score = (w != null && widthOf(p.name) === w ? 0 : 10) + extra;
-    if (!best || score < best.score) best = { p, score };
+    const sameWidth = w != null && widthOf(p.name) === w;
+    // Em outra largura, só o nome exato (a mesma fita em outro tamanho).
+    if (extra > 1 || (!sameWidth && extra > 0)) continue;
+    // Nome sem modelo ("MAXI 16MM ROSA"): a palavra a mais só pode ser LISA,
+    // senão é uma estampa (Pois, Chevron…) com a mesma cor.
+    if (extra === 1 && plain && !have.has("LISA")) continue;
+    const score = (sameWidth ? 0 : 10) + extra;
+    cands.push({ p, score, lisa: have.has("LISA") && !want.has("LISA") });
   }
-  return best?.p ?? null;
+  if (cands.length === 0) return null;
+  const top = Math.min(...cands.map((c) => c.score));
+  const tied = cands.filter((c) => c.score === top);
+  // Mesmas palavras = mesma fita (só muda a metragem): qualquer uma serve.
+  const key = (p: CatalogProduct) => [...ribbonTokens(p.name)].sort().join(" ");
+  if (new Set(tied.map((c) => key(c.p))).size === 1) return tied[0].p;
+  // Empate entre produtos diferentes ("MAXI VERMELHO" casa com Lisa,
+  // Chevron, Escamas…): sem modelo no nome, é a lisa; senão, nenhuma
+  // (foto errada na loja é pior que ir para a busca).
+  const lisa = tied.filter((c) => c.lisa);
+  return lisa.length > 0 && new Set(lisa.map((c) => c.p.name)).size === 1 ? lisa[0].p : null;
 }
 
 // Busca (quando o fabricante não tem a foto): o que perguntar.

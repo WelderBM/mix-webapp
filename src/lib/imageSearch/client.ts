@@ -59,15 +59,23 @@ export async function findRibbonPhotos(
   onProgress?: (done: number, total: number) => void,
 ): Promise<Record<string, { urls: string[]; source: string | null }>> {
   const out: Record<string, { urls: string[]; source: string | null }> = {};
+  let failure: unknown = null;
+  onProgress?.(0, items.length);
   for (let i = 0; i < items.length; i += 20) {
-    onProgress?.(i, items.length);
-    const res = await fetch("/api/admin/ribbon-photos", {
-      method: "POST",
-      headers: await authHeaders(),
-      body: JSON.stringify({ items: items.slice(i, i + 20) }),
-    });
-    if (!res.ok) throw await errorOf(res);
-    Object.assign(out, ((await res.json()) as { photos: typeof out }).photos);
+    // Leva que falha não joga fora as anteriores (já pagas na busca).
+    try {
+      const res = await fetch("/api/admin/ribbon-photos", {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({ items: items.slice(i, i + 20) }),
+      });
+      if (!res.ok) throw await errorOf(res);
+      Object.assign(out, ((await res.json()) as { photos: typeof out }).photos);
+    } catch (e) {
+      failure = e;
+    }
+    onProgress?.(Math.min(i + 20, items.length), items.length);
   }
+  if (failure && Object.keys(out).length === 0) throw failure;
   return out;
 }
