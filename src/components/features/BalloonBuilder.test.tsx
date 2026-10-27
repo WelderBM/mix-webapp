@@ -128,7 +128,7 @@ describe("BalloonBuilder", () => {
     await waitFor(() => screen.getAllByText(/9"/)[0]);
 
     // 3. Click on size (should auto-transition to next step)
-    fireEvent.click(screen.getAllByText(/9"/)[0]);
+    fireEvent.click(await screen.findByRole("button", { name: /9"/ }));
 
     // Should see Step 2 title (Color selection)
     await waitFor(() => {
@@ -167,7 +167,7 @@ describe("BalloonBuilder", () => {
     fireEvent.click(screen.getByText("Liso"));
     await waitFor(() => screen.getAllByText(/9"/)[0]);
     expect(screen.queryByText(/7"/)).toBeNull(); // nada no 7": tamanho some
-    fireEvent.click(screen.getAllByText(/9"/)[0]);
+    fireEvent.click(await screen.findByRole("button", { name: /9"/ }));
     await waitFor(() => screen.getByText("Escolha a Cor"));
 
     expect(screen.getByText("Azul")).toBeTruthy();
@@ -206,8 +206,9 @@ describe("BalloonBuilder", () => {
     expect(screen.getByText("★ Mais pedida")).toBeTruthy();
 
     fireEvent.click(screen.getByAltText("Pacote Riberball"));
-    // Um tipo só na marca e um tamanho só: vai direto para a cor,
-    // com a marca no título.
+    // Um tamanho só: a etapa do tamanho aparece mesmo assim (relatório
+    // 27/10); depois, a cor com a marca no título.
+    fireEvent.click(await screen.findByRole("button", { name: /7"/ }));
     await waitFor(() => screen.getByText("Escolha a Cor"));
     expect(screen.getByText(/Liso Riberball/)).toBeTruthy();
     expect(screen.queryByText("Neon")).toBeNull();
@@ -240,6 +241,7 @@ describe("BalloonBuilder", () => {
 
     render(<BalloonBuilder />);
     fireEvent.click(await screen.findByText("Números & Letras (Foil)"));
+    fireEvent.click(await screen.findByRole("button", { name: /40 ?cm/ }));
     fireEvent.click(await screen.findByText("Rose Gold"));
     await screen.findByText("Quais letras ou números?");
 
@@ -285,6 +287,7 @@ describe("BalloonBuilder", () => {
     }));
     render(<BalloonBuilder />);
     fireEvent.click(await screen.findByText("Números & Letras (Foil)"));
+    fireEvent.click(await screen.findByRole("button", { name: /40 ?cm/ }));
     fireEvent.click(await screen.findByText("Rose Gold"));
     fireEvent.change(await screen.findByPlaceholderText("Ex.: ANA ou FELIZ 15 ANOS"), { target: { value: "1" } });
     expect(screen.getByText("Sem estoque nesta cor: 1")).toBeTruthy();
