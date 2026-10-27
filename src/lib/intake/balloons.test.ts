@@ -24,6 +24,15 @@ describe("parseBalloon (nomes reais do Noturno)", () => {
     });
   });
 
+  it("número foil no formato 'N.x' (#364)", () => {
+    expect(parseBalloon("BALAO METAL C70-75 CM N.0 PRATA")).toMatchObject({
+      shape: "numero",
+      glyph: "0",
+      metallic: true,
+      sizeLabel: "75 cm",
+    });
+  });
+
   it("látex em pacote", () => {
     expect(parseBalloon("BALAO 9 LISO C/ 50 AZUL BABY")).toMatchObject({
       shape: "latex",

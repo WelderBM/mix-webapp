@@ -45,10 +45,17 @@ const COLOR_ALIAS: Record<string, string> = {
   rose: "rosegold",
 };
 
+export const FOIL_NX = /\bMETAL(?:IZADO)?\b.*?\bC?(40|70-75) ?CM\b.*\bN\. ?(\d)\b/;
+
 export function balloonTypeOf(name: string): { typeId: string; size: string | null } | null {
   const n = name.toUpperCase();
   if (/\b(16 ?40 ?CM|1640 ?CM)\b.*\s([A-Z0-9&]|INTERROGACAO)$/.test(n)) return { typeId: "foil_numeros", size: "40cm" };
   if (/\b32 ?75 ?CM\b.*\s([A-Z0-9&]|INTERROGACAO)$/.test(n)) return { typeId: "foil_numeros", size: "75cm" };
+  // Número foil com o algarismo em "N.x" (#364): "BALAO METAL C70-75 CM
+  // N.0 PRATA", "BALAO METAL C40 CM N.4 ROSE GOLD", "BALAO METALIZADO OURO
+  // 40CM N.0". Sem isto caíam no "METAL" abaixo e o montador só tinha 40 cm.
+  const nx = FOIL_NX.exec(n);
+  if (nx) return { typeId: "foil_numeros", size: nx[1] === "40" ? "40cm" : "75cm" };
   if (/\bCANUDO\b|\b260\b/.test(n)) return { typeId: "canudo", size: "260" };
   // Bobo/bubble: balão transparente especial, não é o látex do catálogo.
   if (/\bBOBO\b|\bBUBBLE\b/.test(n)) return null;
@@ -76,6 +83,8 @@ export function balloonTypeOf(name: string): { typeId: string; size: string | nu
 export function colorWords(name: string): string {
   return name
     .toUpperCase()
+    // "C70-75 CM", "C40 CM": medida com o "C" do Noturno colado.
+    .replace(/\bC?\d+(?:-\d+)? ?CM\b/g, " ")
     .replace(/\bC\/ ?\d+(?:UND|UN)?\b|\b\d+X\d+\b|\b\d+(?:[.,]\d+)? ?CM\b|\bN\.\d\b|\b\d+(?:[.,]\d+)?\b/g, " ")
     .replace(/[,.;()]/g, " ")
     .split(/\s+/)
@@ -278,7 +287,9 @@ export function foilCharOf(name: string): string | null {
   const last = /\s(\S+)$/.exec(name.trim().toUpperCase())?.[1];
   if (!last) return null;
   if (last === "INTERROGACAO") return "?";
-  return /^[A-Z0-9&]$/.test(last) ? last : null;
+  if (/^[A-Z0-9&]$/.test(last)) return last;
+  // "…C70-75 CM N.0 PRATA": o algarismo vem no "N.x" (#364).
+  return FOIL_NX.exec(name.toUpperCase())?.[2] ?? null;
 }
 
 // Foil no montador: quantos de cada caractere a cor tem naquele tamanho.

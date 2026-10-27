@@ -4,6 +4,7 @@
 // conhecido. Os temáticos (leão, margarida, "revelação"…) devolvem null —
 // esses precisam de foto de verdade.
 import { RAINBOW_HEXES } from "@/lib/balloonColors";
+import { FOIL_NX } from "./balloonCatalog";
 
 export type BalloonShape = "letra" | "numero" | "coracao" | "estrela" | "redondo" | "latex";
 
@@ -88,6 +89,10 @@ export function parseBalloon(rawName: string): BalloonInfo | null {
     const glyph = g[2];
     return { ...base, shape: /\d/.test(glyph) ? "numero" : "letra", glyph, metallic: true };
   }
+  // "BALAO METAL C70-75 CM N.0 PRATA": número no "N.x" (#364). Sem isto o
+  // "N.0" caía na regra do látex ("N.7 C/50").
+  const nx = FOIL_NX.exec(n);
+  if (nx) return { ...base, shape: "numero", glyph: nx[2], metallic: true };
   const metallic = /\bMETAL/.test(n) || /\bCROMO\b/.test(n);
   if (/\bCORACAO\b/.test(n)) return { ...base, shape: "coracao", glyph: null, metallic };
   if (/\bESTRELA\b/.test(n)) return { ...base, shape: "estrela", glyph: null, metallic };
