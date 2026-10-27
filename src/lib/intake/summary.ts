@@ -54,7 +54,7 @@ export const NO_FAMILY = "(sem família)";
 // algumas dezenas, qualquer que seja o tamanho da leva.
 export function summaryDeltas(
   items: (Pick<IntakeItem, "status" | "family" | "name" | "suggestedType" | "stock" | "unitCost"> &
-    Partial<Pick<IntakeItem, "publishedBy">>)[],
+    Partial<Pick<IntakeItem, "publishedBy" | "inLatestImport">>)[],
   to: IntakeWorkflowStatus,
   userEmail: string | null = null,
 ): { path: string[]; delta: number }[] {
@@ -67,6 +67,9 @@ export function summaryDeltas(
   };
   for (const item of items) {
     if (item.status === to) continue;
+    // Item que saiu do Noturno não está no resumo (buildIntakeSummary):
+    // ajustar por ele descontaria o que nunca foi contado (#368).
+    if (item.inLatestImport === false) continue;
     // Mesma regra de transição usada no resto do lançamento (uma fonte só).
     const { byStatus, familyPending } = statusTransitionDeltas(item.status, to);
     for (const [status, delta] of Object.entries(byStatus)) add(["byStatus", status], delta ?? 0);

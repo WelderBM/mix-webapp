@@ -318,14 +318,20 @@ export async function deleteProducts(
   await flush();
 
   // Vitrine: lida na hora (não do estado da tela) para não regravar
-  // outra mudança feita em paralelo.
-  await runTransaction(db, async (tx) => {
-    const ref = doc(db, "settings", "general");
-    const snap = await tx.get(ref);
-    const sections = (snap.data()?.homeSections ?? []) as StoreSection[];
-    const next = removeProductsFromSections(sections, new Set(ids));
-    if (next) tx.update(ref, { homeSections: next });
-  });
+  // outra mudança feita em paralelo. Os produtos já saíram: uma falha
+  // aqui não pode virar "erro ao excluir" (a contagem da vitrine já
+  // ignora id apagado).
+  try {
+    await runTransaction(db, async (tx) => {
+      const ref = doc(db, "settings", "general");
+      const snap = await tx.get(ref);
+      const sections = (snap.data()?.homeSections ?? []) as StoreSection[];
+      const next = removeProductsFromSections(sections, new Set(ids));
+      if (next) tx.update(ref, { homeSections: next });
+    });
+  } catch (e) {
+    console.error("Vitrine não atualizada após excluir produto", e);
+  }
 
   return { reopened: [...byProduct.values()].reduce((n, l) => n + l.length, 0) };
 }
@@ -346,12 +352,25 @@ export async function findOrphanedItems(): Promise<IntakeItem[]> {
   return items.filter((i) => !!i.productId && !existing.has(i.productId));
 }
 
-export async function reopenItems(items: IntakeItem[], userEmail: string | null): Promise<void> {
-  for (let i = 0; i < items.length; i += BATCH_OPS) {
-    const chunk = items.slice(i, i + BATCH_OPS);
-    const batch = writeBatch(db);
-    for (const item of chunk) reopenItem(batch, item, userEmail);
-    addSummaryDeltas(batch, chunk, "pendente");
-    await batch.commit();
+// Transação que relê cada item: se outro aparelho já devolveu (ou o item
+// mudou), ele fica de fora e o placar não é descontado duas vezes.
+export async function reopenItems(items: IntakeItem[], userEmail: string | null): Promise<number> {
+  let reopened = 0;
+  for (let i = 0; i < items.length; i += 200) {
+    const chunk = items.slice(i, i + 200);
+    reopened += await runTransaction(db, async (tx) => {
+      const fresh: IntakeItem[] = [];
+      for (const item of chunk) {
+        const snap = await tx.get(doc(db, "intake_items", item.id));
+        const data = snap.data() as IntakeItem | undefined;
+        if (data?.status === "publicado" && data.productId === item.productId) {
+          fresh.push({ ...data, id: item.id });
+        }
+      }
+      for (const item of fresh) reopenItem(tx as unknown as WriteBatch, item, userEmail);
+      addSummaryDeltas(tx, fresh, "pendente");
+      return fresh.length;
+    });
   }
+  return reopened;
 }

@@ -113,6 +113,11 @@ describe("summaryDeltas (limite de 500 transforms)", () => {
     expect(get("publishedBy", "b@x")).toBe(-2);
   });
 
+  it("item que saiu do Noturno não mexe no resumo (revisão do #368)", () => {
+    const fora = { ...fita(1), status: "publicado", inLatestImport: false } as IntakeItem;
+    expect(summaryDeltas([fora], "pendente")).toEqual([]);
+  });
+
   it("item já no status de destino não conta", () => {
     expect(summaryDeltas([{ ...fita(1), status: "publicado" }], "publicado")).toEqual([]);
   });

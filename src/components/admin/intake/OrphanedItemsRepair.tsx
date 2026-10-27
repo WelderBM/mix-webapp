@@ -35,8 +35,8 @@ export function OrphanedItemsRepair({
     if (!orphans?.length) return;
     setBusy(true);
     try {
-      await reopenItems(orphans, email);
-      toast.success(`${orphans.length} item(ns) voltaram para a fila.`);
+      const n = await reopenItems(orphans, email);
+      toast.success(n === 1 ? "1 item voltou para a fila." : `${n} itens voltaram para a fila.`);
       setOrphans([]);
       onDone();
     } catch {
@@ -61,7 +61,7 @@ export function OrphanedItemsRepair({
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span>
-            <b>{orphans.length}</b> item(ns) estão como publicados, mas o
+            <b>{orphans.length}</b> {orphans.length === 1 ? "item está" : "itens estão"} como publicado, mas o
             produto foi apagado da loja.
           </span>
           <Button className="h-11" onClick={reopen} disabled={busy}>
