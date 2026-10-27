@@ -1,3 +1,7 @@
+// Arco-íris do foil como é na loja (#343): degradê de cima para baixo,
+// rosa → vermelho → laranja → amarelo → verde → azul claro, tons suaves.
+export const RAINBOW_HEXES = ["#EC7FC4", "#F47C6A", "#F7B65B", "#F2E35E", "#9FDB7E", "#80D4EA"];
+
 export const SAO_ROQUE_COLORS: Record<string, string> = {
   // Lisos / Standard
   amarelo: "#FFCC00",
