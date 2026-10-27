@@ -172,6 +172,17 @@ describe("montar o catálogo pelo Noturno", () => {
     expect(p.map((t) => t.typeId)).toEqual(["simples", "candy"]); // coração é produto
   });
 
+  it("cada tamanho traz os itens do Noturno que somam o estoque (#365)", () => {
+    const p = proposeCatalog(items, { types: [], allColors: [] });
+    for (const t of p) {
+      for (const s of t.sizes) {
+        expect(s.items.reduce((n, i) => n + i.stock, 0)).toBe(s.stock);
+        const stocks = s.items.map((i) => i.stock);
+        expect(stocks).toEqual([...stocks].sort((a, b) => b - a));
+      }
+    }
+  });
+
   it("aplica: cria tipo só com preço; tamanho sem preço fica de fora", () => {
     const empty = { types: [], allColors: [] };
     const p = proposeCatalog(items, empty);

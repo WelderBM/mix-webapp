@@ -229,6 +229,25 @@ export function BalloonCatalogFromNoturno({ open, onOpenChange, config, onApply 
                                 className="h-11 w-full rounded-md border border-slate-300 pl-8 pr-2 text-base"
                               />
                             </div>
+                            {/* De onde vem o estoque (#365): os itens reais do Noturno. */}
+                            <details className="w-full">
+                              <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold text-purple-700">
+                                Ver {s.items.length === 1 ? "o item" : `os ${s.items.length} itens`} do Noturno
+                              </summary>
+                              <ul className="max-h-64 divide-y divide-slate-100 overflow-y-auto rounded border border-slate-100 bg-white text-xs">
+                                {s.items.map((it, idx) => (
+                                  <li key={`${it.name}-${idx}`} className="flex items-center justify-between gap-2 px-2 py-1.5">
+                                    <span className="min-w-0 break-words text-slate-700">
+                                      {it.name}
+                                      {it.color && <span className="text-slate-500"> · {it.color.split("|")[0]}</span>}
+                                    </span>
+                                    <span className="shrink-0 font-semibold tabular-nums text-slate-800">
+                                      {Math.round(it.stock).toLocaleString("pt-BR")}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
                           </li>
                         );
                       })}
