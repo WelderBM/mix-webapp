@@ -465,9 +465,10 @@ export function BalloonBuilder() {
                     {/* Marca com muitos tipos: a contagem cabe; a lista cortava (#284). */}
                     {g.types.length > 2
                       ? `${g.types.length} tipos`
-                      : g.types.map((t) => t.name.replace(g.label, "").trim()).filter(Boolean).join(" · ") ||
-                        // Nome do tipo igual ao da marca (foil): não repete o título.
-                        "Toque para escolher"}
+                      : g.types.every((t) => !t.name.replace(g.label, "").trim())
+                        ? // Nome do tipo igual ao da marca (foil): não repete o título.
+                          "Toque para escolher"
+                        : g.types.map((t) => t.name.replace(g.label, "").trim() || t.name).join(" · ")}
                   </p>
                 </button>
               ))}
