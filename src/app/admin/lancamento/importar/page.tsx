@@ -8,7 +8,10 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   runTransaction,
+  Timestamp,
+  where,
   serverTimestamp,
   updateDoc,
   setDoc,
@@ -63,6 +66,8 @@ interface Analysis {
   fileName: string;
   items: IntakeSourceFields[];
   existing: Map<string, IntakeItem>;
+  // Quando a fila foi lida (relógio do aparelho), para a releitura parcial.
+  readAt: number;
   merge: IntakeMergeResult;
   // Produtos já publicados cujo estoque cruzou o zero (#202).
   stockSync: ProductStockUpdate[];
@@ -78,23 +83,51 @@ interface ImportResult extends IntakeMergeResult {
 // clique em "Importar": entre os dois, uma atendente pode ter publicado
 // algo — gravar com o retrato da prévia usaria estado velho (produto
 // publicado ficaria fora da sincronização e o placar perderia a contagem).
-async function computeImport(items: IntakeSourceFields[]) {
+// No clique, em vez de reler a fila inteira (~7 mil leituras, #373), relê
+// só os itens que mudaram desde a prévia: toda gravação na fila marca
+// publishedAt, statusChangedAt ou lastImportedAt.
+const CLOCK_MARGIN_MS = 10 * 60 * 1000; // relógio do aparelho pode estar adiantado
+
+async function changedSince(sinceMs: number) {
+  const since = Timestamp.fromMillis(sinceMs - CLOCK_MARGIN_MS);
+  const col = collection(db, "intake_items");
+  const snaps = await Promise.all(
+    ["publishedAt", "statusChangedAt", "lastImportedAt"].map((field) =>
+      getDocs(query(col, where(field, ">", since))),
+    ),
+  );
+  return snaps.flatMap((snap) => snap.docs);
+}
+
+async function computeImport(
+  items: IntakeSourceFields[],
+  base?: { existing: Map<string, IntakeItem>; readAt: number },
+) {
   const [{ mergeIntake }, { applyWrites }, { computeStockSync }] =
     await Promise.all([
       import("@/lib/intake/merge"),
       import("@/lib/intake/summary"),
       import("@/lib/intake/stockSync"),
     ]);
-  const snap = await getDocs(collection(db, "intake_items"));
-  const existing = new Map<string, IntakeItem>(
-    snap.docs.map((d) => [d.id, { ...(d.data() as IntakeItem), id: d.id }]),
-  );
+  const readAt = Date.now();
+  let existing: Map<string, IntakeItem>;
+  if (base) {
+    existing = new Map(base.existing);
+    for (const d of await changedSince(base.readAt)) {
+      existing.set(d.id, { ...(d.data() as IntakeItem), id: d.id });
+    }
+  } else {
+    const snap = await getDocs(collection(db, "intake_items"));
+    existing = new Map(
+      snap.docs.map((d) => [d.id, { ...(d.data() as IntakeItem), id: d.id }]),
+    );
+  }
   const merge = mergeIntake(existing, items);
   const stockSync = computeStockSync(
     existing,
     applyWrites(existing, merge.writes),
   );
-  return { existing, merge, stockSync };
+  return { existing, readAt, merge, stockSync };
 }
 
 export default function NoturnoImportPage() {
@@ -204,8 +237,8 @@ export default function NoturnoImportPage() {
         ]);
       const sheet = readFirstSheet(new Uint8Array(await file.arrayBuffer()));
       const items = analyzeNoturnoRows(rowsFromSheet(sheet));
-      const { existing, merge, stockSync } = await computeImport(items);
-      setAnalysis({ fileName: file.name, items, existing, merge, stockSync });
+      const { existing, readAt, merge, stockSync } = await computeImport(items);
+      setAnalysis({ fileName: file.name, items, existing, readAt, merge, stockSync });
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Não foi possível ler o arquivo.",
@@ -222,6 +255,7 @@ export default function NoturnoImportPage() {
       // Recalcula com o estado ATUAL da fila (ver computeImport).
       const { existing, merge, stockSync } = await computeImport(
         analysis.items,
+        analysis,
       );
       const { writes } = merge;
       // Produtos ANTES da fila: se algo falhar no meio, reimportar o mesmo
