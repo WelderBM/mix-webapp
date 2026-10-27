@@ -90,24 +90,28 @@ export function RibbonsTab({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<number | null>(null);
+  const [bulkTotal, setBulkTotal] = useState(0);
 
   const ribbons = useMemo(() => allProducts.filter((p) => p.type === "RIBBON"), [allProducts]);
   const lines = useMemo(() => ribbonSections(ribbons), [ribbons]);
+  const activeLine = lines.some((l) => l.key === lineFilter) ? lineFilter : "";
   const tableRows = useMemo(
     () =>
       filterSortRibbons(ribbons, {
         query: ribbonSearchTerm,
         status: statusFilter,
-        line: lineFilter,
+        line: activeLine,
         sort,
       }),
-    [ribbons, ribbonSearchTerm, statusFilter, lineFilter, sort]
+    [ribbons, ribbonSearchTerm, statusFilter, activeLine, sort]
   );
   // Seleção só do que ainda existe (fita apagada em outro aparelho sai).
   const selectedIds = useMemo(
     () => ribbons.filter((p) => selected.has(p.id)).map((p) => p.id),
     [ribbons, selected]
   );
+  const visibleIds = useMemo(() => new Set(tableRows.map((p) => p.id)), [tableRows]);
+  const hiddenSelected = selectedIds.filter((id) => !visibleIds.has(id)).length;
   const allVisibleSelected =
     tableRows.length > 0 && tableRows.every((p) => selected.has(p.id));
   const toggleOne = (id: string) =>
@@ -131,6 +135,7 @@ export function RibbonsTab({
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
     const total = selectedIds.length;
+    setBulkTotal(total);
     setBulkProgress(0);
     try {
       const { reopened } = await deleteProducts(
@@ -289,7 +294,7 @@ export function RibbonsTab({
                 </Badge>
               </div>
 
-              <div className="grid max-h-[65vh] grid-cols-1 gap-3 overflow-y-auto overscroll-contain pr-1">
+              <div className="grid max-h-[65vh] grid-cols-1 content-start gap-3 overflow-y-auto overscroll-contain pr-1 lg:h-[65vh]">
                 {allProducts
                   .filter(
                     (p) =>
@@ -427,7 +432,7 @@ export function RibbonsTab({
                 </Badge>
               </div>
 
-              <div className="grid max-h-[65vh] grid-cols-1 gap-3 overflow-y-auto overscroll-contain pr-1">
+              <div className="grid max-h-[65vh] grid-cols-1 content-start gap-3 overflow-y-auto overscroll-contain pr-1 lg:h-[65vh]">
                 {allProducts
                   .filter(
                     (p) =>
@@ -619,7 +624,7 @@ export function RibbonsTab({
               <label className="flex items-center gap-2 text-sm text-slate-600">
                 Linha
                 <select
-                  value={lineFilter}
+                  value={activeLine}
                   onChange={(e) => setLineFilter(e.target.value)}
                   className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm"
                 >
@@ -639,6 +644,11 @@ export function RibbonsTab({
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <span className="text-sm font-semibold text-slate-700">
                   {selectedIds.length} {selectedIds.length === 1 ? "selecionada" : "selecionadas"}
+                  {hiddenSelected > 0 && (
+                    <span className="font-normal text-amber-700">
+                      {" "}({hiddenSelected} fora do filtro)
+                    </span>
+                  )}
                 </span>
                 <Button variant="outline" className="h-11" onClick={() => setSelected(new Set())}>
                   Limpar seleção
@@ -1022,10 +1032,14 @@ export function RibbonsTab({
       <ConfirmDialog
         open={bulkConfirm}
         onOpenChange={(open) => !open && bulkProgress == null && setBulkConfirm(false)}
-        title={`Excluir ${selectedIds.length} ${selectedIds.length === 1 ? "fita" : "fitas"}?`}
+        title={
+          bulkProgress != null
+            ? "Excluindo fitas…"
+            : `Excluir ${selectedIds.length} ${selectedIds.length === 1 ? "fita" : "fitas"}?`
+        }
         description={
           bulkProgress != null
-            ? `Excluindo… ${bulkProgress} de ${selectedIds.length}`
+            ? `${bulkProgress} de ${bulkTotal}`
             : "As fitas saem da loja e os itens delas voltam para a fila do Noturno, para cadastrar de novo se precisar."
         }
         confirmLabel="Excluir"
