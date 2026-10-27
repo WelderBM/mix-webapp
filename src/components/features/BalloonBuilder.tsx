@@ -23,6 +23,8 @@ import {
 import { RAINBOW_HEXES, suggestHexColor } from "@/lib/balloonColors";
 import {
   balloonColorImage,
+  balloonMixImage,
+  isMixColor,
   balloonSizeHint,
   balloonSizeImage,
   balloonSizeLabel,
@@ -77,6 +79,13 @@ const balloonHexes = (colorName: string): string[] => {
   const hexes = css.match(/#[0-9a-fA-F]{6}/g);
   return hexes?.length ? hexes : ["#E5E7EB"]; // Cristal: transparente claro
 };
+
+// Arte da cor: "Sortido" vira 3 balões de cores diferentes agrupados, no
+// material do tipo (relatório 27/10); no foil, a letra continua uma cor.
+const colorArt = (typeId: string, colorName: string, glyph?: string) =>
+  !glyph && isMixColor(colorName)
+    ? balloonMixImage(typeId)
+    : balloonColorImage(typeId, balloonHexes(colorName), glyph);
 
 // Marca mais pedida pelos clientes: vem primeiro, com destaque.
 const PREFERRED_BRAND = "São Roque";
@@ -624,7 +633,7 @@ export function BalloonBuilder() {
                     <div className="w-full aspect-square rounded-xl border-2 border-slate-200 bg-slate-50 group-hover:border-purple-500 transition-colors relative overflow-hidden">
                       {/* eslint-disable-next-line @next/next/no-img-element -- SVG gerado no navegador */}
                       <img
-                        src={balloonColorImage(selectedType.id, balloonHexes(colorName), isFoil ? "A" : undefined)}
+                        src={colorArt(selectedType.id, colorName, isFoil ? "A" : undefined)}
                         alt=""
                         loading="lazy"
                         decoding="async"
@@ -675,9 +684,9 @@ export function BalloonBuilder() {
                           // eslint-disable-next-line @next/next/no-img-element -- SVG gerado no navegador
                           <img
                             key={`${ch}-${i}`}
-                            src={balloonColorImage(
+                            src={colorArt(
                               selectedType.id,
-                              balloonHexes(selectedColor.split("|")[0]),
+                              selectedColor.split("|")[0],
                               isFoil ? ch : undefined,
                             )}
                             alt=""
