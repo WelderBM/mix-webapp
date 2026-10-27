@@ -66,7 +66,8 @@ interface Analysis {
   fileName: string;
   items: IntakeSourceFields[];
   existing: Map<string, IntakeItem>;
-  // Quando a fila foi lida (relógio do aparelho), para a releitura parcial.
+  // Gravação mais recente vista na leitura (horário do servidor), para a
+  // releitura parcial.
   readAt: number;
   merge: IntakeMergeResult;
   // Produtos já publicados cujo estoque cruzou o zero (#202).
@@ -85,16 +86,27 @@ interface ImportResult extends IntakeMergeResult {
 // publicado ficaria fora da sincronização e o placar perderia a contagem).
 // No clique, em vez de reler a fila inteira (~7 mil leituras, #373), relê
 // só os itens que mudaram desde a prévia: toda gravação na fila marca
-// publishedAt, statusChangedAt ou lastImportedAt.
-const CLOCK_MARGIN_MS = 10 * 60 * 1000; // relógio do aparelho pode estar adiantado
+// publishedAt, statusChangedAt ou lastImportedAt. O corte é a gravação
+// mais recente que a prévia viu (horário do servidor, não do aparelho):
+// tudo gravado depois da leitura tem horário maior ou igual a ele.
+const STAMP_FIELDS = ["publishedAt", "statusChangedAt", "lastImportedAt"] as const;
+
+function latestStamp(items: Iterable<IntakeItem>): number {
+  let max = 0;
+  for (const item of items) {
+    for (const field of STAMP_FIELDS) {
+      const v = (item as unknown as Record<string, unknown>)[field];
+      if (v instanceof Timestamp) max = Math.max(max, v.toMillis());
+    }
+  }
+  return max;
+}
 
 async function changedSince(sinceMs: number) {
-  const since = Timestamp.fromMillis(sinceMs - CLOCK_MARGIN_MS);
+  const since = Timestamp.fromMillis(sinceMs);
   const col = collection(db, "intake_items");
   const snaps = await Promise.all(
-    ["publishedAt", "statusChangedAt", "lastImportedAt"].map((field) =>
-      getDocs(query(col, where(field, ">", since))),
-    ),
+    STAMP_FIELDS.map((field) => getDocs(query(col, where(field, ">=", since)))),
   );
   return snaps.flatMap((snap) => snap.docs);
 }
@@ -109,7 +121,6 @@ async function computeImport(
       import("@/lib/intake/summary"),
       import("@/lib/intake/stockSync"),
     ]);
-  const readAt = Date.now();
   let existing: Map<string, IntakeItem>;
   if (base) {
     existing = new Map(base.existing);
@@ -127,7 +138,7 @@ async function computeImport(
     existing,
     applyWrites(existing, merge.writes),
   );
-  return { existing, readAt, merge, stockSync };
+  return { existing, readAt: latestStamp(existing.values()), merge, stockSync };
 }
 
 export default function NoturnoImportPage() {
