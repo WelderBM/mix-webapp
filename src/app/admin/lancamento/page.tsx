@@ -33,6 +33,7 @@ import { statusTransitionDeltas } from "@/lib/intake/publish";
 import { useCategoryStore } from "@/store/categoryStore";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { LaunchSheet } from "@/components/admin/intake/LaunchSheet";
+import { OrphanedItemsRepair } from "@/components/admin/intake/OrphanedItemsRepair";
 import {
   attributePlural,
   buildGroups,
@@ -183,12 +184,13 @@ export default function IntakeQueuePage() {
     });
   }, [router]);
 
+  const [summaryVersion, setSummaryVersion] = useState(0);
   useEffect(() => {
     if (!user) return;
     getDoc(doc(db, "intake_meta", "summary"))
       .then((s) => setSummary(s.exists() ? (s.data() as IntakeSummary) : null))
       .catch(() => setSummary(null));
-  }, [user]);
+  }, [user, summaryVersion]);
 
   useEffect(() => {
     if (!user) return;
@@ -447,6 +449,16 @@ export default function IntakeQueuePage() {
         )}
 
         {summary && <Scoreboard summary={summary} email={user.email} />}
+
+        {summary && area == null && !searching && (
+          <OrphanedItemsRepair
+            email={user.email}
+            onDone={() => {
+              cache.current.clear();
+              setSummaryVersion((v) => v + 1);
+            }}
+          />
+        )}
 
         {summary && area == null && !searching && (
           <AreaGrid
