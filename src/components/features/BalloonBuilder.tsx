@@ -37,7 +37,7 @@ import {
   isSoldOut,
 } from "@/lib/intake/balloonCatalog";
 import { FOIL_TYPE_ID, foilCharacters, foilPieces, foilWords } from "@/lib/balloonFoil";
-import { BalloonSizeScale } from "@/components/features/BalloonSizeScale";
+import { BalloonSizeScale, FoilTextScale } from "@/components/features/BalloonSizeScale";
 import type { BalloonStock, BalloonStockDoc, FoilCharStock } from "@/types/balloon";
 
 // Teclado do foil: a ordem em que os caracteres aparecem.
@@ -621,6 +621,11 @@ export function BalloonBuilder() {
               {selectedType.name} {balloonSizeLabel(selectedType.id, selectedSize.size)} -{" "}
               {formatCurrency(selectedSize.price)}
             </p>
+            {/* Tamanho único (Linha Uniq, letras): a etapa do tamanho foi
+                pulada, então a escala com a pessoa aparece aqui (#344). */}
+            {availableSizes.length === 1 && (
+              <BalloonSizeScale typeId={selectedType.id} sizes={[selectedSize.size]} />
+            )}
             <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {availableColors.map((color) => {
                 const [colorName] = color.split("|");
@@ -807,6 +812,16 @@ export function BalloonBuilder() {
                     </p>
                   )}
                 </div>
+              )}
+
+              {/* Letras no tamanho real ao lado da pessoa (#344). */}
+              {isFoil && characters.trim() && (
+                <FoilTextScale
+                  typeId={selectedType.id}
+                  size={selectedSize.size}
+                  text={characters}
+                  hexes={balloonHexes(selectedColor.split("|")[0])}
+                />
               )}
 
               {isFoil && (
