@@ -36,8 +36,10 @@ permissions:
   issues: write
   pull-requests: read
 
+# Um grupo por PR (e um para a reconciliação): merges seguidos do gate não
+# cancelam um ao outro na fila (revisão do #385).
 concurrency:
-  group: close-issues-on-dev
+  group: close-issues-on-dev-${{ github.event.pull_request.number || inputs.pr || 'reconciliar' }}
   cancel-in-progress: false
 
 jobs:
@@ -82,10 +84,21 @@ jobs:
               if [ "$(jq -r .state <<<"$ISSUE")" != "open" ]; then
                 echo "#$N já está fechada."; continue
               fi
+              # Reaberta por alguém (correção incompleta): a decisão humana
+              # vale; a reconciliação não fecha de novo (revisão do #385).
+              REOPENED=$(gh api "repos/$GH_REPO/issues/$N/events" --paginate \
+                --jq '[.[] | select(.event == "reopened")] | length' | awk '{s+=$1} END {print s+0}')
+              if [ "$REOPENED" -gt 0 ]; then
+                echo "#$N foi reaberta à mão — não fecho de novo."; continue
+              fi
               if jq -r '.body // ""' <<<"$ISSUE" | grep -q '<!-- vistoria:'; then
                 # Comenta uma vez só (a reconciliação diária passaria de novo).
-                if gh api "repos/$GH_REPO/issues/$N/comments" --paginate --jq '.[].body' \
-                    | grep -q "Correção em \`dev\` pelo PR #$PR\."; then
+                # Conta pelo jq (sem grep -q no pipe: com pipefail dava falso
+                # negativo e o comentário se repetia).
+                DONE=$(gh api "repos/$GH_REPO/issues/$N/comments" --paginate \
+                  --jq "[.[] | select(.body | startswith(\"Correção em \`dev\` pelo PR #$PR.\"))] | length" \
+                  | awk '{s+=$1} END {print s+0}')
+                if [ "$DONE" -gt 0 ]; then
                   echo "#$N (vistoria) já comentada."
                 else
                   gh issue comment "$N" --body "Correção em \`dev\` pelo PR #$PR. A vistoria fecha esta issue sozinha depois de 2 rodadas sem o problema em produção."
