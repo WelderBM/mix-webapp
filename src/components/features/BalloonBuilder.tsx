@@ -271,16 +271,9 @@ export function BalloonBuilder() {
 
   const handleSelectType = (typeId: string) => {
     setSelectedTypeId(typeId);
-    const type = balloonConfig.types.find((t) => t.id === typeId);
-
-    // Se o tipo tem apenas 1 tamanho em estoque (ex: canudo), pula para cor
-    const sizes = type ? sizesInStock(type) : [];
-    if (sizes.length === 1) {
-      setSelectedSize(sizes[0]);
-      setStep(2); // Pula direto para cor
-    } else {
-      setStep(1); // Vai para seleção de tamanho
-    }
+    // Sempre passa pela etapa do tamanho, mesmo com um tamanho só: o
+    // cliente vê as mesmas 4 etapas em todo tipo (relatório 27/10).
+    setStep(1);
   };
 
   const handleSelectSize = (size: BalloonSizeConfig) => {
@@ -348,7 +341,7 @@ export function BalloonBuilder() {
   };
 
   const handleBack = () => {
-    if ((step === 2 && availableSizes.length === 1) || step === 1) {
+    if (step === 1) {
       // Volta para o tipo (ou para a marca, se o grupo só tem um tipo)
       backToStart();
     } else if (step > 0) {
@@ -407,22 +400,15 @@ export function BalloonBuilder() {
 
       {/* Progress Bar */}
       <div className="flex items-center justify-center gap-2">
-        {[0, 1, 2, 3].map((s) => {
-          // Esconde step 1 se tipo tiver tamanho único
-          if (s === 1 && selectedType && availableSizes.length === 1) {
-            return null;
-          }
-
-          return (
-            <div
-              key={s}
-              className={cn(
-                "h-2 rounded-full transition-all",
-                s <= step ? "bg-purple-600 w-16" : "bg-slate-200 w-8"
-              )}
-            />
-          );
-        })}
+        {[0, 1, 2, 3].map((s) => (
+          <div
+            key={s}
+            className={cn(
+              "h-2 rounded-full transition-all",
+              s <= step ? "bg-purple-600 w-16" : "bg-slate-200 w-8"
+            )}
+          />
+        ))}
       </div>
 
       <div ref={stepRef}>
@@ -621,11 +607,6 @@ export function BalloonBuilder() {
               {selectedType.name} {balloonSizeLabel(selectedType.id, selectedSize.size)} -{" "}
               {formatCurrency(selectedSize.price)}
             </p>
-            {/* Tamanho único (Linha Uniq, letras): a etapa do tamanho foi
-                pulada, então a escala com a pessoa aparece aqui (#344). */}
-            {availableSizes.length === 1 && (
-              <BalloonSizeScale typeId={selectedType.id} sizes={[selectedSize.size]} />
-            )}
             <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
               {availableColors.map((color) => {
                 const [colorName] = color.split("|");
