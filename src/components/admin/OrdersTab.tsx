@@ -65,6 +65,18 @@ import {
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { balloonItemLabel } from "@/lib/balloonFoil";
+import { customerWhatsAppUrl } from "@/lib/orderMessage";
+
+// Mensagem do pedido para o cliente (relatório 27/10): quem manda agora é
+// a atendente, do WhatsApp da loja. Modelo em src/lib/orderMessage.ts.
+function sendOrderToCustomer(order: Order) {
+  const url = customerWhatsAppUrl(order, window.location.origin);
+  if (!url) {
+    toast.error("Telefone do cliente inválido. Confira o número no pedido.");
+    return;
+  }
+  window.open(url, "_blank", "noopener");
+}
 
 // Um nome só por forma de pagamento (antes: "Cartão" no celular, "Crédito"
 // no desktop, e forma desconhecida virava "PIX"). `long` = texto pro cliente.
@@ -795,36 +807,14 @@ ${paymentInstruction}`;
                               variant="secondary"
                               className="w-full gap-2 text-xs"
                               onClick={() => {
-                                const firstName =
-                                  order.customerName.split(" ")[0];
-                                const firstItem = order.items[0];
-                                const firstItemName =
-                                  firstItem.product?.name ||
-                                  firstItem.kitName ||
-                                  "Produto";
-                                const otherItemsCount = order.items.length - 1;
-
-                                let itemsText = firstItemName;
-                                if (otherItemsCount > 0) {
-                                  itemsText += ` e mais ${otherItemsCount} item(s)`;
-                                }
-
-                                const text = `Olá, ${firstName}, tudo bem? Sobre seu pedido de ${itemsText} na Mix Novidades...`;
-
-                                window.open(
-                                  `https://wa.me/55${order.customerPhone?.replace(
-                                    /\D/g,
-                                    ""
-                                  )}?text=${encodeURIComponent(text)}`,
-                                  "_blank"
-                                );
+                                sendOrderToCustomer(order);
                               }}
                             >
                               <MessageCircle
                                 size={14}
                                 className="text-green-600"
                               />{" "}
-                              WhatsApp Cliente
+                              Enviar pedido ao cliente
                             </Button>
                           </div>
                         </div>
@@ -1049,32 +1039,11 @@ ${paymentInstruction}`;
                         onClick={(e) => {
                           e.stopPropagation();
 
-                          const firstName = order.customerName.split(" ")[0];
-                          const firstItem = order.items[0];
-                          const firstItemName =
-                            firstItem.product?.name ||
-                            firstItem.kitName ||
-                            "Produto";
-                          const otherItemsCount = order.items.length - 1;
-
-                          let itemsText = firstItemName;
-                          if (otherItemsCount > 0) {
-                            itemsText += ` e mais ${otherItemsCount} item(s)`;
-                          }
-
-                          const text = `Olá, ${firstName}, tudo bem? Sobre seu pedido de ${itemsText} na Mix Novidades...`;
-
-                          window.open(
-                            `https://wa.me/55${order.customerPhone?.replace(
-                              /\D/g,
-                              ""
-                            )}?text=${encodeURIComponent(text)}`,
-                            "_blank"
-                          );
+                          sendOrderToCustomer(order);
                         }}
                       >
                         <MessageCircle size={16} className="text-green-600" />{" "}
-                        WhatsApp
+                        Enviar pedido
                       </Button>
                     </div>
                   </div>

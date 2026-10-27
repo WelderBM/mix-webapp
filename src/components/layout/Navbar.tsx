@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
 // CORRIGIDO: Importa CartSidebar (o painel) e CartIcon (o botão inteligente)
 import { CartSidebar, CartIcon } from "@/components/features/CartSidebar";
+import { TrackingIcon } from "@/components/features/TrackingIcon";
 // Sheet components
 import {
   Sheet,
@@ -358,6 +359,7 @@ const Navbar = () => {
 
         {/* Actions */}
         <div className="flex items-center space-x-2">
+          <TrackingIcon />
           <CartIcon />
           <Button
             variant="ghost"

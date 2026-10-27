@@ -16,7 +16,12 @@ import {
   Search,
   ArrowLeft,
   Store,
+  Copy,
+  PartyPopper,
+  PackageSearch,
 } from "lucide-react";
+import { toast } from "sonner";
+import { GroupInvite } from "@/components/features/GroupInvite";
 import { formatCurrency, cn } from "@/lib/utils";
 import { balloonItemLabel } from "@/lib/balloonFoil";
 import Link from "next/link";
@@ -127,6 +132,28 @@ const StatusTimeline = ({
   );
 };
 
+function OrderCode({ id }: { id: string }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(id);
+      toast.success("Código copiado!");
+    } catch {
+      toast.error("Não deu para copiar. Selecione o código e copie.");
+    }
+  };
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 py-1 pl-3 pr-1">
+      <div className="min-w-0">
+        <p className="text-[10px] font-bold uppercase text-slate-500">Código do pedido</p>
+        <p className="select-all break-all font-mono text-sm font-bold text-slate-800">{id}</p>
+      </div>
+      <Button type="button" variant="ghost" onClick={copy} className="h-11 shrink-0 gap-1 text-purple-700">
+        <Copy size={16} aria-hidden="true" /> Copiar
+      </Button>
+    </div>
+  );
+}
+
 export function TrackOrderContent() {
   const [orderId, setOrderId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -137,6 +164,9 @@ export function TrackOrderContent() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
+  // Acabou de comprar (checkout manda ?novo=1): boas-vindas, código em
+  // destaque e, depois de uns segundos, o convite do grupo.
+  const isNew = searchParams.get("novo") === "1";
 
   // Auto-load do ID
   useEffect(() => {
@@ -252,15 +282,15 @@ export function TrackOrderContent() {
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <h2 className="text-lg font-bold mb-2">Já fez seu pedido?</h2>
             <p className="text-sm text-slate-500 mb-4">
-              Digite o ID do pedido que você recebeu no WhatsApp ou utilize o
-              link enviado.
+              Digite o código do pedido que mandamos no seu WhatsApp, ou abra o
+              link da mensagem.
             </p>
             <form onSubmit={handleSearch} className="flex gap-2">
               <Input
-                placeholder="Cole o ID do pedido aqui..."
+                placeholder="Cole o código do pedido aqui..."
                 value={orderId}
                 onChange={(e) => setOrderId(e.target.value)}
-                aria-label="ID do pedido"
+                aria-label="Código do pedido"
                 className="h-11 bg-slate-50 font-mono text-sm"
               />
               <Button
@@ -287,13 +317,24 @@ export function TrackOrderContent() {
         {/* Order Display */}
         {order && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {isNew && (
+              <div className="rounded-2xl border border-green-200 bg-green-50 p-5 text-center shadow-sm animate-in zoom-in-95 fade-in duration-700 motion-reduce:animate-none">
+                <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 animate-bounce motion-reduce:animate-none [animation-iteration-count:2]">
+                  <PartyPopper className="text-green-700" size={28} aria-hidden="true" />
+                </div>
+                <h2 className="text-xl font-black text-green-900">Pedido recebido!</h2>
+                <p className="mt-1 text-sm text-green-900">
+                  A Mix Novidades vai te chamar no WhatsApp para confirmar. Guarde o código
+                  abaixo: é com ele que você acompanha o pedido.
+                </p>
+                <p className="mt-3 flex items-center justify-center gap-1.5 text-xs font-semibold text-green-800">
+                  <PackageSearch size={16} aria-hidden="true" />
+                  Para voltar aqui, toque em &quot;Meu pedido&quot;, ao lado do carrinho.
+                </p>
+              </div>
+            )}
             {/* Status Card */}
             <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 overflow-hidden relative">
-              {/* ID Badge */}
-              <div className="absolute top-4 right-4 bg-slate-100 px-2 py-1 rounded text-[10px] font-mono font-bold text-slate-500">
-                #{order.id.slice(0, 8).toUpperCase()}
-              </div>
-
               <div className="mb-8 text-center">
                 <h2 className="text-xl font-black text-slate-800 mb-1">
                   Olá, {order.customerName.split(" ")[0]}!
@@ -301,6 +342,10 @@ export function TrackOrderContent() {
                 <p className="text-sm text-slate-500">
                   Acompanhe o status do seu pedido em tempo real.
                 </p>
+              </div>
+
+              <div className="mb-6">
+                <OrderCode id={order.id} />
               </div>
 
               <StatusTimeline
@@ -431,6 +476,7 @@ export function TrackOrderContent() {
             </Button>
           </div>
         )}
+        {order && isNew && <GroupInvite />}
       </div>
     </div>
   );

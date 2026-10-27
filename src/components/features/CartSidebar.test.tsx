@@ -28,8 +28,9 @@ vi.mock("@/lib/firebase", () => ({
   db: {},
 }));
 
+const pushMock = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: pushMock, replace: vi.fn() }),
 }));
 
 // Mock Sonner
@@ -145,7 +146,7 @@ describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
     expect(screen.queryByText("Para quem você vai realizar o pagamento?")).toBeNull();
   });
 
-  it("selecionar Dinheiro revela 'Troco para quanto?' e viaja no payload/mensagem", async () => {
+  it("selecionar Dinheiro revela 'Troco para quanto?' e viaja no payload", async () => {
     render(<CartSidebar />);
 
     expect(screen.queryByText("Troco para quanto? (Opcional)")).toBeNull();
@@ -166,10 +167,8 @@ describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
     expect(payload.changeFor).toBe("50");
     expect(payload.pixPaymentDestination).toBeNull();
 
-    await waitFor(() => expect((window.open as any)).toHaveBeenCalled());
-    const whatsappUrl = (window.open as any).mock.calls[0][0] as string;
-    const message = decodeURIComponent(whatsappUrl.split("text=")[1]);
-    expect(message).toContain("Troco para R$ 50");
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(expect.stringMatching(/^\/meu-pedido\?id=.+&novo=1$/)));
+    expect(window.open).not.toHaveBeenCalled();
   });
 
   it("bloqueia o envio se o telefone não for preenchido, mesmo em Retirar", async () => {
@@ -206,7 +205,7 @@ describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
     expect(addDocMock).not.toHaveBeenCalled();
   });
 
-  it("payload de Retirar + PIX não carrega pixPaymentDestination nem changeFor, e a mensagem de WhatsApp não menciona Destino/Troco", async () => {
+  it("payload de Retirar + PIX não carrega pixPaymentDestination nem changeFor", async () => {
     render(<CartSidebar />);
 
     fillContact();
@@ -221,12 +220,8 @@ describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
     expect(payload.address).toBeNull();
     expect(payload.addressDetails).toBeNull();
 
-    await waitFor(() => expect((window.open as any)).toHaveBeenCalled());
-    const whatsappUrl = (window.open as any).mock.calls[0][0] as string;
-    const message = decodeURIComponent(whatsappUrl.split("text=")[1]);
-    expect(message).not.toContain("Destino:");
-    expect(message).not.toContain("Troco");
-    expect(message).not.toContain("Endereço:");
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(expect.stringMatching(/^\/meu-pedido\?id=.+&novo=1$/)));
+    expect(window.open).not.toHaveBeenCalled();
   });
 
   it("pedido de Entrega carrega endereço estruturado (não em Observação)", async () => {
@@ -266,11 +261,8 @@ describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
     // Entrega + Pix (#346): paga à loja o pedido + a corrida.
     expect(payload.pixPaymentDestination).toBe("store");
 
-    await waitFor(() => expect((window.open as any)).toHaveBeenCalled());
-    const whatsappUrl = (window.open as any).mock.calls[0][0] as string;
-    const message = decodeURIComponent(whatsappUrl.split("text=")[1]);
-    expect(message).toContain("(para a loja: pedido + corrida)");
-    expect(message).toContain("Corrida do motoboy: R$ 10 a R$ 15, a confirmar");
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(expect.stringMatching(/^\/meu-pedido\?id=.+&novo=1$/)));
+    expect(window.open).not.toHaveBeenCalled();
   });
 
   it("Entrega não oferece cartão (#346)", async () => {
