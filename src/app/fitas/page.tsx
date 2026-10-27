@@ -29,6 +29,7 @@ import { filterRibbons, ribbonSections } from "@/lib/ribbon-sections";
 import { useShowMore } from "@/hooks/useShowMore";
 import { ShowMoreButton } from "@/components/ui/ShowMoreButton";
 import { RibbonSectionFilter } from "@/components/features/RibbonSectionFilter";
+import { clampMeters, stepMeters } from "@/lib/meters";
 
 // Quantas fitas aparecem por vez (#345): celular simples sofre com 79 cards.
 const ROLLS_PAGE = 12;
@@ -184,12 +185,16 @@ function FitasContent() {
       toast.error("Essa fita ainda não tem preço por metro configurado.");
       return;
     }
-    const totalPrice = meterPrice * meterAmount;
+    const meters = clampMeters(
+      meterAmount,
+      product.ribbonInventory?.remainingMeters
+    );
+    const totalPrice = meterPrice * meters;
     addItem({
       cartId: crypto.randomUUID(),
       type: "SIMPLE",
       product: product,
-      quantity: meterAmount,
+      quantity: meters,
       kitTotalAmount: totalPrice,
     });
     setSelectedRibbonId("");
@@ -204,6 +209,7 @@ function FitasContent() {
   const selectedMeterProduct = openRibbons.find(
     (p) => p.id === selectedRibbonId
   );
+  const meterMax = selectedMeterProduct?.ribbonInventory?.remainingMeters;
   const selectedMeterPrice = selectedMeterProduct
     ? getEffectiveUnitPrice(selectedMeterProduct)
     : null;
@@ -469,23 +475,35 @@ function FitasContent() {
                       <div className="flex items-center border rounded-xl bg-white overflow-hidden shadow-sm h-12 sm:h-14">
                         <button
                           onClick={() =>
-                            setMeterAmount(Math.max(0.5, meterAmount - 0.5))
+                            setMeterAmount(stepMeters(meterAmount, -1, meterMax))
                           }
+                          aria-label="Menos meio metro"
                           className="w-12 sm:w-14 h-full hover:bg-slate-50 text-slate-500 border-r text-xl flex items-center justify-center active:bg-slate-100 touch-manipulation"
                         >
                           -
                         </button>
                         <input
                           type="number"
-                          step="0.1"
-                          value={meterAmount}
+                          inputMode="decimal"
+                          step="0.5"
+                          min={0.5}
+                          aria-label="Metros"
+                          value={Number.isNaN(meterAmount) ? "" : meterAmount}
                           onChange={(e) =>
                             setMeterAmount(parseFloat(e.target.value))
+                          }
+                          // Mínimo de 0,5 m (relatório 27/10): corrige ao
+                          // sair do campo, para não brigar com a digitação.
+                          onBlur={() =>
+                            setMeterAmount(clampMeters(meterAmount, meterMax))
                           }
                           className="w-20 sm:w-24 text-center border-none font-bold text-lg sm:text-xl focus:ring-0 outline-none text-slate-800"
                         />
                         <button
-                          onClick={() => setMeterAmount(meterAmount + 0.5)}
+                          onClick={() =>
+                            setMeterAmount(stepMeters(meterAmount, 1, meterMax))
+                          }
+                          aria-label="Mais meio metro"
                           className="w-12 sm:w-14 h-full hover:bg-slate-50 text-slate-500 border-l text-xl flex items-center justify-center active:bg-slate-100 touch-manipulation"
                         >
                           +
