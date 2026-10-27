@@ -32,7 +32,7 @@ export function RibbonSectionFilter({
           : "border-slate-200 bg-white text-slate-700 hover:border-primary",
       )}
     >
-      {label} <span className={section === key ? "text-white/80" : "text-slate-500"}>({count})</span>
+      {label} <span className={section === key ? "text-white" : "text-slate-500"}>({count})</span>
     </button>
   );
   return (

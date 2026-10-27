@@ -9,6 +9,8 @@ describe("seções da loja de fitas (#345)", () => {
     expect(ribbonSectionOf(p("Fita Plástica 32mm Xingo Listrada Laranja")).label).toBe("Plástica 32mm");
     expect(ribbonSectionOf(p("Fita Maxi Rosa", 32)).label).toBe("Maxi 32mm");
     expect(ribbonSectionOf(p("Fita de cetim vermelha")).label).toBe("Outras fitas");
+    // Nome antigo com a metragem colada na largura (revisão do #353).
+    expect(ribbonSectionOf(p("Fita Maxi 32mmx100m Rosa")).label).toBe("Maxi 32mm");
   });
 
   it("maiores primeiro e Outras no fim", () => {

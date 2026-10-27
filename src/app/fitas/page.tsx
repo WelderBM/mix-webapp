@@ -313,7 +313,7 @@ function FitasContent() {
                 />
                 {filteredRolls.length === 0 && (
                   <p className="py-10 text-center text-sm text-slate-500">
-                    Nenhuma fita com esse nome nesta linha.
+                    {rollSection ? "Nenhuma fita com esse nome nesta linha." : "Nenhuma fita com esse nome."}
                   </p>
                 )}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
@@ -385,7 +385,7 @@ function FitasContent() {
                       />
                       {filteredOpen.length === 0 && (
                         <p className="py-6 text-center text-sm text-slate-500">
-                          Nenhuma fita com esse nome nesta linha.
+                          {meterSection ? "Nenhuma fita com esse nome nesta linha." : "Nenhuma fita com esse nome."}
                         </p>
                       )}
                       {/* Grid responsivo ajustado para mobile e desktop */}
