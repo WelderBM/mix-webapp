@@ -46,6 +46,7 @@ As skills do repositório estão centralizadas no ambiente global (`~/.agents/sk
 
 ## 5. Ritual de Entrega & Qualidade de Código
 - **Fatiamento**: Mudanças devem ser divididas em PRs pequenos e revisáveis.
+- **Descrição do PR**: siga as seções de `.github/pull_request_template.md` (Critério concluído, Pendências, Fora de escopo). O `gh pr create --body` não usa o modelo; copie as seções para o corpo. `Closes #N` só quando a issue fica 100% resolvida; senão, `Refs #N` e o que falta em Pendências.
 - **Checklist Pré-Commit (Obrigatório)**:
   1. `npx tsc --noEmit` (deve passar 100% limpo)
   2. `npx vitest run` (suíte inteira passando)
