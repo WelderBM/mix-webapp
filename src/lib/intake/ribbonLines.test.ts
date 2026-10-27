@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildRibbonProduct, groupRibbonLines, isPlasticRibbon, ribbonLabel, splitBowRibbons, validateLinePrices } from "./ribbonLines";
+import { buildRibbonProduct, groupRibbonLines, ribbonModel, isPlasticRibbon, ribbonLabel, splitBowRibbons, validateLinePrices } from "./ribbonLines";
 
 let n = 0;
 const fita = (name: string, stock = 5, status = "pendente", suggestedType = "RIBBON") =>
@@ -43,26 +43,52 @@ describe("fitas de plástico por linha (nomes reais do Noturno)", () => {
     expect(groupRibbonLines([semMetro])).toEqual([]);
   });
 
-  it("agrupa por linha × largura × metragem; só pendentes", () => {
+  it("agrupa por marca × modelo × largura × metragem; só pendentes (#324)", () => {
     const lines = groupRibbonLines([
-      fita("FITA MAXI AMOR SEM FIM 32MMX100M ROSA", 3),
       fita("FITA MAXI FM 03D 32MMX100 PRETO/OURO", 4),
+      fita("FITA MAXI FM03D 32MMX100 AMARELO", 3),
+      fita("FITA MAXI LISO 32MMX100M ROSA", 2),
       fita("FITA MAXI FM 100L 16MMX50 AZUL ESCURO", 2),
       fita("FITA MAXI LINE 32MMX100M ROSA BALE", 1, "publicado"),
       fita("FITA PLASTICA 32MMX25M VERMELHA"),
     ]);
     expect(lines.map((l) => [l.label, l.members.length, l.stock])).toEqual([
-      ["Maxi 32mm × 100m", 2, 7],
-      ["Maxi 16mm × 50m", 1, 2],
-      ["Plástica 32mm × 25m", 1, 5],
+      ["Maxi FM 03D 32mm × 100m", 2, 7],
+      ["Maxi Lisa 32mm × 100m", 1, 2],
+      ["Maxi FM 100L 16mm × 50m", 1, 2],
+      ["Plástica Lisa 32mm × 25m", 1, 5],
     ]);
   });
 
-  it("nome repetido na linha ganha o código do Noturno", () => {
-    const [l] = groupRibbonLines([fita("FITA MAXI FM03D 32MMX100 AMARELO"), fita("FITA MAXI FM04D 32MMX100 AMARELO")]);
+  it("modelo do fabricante: estampada não divide preço com a lisa (relatório 27/10)", () => {
+    expect(ribbonModel("FITA MAXI MODERN LOVE 32MMX100M ROSE/OURO")).toBe("Modern Love");
+    expect(ribbonModel("FITA MAXI PAPER LOOK 32MMX100M AMEIXA")).toBe("Paperlook");
+    expect(ribbonModel("FITA MAXI PAPERLOOK 32MMX100M ROSA PETALA")).toBe("Paperlook");
+    expect(ribbonModel("FITA MAXI LISA 32MMX100M VERMELHO")).toBe("Lisa");
+    expect(ribbonModel("FITA MASTER DECORADA FIORI BORGONHA 32MMX100M")).toBe("Decorada");
+    expect(ribbonModel("FITA MASTER LISA PRATA 16MMX50M")).toBe("Lisa");
+    expect(ribbonModel("FITA PLASTICA 32MMX100M XINGO FLORAL LARANJA", "XINGO")).toBe("Floral");
+    expect(ribbonModel("FITA PLASTICA GLITTER OURO 18MMX25M C/1 UN")).toBe("Glitter");
+    expect(ribbonModel("FITA PLASTICA VERMELHO 32MMX25M C/1 UN")).toBe("Lisa");
+
+    const lines = groupRibbonLines([
+      { ...fita("FITA MAXI PAPER LOOK 32MMX100M AMEIXA"), brand: "ALBANO" },
+      { ...fita("FITA MAXI PAPERLOOK 32MMX100M ROSA PETALA"), brand: "ALBANO" },
+      { ...fita("FITA PLASTICA 32MMX100M XINGO FLORAL LARANJA"), brand: "XINGO" },
+      { ...fita("FITA PLASTICA 32MMX100M XINGO LISTRADA LARANJA"), brand: "XINGO" },
+    ]);
+    expect(lines.map((l) => [l.label, l.members.map((m) => m.label)])).toEqual([
+      ["Albano · Maxi Paperlook 32mm × 100m", ["Ameixa", "Rosa Petala"]],
+      ["Xingo · Plástica Floral 32mm × 100m", ["Laranja"]],
+      ["Xingo · Plástica Listrada 32mm × 100m", ["Laranja"]],
+    ]);
+  });
+
+  it("nome repetido no mesmo modelo ganha o código do Noturno", () => {
+    const [l] = groupRibbonLines([fita("FITA MAXI MODERN LOVE 32MMX100M ROSE/OURO"), fita("FITA MAXI MODERN LOVE 32MMX100M ROSE/OURO")]);
     expect(l.members.map((m) => m.label)).toEqual([
-      `Amarelo (cód. ${l.members[0].item.sourceCode})`,
-      `Amarelo (cód. ${l.members[1].item.sourceCode})`,
+      `Rose/ouro (cód. ${l.members[0].item.sourceCode})`,
+      `Rose/ouro (cód. ${l.members[1].item.sourceCode})`,
     ]);
   });
 
@@ -77,13 +103,13 @@ describe("fitas de plástico por linha (nomes reais do Noturno)", () => {
   it("produto RIBBON: rolo fechado cheio, dois preços, montador de laço", () => {
     const p = buildRibbonProduct(
       { sourceCode: "77", stock: 4 },
-      { line: "MAXI", widthMm: 32, meters: 100 },
-      "Amor Sem Fim Rosa",
+      { line: "MAXI", model: "Amor Sem Fim", widthMm: 32, meters: 100 },
+      "Rosa",
       { rollPrice: 18.9, meterPrice: 0.5 },
       "https://img/x.webp",
     );
     expect(p).toMatchObject({
-      name: "Fita Maxi 32mm Amor Sem Fim Rosa",
+      name: "Fita Maxi Amor Sem Fim 32mm Rosa",
       type: "RIBBON",
       category: "Fitas",
       subcategory: "Fita para laço",
