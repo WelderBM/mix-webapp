@@ -258,7 +258,7 @@ export function OrdersTab() {
                 body: `Cliente: ${
                   newOrder.customerName
                 } - Total: ${formatCurrency(newOrder.total)}`,
-                icon: "/favicon.ico",
+                icon: "/icon-192x192.png",
               });
             }
           }
