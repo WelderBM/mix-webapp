@@ -17,7 +17,10 @@ export function ribbonSectionOf(p: Pick<Product, "name" | "width">): { key: stri
   const name = normalizeText(p.name);
   const line = LINES.find((l) => new RegExp(`\\b${normalizeText(l)}\\b`).test(name));
   if (!line) return { key: OTHER_SECTION, label: "Outras fitas" };
-  const mm = /(\d{1,3}) ?mm\b/.exec(name)?.[1] ?? (p.width ? String(p.width) : null);
+  // Mesma leitura do `widthMm` de intake/ribbonLines.ts: em "32mmx100m" o
+  // mm vem colado no x. Não importo de lá para não levar a regra de
+  // lançamento para o bundle da loja.
+  const mm = /(\d{1,3}) ?mm(?=x|\b)/.exec(name)?.[1] ?? (p.width ? String(p.width) : null);
   const label = mm ? `${line} ${mm}mm` : line;
   return { key: normalizeText(label), label };
 }

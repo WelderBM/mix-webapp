@@ -122,7 +122,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       <div className="flex flex-1 flex-col justify-between p-4">
         {isRibbonRedirectDisabled ? (
           <div className="block">
-            <h3 className="line-clamp-2 text-base font-semibold text-slate-800 transition-colors">
+            <h3 className="line-clamp-3 sm:line-clamp-2 text-sm sm:text-base font-semibold text-slate-800 transition-colors">
               {product.name}
             </h3>
             <p className="line-clamp-3 text-sm text-slate-500 mt-1">
@@ -131,7 +131,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         ) : (
           <Link href={productHref} className="block min-h-11 cursor-pointer">
-            <h3 className="line-clamp-2 text-base font-semibold text-slate-800 group-hover:text-primary transition-colors">
+            <h3 className="line-clamp-3 sm:line-clamp-2 text-sm sm:text-base font-semibold text-slate-800 group-hover:text-primary transition-colors">
               {product.name}
             </h3>
             <p className="line-clamp-3 text-sm text-slate-500 mt-1">
