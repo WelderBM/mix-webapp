@@ -5,6 +5,12 @@ import { balloonColor } from "./balloons";
 // sem cor reconhecível vira um rolo neutro listrado. Aparece na loja e no
 // montador de laço. Convertida em WebP no aparelho (renderBalloonImage).
 
+// Legenda longa ("Albano · Maxi Paperlook Para Alguem Especial 16mm × 50m")
+// diminui para caber nos 512px da imagem.
+function captionSize(caption: string): number {
+  return caption.length <= 30 ? 26 : Math.max(13, Math.floor((26 * 30) / caption.length));
+}
+
 export function ribbonSvg(name: string, caption: string): string {
   const { colors } = balloonColor(name);
   const known = colors.length > 0;
@@ -28,6 +34,6 @@ export function ribbonSvg(name: string, caption: string): string {
   <circle cx="256" cy="236" r="190" fill="url(#sheen)"/>
   <circle cx="256" cy="236" r="62" fill="#f8fafc" stroke="#94a3b8" stroke-width="3"/>
   <circle cx="256" cy="236" r="40" fill="#e2e8f0"/>
-  <text x="256" y="486" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" fill="#475569">${esc(caption)}</text>
+  <text x="256" y="486" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${captionSize(caption)}" fill="#475569">${esc(caption)}</text>
 </svg>`;
 }
