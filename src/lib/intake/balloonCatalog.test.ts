@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import type { BalloonConfig } from "@/types/balloon";
 import {
   applyCatalogProposal,
+  balloonTypeOf,
+  colorWords,
   foilCharOf,
   foilCharStock,
   foilShortage,
@@ -74,6 +76,17 @@ describe("matchBalloon (nomes reais do Noturno)", () => {
   });
   it("letra/número metalizado: cor sem a letra; ROSE = Rose Gold", () => {
     expect(matchBalloon("BALAO METALIZADO 1640 CM ROSE 2", config)).toMatchObject({ typeId: "foil_numeros", size: "40cm", color: "Rose Gold" });
+  });
+  it("número foil em 'N.x' de 40 e 70–75 cm (#364)", () => {
+    expect(balloonTypeOf("BALAO METAL C70-75 CM N.0 PRATA")).toEqual({ typeId: "foil_numeros", size: "75cm" });
+    expect(balloonTypeOf("BALAO METAL C40 CM N.4 ROSE GOLD")).toEqual({ typeId: "foil_numeros", size: "40cm" });
+    expect(balloonTypeOf("BALAO METALIZADO OURO 40CM N.0")).toEqual({ typeId: "foil_numeros", size: "40cm" });
+    expect(colorWords("BALAO METAL C70-75 CM N.9 ROSE GOLD")).toBe("ROSE GOLD");
+    expect(colorWords("BALAO METALIZADO OURO 40CM N.3")).toBe("DOURADO");
+    expect(foilCharOf("BALAO METAL C70-75 CM N.9 NACARADO")).toBe("9");
+    // Sem "N.x": kit e látex "N.7" continuam fora do foil.
+    expect(balloonTypeOf("BALAO METAL. 70-75 CM KIT 2026 DR")).toBeNull();
+    expect(balloonTypeOf("BALAO ROXO N.7 C/50 UND.")?.typeId).toBe("simples");
   });
   it("formato e temático não são do catálogo", () => {
     expect(matchBalloon("BALAO METAL C25 CM CORACAO AZUL CROMO", config)).toBeNull();
