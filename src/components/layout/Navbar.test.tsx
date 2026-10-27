@@ -132,11 +132,9 @@ describe("Navbar", () => {
       expect(links).toContain("/fitas");
     });
 
-    it("opens the Kit Builder modal when 'Monte Sua Cesta' is clicked", () => {
+    it("não mostra 'Monte Sua Cesta' (montar kit fica para depois, relatório 27/10)", () => {
       render(<Navbar />);
-      const trigger = screen.getAllByText("Monte Sua Cesta")[0];
-      trigger.closest("button")!.click();
-      expect(openKitBuilderMock).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText("Monte Sua Cesta")).not.toBeInTheDocument();
     });
   });
 

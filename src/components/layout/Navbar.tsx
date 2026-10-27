@@ -6,7 +6,6 @@ import Link from "next/link";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Sparkles,
-  Gift,
   Menu,
   X,
   PartyPopper,
@@ -17,7 +16,6 @@ import {
   MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useKitBuilderStore } from "@/store/kitBuilderStore";
 // CORRIGIDO: Importa CartSidebar (o painel) e CartIcon (o botão inteligente)
 import { CartSidebar, CartIcon } from "@/components/features/CartSidebar";
 // Sheet components
@@ -36,7 +34,6 @@ import { getVisibleCategories } from "@/lib/categories";
 import { cn } from "@/lib/utils";
 
 const Navbar = () => {
-  const openKitBuilder = useKitBuilderStore((state) => state.openKitBuilder);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
   const storeName = useSettingsStore((state) => state.settings.storeName);
@@ -146,13 +143,8 @@ const Navbar = () => {
           description: "Monte seu arranjo",
           Icon: PartyPopper,
         },
-        {
-          label: "Monte Sua Cesta",
-          href: null,
-          isModal: true,
-          description: "Presente perfeito",
-          Icon: Gift,
-        },
+        // "Monte Sua Cesta" saiu do menu (relatório 27/10): montar kit fica
+        // para depois.
       ],
     },
   ];
@@ -245,20 +237,6 @@ const Navbar = () => {
                           </div>
                         );
 
-                        if (child.isModal) {
-                          return (
-                            <button
-                              key={child.label}
-                              onClick={() => {
-                                openKitBuilder();
-                                setOpenGroup(null);
-                              }}
-                              className="w-full text-left"
-                            >
-                              {content}
-                            </button>
-                          );
-                        }
                         return (
                           <Link
                             key={child.label}
@@ -422,20 +400,6 @@ const Navbar = () => {
                           </>
                         );
 
-                        if (child.isModal) {
-                          return (
-                            <button
-                              key={child.label}
-                              onClick={() => {
-                                openKitBuilder();
-                                setIsMobileMenuOpen(false);
-                              }}
-                              className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-100 shadow-sm active:scale-95 transition-transform"
-                            >
-                              {content}
-                            </button>
-                          );
-                        }
                         return (
                           <Link
                             key={child.label}

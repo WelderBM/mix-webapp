@@ -35,6 +35,7 @@ import {
   BRANDLESS_TYPES,
   baseTypeId,
   foilCharStock,
+  foilFit,
   foilShortage,
   isSoldOut,
 } from "@/lib/intake/balloonCatalog";
@@ -260,18 +261,12 @@ export function BalloonBuilder() {
       ? foilCharStock(foilChars, selectedSize.size, selectedColor)
       : null;
   const foilShort = isFoil ? foilShortage(pieces, quantity, foilAvailable) : [];
-  // Digitado: caractere que a cor não tem não entra, e o cliente vê o porquê.
+  // Digitado: caractere além do estoque da cor não entra (conta unidades,
+  // não só "tem ou não tem"), e o cliente vê o porquê.
   const typeFoil = (raw: string) => {
-    const clean = foilCharacters(raw);
-    if (!foilAvailable) {
-      setCharacters(clean);
-      return;
-    }
-    const missing = [...new Set(foilPieces(clean).split("").filter((c) => !(foilAvailable[c] > 0)))];
-    setFoilBlocked(missing.join(" "));
-    setCharacters(
-      foilCharacters(clean.split("").filter((c) => c === " " || foilAvailable[c] > 0).join(""))
-    );
+    const fit = foilFit(foilCharacters(raw), quantity, foilAvailable);
+    setFoilBlocked(fit.blocked.join(" "));
+    setCharacters(foilCharacters(fit.text));
   };
   const currentPrice = useMemo(() => {
     if (!selectedSize) return 0;
@@ -826,7 +821,10 @@ export function BalloonBuilder() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  onClick={() => {
+                    setFoilBlocked("");
+                    setQuantity(Math.max(1, quantity - 1));
+                  }}
                   className="h-12 w-12 rounded-full"
                 >
                   <Minus size={20} />
@@ -837,7 +835,12 @@ export function BalloonBuilder() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setQuantity(quantity + 1)}
+                  onClick={() => {
+                    // O aviso do que foi barrado na digitação vale para a
+                    // quantidade antiga; o de falta abaixo segue certo.
+                    setFoilBlocked("");
+                    setQuantity(quantity + 1);
+                  }}
                   className="h-12 w-12 rounded-full"
                 >
                   <Plus size={20} />

@@ -6,6 +6,7 @@ import {
   colorWords,
   foilCharOf,
   foilCharStock,
+  foilFit,
   foilShortage,
   homeBrands,
   isSoldOut,
@@ -389,5 +390,13 @@ describe("foil: estoque por letra e número (dono, 23/10)", () => {
     expect(foilShortage("ANA", 1, av)).toEqual([]);
     expect(foilShortage("ANA", 2, av)).toEqual(["A", "N"]); // 4 A e 2 N
     expect(foilShortage("ANA", 1, null)).toEqual([]); // sem informação: não limita
+  });
+
+  it("foilFit: o texto digitado para no estoque de cada caractere (relatório 27/10)", () => {
+    expect(foilFit("666666", 1, { "6": 2 })).toEqual({ text: "66", blocked: ["6"] });
+    expect(foilFit("ANA", 2, { A: 3, N: 2 })).toEqual({ text: "AN", blocked: ["A"] });
+    expect(foilFit("ANA ANA", 1, { A: 4, N: 2 })).toEqual({ text: "ANA ANA", blocked: [] });
+    expect(foilFit("7X", 1, { "7": 1 })).toEqual({ text: "7", blocked: ["X"] });
+    expect(foilFit("666", 1, null)).toEqual({ text: "666", blocked: [] });
   });
 });
