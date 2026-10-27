@@ -12,7 +12,6 @@ import {
 import { db } from "@/lib/firebase";
 import { Product, StoreSection } from "@/types";
 import { SectionRenderer } from "@/components/sections/SectionRenderer";
-import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { SafeImage } from "@/components/ui/SafeImage";
 import {
@@ -399,8 +398,6 @@ export default async function NaturaPage() {
           </Button>
         </div>
       </section>
-
-      <Footer />
     </main>
   );
 }

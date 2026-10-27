@@ -140,11 +140,11 @@ export function Footer() {
         </div>
       </div>
       <div className="border-t border-slate-800 mt-12 pt-8 text-center">
-        <p className="text-xs text-slate-600 flex justify-center items-center gap-2">
+        <p className="text-xs text-slate-400 flex justify-center items-center gap-2">
           © {new Date().getFullYear()} {storeName}. Todos os direitos reservados.
           <Link
             href="/admin"
-            className="ml-1 inline-flex min-h-11 min-w-11 items-center justify-center text-slate-700 hover:text-slate-500 transition-colors"
+            className="ml-1 inline-flex min-h-11 min-w-11 items-center justify-center text-slate-500 hover:text-slate-300 transition-colors"
             aria-label="Acesso Administrativo"
           >
             <Lock size={12} />
