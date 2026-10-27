@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   balloonColorImage,
+  balloonMixImage,
+  isMixColor,
   balloonSizeHint,
   balloonSizeImage,
   balloonSizeLabel,
@@ -101,5 +103,29 @@ describe("balloonColorImage: cores de degradê (⚪ do #334)", () => {
   it("Ouro no foil usa o ramo metálico de uma cor (não faixas)", () => {
     const one = svg(balloonColorImage("foil_numeros", ["#FFD700"], "A"));
     expect(svg(balloonColorImage("foil_numeros", ["#FFD700", "#FDB931"], "A"))).toBe(one);
+  });
+});
+
+describe("cor Sortido (relatório 27/10)", () => {
+  const svg = (url: string) => decodeURIComponent(url);
+  it("reconhece os nomes de mistura", () => {
+    expect(isMixColor("Sortido")).toBe(true);
+    expect(isMixColor("SORTIDOS")).toBe(true);
+    expect(isMixColor("Colorido")).toBe(true);
+    expect(isMixColor("Sortido Pastel")).toBe(true);
+    expect(isMixColor("Sortidos2")).toBe(false);
+    expect(isMixColor("Vermelho")).toBe(false);
+    expect(isMixColor("Arco Iris")).toBe(false);
+  });
+
+  it("desenha 3 balões de cores diferentes, no material do tipo", () => {
+    const liso = svg(balloonMixImage("simples"));
+    expect((liso.match(/<path d="M [^"]+Z"\s+fill="url/g) ?? []).length).toBe(3);
+    expect(liso).toContain("#ef4444");
+    expect(liso).toContain("#3b82f6");
+    const neon = svg(balloonMixImage("neon__riberball"));
+    expect(neon).toContain("neon-glow");
+    expect(neon).toContain("#39ff14");
+    expect(svg(balloonMixImage("metalico"))).toContain("#c0c7cf");
   });
 });

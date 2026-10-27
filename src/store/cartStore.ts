@@ -137,7 +137,9 @@ export const useCartStore = create<CartStore>()(
       },
 
       updateQuantity: (cartId, quantity) => {
-        if (quantity < 1) return get().removeItem(cartId);
+        // Só zero (ou menos) remove: fita por metro vive com 0,5 m e o
+        // "−" dela para em 0,5 (revisão do #387).
+        if (quantity <= 0) return get().removeItem(cartId);
 
         set((state) => ({
           items: state.items.map((item) =>

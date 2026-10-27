@@ -47,6 +47,7 @@ import {
 } from "@/lib/cart-pricing";
 import { isSealedRibbonRoll, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 import { SafeImage } from "../ui/SafeImage";
+import { formatMeters, stepMeters } from "@/lib/meters";
 
 // Corrida do motoboy terceirizado: varia com a distância (#346).
 const DELIVERY_FEE_TEXT = "R$ 10 a R$ 15";
@@ -364,6 +365,10 @@ export function CartSidebar() {
                     const isBow = item.type === "CUSTOM_RIBBON";
                     const isRibbon = !isBow && item.product?.type === "RIBBON";
                     const isSealed = isSealedRibbonRoll(item.product);
+                    // Fita por metro: passo de 0,5 m; o "−" para em 0,5 m
+                    // e não remove o item (relatório 27/10).
+                    const perMeter = isPerMeterCartItem(item);
+                    const meterMax = item.product?.ribbonInventory?.remainingMeters;
                     const unitLabel = item.product ? getEffectiveUnitLabel(item.product) : "un";
 
                     return (
@@ -471,25 +476,31 @@ export function CartSidebar() {
                                     onClick={() =>
                                       updateQuantity(
                                         item.cartId,
-                                        item.quantity - 1
+                                        perMeter
+                                          ? stepMeters(item.quantity, -1, meterMax)
+                                          : item.quantity - 1
                                       )
                                     }
+                                    aria-label={perMeter ? "Menos meio metro" : "Diminuir quantidade"}
                                     className="flex h-9 w-9 items-center justify-center hover:bg-slate-100"
                                   >
                                     -
                                   </button>
                                   <span className="text-xs px-1">
-                                    {isPerMeterCartItem(item)
-                                      ? `${String(item.quantity).replace(".", ",")} m`
+                                    {perMeter
+                                      ? `${formatMeters(item.quantity)} m`
                                       : item.quantity}
                                   </span>
                                   <button
                                     onClick={() =>
                                       updateQuantity(
                                         item.cartId,
-                                        item.quantity + 1
+                                        perMeter
+                                          ? stepMeters(item.quantity, 1, meterMax)
+                                          : item.quantity + 1
                                       )
                                     }
+                                    aria-label={perMeter ? "Mais meio metro" : "Aumentar quantidade"}
                                     className="flex h-9 w-9 items-center justify-center hover:bg-slate-100"
                                   >
                                     +
@@ -514,7 +525,7 @@ export function CartSidebar() {
 
                 <div className="px-6 pb-28 space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="checkout-name">Seu Nome</Label>
+                    <Label htmlFor="checkout-name">Seu Nome *</Label>
                     <Input
                       id="checkout-name"
                       value={customerName}

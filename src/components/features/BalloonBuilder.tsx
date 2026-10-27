@@ -23,6 +23,8 @@ import {
 import { RAINBOW_HEXES, suggestHexColor } from "@/lib/balloonColors";
 import {
   balloonColorImage,
+  balloonMixImage,
+  isMixColor,
   balloonSizeHint,
   balloonSizeImage,
   balloonSizeLabel,
@@ -33,6 +35,7 @@ import {
   BRANDLESS_TYPES,
   baseTypeId,
   foilCharStock,
+  foilFit,
   foilShortage,
   isSoldOut,
 } from "@/lib/intake/balloonCatalog";
@@ -77,6 +80,13 @@ const balloonHexes = (colorName: string): string[] => {
   const hexes = css.match(/#[0-9a-fA-F]{6}/g);
   return hexes?.length ? hexes : ["#E5E7EB"]; // Cristal: transparente claro
 };
+
+// Arte da cor: "Sortido" vira 3 balões de cores diferentes agrupados, no
+// material do tipo (relatório 27/10); no foil, a letra continua uma cor.
+const colorArt = (typeId: string, colorName: string, glyph?: string) =>
+  !glyph && isMixColor(colorName)
+    ? balloonMixImage(typeId)
+    : balloonColorImage(typeId, balloonHexes(colorName), glyph);
 
 // Marca mais pedida pelos clientes: vem primeiro, com destaque.
 const PREFERRED_BRAND = "São Roque";
@@ -251,18 +261,12 @@ export function BalloonBuilder() {
       ? foilCharStock(foilChars, selectedSize.size, selectedColor)
       : null;
   const foilShort = isFoil ? foilShortage(pieces, quantity, foilAvailable) : [];
-  // Digitado: caractere que a cor não tem não entra, e o cliente vê o porquê.
+  // Digitado: caractere além do estoque da cor não entra (conta unidades,
+  // não só "tem ou não tem"), e o cliente vê o porquê.
   const typeFoil = (raw: string) => {
-    const clean = foilCharacters(raw);
-    if (!foilAvailable) {
-      setCharacters(clean);
-      return;
-    }
-    const missing = [...new Set(foilPieces(clean).split("").filter((c) => !(foilAvailable[c] > 0)))];
-    setFoilBlocked(missing.join(" "));
-    setCharacters(
-      foilCharacters(clean.split("").filter((c) => c === " " || foilAvailable[c] > 0).join(""))
-    );
+    const fit = foilFit(foilCharacters(raw), quantity, foilAvailable);
+    setFoilBlocked(fit.blocked.join(" "));
+    setCharacters(foilCharacters(fit.text));
   };
   const currentPrice = useMemo(() => {
     if (!selectedSize) return 0;
@@ -624,7 +628,7 @@ export function BalloonBuilder() {
                     <div className="w-full aspect-square rounded-xl border-2 border-slate-200 bg-slate-50 group-hover:border-purple-500 transition-colors relative overflow-hidden">
                       {/* eslint-disable-next-line @next/next/no-img-element -- SVG gerado no navegador */}
                       <img
-                        src={balloonColorImage(selectedType.id, balloonHexes(colorName), isFoil ? "A" : undefined)}
+                        src={colorArt(selectedType.id, colorName, isFoil ? "A" : undefined)}
                         alt=""
                         loading="lazy"
                         decoding="async"
@@ -675,9 +679,9 @@ export function BalloonBuilder() {
                           // eslint-disable-next-line @next/next/no-img-element -- SVG gerado no navegador
                           <img
                             key={`${ch}-${i}`}
-                            src={balloonColorImage(
+                            src={colorArt(
                               selectedType.id,
-                              balloonHexes(selectedColor.split("|")[0]),
+                              selectedColor.split("|")[0],
                               isFoil ? ch : undefined,
                             )}
                             alt=""
@@ -817,7 +821,10 @@ export function BalloonBuilder() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  onClick={() => {
+                    setFoilBlocked("");
+                    setQuantity(Math.max(1, quantity - 1));
+                  }}
                   className="h-12 w-12 rounded-full"
                 >
                   <Minus size={20} />
@@ -828,7 +835,12 @@ export function BalloonBuilder() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setQuantity(quantity + 1)}
+                  onClick={() => {
+                    // O aviso do que foi barrado na digitação vale para a
+                    // quantidade antiga; o de falta abaixo segue certo.
+                    setFoilBlocked("");
+                    setQuantity(quantity + 1);
+                  }}
                   className="h-12 w-12 rounded-full"
                 >
                   <Plus size={20} />

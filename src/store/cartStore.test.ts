@@ -595,6 +595,21 @@ describe("useCartStore", () => {
       const { items } = useCartStore.getState();
       expect(items).toHaveLength(0);
     });
+
+    it("mantém fita por metro com 0,5 m (o menos não remove — revisão do #387)", () => {
+      const { addItem, updateQuantity } = useCartStore.getState();
+      addItem({
+        cartId: "cart-1",
+        type: "SIMPLE" as const,
+        quantity: 1,
+        product: { id: "f1", name: "Fita", price: 1, type: "RIBBON" as const, category: "Fitas", unit: "m" as const, inStock: true, disabled: false, ribbonInventory: { status: "ABERTO", remainingMeters: 10, totalRollMeters: 100 } },
+      } as any);
+      updateQuantity("cart-1", 0.5);
+
+      const { items } = useCartStore.getState();
+      expect(items).toHaveLength(1);
+      expect(items[0].quantity).toBe(0.5);
+    });
   });
 
   describe("openCart / closeCart", () => {

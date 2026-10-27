@@ -249,14 +249,12 @@ describe("BalloonBuilder", () => {
     expect((screen.getByLabelText("5: sem estoque") as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByLabelText("V: sem estoque") as HTMLButtonElement).disabled).toBe(true);
 
-    // Digitado: o que não tem não entra, e o cliente vê o porquê.
+    // Digitado: o que não tem não entra, nem o que passa do estoque ("ANA"
+    // precisa de 2 A e só há 1: o segundo A não entra — relatório 27/10).
     fireEvent.change(screen.getByPlaceholderText("Ex.: ANA ou FELIZ 15 ANOS"), { target: { value: "ANAV" } });
-    expect((screen.getByPlaceholderText("Ex.: ANA ou FELIZ 15 ANOS") as HTMLInputElement).value).toBe("ANA");
-    expect(screen.getByText("Sem estoque nesta cor: V")).toBeTruthy();
-
-    // "ANA" precisa de 2 A e só há 1: avisa e não deixa adicionar.
-    expect(screen.getByText(/Não temos A suficiente/)).toBeTruthy();
-    expect((screen.getByRole("button", { name: /Adicionar ao Carrinho/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByPlaceholderText("Ex.: ANA ou FELIZ 15 ANOS") as HTMLInputElement).value).toBe("AN");
+    expect(screen.getByText("Sem estoque nesta cor: A V")).toBeTruthy();
+    expect(screen.queryByText(/Não temos A suficiente/)).toBeNull();
 
     // Com "NA" dá certo; o A acabou e a tecla dele fica desligada.
     fireEvent.change(screen.getByPlaceholderText("Ex.: ANA ou FELIZ 15 ANOS"), { target: { value: "NA" } });

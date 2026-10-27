@@ -124,7 +124,9 @@ export function balloonSvg(
   glyphOverride?: string,
   // Montador da loja: sem legenda e com fundo transparente (vai dentro do
   // cartão, que já tem fundo e texto).
-  opts: { caption?: boolean; background?: boolean } = {},
+  // tight: os 3 balões do buquê bem juntos e sobrepostos (cor "Sortido",
+  // relatório 27/10), para mostrar a mistura de cores.
+  opts: { caption?: boolean; background?: boolean; tight?: boolean } = {},
 ): string {
   const showCaption = opts.caption !== false;
   const showBackground = opts.background !== false;
@@ -162,10 +164,14 @@ export function balloonSvg(
           )
           .join("");
         const [a, b, c] = ids.map((gid) => `url(#${gid})`);
-        body =
-          latex(170, 215, 82, a, "#64748b") +
-          latex(342, 215, 82, b, "#64748b") +
-          latex(256, 175, 92, c, "#64748b");
+        // Agrupado: o de cima atrás, os dois da frente se cobrindo.
+        body = opts.tight
+          ? latex(256, 165, 104, c, "#64748b") +
+            latex(196, 228, 98, a, "#64748b") +
+            latex(316, 232, 98, b, "#64748b")
+          : latex(170, 215, 82, a, "#64748b") +
+            latex(342, 215, 82, b, "#64748b") +
+            latex(256, 175, 92, c, "#64748b");
         break;
       }
       body = info.packQty && info.packQty > 1
