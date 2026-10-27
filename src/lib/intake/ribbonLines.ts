@@ -23,7 +23,8 @@ const LINE_LABEL: Record<string, string> = {
   LINE: "Line",
 };
 
-type Item = Pick<IntakeItem, "id" | "sourceCode" | "family" | "name" | "suggestedType" | "status" | "stock">;
+type Item = Pick<IntakeItem, "id" | "sourceCode" | "family" | "name" | "suggestedType" | "status" | "stock"> &
+  Partial<Pick<IntakeItem, "brand">>;
 
 export interface RibbonLineMember<T> {
   item: T;
@@ -32,8 +33,12 @@ export interface RibbonLineMember<T> {
 
 export interface RibbonLine<T> {
   key: string;
-  label: string; // "Maxi 32mm × 100m"
+  label: string; // "Albano · Maxi Modern Love 32mm × 100m"
   line: string;
+  // Modelo do fabricante ("Modern Love", "FM 03D", "Glitter"): cada modelo
+  // tem preço próprio, e a estampada não divide preço com a lisa (#324).
+  model: string | null;
+  brand: string | null;
   widthMm: number | null;
   meters: number;
   stock: number;
@@ -55,6 +60,62 @@ export function widthMm(name: string): number | null {
   // "32MMX100M": o MM vem colado no X.
   const m = /(\d{1,3}) ?MM(?=X|\b)/.exec(name.toUpperCase());
   return m ? Number(m[1]) : null;
+}
+
+// Modelo do fabricante a partir do nome do Noturno (#324, relatório 27/10).
+// - MAXI (Albano): tudo entre "MAXI" e as medidas ("MODERN LOVE", "FM 03D",
+//   "PAPERLOOK DUPLA FACE"); a cor vem depois das medidas.
+// - MASTER e PLASTICA (Xingo, Cromus, Rapid): a primeira palavra, se for
+//   um acabamento conhecido; senão a fita é lisa e a palavra é a cor.
+const RE_DIM = /^\d+(?:[.,]\d+)?(?:MM)?X\d/;
+const FINISH: Record<string, string> = {
+  LISA: "Lisa", LISO: "Lisa", GLITTER: "Glitter", LISTRADA: "Listrada", LISTRADO: "Listrada",
+  NACARADA: "Nacarada", NACARADO: "Nacarada", TEXTURA: "Textura", FLORAL: "Floral",
+  DECORADA: "Decorada", METAL: "Metal", RAPID: "Rapid",
+};
+
+export function ribbonModel(name: string, brand?: string | null): string | null {
+  const up = name
+    .toUpperCase()
+    .replace(/\bPAPER LOOK\b/g, "PAPERLOOK")
+    .replace(/\bFM ?(\d+[A-Z])\b/g, "FM $1")
+    // "32MM X 100M" → "32MMX100M": a medida vira uma palavra só.
+    .replace(/(\d)\s*(MM)?\s*X\s*(?=\d)/g, "$1$2X");
+  const tokens = up.split(/\s+/);
+  const at = tokens.findIndex((t) => LINE_WORDS.includes(t));
+  if (at < 0) return null;
+  const line = tokens[at];
+  let rest = tokens.slice(at + 1);
+  if (line === "MAXI") {
+    const end = rest.findIndex((t) => RE_DIM.test(t));
+    const words = (end < 0 ? [] : rest.slice(0, end)).map((w) => (w === "LISO" ? "LISA" : w));
+    if (!words.length) return null;
+    return titleCase(words.join(" "))
+      .replace(/\bFm\b/, "FM") // sigla e código em maiúsculas: "FM 03D"
+      .replace(/\b(\d+)([a-z])\b/g, (_, d: string, l: string) => d + l.toUpperCase());
+  }
+  // "PLASTICA 32MMX100M XINGO FLORAL": medidas antes; pula a marca.
+  if (rest[0] && RE_DIM.test(rest[0])) rest = rest.slice(1);
+  const b = (brand ?? "").toUpperCase();
+  if (rest[0] && (rest[0] === b || rest[0] === "XINGO" || rest[0] === "RIZZO")) rest = rest.slice(1);
+  return FINISH[rest[0]] ?? "Lisa";
+}
+
+// Rótulo da cor sem as palavras do modelo e da marca (já estão no título).
+function colorLabel(label: string, model: string | null, brand: string | null): string {
+  const drop = new Set(
+    [model, brand, "Xingo", "Rizzo"]
+      .filter(Boolean)
+      .flatMap((x) => normalizeText(x!).split(" ")),
+  );
+  if (model === "Lisa") ["liso", "lisa"].forEach((w) => drop.add(w));
+  if (model?.startsWith("Paperlook")) ["paper", "look"].forEach((w) => drop.add(w));
+  if (model === "Listrada") drop.add("listrado");
+  if (model === "Nacarada") drop.add("nacarado");
+  const kept = label.split(" ").filter((w) => !drop.has(normalizeText(w)));
+  // Sem cor no nome ("FITA MAXI URSO NATAL 32MMX100M"): o modelo já diz
+  // tudo. Não chama de "Lisa" uma estampada (revisão do #380).
+  return kept.join(" ");
 }
 
 // O que sobra do nome tirando "FITA", a linha e as medidas: cor/estampa.
@@ -97,20 +158,24 @@ export function groupRibbonLines<T extends Item>(items: T[]): RibbonLine<T>[] {
     const line = RE_LINE.exec(i.name.toUpperCase())![1];
     const meters = extractRollMeters(i.name)!;
     const w = widthMm(i.name);
-    const key = `${line}|${w ?? "?"}|${meters}`;
+    const model = ribbonModel(i.name, i.brand);
+    const brand = i.brand ? titleCase(i.brand) : null;
+    const key = `${brand ?? "?"}|${line}|${model ?? "?"}|${w ?? "?"}|${meters}`;
     const g =
       map.get(key) ??
       ({
         key,
-        label: `${LINE_LABEL[line]}${w ? ` ${w}mm` : ""} × ${meters}m`,
+        label: `${brand ? `${brand} · ` : ""}${LINE_LABEL[line]}${model ? ` ${model}` : ""}${w ? ` ${w}mm` : ""} × ${meters}m`,
         line,
+        model,
+        brand,
         widthMm: w,
         meters,
         stock: 0,
         members: [],
       } as RibbonLine<T>);
     g.stock += Math.max(0, i.stock);
-    g.members.push({ item: i, label: ribbonLabel(i.name) });
+    g.members.push({ item: i, label: colorLabel(ribbonLabel(i.name), model, brand) });
     map.set(key, g);
   }
   for (const g of map.values()) {
@@ -135,12 +200,12 @@ export interface RibbonLinePrices {
 // Produto RIBBON de uma cor da linha. Rolo FECHADO, cheio.
 export function buildRibbonProduct(
   item: Pick<IntakeItem, "sourceCode" | "stock">,
-  line: Pick<RibbonLine<unknown>, "line" | "widthMm" | "meters">,
+  line: Pick<RibbonLine<unknown>, "line" | "widthMm" | "meters"> & Partial<Pick<RibbonLine<unknown>, "model">>,
   label: string,
   prices: RibbonLinePrices,
   imageUrl: string | null,
 ): Omit<Product, "id" | "createdAt"> {
-  const name = `Fita ${LINE_LABEL[line.line]}${line.widthMm ? ` ${line.widthMm}mm` : ""} ${label}`.trim();
+  const name = `Fita ${LINE_LABEL[line.line]}${line.model ? ` ${line.model}` : ""}${line.widthMm ? ` ${line.widthMm}mm` : ""} ${label}`.trim();
   return {
     name,
     type: "RIBBON",
