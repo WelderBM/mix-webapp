@@ -66,7 +66,7 @@ describe("TrackOrderContent", () => {
     (firestore.onSnapshot as any).mockImplementation(() => () => {});
     render(<TrackOrderContent />);
     expect(
-      screen.getByPlaceholderText("Cole o ID do pedido aqui...")
+      screen.getByPlaceholderText("Cole o código do pedido aqui...")
     ).toBeTruthy();
   });
 
@@ -114,7 +114,7 @@ describe("TrackOrderContent", () => {
 
     render(<TrackOrderContent />);
 
-    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    const input = screen.getByPlaceholderText("Cole o código do pedido aqui...");
     fireEvent.change(input, { target: { value: "invalid-id" } });
     fireEvent.submit(input.closest("form")!);
 
@@ -148,7 +148,7 @@ describe("TrackOrderContent", () => {
 
     render(<TrackOrderContent />);
 
-    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    const input = screen.getByPlaceholderText("Cole o código do pedido aqui...");
     fireEvent.change(input, { target: { value: "manual123" } });
     fireEvent.submit(input.closest("form")!);
 
@@ -187,7 +187,7 @@ describe("TrackOrderContent", () => {
 
     render(<TrackOrderContent />);
 
-    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    const input = screen.getByPlaceholderText("Cole o código do pedido aqui...");
     fireEvent.change(input, { target: { value: "order-ready" } });
     fireEvent.submit(input.closest("form")!);
 
@@ -223,7 +223,7 @@ describe("TrackOrderContent", () => {
 
     render(<TrackOrderContent />);
 
-    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    const input = screen.getByPlaceholderText("Cole o código do pedido aqui...");
     fireEvent.change(input, { target: { value: "order-pickup" } });
     fireEvent.submit(input.closest("form")!);
 
@@ -261,7 +261,7 @@ describe("TrackOrderContent", () => {
 
     render(<TrackOrderContent />);
 
-    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    const input = screen.getByPlaceholderText("Cole o código do pedido aqui...");
     fireEvent.change(input, { target: { value: mockOrder.id } });
     fireEvent.submit(input.closest("form")!);
 
@@ -293,7 +293,7 @@ describe("TrackOrderContent", () => {
 
     render(<TrackOrderContent />);
 
-    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    const input = screen.getByPlaceholderText("Cole o código do pedido aqui...");
     fireEvent.change(input, { target: { value: mockOrder.id } });
     fireEvent.submit(input.closest("form")!);
 
@@ -326,7 +326,7 @@ describe("TrackOrderContent", () => {
 
     render(<TrackOrderContent />);
 
-    const input = screen.getByPlaceholderText("Cole o ID do pedido aqui...");
+    const input = screen.getByPlaceholderText("Cole o código do pedido aqui...");
     fireEvent.change(input, { target: { value: mockOrder.id } });
     fireEvent.submit(input.closest("form")!);
 

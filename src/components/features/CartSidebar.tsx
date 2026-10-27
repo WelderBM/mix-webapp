@@ -35,6 +35,8 @@ import { db } from "@/lib/firebase";
 import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { rememberOrder } from "@/lib/orderTracking";
+import { waPhone } from "@/lib/orderMessage";
 import { getProductImage } from "@/lib/image-utils";
 import {
   getCartItemTotal,
@@ -46,7 +48,6 @@ import {
 import { isSealedRibbonRoll, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 import { SafeImage } from "../ui/SafeImage";
 import { formatMeters, stepMeters } from "@/lib/meters";
-import { OrderSuccessModal } from "@/components/features/OrderSuccessModal";
 
 // Corrida do motoboy terceirizado: varia com a distância (#346).
 const DELIVERY_FEE_TEXT = "R$ 10 a R$ 15";
@@ -117,7 +118,6 @@ export function CartSidebar() {
   }, []);
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Address State
   const [cep, setCep] = useState("");
@@ -231,8 +231,10 @@ export function CartSidebar() {
       return;
     }
 
-    if (!customerPhone.trim() || customerPhone.length < 8) {
-      toast.warning("Por favor, digite um telefone válido para contato.");
+    // O telefone é o único jeito de a loja chamar o cliente (a atendente
+    // manda o pedido pelo WhatsApp): precisa do DDD (revisão do #389).
+    if (!waPhone(customerPhone)) {
+      toast.warning("Digite seu WhatsApp com DDD, ex.: (95) 98424-4194.");
       return;
     }
 
@@ -300,100 +302,16 @@ export function CartSidebar() {
       const cleanOrderData = JSON.parse(JSON.stringify(orderData));
       const docRef = await addDoc(collection(db, "orders"), cleanOrderData);
 
-      localStorage.setItem("lastOrderId", docRef.id);
-
-      // --- WhatsApp Message Construction ---
-      const totalValue = formatCurrency(getCartTotal());
-      let message = "";
-
-      message += `NOVO PEDIDO - MIX NOVIDADES\n\n`;
-      message += `ID: ${docRef.id.slice(0, 8).toUpperCase()}\n`;
-      message += `Cliente: ${customerName}\n`;
-      message += `Tel: ${customerPhone}\n\n`;
-
-      message += `ITENS:\n`;
-      items.forEach((item) => {
-        let name = "";
-        if (item.type === "CUSTOM_BALLOON" && item.balloonDetails) {
-          name = `${balloonItemLabel(item.balloonDetails)} (${item.balloonDetails.color})`;
-        } else {
-          name =
-            item.type === "CUSTOM_KIT"
-              ? `Kit ${item.kitName}`
-              : item.product?.name || "Produto";
-        }
-
-        let variation = "";
-        if (item.selectedVariant) {
-          variation = ` (${item.selectedVariant.type}: ${item.selectedVariant.name})`;
-        } else if (item.selectedImageLabel) {
-          variation = ` (${item.selectedImageLabel})`;
-        }
-
-        const itemPrice = getCartItemTotal(item);
-
-        // Formato: 1x Nome (Variação) - R$ 10,00
-        message += `${
-          isPerMeterCartItem(item)
-            ? `${String(item.quantity).replace(".", ",")} m de`
-            : `${item.quantity}x`
-        } ${name}${variation} - ${formatCurrency(
-          itemPrice
-        )}\n`;
-      });
-
-      message += `\nPagamento: ${
-        paymentMethod === "pix"
-          ? "PIX"
-          : paymentMethod === "credit_card"
-          ? "Cartão de Crédito"
-          : paymentMethod === "debit_card"
-          ? "Cartão de Débito"
-          : "Dinheiro"
-      }`;
-
-      // Entrega: quem recebe e o que inclui (#346). Na Retirada não precisa.
-      if (deliveryMethod === "delivery") {
-        message +=
-          paymentMethod === "cash"
-            ? " (ao motoboy na entrega: pedido + corrida)"
-            : " (para a loja: pedido + corrida)";
-      }
-
-      if (paymentMethod === "cash" && cashChangeFor.trim()) {
-        message += ` (Troco para R$ ${cashChangeFor.trim()})`;
-      }
-
-      message += `\nEntrega: ${
-        deliveryMethod === "delivery" ? "Entrega" : "Retirada no Local"
-      }\n`;
-
-      if (deliveryMethod === "delivery") {
-        message += `Corrida do motoboy: ${DELIVERY_FEE_TEXT}, a confirmar\n`;
-        message += `Endereço: ${street}, ${number} - ${neighborhood}\n`;
-        if (addressReference.trim()) {
-          message += `Referência: ${addressReference.trim()}\n`;
-        }
-      }
-
-      if (observation.trim()) {
-        message += `Obs: ${observation}\n`;
-      }
-
-      // Adiciona link de rastreamento
-      const trackingUrl = `${window.location.origin}/meu-pedido?id=${docRef.id}`;
-      message += `\nAcompanhamento: ${trackingUrl}`;
-
-      const phoneNumber =
-        process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5595984244194";
-      const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
-        message
-      )}`;
+      // Pedido gravado = já está no admin, em tempo real. O WhatsApp NÃO
+      // abre mais (relatório 27/10: no iPhone não abria e a venda se
+      // perdia): a atendente manda a mensagem para o cliente. O cliente vai
+      // direto para o rastreio, com o código em destaque.
+      // Liga o destaque do ícone "Meu pedido" no topo do site.
+      rememberOrder(docRef.id);
 
       clearCart();
       closeCart();
-      window.open(whatsappUrl, "_blank");
-      setShowSuccessModal(true);
+      router.push(`/meu-pedido?id=${docRef.id}&novo=1`);
       toast.success("Pedido enviado!");
     } catch (error: any) {
       console.error("Erro:", error);
@@ -949,10 +867,6 @@ export function CartSidebar() {
         </SheetContent>
       </Sheet>
 
-      <OrderSuccessModal
-        isOpen={showSuccessModal}
-        onClose={() => setShowSuccessModal(false)}
-      />
     </>
   );
 }

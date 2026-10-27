@@ -65,8 +65,8 @@ export default function OrderTrackingPage() {
             size="sm"
             className="text-sm text-slate-500 hover:text-slate-800 px-0"
           />
-          <span className="text-xs font-mono text-slate-400">
-            Pedido #{order.id.slice(0, 6)}
+          <span className="select-all break-all text-right text-xs font-mono text-slate-500">
+            Pedido {order.id}
           </span>
         </div>
 

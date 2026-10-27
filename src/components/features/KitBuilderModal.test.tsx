@@ -11,7 +11,7 @@ import { useKitBuilderStore } from "@/store/kitBuilderStore";
 // e reabrir não perde estado) — o "fora do bundle inicial" em si é validado
 // via evidência de `next build`, não por aqui.
 
-// Mock do Dialog: replica o padrão já usado em OrderSuccessModal.test.tsx
+// Mock do Dialog (padrão dos testes de modal do projeto)
 // (não renderiza nada quando fechado, evita a complexidade de portal do
 // Radix em happy-dom).
 vi.mock("@/components/ui/dialog", () => ({
