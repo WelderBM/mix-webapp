@@ -812,7 +812,10 @@ export function BalloonBuilder() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  onClick={() => {
+                    setFoilBlocked("");
+                    setQuantity(Math.max(1, quantity - 1));
+                  }}
                   className="h-12 w-12 rounded-full"
                 >
                   <Minus size={20} />
@@ -823,7 +826,12 @@ export function BalloonBuilder() {
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => setQuantity(quantity + 1)}
+                  onClick={() => {
+                    // O aviso do que foi barrado na digitação vale para a
+                    // quantidade antiga; o de falta abaixo segue certo.
+                    setFoilBlocked("");
+                    setQuantity(quantity + 1);
+                  }}
                   className="h-12 w-12 rounded-full"
                 >
                   <Plus size={20} />

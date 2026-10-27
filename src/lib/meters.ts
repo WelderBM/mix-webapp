@@ -9,6 +9,9 @@ const EPS = 1e-9;
 
 export function stepMeters(current: number, dir: 1 | -1, max?: number | null): number {
   const q = Number.isFinite(current) ? current : MIN_METERS;
+  // Já no limite (ou acima, por duas adições somadas): o "+" não mexe,
+  // em vez de cortar a metragem sem aviso (revisão do #387).
+  if (dir > 0 && max != null && q >= max) return q;
   const next =
     dir > 0
       ? Math.floor(q / METER_STEP + EPS) * METER_STEP + METER_STEP

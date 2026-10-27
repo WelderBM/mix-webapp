@@ -22,6 +22,8 @@ describe("stepMeters", () => {
   it("respeita o estoque", () => {
     expect(stepMeters(9.5, 1, 10)).toBe(10);
     expect(stepMeters(10, 1, 10)).toBe(10);
+    // Acima do estoque (duas adições somadas): o "+" não diminui.
+    expect(stepMeters(6, 1, 3.3)).toBe(6);
   });
 });
 

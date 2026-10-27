@@ -210,11 +210,13 @@ function FitasContent() {
     (p) => p.id === selectedRibbonId
   );
   const meterMax = selectedMeterProduct?.ribbonInventory?.remainingMeters;
+  // Campo vazio no meio da digitação: mostra 0, não "NaN" (revisão do #387).
+  const shownMeters = Number.isFinite(meterAmount) ? meterAmount : 0;
   const selectedMeterPrice = selectedMeterProduct
     ? getEffectiveUnitPrice(selectedMeterProduct)
     : null;
   const meterTotalPrice =
-    selectedMeterPrice != null ? selectedMeterPrice * meterAmount : null;
+    selectedMeterPrice != null ? selectedMeterPrice * shownMeters : null;
 
   return (
     <main
@@ -543,7 +545,7 @@ function FitasContent() {
                               {selectedMeterProduct?.name}
                             </p>
                             <p className="text-xs text-slate-500 mt-1">
-                              {meterAmount} metros
+                              {shownMeters} metros
                             </p>
                           </div>
                         ) : (
@@ -566,7 +568,7 @@ function FitasContent() {
                         <div className="flex justify-between py-2 border-b border-slate-100">
                           <span className="text-slate-500">Quantidade</span>
                           <span className="font-medium text-slate-800">
-                            {meterAmount}m
+                            {shownMeters}m
                           </span>
                         </div>
                       </div>
@@ -604,7 +606,7 @@ function FitasContent() {
                 <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 lg:hidden flex items-center justify-between gap-4 safe-area-pb">
                   <div className="flex flex-col">
                     <span className="text-xs text-slate-500 font-medium">
-                      Total ({meterAmount}m)
+                      Total ({shownMeters}m)
                     </span>
                     <span className="text-xl font-bold text-primary">
                       {meterTotalPrice != null
