@@ -41,6 +41,8 @@ import {
   getCartItemTotal,
   getCartItemUnavailableReason,
   sumCartItemTotals,
+  countCartItems,
+  isPerMeterCartItem,
 } from "@/lib/cart-pricing";
 import { isSealedRibbonRoll, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 import { SafeImage } from "../ui/SafeImage";
@@ -56,7 +58,7 @@ export function CartIcon() {
   }, []);
 
   const count = isMounted
-    ? items.reduce((acc, item) => acc + item.quantity, 0)
+    ? countCartItems(items)
     : 0;
 
   return (
@@ -319,7 +321,11 @@ export function CartSidebar() {
         const itemPrice = getCartItemTotal(item);
 
         // Formato: 1x Nome (Variação) - R$ 10,00
-        message += `${item.quantity}x ${name}${variation} - ${formatCurrency(
+        message += `${
+          isPerMeterCartItem(item)
+            ? `${String(item.quantity).replace(".", ",")} m de`
+            : `${item.quantity}x`
+        } ${name}${variation} - ${formatCurrency(
           itemPrice
         )}\n`;
       });
@@ -425,7 +431,8 @@ export function CartSidebar() {
                       ? 0
                       : getCartItemTotal(item);
 
-                    const isRibbon = item.product?.type === "RIBBON";
+                    const isBow = item.type === "CUSTOM_RIBBON";
+                    const isRibbon = !isBow && item.product?.type === "RIBBON";
                     const isSealed = isSealedRibbonRoll(item.product);
                     const unitLabel = item.product ? getEffectiveUnitLabel(item.product) : "un";
 
@@ -455,6 +462,11 @@ export function CartSidebar() {
                               {isSealed ? "Rolo Fechado" : "Fita Aberta"}
                             </div>
                           )}
+                          {isBow && (
+                            <div className="absolute bottom-0 inset-x-0 py-0.5 text-[9px] font-bold text-center truncate leading-none z-10 bg-pink-950/80 text-pink-100">
+                              Laço pronto
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0 pr-9">
                           <h4 className="font-medium text-slate-800 text-sm line-clamp-2">
@@ -477,6 +489,17 @@ export function CartSidebar() {
                               {isSealed
                                 ? `Rolo fechado (${item.product?.ribbonInventory?.totalRollMeters || 0}m)`
                                 : "Fita aberta (por metro)"}
+                            </p>
+                          )}
+                          {isBow && (
+                            <p className="text-xs font-semibold px-1.5 py-0.5 rounded-md inline-block mt-0.5 bg-pink-50 text-pink-800 border border-pink-200">
+                              {[
+                                "Laço",
+                                item.customizations?.style?.replace(/^\s*laço\s*/i, ""),
+                                item.customizations?.size,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
                             </p>
                           )}
                           {item.selectedVariant ? (
@@ -526,7 +549,9 @@ export function CartSidebar() {
                                     -
                                   </button>
                                   <span className="text-xs px-1">
-                                    {item.quantity}
+                                    {isPerMeterCartItem(item)
+                                      ? `${String(item.quantity).replace(".", ",")} m`
+                                      : item.quantity}
                                   </span>
                                   <button
                                     onClick={() =>

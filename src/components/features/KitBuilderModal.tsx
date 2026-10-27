@@ -149,7 +149,6 @@ export function KitBuilderModal() {
         })),
       },
     });
-    toast.success("Presente montado com sucesso!");
     closeKitBuilder();
     resetBuilder();
     openGlobalCart();

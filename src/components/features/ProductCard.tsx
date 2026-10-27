@@ -5,7 +5,6 @@ import { ShoppingCart } from "lucide-react";
 import { Product } from "@/types";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/store/cartStore";
-import { toast } from "sonner";
 import { cn, formatCurrency } from "@/lib/utils";
 import { getEffectiveUnitPrice, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 import { useKitBuilderStore } from "@/store/kitBuilderStore";
@@ -69,7 +68,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         quantity: 1,
         kitTotalAmount: finalPrice ?? 0,
       });
-      toast.success(`${product.name} adicionado!`);
       openCart();
     }
   };

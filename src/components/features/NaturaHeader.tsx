@@ -5,10 +5,11 @@ import Link from "next/link";
 import { Search, ShoppingCart, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/store/cartStore";
+import { countCartItems } from "@/lib/cart-pricing";
 
 export function NaturaHeader() {
   const { items, isCartOpen, openCart, closeCart } = useCartStore();
-  const itemCount = items.reduce((acc, item) => acc + item.quantity, 0);
+  const itemCount = countCartItems(items);
 
   const toggleCart = () => {
     if (isCartOpen) closeCart();

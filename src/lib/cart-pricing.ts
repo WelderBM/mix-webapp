@@ -1,6 +1,36 @@
 import { CartItem } from "@/types/cart";
 import { Product } from "@/types/product";
-import { getEffectiveUnitPrice } from "./ribbon-pricing";
+import { getEffectiveUnitPrice, isSealedRibbonRoll } from "./ribbon-pricing";
+
+// Fita aberta vendida por metro: aqui `quantity` é a metragem (ex: 2,5),
+// não um número de unidades.
+export function isPerMeterCartItem(item: CartItem): boolean {
+  return (
+    item.type === "SIMPLE" &&
+    item.product?.type === "RIBBON" &&
+    !isSealedRibbonRoll(item.product)
+  );
+}
+
+// Quantos itens o cliente vê no ícone do carrinho: fita por metro conta 1
+// (não 2,5), balão conta conjuntos, o resto conta unidades.
+export function getCartItemCount(item: CartItem): number {
+  if (isPerMeterCartItem(item)) return 1;
+  return Math.max(1, Math.round(item.quantity));
+}
+
+export function countCartItems(items: CartItem[]): number {
+  return items.reduce((acc, item) => acc + getCartItemCount(item), 0);
+}
+
+// Texto do aviso "adicionado": metragem com vírgula para fita por metro.
+export function describeCartAddition(item: CartItem): string {
+  const name = item.product?.name || item.kitName || "Item personalizado";
+  if (isPerMeterCartItem(item)) {
+    return `${String(item.quantity).replace(".", ",")} m de ${name}`;
+  }
+  return name;
+}
 
 // Preço unitário de um item SIMPLE — variação tem prioridade sobre o
 // produto; produto passa por getEffectiveUnitPrice pra respeitar o estado

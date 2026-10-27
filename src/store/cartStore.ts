@@ -6,6 +6,8 @@ import {
   dropUnpricedCartItems,
   getCartItemTotal,
   getCartItemUnitPrice,
+  describeCartAddition,
+  isPerMeterCartItem,
 } from "@/lib/cart-pricing";
 
 interface CartStore {
@@ -110,19 +112,16 @@ export const useCartStore = create<CartStore>()(
                 ? { ...i, quantity: i.quantity + item.quantity }
                 : i
             );
+            // Único aviso de "adicionado" do app: as telas não avisam de novo.
             toast.success(
-              `Mais ${item.quantity}x ${
-                item.product?.name || item.kitName || "item"
-              } adicionado!`
+              isPerMeterCartItem(item)
+                ? `Mais ${describeCartAddition(item)} adicionado!`
+                : `Mais ${item.quantity}x ${describeCartAddition(item)} adicionado!`
             );
             return { items: updatedItems };
           }
 
-          toast.success(
-            `${
-              item.product?.name || item.kitName || "Item Personalizado"
-            } adicionado!`
-          );
+          toast.success(`${describeCartAddition(item)} adicionado!`);
           return { items: [...state.items, item] };
         });
       },
