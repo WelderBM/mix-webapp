@@ -74,15 +74,13 @@ const cache = new Map<string, string>();
 // Cor "Sortido" (relatório 27/10): 3 balões de cores diferentes, bem
 // juntos e sobrepostos, no material do tipo: o neon brilha, o metálico
 // reflete, o candy é pastel.
+// Só o que difere do cartão do tipo: metálico e uniq têm uma cor só no
+// cartão; os outros reaproveitam as 3 cores dele (revisão do #388).
 const MIX: Record<string, string[]> = {
-  simples: ["#ef4444", "#3b82f6", "#facc15"],
   metalico: ["#d4a017", "#c0c7cf", "#d48e7e"], // ouro, prata, rose gold
-  candy: ["#f9a8d4", "#93c5fd", "#fde68a"],
-  cintilante: ["#db2777", "#2563eb", "#16a34a"],
   uniq: ["#b08497", "#c9a27e", "#8fa89a"],
-  canudo: ["#f97316", "#22c55e", "#a855f7"],
-  neon: ["#39ff14", "#ff2bd6", "#fff01f"],
 };
+
 
 // Neon: um halo colorido atrás do buquê, como o balão aceso na luz negra.
 function withNeonGlow(svg: string): string {
@@ -100,7 +98,8 @@ export function balloonMixImage(typeId: string): string {
   const k = `m:${base}`;
   if (!cache.has(k)) {
     const look = LOOKS[base] ?? FALLBACK;
-    const colors = MIX[base] ?? MIX.simples;
+    const colors =
+      MIX[base] ?? (look.colors.length >= 3 ? look.colors : LOOKS.simples.colors);
     let svg: string;
     if (base === "canudo") svg = canudoSvg(colors, false);
     else {
@@ -117,9 +116,10 @@ export function balloonMixImage(typeId: string): string {
   return cache.get(k)!;
 }
 
-// "Sortido", "Colorido", "Multicor": cor que é mistura, não uma cor só.
+// "Sortido", "Colorido", "Multicor" (e "Sortido Pastel"…): cor que é
+// mistura, não uma cor só.
 export const isMixColor = (name: string) =>
-  /^(sortid[oa]s?|colorid[oa]s?|multicor(es)?)$/.test(
+  /^(sortid[oa]s?|colorid[oa]s?|multicor(es)?)(\s|$)/.test(
     name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()
   );
 

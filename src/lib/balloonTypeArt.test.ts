@@ -112,6 +112,8 @@ describe("cor Sortido (relatório 27/10)", () => {
     expect(isMixColor("Sortido")).toBe(true);
     expect(isMixColor("SORTIDOS")).toBe(true);
     expect(isMixColor("Colorido")).toBe(true);
+    expect(isMixColor("Sortido Pastel")).toBe(true);
+    expect(isMixColor("Sortidos2")).toBe(false);
     expect(isMixColor("Vermelho")).toBe(false);
     expect(isMixColor("Arco Iris")).toBe(false);
   });
