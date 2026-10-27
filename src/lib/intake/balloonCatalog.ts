@@ -404,6 +404,14 @@ export interface ProposalSize {
   packSource: "catalogo" | "lido" | "misto" | "padrao";
   stock: number;
   currentPrice: number | null; // preço já cadastrado (null = tamanho novo)
+  // Itens do Noturno que somam o estoque (#365), maior estoque primeiro.
+  items: ProposalItem[];
+}
+
+export interface ProposalItem {
+  name: string; // como está no Noturno
+  stock: number;
+  color: string | null;
 }
 
 export interface ProposalType {
@@ -430,7 +438,7 @@ function packOf(name: string, typeId: string): number | null {
 const sizeOrder = (s: string) => parseFloat(s) || 0;
 
 type Acc = {
-  sizes: Map<string, { stock: number; packs: Map<number, number> }>;
+  sizes: Map<string, { stock: number; packs: Map<number, number>; items: ProposalItem[] }>;
   colors: Map<string, { name: string; stock: number; inCatalog: boolean }>;
   renames: Map<string, string>; // nome no catálogo → nome do Noturno
 };
@@ -468,8 +476,9 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
     const qty = Math.max(0, i.stock);
     const t: Acc = acc.get(m.typeId) ?? { sizes: new Map(), colors: new Map(), renames: new Map() };
     acc.set(m.typeId, t);
-    const s = t.sizes.get(m.size) ?? { stock: 0, packs: new Map<number, number>() };
+    const s = t.sizes.get(m.size) ?? { stock: 0, packs: new Map<number, number>(), items: [] };
     s.stock += qty;
+    s.items.push({ name: i.name, stock: qty, color: m.color ?? m.rawColor });
     const pack = packOf(i.name, baseTypeId(m.typeId));
     if (pack) s.packs.set(pack, (s.packs.get(pack) ?? 0) + 1);
     t.sizes.set(m.size, s);
@@ -521,6 +530,9 @@ export function proposeCatalog(items: StockItem[], config: BalloonConfig): Propo
               packSource,
               stock: s.stock,
               currentPrice: cur?.price ?? null,
+              items: [...s.items].sort(
+                (x, y) => y.stock - x.stock || x.name.localeCompare(y.name, "pt-BR"),
+              ),
             };
           })
           .sort((x, y) => sizeOrder(x.size) - sizeOrder(y.size)),

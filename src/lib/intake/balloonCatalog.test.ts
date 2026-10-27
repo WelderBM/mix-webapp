@@ -167,12 +167,23 @@ describe("montar o catálogo pelo Noturno", () => {
     const p = proposeCatalog(items, { types: [], allColors: [] });
     const simples = p.find((t) => t.typeId === "simples")!;
     expect(simples).toMatchObject({ name: "Balão Simples (Liso)", exists: false });
-    expect(simples.sizes).toEqual([
+    expect(simples.sizes.map(({ items: _items, ...s }) => s)).toEqual([
       { size: "9", unitsPerPackage: 50, packSource: "lido", stock: 32, currentPrice: null },
       { size: "11", unitsPerPackage: 50, packSource: "lido", stock: 5, currentPrice: null },
     ]);
     expect(simples.colors.map((c) => c.name)).toEqual(["Azul Petroleo", "Verde Folha", "Preto"]);
     expect(p.map((t) => t.typeId)).toEqual(["simples", "candy"]); // coração é produto
+  });
+
+  it("cada tamanho traz os itens do Noturno que somam o estoque (#365)", () => {
+    const p = proposeCatalog(items, { types: [], allColors: [] });
+    for (const t of p) {
+      for (const s of t.sizes) {
+        expect(s.items.reduce((n, i) => n + i.stock, 0)).toBe(s.stock);
+        const stocks = s.items.map((i) => i.stock);
+        expect(stocks).toEqual([...stocks].sort((a, b) => b - a));
+      }
+    }
   });
 
   it("aplica: cria tipo só com preço; tamanho sem preço fica de fora", () => {
