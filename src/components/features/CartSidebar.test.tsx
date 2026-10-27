@@ -182,7 +182,27 @@ describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
 
     await waitFor(() => {
       expect(sonner.toast.warning).toHaveBeenCalledWith(
-        "Por favor, digite um telefone válido para contato."
+        "Digite seu WhatsApp com DDD, ex.: (95) 98424-4194."
+      );
+    });
+    expect(addDocMock).not.toHaveBeenCalled();
+  });
+
+  it("bloqueia telefone sem DDD: a loja não conseguiria chamar o cliente (revisão do #389)", async () => {
+    const sonner = await import("sonner");
+    render(<CartSidebar />);
+
+    fireEvent.change(screen.getByPlaceholderText("Digite seu nome"), {
+      target: { value: "Maria Silva" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("(99) 99999-9999"), {
+      target: { value: "98424419" },
+    });
+    fireEvent.click(screen.getByText("Finalizar Pedido"));
+
+    await waitFor(() => {
+      expect(sonner.toast.warning).toHaveBeenCalledWith(
+        "Digite seu WhatsApp com DDD, ex.: (95) 98424-4194."
       );
     });
     expect(addDocMock).not.toHaveBeenCalled();

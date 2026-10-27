@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { PackageSearch } from "lucide-react";
+import { PackageSearch, X } from "lucide-react";
 import {
   TRACKING_EVENT,
   dismissTrackingHint,
@@ -59,15 +59,21 @@ export function TrackingIcon() {
         )}
       </Link>
       {hint && bubble && (
-        <button
-          type="button"
+        <div
           role="status"
-          onClick={() => setBubble(false)}
-          className="absolute right-0 top-full z-50 mt-2 w-44 rounded-xl bg-purple-700 px-3 py-2 text-left text-xs font-semibold text-white shadow-lg animate-in fade-in slide-in-from-top-2 duration-500 motion-reduce:animate-none"
+          className="absolute right-0 top-full z-50 mt-2 w-48 rounded-xl bg-purple-700 py-2 pl-3 pr-9 text-xs font-semibold text-white shadow-lg animate-in fade-in slide-in-from-top-2 duration-500 motion-reduce:animate-none"
         >
           <span className="absolute -top-1.5 right-4 h-3 w-3 rotate-45 bg-purple-700" aria-hidden="true" />
           Seu pedido fica aqui. Toque no ícone para acompanhar.
-        </button>
+          <button
+            type="button"
+            onClick={() => setBubble(false)}
+            aria-label="Fechar aviso"
+            className="absolute right-0 top-0 flex h-full w-9 items-center justify-center text-white/80 hover:text-white"
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
       )}
     </div>
   );

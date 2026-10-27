@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { GroupInvite } from "@/components/features/GroupInvite";
+import { forgetOrder } from "@/lib/orderTracking";
 import { formatCurrency, cn } from "@/lib/utils";
 import { balloonItemLabel } from "@/lib/balloonFoil";
 import Link from "next/link";
@@ -252,7 +253,7 @@ export function TrackOrderContent() {
   const clearTracking = () => {
     setOrder(null);
     setOrderId("");
-    localStorage.removeItem("lastOrderId");
+    forgetOrder();
     setIsSearching(false);
 
     // Limpa URL

@@ -36,6 +36,7 @@ import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { rememberOrder } from "@/lib/orderTracking";
+import { waPhone } from "@/lib/orderMessage";
 import { getProductImage } from "@/lib/image-utils";
 import {
   getCartItemTotal,
@@ -229,8 +230,10 @@ export function CartSidebar() {
       return;
     }
 
-    if (!customerPhone.trim() || customerPhone.length < 8) {
-      toast.warning("Por favor, digite um telefone válido para contato.");
+    // O telefone é o único jeito de a loja chamar o cliente (a atendente
+    // manda o pedido pelo WhatsApp): precisa do DDD (revisão do #389).
+    if (!waPhone(customerPhone)) {
+      toast.warning("Digite seu WhatsApp com DDD, ex.: (95) 98424-4194.");
       return;
     }
 

@@ -36,6 +36,12 @@ export function rememberOrder(id: string) {
 
 export const dismissTrackingHint = () => write(HINT_KEY, null);
 
+// "Rastrear outro": esquece o pedido e avisa o ícone do topo.
+export function forgetOrder() {
+  write(LAST_ORDER_KEY, null);
+  write(HINT_KEY, null);
+}
+
 // Convite do grupo: aparece uma vez por aparelho.
 export const groupInviteSeen = () => read(INVITE_KEY) === "1";
 export const markGroupInviteSeen = () => write(INVITE_KEY, "1");
