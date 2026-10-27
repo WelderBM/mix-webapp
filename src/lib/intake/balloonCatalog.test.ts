@@ -164,7 +164,7 @@ describe("montar o catálogo pelo Noturno", () => {
     const p = proposeCatalog(items, { types: [], allColors: [] });
     const simples = p.find((t) => t.typeId === "simples")!;
     expect(simples).toMatchObject({ name: "Balão Simples (Liso)", exists: false });
-    expect(simples.sizes).toEqual([
+    expect(simples.sizes.map(({ items: _items, ...s }) => s)).toEqual([
       { size: "9", unitsPerPackage: 50, packSource: "lido", stock: 32, currentPrice: null },
       { size: "11", unitsPerPackage: 50, packSource: "lido", stock: 5, currentPrice: null },
     ]);
