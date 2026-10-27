@@ -26,6 +26,8 @@ const NAV_ITEM_INACTIVE =
 function level1Class(active: boolean) {
   return cn(
     NAV_ITEM_BASE,
+    // Celular (#235): os dois itens dividem a linha em vez de rolar.
+    "min-h-11 flex-1 justify-center md:flex-none",
     active ? "border-blue-600 font-semibold text-blue-700" : NAV_ITEM_INACTIVE
   );
 }
@@ -34,7 +36,7 @@ function level1Class(active: boolean) {
 // "pílula") pra reaproveitar o mesmo estilo underline do nível 1.
 const LEVEL2_TRIGGER_CLASS = cn(
   NAV_ITEM_BASE,
-  "flex-none rounded-none bg-transparent p-3 shadow-none",
+  "min-h-11 flex-auto justify-center rounded-none bg-transparent p-3 shadow-none md:flex-none",
   "data-[state=active]:border-purple-600 data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-purple-700 data-[state=active]:shadow-none",
   "data-[state=inactive]:border-transparent data-[state=inactive]:text-slate-500",
   "dark:data-[state=active]:bg-transparent dark:data-[state=active]:text-purple-300"
@@ -51,14 +53,14 @@ interface AdminNavProps {
  * sem molduras concorrentes. Quando "Estoque" está ativo, o nível 2
  * aparece na mesma linha, separado por um divisor — deixando clara a
  * hierarquia (nível 2 é sub-navegação de Estoque) sem duas fileiras de
- * caixa. `overflow-x-auto` + `whitespace-nowrap` garantem uma linha só no
- * mobile em vez de quebrar em duas.
+ * caixa. No desktop é uma linha só; no celular (#235) os itens QUEBRAM
+ * linha e ocupam a largura — rolar para o lado escondia abas.
  */
 export function AdminNav({ viewMode, onViewModeChange }: AdminNavProps) {
   return (
     <nav
       aria-label="Navegação do painel administrativo"
-      className="mt-6 flex items-center gap-1 overflow-x-auto whitespace-nowrap border-b border-slate-200 pb-px"
+      className="mt-6 flex flex-wrap items-center gap-1 border-b border-slate-200 pb-px md:flex-nowrap md:overflow-x-auto md:whitespace-nowrap"
     >
       <button
         type="button"
@@ -81,9 +83,9 @@ export function AdminNav({ viewMode, onViewModeChange }: AdminNavProps) {
         <>
           <span
             aria-hidden
-            className="mx-1 h-5 w-px shrink-0 bg-slate-200"
+            className="mx-1 hidden h-5 w-px shrink-0 bg-slate-200 md:block"
           />
-          <TabsList className="h-auto w-auto flex-nowrap justify-start gap-1 rounded-none bg-transparent p-0">
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-none bg-transparent p-0 md:w-auto md:flex-nowrap">
             {LEVEL2_ITEMS.map(({ value, label, Icon }) => (
               <TabsTrigger
                 key={value}

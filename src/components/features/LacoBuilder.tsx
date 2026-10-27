@@ -119,7 +119,6 @@ export function LacoBuilder() {
     });
 
     openCart();
-    toast.success("Laço personalizado adicionado!");
 
     // Opcional: Resetar campos após adicionar
     setSelectedRibbonId("");

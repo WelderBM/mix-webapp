@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { setDoc } from "firebase/firestore";
+import { getDoc, setDoc } from "firebase/firestore";
+import { signOut } from "firebase/auth";
+import { toast } from "sonner";
 import AdminPage from "./page";
 
 // Mesmo padrão de src/app/meu-pedido/page.test.tsx e
@@ -229,14 +231,28 @@ describe("AdminPage — navegação unificada (issue #76) preserva ?aba=/?view="
 describe("AdminPage — guard do botão 'Salvar Configurações' (issue #166)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // O Salvar só aparece nas abas que editam configurações (#242).
+    params.set("view", "estoque");
+    params.set("aba", "config");
+    mockGlobalSettings = null;
+  });
+
+  afterEach(() => {
     params.delete("view");
     params.delete("aba");
-    mockGlobalSettings = null;
+  });
+
+  it("não aparece em Pedidos, onde não há o que salvar", async () => {
+    params.delete("view");
+    params.delete("aba");
+    render(<AdminPage />);
+    await waitFor(() => expect(screen.getByTestId("orders-tab")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: /salvar configurações/i })).toBeNull();
   });
 
   it("fica desabilitado enquanto settings/general ainda não chegou (useGlobalSettings null)", async () => {
     render(<AdminPage />);
-    await waitFor(() => expect(screen.getByTestId("orders-tab")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("config-tab")).toBeTruthy());
 
     const saveButton = screen.getByRole("button", {
       name: /salvar configurações/i,
@@ -246,7 +262,7 @@ describe("AdminPage — guard do botão 'Salvar Configurações' (issue #166)", 
 
   it("clicar desabilitado não chama setDoc — não sobrescreve o Firestore com o default vazio", async () => {
     render(<AdminPage />);
-    await waitFor(() => expect(screen.getByTestId("orders-tab")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("config-tab")).toBeTruthy());
 
     fireEvent.click(
       screen.getByRole("button", { name: /salvar configurações/i })
@@ -275,7 +291,7 @@ describe("AdminPage — guard do botão 'Salvar Configurações' (issue #166)", 
     };
 
     render(<AdminPage />);
-    await waitFor(() => expect(screen.getByTestId("orders-tab")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("config-tab")).toBeTruthy());
 
     await waitFor(() =>
       expect(
@@ -322,5 +338,59 @@ describe("AdminPage — guard do botão 'Salvar Configurações' (issue #166)", 
       storeName: "Loja Real (do Firestore)",
       homeSections: [expect.objectContaining({ id: "sec-1" })],
     });
+  });
+});
+
+vi.mock("sonner", async () => {
+  const actual = await vi.importActual<typeof import("sonner")>("sonner");
+  return { ...actual, toast: { ...actual.toast, success: vi.fn(), error: vi.fn() } };
+});
+
+describe("AdminPage — guard de login (whitelist de funcionários)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    params.delete("view");
+    params.delete("aba");
+  });
+
+  // Volta ao default do mock de cima (staff ativo) pra não vazar pros
+  // outros describes.
+  afterEach(() => {
+    vi.mocked(getDoc).mockImplementation(async () => ({
+      exists: () => true,
+      data: () => ({ active: true }),
+    }) as never);
+    vi.restoreAllMocks();
+  });
+
+  it("e-mail fora da whitelist: avisa 'não consta', desloga e volta pra home", async () => {
+    vi.mocked(getDoc).mockResolvedValue({
+      exists: () => false,
+      data: () => undefined,
+    } as never);
+
+    render(<AdminPage />);
+
+    await waitFor(() => expect(signOut).toHaveBeenCalled());
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringMatching(/não consta na lista/i)
+    );
+    expect(replaceMock).toHaveBeenCalledWith("/");
+    expect(screen.queryByTestId("orders-tab")).toBeNull();
+  });
+
+  it("falha ao consultar o Firestore: avisa que não deu pra verificar e desloga", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getDoc).mockRejectedValue(
+      Object.assign(new Error("offline"), { code: "unavailable" })
+    );
+
+    render(<AdminPage />);
+
+    await waitFor(() => expect(signOut).toHaveBeenCalled());
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringMatching(/não foi possível verificar seu acesso/i)
+    );
+    expect(screen.queryByTestId("orders-tab")).toBeNull();
   });
 });

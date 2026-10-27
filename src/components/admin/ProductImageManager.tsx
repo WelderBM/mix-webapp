@@ -10,12 +10,15 @@ interface ProductImageManagerProps {
   images: ProductImage[];
   onChange: (images: ProductImage[]) => void;
   disabled?: boolean;
+  // Nome do produto: sugestões de busca de foto (#347).
+  productName?: string;
 }
 
 export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
   images,
   onChange,
   disabled,
+  productName,
 }) => {
   const handleAddImages = (urls: string[]) => {
     const newImagesList = urls.map((url) => ({
@@ -123,6 +126,7 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
           onUploadComplete={handleAddImages}
           disabled={disabled}
           folder="products"
+          searchHint={productName}
         />
       </div>
     </div>

@@ -19,14 +19,14 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_BASE_URL || "https://mixnovidades.com.br"
+    process.env.NEXT_PUBLIC_BASE_URL || "https://www.mixnovidades.com"
   ),
   title: {
     default: "Mix Novidades | Presentes e Festas em Boa Vista",
     template: "%s | Mix Novidades",
   },
   description:
-    "Sua loja completa de ficas, balões personalizados, kits de presentes e produtos Natura em Boa Vista - RR. Encomende online e receba em casa!",
+    "Sua loja completa de fitas, balões personalizados, kits de presentes e produtos Natura em Boa Vista - RR. Encomende online e receba em casa!",
   keywords: [
     "Mix Novidades",
     "Fitas",
@@ -48,15 +48,8 @@ export const metadata: Metadata = {
     title: "Mix Novidades | Presentes e Festas",
     description:
       "A melhor seleção de fitas, balões e presentes de Boa Vista. Personalize seu pedido online!",
-    siteName: "Mix Novidades WebApp",
-    images: [
-      {
-        url: "/og-image.jpg", // Make sure to add a default og-image to public folder later
-        width: 1200,
-        height: 630,
-        alt: "Mix Novidades - Loja Online",
-      },
-    ],
+    siteName: "Mix Novidades",
+    // Imagem da capa: src/app/opengraph-image.tsx.
   },
   twitter: {
     card: "summary_large_image",

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   normalizeSectionSource,
+  removeProductsFromSections,
   resolveSectionProducts,
   isLowStock,
   LOW_STOCK_RIBBON_RATIO,
@@ -350,5 +351,24 @@ describe("resolveSectionProducts", () => {
     });
     const result = resolveSectionProducts(section, [], []);
     expect(result).toEqual([]);
+  });
+});
+
+describe("removeProductsFromSections (#363)", () => {
+  const base = { type: "product_shelf", width: "full", isActive: true } as const;
+  const manual = { ...base, id: "m", title: "Natura", source: { mode: "manual", productIds: ["a", "b", "c"] } } as StoreSection;
+  const legacy = { ...base, id: "l", title: "Antiga", productIds: ["b", "d"] } as unknown as StoreSection;
+  const byTag = { ...base, id: "t", title: "Tag", source: { mode: "tag", tag: "x" } } as StoreSection;
+
+  it("tira os ids apagados das vitrines manuais, inclusive do formato antigo", () => {
+    const out = removeProductsFromSections([manual, legacy, byTag], new Set(["b"]))!;
+    expect(normalizeSectionSource(out[0])).toEqual({ mode: "manual", productIds: ["a", "c"] });
+    expect(out[1].source).toEqual({ mode: "manual", productIds: ["d"] });
+    expect("productIds" in out[1]).toBe(false);
+    expect(out[2]).toBe(byTag);
+  });
+
+  it("nada a tirar: null (não grava)", () => {
+    expect(removeProductsFromSections([manual, byTag], new Set(["z"]))).toBeNull();
   });
 });

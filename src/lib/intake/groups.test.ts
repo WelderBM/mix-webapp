@@ -1,0 +1,122 @@
+import { describe, it, expect } from "vitest";
+import { buildGroups, groupKeyFor, publishedGroupsByKey, splitVariantName } from "./groups";
+
+const it_ = (sourceCode: string, name: string, family = "ZIPER", suggestedType = "STANDARD_ITEM") =>
+  ({ sourceCode, name, family, suggestedType }) as {
+    sourceCode: string;
+    name: string;
+    family: string;
+    suggestedType: "STANDARD_ITEM" | "RIBBON";
+  };
+
+describe("splitVariantName (nomes reais do Noturno)", () => {
+  it("cor simples, composta e código de cor", () => {
+    expect(splitVariantName("ZIPER NYLON 15CM COR 540 VERDE")).toEqual({
+      base: "ZIPER NYLON 15CM",
+      label: "Verde cor 540",
+    });
+    expect(splitVariantName("PAPEL CARTAO AZUL ROYAL")).toEqual({ base: "PAPEL CARTAO", label: "Azul royal" });
+    expect(splitVariantName("BALAO 9 LISO C/50 ROXO UVA")).toEqual({ base: "BALAO 9 LISO C/50", label: "Roxo uva" });
+    expect(splitVariantName("MEIA ABS COL 6MM - PEROLA COR 100").base).toBe("MEIA ABS COL 6MM");
+  });
+
+  it("cor no feminino também separa", () => {
+    expect(splitVariantName("SACOLA KRAFT P PRETA")).toEqual({ base: "SACOLA KRAFT P", label: "Preta" });
+  });
+
+  it("sem cor no nome: sem rótulo", () => {
+    expect(splitVariantName("CANETA BIC CRISTAL")).toEqual({ base: "CANETA BIC CRISTAL", label: null });
+  });
+
+  it("não confunde palavra que contém cor (ROSADO, PRETOS…)", () => {
+    expect(splitVariantName("BLUSH ROSADO MATTE").label).toBeNull();
+  });
+});
+
+describe("groupKeyFor", () => {
+  it("fita de laço não agrupa (preço/estoque por rolo)", () => {
+    expect(groupKeyFor(it_("1", "FITA CETIM N5 VERMELHA", "FITA", "RIBBON"))).toBeNull();
+  });
+  it("mesma base em famílias diferentes não junta", () => {
+    expect(groupKeyFor(it_("1", "KIT AZUL", "KIT"))).not.toBe(groupKeyFor(it_("2", "KIT AZUL", "CAIXA")));
+  });
+});
+
+describe("balões de letra/número (#236)", () => {
+  it("um grupo por cor, com as letras como opções", () => {
+    const { groups } = buildGroups([
+      it_("1", "BALAO METALIZADO 16 40CM VERMELHO A", "BALAO"),
+      it_("2", "BALAO METALIZADO 16 40CM VERMELHO B", "BALAO"),
+      it_("3", "BALAO METALIZADO 16 40CM PRATA A", "BALAO"),
+      it_("4", "BALAO METALIZADO 16 40CM PRATA B", "BALAO"),
+      it_("5", "BALAO METALIZADO 1640 CM ROSE 2", "BALAO"),
+      it_("6", "BALAO METALIZADO 1640 CM ROSE 10", "BALAO"),
+      it_("7", "BALAO METALIZADO 1640 CM ROSE 9", "BALAO"),
+    ]);
+    const byBase = Object.fromEntries(groups.map((g) => [g.base, g]));
+    expect(byBase["Balao metalizado 16 40cm vermelho"].attribute).toBe("Letra");
+    expect(byBase["Balao metalizado 16 40cm vermelho"].members.map((m) => m.label)).toEqual(["A", "B"]);
+    expect(byBase["Balao metalizado 16 40cm prata"].members).toHaveLength(2);
+  });
+});
+
+describe("buildGroups", () => {
+  it("junta as cores da mesma base; item sozinho continua solto", () => {
+    const { groups, singles } = buildGroups([
+      it_("10", "ZIPER NYLON 15CM COR 540 VERDE"),
+      it_("11", "ZIPER NYLON 15CM COR 501 BRANCO"),
+      it_("12", "ZIPER NYLON 15CM COR 312 PINK"),
+      it_("20", "ZIPER METAL 18CM COR 189 NUDE"),
+      it_("30", "ZIPER INVISIVEL 30CM"),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].base).toBe("Ziper nylon 15cm");
+    expect(groups[0].members.map((m) => m.label)).toEqual(["Branco cor 501", "Pink cor 312", "Verde cor 540"]);
+    expect(singles.map((s) => s.sourceCode).sort()).toEqual(["20", "30"]);
+  });
+
+  it("rótulo repetido (cadastro duplicado) ganha o código", () => {
+    const { groups } = buildGroups([
+      it_("1", "AGULHA CROCHE COLORIDO COR 300", "AGULHA"),
+      it_("2", "AGULHA CROCHE COLORIDO COR 300", "AGULHA"),
+      it_("3", "AGULHA CROCHE COLORIDO COR 200", "AGULHA"),
+    ]);
+    expect(groups[0].members.map((m) => m.label)).toEqual([
+      "Colorido cor 200",
+      "Colorido cor 300 (cód. 1)",
+      "Colorido cor 300 (cód. 2)",
+    ]);
+  });
+});
+
+describe("publishedGroupsByKey (#253)", () => {
+  const pub = (code: string, name: string, productId: string | null, status = "publicado") => ({
+    ...it_(code, name),
+    status,
+    productId,
+  });
+
+  it("acha o produto em grupo pela base e ignora publicado solto e pendente", () => {
+    const map = publishedGroupsByKey([
+      pub("1", "ZIPER NYLON 15CM AZUL", "p1"),
+      pub("2", "ZIPER NYLON 15CM VERDE", "p1"),
+      pub("3", "ZIPER NYLON 15CM ROSA", null, "pendente"),
+      pub("4", "CANETA GEL PRETA", "p2"),
+    ]);
+    const key = groupKeyFor(it_("3", "ZIPER NYLON 15CM ROSA"))!;
+    expect(map.get(key)).toMatchObject({ productId: "p1", attribute: "Cor" });
+    expect(map.get(key)?.labels).toHaveLength(2);
+    expect(map.get(groupKeyFor(it_("5", "CANETA GEL AZUL"))!)).toBeUndefined();
+  });
+
+  it("dois produtos com a mesma base: fica o de mais opções", () => {
+    const map = publishedGroupsByKey([
+      pub("1", "ZIPER NYLON 15CM AZUL", "p1"),
+      pub("2", "ZIPER NYLON 15CM VERDE", "p1"),
+      pub("3", "ZIPER NYLON 15CM ROSA", "p2"),
+      pub("4", "ZIPER NYLON 15CM LILAS", "p2"),
+      pub("5", "ZIPER NYLON 15CM BRANCO", "p2"),
+    ]);
+    expect(map.get(groupKeyFor(it_("6", "ZIPER NYLON 15CM PRETO"))!)?.productId).toBe("p2");
+  });
+});

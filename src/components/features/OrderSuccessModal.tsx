@@ -1,6 +1,7 @@
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -52,6 +53,9 @@ export function OrderSuccessModal({ isOpen, onClose }: OrderSuccessModalProps) {
           <DialogTitle className="text-2xl font-bold text-green-900">
             Pedido Enviado!
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Confirmação do seu pedido.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">

@@ -231,7 +231,8 @@ describe("ProductPageClient", () => {
 
       expect(addItem).toHaveBeenCalledTimes(1);
       expect(openCart).toHaveBeenCalledTimes(1);
-      expect(toastSuccess).toHaveBeenCalledWith("Adicionado ao carrinho!");
+      // O aviso "adicionado" vem só do cartStore (#339); a página não repete.
+      expect(toastSuccess).not.toHaveBeenCalled();
     });
   });
 
@@ -249,7 +250,8 @@ describe("ProductPageClient", () => {
         product,
       });
       expect(openCart).toHaveBeenCalledTimes(1);
-      expect(toastSuccess).toHaveBeenCalledWith("Adicionado ao carrinho!");
+      // O aviso "adicionado" vem só do cartStore (#339); a página não repete.
+      expect(toastSuccess).not.toHaveBeenCalled();
     });
 
     it("resets selection state when the product prop changes (client navigation)", () => {

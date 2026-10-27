@@ -39,10 +39,13 @@ export interface CartItem {
   balloonDetails?: {
     typeId: string;
     typeName: string;
+    brand?: string; // marca do balão (a atendente pega o pacote certo)
     size: string;
     color: string;
     colorHex: string; // Cor em formato hexadecimal para exibição visual
     unitsPerPackage: number;
+    // Foil de letras e números: o que o cliente quer ("ANA"), um balão por caractere.
+    characters?: string;
   };
   selectedImageLabel?: string;
   selectedImageUrl?: string;

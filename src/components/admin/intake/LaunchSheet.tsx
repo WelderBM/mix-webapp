@@ -1,0 +1,1026 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { BookOpenCheck, Camera, History, ImagePlus, Layers, Loader2, Plus, RotateCcw, Sparkles, X } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import type { Category, Unit } from "@/types";
+import type { IntakeItem, IntakeWorkflowStatus } from "@/types/intake";
+import {
+  extractRollMeters,
+  isRibbonItem,
+  matchCategory,
+  parsePrice,
+  validateGroup,
+  validateLaunch,
+} from "@/lib/intake/publish";
+import { pricePerUnit } from "@/lib/intake/pack";
+import { classifySubcategory, matchSubcategory } from "@/lib/intake/subcategories";
+import {
+  attributePlural,
+  splitForGroup,
+  type PublishedGroup,
+  type VariantGroup,
+} from "@/lib/intake/groups";
+import { parseBalloon } from "@/lib/intake/balloons";
+import { ImageSearchDialog } from "@/components/admin/ImageSearchDialog";
+import { imageSearchEnabled } from "@/lib/imageSearch/client";
+import {
+  DRAFT_VERSION,
+  deleteDraft,
+  isWorthSaving,
+  loadDraft,
+  saveDraft,
+  saveDraftPhotos,
+  type LaunchDraftFields,
+} from "@/lib/intake/draft";
+
+// Card de lançamento (#200): tudo que veio do Noturno já preenchido; a
+// atendente só digita o preço da etiqueta, tira a foto e publica.
+// "Vende como" começa SEM escolha de propósito: o nome do Noturno nem
+// sempre diz a verdade sobre pacote × unidade, então a atendente precisa
+// olhar a embalagem e decidir — a sugestão do nome aparece só como dica.
+
+const UNIT_LABEL: Record<Unit, string> = {
+  pct: "Pacote",
+  un: "Unidade",
+  m: "Metro",
+};
+
+const PRICE_LABEL: Record<Unit, string> = {
+  pct: "Preço do pacote (etiqueta)",
+  un: "Preço da unidade (etiqueta)",
+  m: "Preço do metro (etiqueta)",
+};
+
+// Até 5 fotos por produto (#201); a primeira é a capa.
+const MAX_PHOTOS = 5;
+type Photo = { blob: Blob; preview: string };
+
+const brl = (n: number) =>
+  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+interface Props {
+  item: IntakeItem | null;
+  categories: Category[];
+  userEmail: string | null;
+  onClose: () => void;
+  onChanged: (item: IntakeItem) => void;
+  // Lançamento em grupo (#201): várias cores viram UM produto com
+  // variações. `item` é o primeiro do grupo (dados comuns).
+  group?: VariantGroup<IntakeItem> | null;
+  onGroupChanged?: (changes: { prev: IntakeItem; updated: IntakeItem }[]) => void;
+  // Produto já lançado em grupo com a mesma base (#253): oferece entrar
+  // como cor dele em vez de criar um segundo produto com o mesmo nome.
+  publishedGroup?: PublishedGroup | null;
+}
+
+type VariantRow = { item: IntakeItem; label: string; include: boolean };
+
+export function LaunchSheet({
+  item,
+  categories,
+  userEmail,
+  onClose,
+  onChanged,
+  group = null,
+  onGroupChanged,
+  publishedGroup = null,
+}: Props) {
+  // Rascunho do grupo em chave própria: não mistura com o de um item.
+  const draftId = item ? (group ? `g:${group.key}` : item.id) : "";
+  const [variants, setVariants] = useState<VariantRow[]>([]);
+  const [name, setName] = useState("");
+  const [priceText, setPriceText] = useState("");
+  const [categoryName, setCategoryName] = useState("");
+  const [subcategoryName, setSubcategoryName] = useState("");
+  const [unit, setUnit] = useState<Unit | null>(null);
+  const [packText, setPackText] = useState("");
+  const [metersText, setMetersText] = useState("");
+  // Várias fotos (#201): a primeira é a capa.
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const hasPhotos = photos.length > 0;
+  const prevPhotosRef = useRef<Photo[]>([]);
+  // Mesmo papel do skipNextSaveRef, para as fotos recuperadas do rascunho.
+  const skipPhotosSaveRef = useRef(false);
+  // Foto já enviada nesta abertura do card → URL. Numa nova tentativa de
+  // publicar (falha de rede), não sobe de novo nem deixa arquivo órfão.
+  const uploadedRef = useRef(new Map<Blob, string>());
+  // Aviso "Foto removida · Desfazer": fechado ao trocar de item, senão o
+  // desfazer poria a foto no card de OUTRO produto.
+  const undoToastRef = useRef<string | number | null>(null);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
+  // Foto da internet (#268): só aparece com a chave configurada no servidor.
+  const [canSearchPhoto, setCanSearchPhoto] = useState(false);
+  const [searchingPhoto, setSearchingPhoto] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    imageSearchEnabled().then((v) => alive && setCanSearchPhoto(v));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const [saving, setSaving] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  // Rascunho (#233): valores com que o card abriu, e de qual item o
+  // rascunho já foi carregado — antes disso não salva (senão gravaria o
+  // card vazio por cima do rascunho que ainda está sendo lido).
+  const defaultsRef = useRef<LaunchDraftFields | null>(null);
+  const hydratedRef = useRef<string | null>(null);
+  // A primeira passada depois de carregar o rascunho só repete o que já
+  // está gravado — não regrava (nem renova o prazo) por só ter aberto.
+  const skipNextSaveRef = useRef(false);
+  // Gravação pendente (dentro da folga de 400 ms): executada ao fechar o
+  // card, trocar de item ou a tela ir pro fundo — nunca se perde.
+  const pendingSaveRef = useRef<(() => void) | null>(null);
+  const flushPending = () => pendingSaveRef.current?.();
+  const [restored, setRestored] = useState(false);
+
+  function applyFields(f: LaunchDraftFields) {
+    setName(f.name);
+    setPriceText(f.priceText);
+    setCategoryName(f.categoryName);
+    setSubcategoryName(f.subcategoryName ?? "");
+    if (f.variantState) {
+      const byCode = new Map(f.variantState.map((v) => [v.code, v]));
+      setVariants((rows) =>
+        rows.map((r) => {
+          const saved = byCode.get(r.item.sourceCode);
+          return saved ? { ...r, label: saved.label, include: saved.include } : r;
+        }),
+      );
+    }
+    setUnit(f.unit);
+    setPackText(f.packText);
+    setMetersText(f.metersText);
+  }
+
+  // Preenche o card a cada item aberto e recupera o rascunho, se houver.
+  useEffect(() => {
+    if (!item) return;
+    const meters = extractRollMeters(item.name);
+    const suggestedCategory =
+      matchCategory(item.suggestedCategoryKey, categories) ?? "";
+    const defaults: LaunchDraftFields = {
+      name: group ? group.base : item.name,
+      variantState: group
+        ? group.members.map((m) => ({ code: m.item.sourceCode, label: m.label, include: true }))
+        : undefined,
+      priceText: "",
+      categoryName: suggestedCategory,
+      subcategoryName:
+        matchSubcategory(classifySubcategory(item)?.subcategory ?? null, suggestedCategory, categories) ?? "",
+      unit: null,
+      packText: item.packQty && item.packQty > 1 ? String(item.packQty) : "",
+      metersText: meters ? String(meters) : "",
+    };
+    defaultsRef.current = defaults;
+    hydratedRef.current = null;
+    applyFields(defaults);
+    setPhotos([]);
+    uploadedRef.current = new Map();
+    if (undoToastRef.current != null) toast.dismiss(undoToastRef.current);
+    setRestored(false);
+    if (item.status !== "pendente") return flushPending;
+    let alive = true;
+    setVariants(
+      group ? group.members.map((m) => ({ item: m.item, label: m.label, include: true })) : [],
+    );
+    const id = draftId;
+    loadDraft(id).then((d) => {
+      if (!alive) return;
+      if (d) {
+        applyFields(d);
+        if (d.photos.length > 0) skipPhotosSaveRef.current = true;
+        setPhotos(
+          d.photos.map((blob) => ({ blob, preview: URL.createObjectURL(blob) })),
+        );
+        setRestored(true);
+        skipNextSaveRef.current = true;
+      }
+      hydratedRef.current = id;
+    });
+    return () => {
+      alive = false;
+      flushPending();
+    };
+    // categories fora das deps de propósito: não resetar o que a atendente
+    // já digitou se a lista de categorias atualizar com o card aberto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item, group]);
+
+  // Guarda o rascunho enquanto a atendente preenche (com folga de 400 ms).
+  useEffect(() => {
+    if (!item || hydratedRef.current !== draftId || !defaultsRef.current) return;
+    const id = draftId;
+    const fields: LaunchDraftFields = {
+      name, priceText, categoryName, subcategoryName, unit, packText, metersText,
+      variantState: group
+        ? variants.map((v) => ({ code: v.item.sourceCode, label: v.label, include: v.include }))
+        : undefined,
+    };
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
+    }
+    const defaults = defaultsRef.current;
+    const flush = () => {
+      if (pendingSaveRef.current === flush) pendingSaveRef.current = null;
+      else return; // já gravado ou substituído por uma edição mais nova
+      if (hydratedRef.current !== id) return;
+      if (isWorthSaving(fields, defaults, hasPhotos)) {
+        saveDraft(id, { ...fields, v: DRAFT_VERSION, savedAt: Date.now() });
+      } else {
+        deleteDraft(id);
+      }
+    };
+    pendingSaveRef.current = flush;
+    const t = setTimeout(flush, 400);
+    return () => clearTimeout(t);
+  }, [item, name, priceText, categoryName, subcategoryName, unit, packText, metersText, hasPhotos, variants]);
+
+  // Fotos: gravadas à parte, só quando a lista muda.
+  useEffect(() => {
+    if (!item || hydratedRef.current !== draftId) return;
+    if (skipPhotosSaveRef.current) {
+      skipPhotosSaveRef.current = false;
+      return;
+    }
+    saveDraftPhotos(draftId, photos.map((ph) => ph.blob));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photos]);
+
+  // Celular bloqueando / aba indo pro fundo: grava o pendente já.
+  // (Publicar/pular zeram hydratedRef antes, então não ressuscita
+  // rascunho apagado.)
+  useEffect(() => {
+    const onHide = () => pendingSaveRef.current?.();
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      onHide();
+    };
+  }, []);
+
+  function discardDraft() {
+    if (!item || !defaultsRef.current) return;
+    deleteDraft(draftId);
+    applyFields(defaultsRef.current);
+    setPhotos([]);
+    setRestored(false);
+  }
+
+  // Libera a memória das prévias que saíram da lista (e todas ao sair).
+  useEffect(() => {
+    const keep = new Set(photos.map((ph) => ph.preview));
+    for (const ph of prevPhotosRef.current) {
+      if (!keep.has(ph.preview)) URL.revokeObjectURL(ph.preview);
+    }
+    prevPhotosRef.current = photos;
+  }, [photos]);
+  useEffect(
+    () => () => prevPhotosRef.current.forEach((ph) => URL.revokeObjectURL(ph.preview)),
+    [],
+  );
+
+  if (!item) return null;
+  const ribbon = isRibbonItem(item);
+  const balloon = item.family === "BALAO" ? parseBalloon(item.name) : null;
+  const pending = item.status === "pendente";
+
+  function removePhoto(i: number) {
+    const removed = photos[i];
+    setPhotos((list) => list.filter((_, j) => j !== i));
+    undoToastRef.current = toast("Foto removida", {
+      action: {
+        label: "Desfazer",
+        // Prévia nova: a antiga já foi liberada quando a foto saiu da lista.
+        onClick: () =>
+          setPhotos((list) =>
+            list.some((ph) => ph.blob === removed.blob) || list.length >= MAX_PHOTOS
+              ? list
+              : [
+                  ...list.slice(0, i),
+                  { blob: removed.blob, preview: URL.createObjectURL(removed.blob) },
+                  ...list.slice(i),
+                ],
+          ),
+      },
+    });
+  }
+
+  // Balão (#236): arte desenhada a partir do nome, entra como uma foto.
+  // No grupo de letras/números, a capa usa a primeira letra/número.
+  async function useBalloonArt() {
+    if (!balloon) return;
+    setProcessingPhoto(true);
+    try {
+      const { balloonSvg, renderBalloonImage } = await import("@/lib/intake/balloonArt");
+      // Letra/número do NOME do balão no Noturno — o rótulo é editável e
+      // pode ter "(cód. …)" (revisão do #254).
+      const first = variants.find((v) => v.include);
+      const glyph =
+        group && group.attribute !== "Cor" && first
+          ? (parseBalloon(first.item.name)?.glyph ?? undefined)
+          : undefined;
+      const blob = await renderBalloonImage(balloonSvg(balloon, glyph));
+      setPhotos((list) =>
+        list.length >= MAX_PHOTOS ? list : [...list, { blob, preview: URL.createObjectURL(blob) }],
+      );
+    } catch {
+      toast.error("Não foi possível gerar a arte. Tire uma foto do balão.");
+    } finally {
+      setProcessingPhoto(false);
+    }
+  }
+
+  async function handlePhoto(file: File) {
+    setProcessingPhoto(true);
+    try {
+      const { compressImage } = await import("@/lib/intake/compressImage");
+      const blob = await compressImage(file);
+      setPhotos((list) =>
+        list.length >= MAX_PHOTOS
+          ? list
+          : [...list, { blob, preview: URL.createObjectURL(blob) }],
+      );
+    } catch {
+      toast.error("Não foi possível usar essa foto. Tente de novo.");
+    } finally {
+      setProcessingPhoto(false);
+    }
+  }
+
+  async function publish() {
+    if (!item) return;
+    const input = {
+      name,
+      price: parsePrice(priceText),
+      categoryName,
+      subcategoryName: subcategoryName || null,
+      unit: ribbon ? ("m" as Unit) : unit,
+      packQty: unit === "pct" ? Number(packText) || null : null,
+      // Só pra validação; as URLs reais vêm do envio abaixo.
+      photoUrls: photos.map(() => "pending"),
+      rollMeters: ribbon ? parsePrice(metersText) : null,
+    };
+    const chosen = variants
+      .filter((v) => v.include)
+      .map((v) => ({ item: v.item, label: v.label, attribute: group?.attribute }));
+    const error =
+      validateLaunch(input, ribbon) ?? (group ? validateGroup(chosen) : null);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    setSaving(true);
+    try {
+      const { uploadIntakePhoto, publishIntakeItem, publishIntakeGroup } =
+        await import("@/lib/intake/actions");
+      const photoUrls = await Promise.all(
+        photos.map(async (ph, i) => {
+          const done = uploadedRef.current.get(ph.blob);
+          if (done) return done;
+          const url = await uploadIntakePhoto(item, ph.blob, i);
+          uploadedRef.current.set(ph.blob, url);
+          return url;
+        }),
+      );
+      if (group) {
+        const productId = await publishIntakeGroup(
+          chosen,
+          { ...input, photoUrls },
+          userEmail,
+        );
+        hydratedRef.current = null;
+        deleteDraft(draftId);
+        toast.success(`Publicado na loja com ${chosen.length} ${attributePlural(group.attribute)}!`);
+        onGroupChanged?.(
+          chosen.map(({ item: it }) => ({
+            prev: it,
+            updated: { ...it, status: "publicado", productId },
+          })),
+        );
+        onClose();
+        return;
+      }
+      const productId = await publishIntakeItem(
+        item,
+        { ...input, photoUrls },
+        userEmail,
+      );
+      hydratedRef.current = null;
+      deleteDraft(draftId);
+      toast.success("Publicado na loja!");
+      onChanged({ ...item, name: input.name, status: "publicado", productId });
+      onClose();
+    } catch (err) {
+      toast.error(
+        "Não foi possível publicar. Verifique a conexão e tente de novo.",
+      );
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function addToPublishedGroup() {
+    if (!item || !publishedGroup) return;
+    const split = splitForGroup(item);
+    const chosen = group
+      ? variants
+          .filter((v) => v.include)
+          .map((v) => ({ item: v.item, label: v.label, attribute: group.attribute }))
+      : [{ item, label: split.label ?? item.name, attribute: split.attribute }];
+    if (chosen.length === 0) {
+      toast.error("Marque pelo menos uma opção.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { addToGroupProduct } = await import("@/lib/intake/actions");
+      await addToGroupProduct(chosen, publishedGroup.productId, userEmail);
+      hydratedRef.current = null;
+      deleteDraft(draftId);
+      toast.success(
+        chosen.length === 1
+          ? `"${chosen[0].label}" entrou no produto da loja.`
+          : `${chosen.length} opções entraram no produto da loja.`,
+      );
+      const changes = chosen.map(({ item: it }) => ({
+        prev: it,
+        updated: { ...it, status: "publicado" as const, productId: publishedGroup.productId },
+      }));
+      if (group) onGroupChanged?.(changes);
+      else onChanged(changes[0].updated);
+      onClose();
+    } catch (err) {
+      // Erro nosso (validação) tem mensagem para a atendente; erro do
+      // Firestore (rede, permissão) traz `code` e cai na mensagem genérica.
+      toast.error(
+        err instanceof Error && !("code" in err)
+          ? err.message
+          : "Não foi possível salvar. Verifique a conexão e tente de novo.",
+      );
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function changeStatus(
+    to: Exclude<IntakeWorkflowStatus, "publicado">,
+    message: string,
+  ) {
+    if (!item) return;
+    setSaving(true);
+    try {
+      const { setIntakeStatus } = await import("@/lib/intake/actions");
+      if (group) {
+        const targets = variants.filter((v) => v.include).map((v) => v.item);
+        if (targets.length === 0) {
+          toast.error("Marque pelo menos uma opção.");
+          return;
+        }
+        const { setIntakeStatusMany } = await import("@/lib/intake/actions");
+        await setIntakeStatusMany(targets, to, userEmail);
+        hydratedRef.current = null;
+        deleteDraft(draftId);
+        toast.success(message);
+        onGroupChanged?.(targets.map((it) => ({ prev: it, updated: { ...it, status: to } })));
+        onClose();
+        return;
+      }
+      await setIntakeStatus(item, to, userEmail);
+      hydratedRef.current = null;
+      deleteDraft(draftId);
+      toast.success(message);
+      onChanged({ ...item, status: to });
+      onClose();
+    } catch (err) {
+      toast.error("Não foi possível salvar. Verifique a conexão.");
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Sheet open={!!item} onOpenChange={(open) => !open && !saving && onClose()}>
+      <SheetContent
+        side="bottom"
+        className="max-h-[92dvh] overflow-y-auto rounded-t-2xl p-0"
+      >
+        <SheetHeader className="border-b border-slate-100 px-4 pb-3 pt-4 text-left">
+          <SheetTitle className="pr-8 text-base leading-snug">
+            {group
+              ? `${group.base} · ${group.members.length} ${attributePlural(group.attribute)}`
+              : item.name}
+          </SheetTitle>
+          <SheetDescription>
+            {group ? (
+              `Lançamento em grupo: um produto na loja, com uma opção por ${group.attribute.toLowerCase()}.`
+            ) : (
+              <>
+                Cód. {item.sourceCode}
+                {item.brand && ` · ${item.brand}`} ·{" "}
+                {item.stock.toLocaleString("pt-BR")} em estoque
+              </>
+            )}
+          </SheetDescription>
+        </SheetHeader>
+
+        {!pending ? (
+          <div className="space-y-3 p-4">
+            <p className="text-sm text-slate-600">
+              {item.status === "publicado"
+                ? "Este produto já está publicado na loja."
+                : item.status === "pulado"
+                  ? "Este produto foi pulado."
+                  : item.status === "catalogo"
+                    ? "Este balão é vendido pelo montador de balões da loja. Ele entra por Admin → Balões → Montar pelo Noturno, com o estoque atualizado a cada importação."
+                    : "Este produto foi marcado para não vender online."}
+            </p>
+            {item.status !== "publicado" && (
+              <Button
+                variant="outline"
+                className="h-12 w-full"
+                disabled={saving}
+                onClick={() =>
+                  changeStatus("pendente", "Voltou para os pendentes.")
+                }
+              >
+                <RotateCcw size={16} className="mr-2" /> Voltar para pendentes
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4 p-4">
+            {publishedGroup && (
+              <div className="space-y-2 rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
+                <p>
+                  <Layers size={16} className="mr-1 inline align-text-bottom" />
+                  Este produto já está na loja com {publishedGroup.labels.length}{" "}
+                  {attributePlural(publishedGroup.attribute)}:{" "}
+                  <span className="break-words font-medium">
+                    {publishedGroup.labels.slice(0, 6).join(", ")}
+                    {publishedGroup.labels.length > 6 && "…"}
+                  </span>
+                  . Para não criar um produto repetido, acrescente a ele.
+                </p>
+                <Button
+                  className="h-12 w-full bg-purple-600 hover:bg-purple-700"
+                  disabled={saving}
+                  onClick={addToPublishedGroup}
+                >
+                  {saving ? (
+                    <Loader2 size={16} className="mr-2 animate-spin" />
+                  ) : (
+                    <Plus size={16} className="mr-2" />
+                  )}
+                  {group
+                    ? `Acrescentar ao produto da loja`
+                    : `Acrescentar como ${publishedGroup.attribute.toLowerCase()} do produto`}
+                </Button>
+              </div>
+            )}
+            {restored && (
+              <div
+                role="status"
+                className="flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900"
+              >
+                <History size={18} className="shrink-0" />
+                <span className="flex-1">
+                  Rascunho recuperado: continue de onde parou.
+                </span>
+                <button
+                  type="button"
+                  onClick={discardDraft}
+                  className="min-h-11 shrink-0 px-2 font-medium underline"
+                >
+                  Descartar
+                </button>
+              </div>
+            )}
+            <p className="flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              <BookOpenCheck size={18} className="mt-0.5 shrink-0" />
+              <span>
+                <strong>Leia o nome inteiro</strong> e confira na embalagem: é
+                pacote ou unidade? Quantas vêm? Se o nome e a embalagem não
+                baterem, vale a embalagem.
+              </span>
+            </p>
+
+            {/* Foto primeiro: é o passo que exige estar na frente do produto. */}
+            {photos.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={processingPhoto || saving}
+                className="flex aspect-[4/3] w-full items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500"
+              >
+                {processingPhoto ? (
+                  <Loader2 className="animate-spin" size={28} />
+                ) : (
+                  <span className="flex flex-col items-center gap-2">
+                    <Camera size={32} />
+                    <span className="font-medium">Tirar foto</span>
+                  </span>
+                )}
+              </button>
+            ) : null}
+            {photos.length === 0 && balloon && (
+              // Balão de formato conhecido (#236): arte gerada, sem foto.
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full gap-2"
+                disabled={processingPhoto || saving}
+                onClick={useBalloonArt}
+              >
+                <Sparkles size={18} /> Usar arte do balão (sem foto)
+              </Button>
+            )}
+            {photos.length === 0 ? null : (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => photos.length < MAX_PHOTOS && fileRef.current?.click()}
+                  disabled={processingPhoto || saving}
+                  aria-label={photos.length < MAX_PHOTOS ? "Adicionar outra foto" : "Foto de capa"}
+                  className="relative block aspect-[4/3] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={photos[0].preview}
+                    alt="Foto de capa do produto"
+                    className="h-full w-full object-contain"
+                  />
+                  <span className="absolute left-2 top-2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
+                    Capa
+                  </span>
+                  {photos.length < MAX_PHOTOS && (
+                    <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
+                      + foto
+                    </span>
+                  )}
+                </button>
+                <div className="flex flex-wrap gap-2">
+                  {photos.map((ph, i) => (
+                    <div key={ph.preview} className="flex w-16 flex-col items-center">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPhotos((list) => [list[i], ...list.filter((_, j) => j !== i)])
+                        }
+                        disabled={saving}
+                        aria-label={i === 0 ? "Foto de capa" : `Usar foto ${i + 1} como capa`}
+                        className={`h-16 w-16 overflow-hidden rounded-lg border-2 ${
+                          i === 0 ? "border-purple-600" : "border-slate-200"
+                        }`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={ph.preview} alt="" className="h-full w-full object-cover" />
+                      </button>
+                      {/* Fora da miniatura: tocar na foto para virar capa
+                          nunca remove (revisão do #251). */}
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(i)}
+                        disabled={saving}
+                        aria-label={`Remover foto ${i + 1}`}
+                        className="flex h-11 w-16 items-center justify-center gap-1 text-xs text-slate-500"
+                      >
+                        <X size={14} /> Remover
+                      </button>
+                    </div>
+                  ))}
+                  {photos.length < MAX_PHOTOS && (
+                    <button
+                      type="button"
+                      onClick={() => fileRef.current?.click()}
+                      disabled={processingPhoto || saving}
+                      aria-label="Adicionar foto"
+                      className="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-dashed border-slate-300 text-slate-500"
+                    >
+                      {processingPhoto ? <Loader2 className="animate-spin" size={20} /> : <Plus size={22} />}
+                    </button>
+                  )}
+                </div>
+                {photos.length > 1 && (
+                  <p className="text-xs text-slate-500">
+                    Toque numa miniatura para ela virar a capa.
+                  </p>
+                )}
+              </div>
+            )}
+            {canSearchPhoto && photos.length < MAX_PHOTOS && (
+              // Sem o produto à mão para fotografar, ou foto ruim: a
+              // atendente escolhe uma da internet conferindo a cor (#268).
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full gap-2"
+                disabled={processingPhoto || saving}
+                onClick={() => setSearchingPhoto(true)}
+              >
+                <ImagePlus size={18} /> Buscar foto na internet
+              </Button>
+            )}
+            <ImageSearchDialog
+              open={searchingPhoto}
+              onOpenChange={setSearchingPhoto}
+              initialQuery={(name || item.name).trim()}
+              onPick={(blob) =>
+                setPhotos((list) =>
+                  list.length >= MAX_PHOTOS ? list : [...list, { blob, preview: URL.createObjectURL(blob) }],
+                )
+              }
+            />
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handlePhoto(f);
+                e.target.value = "";
+              }}
+            />
+
+            {!ribbon && (
+              <fieldset className="space-y-1.5">
+                <legend className="text-sm font-medium text-slate-700">
+                  Vende como
+                </legend>
+                <div className="grid grid-cols-3 gap-2">
+                  {(Object.keys(UNIT_LABEL) as Unit[]).map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      aria-pressed={unit === u}
+                      onClick={() => setUnit(u)}
+                      className={`h-12 rounded-xl border text-base font-medium transition-colors ${
+                        unit === u
+                          ? "border-purple-600 bg-purple-600 text-white"
+                          : "border-slate-300 bg-white text-slate-700"
+                      }`}
+                    >
+                      {UNIT_LABEL[u]}
+                    </button>
+                  ))}
+                </div>
+                {item.packEvidence && (
+                  <p className="text-xs text-slate-500">
+                    O nome diz &ldquo;{item.packEvidence}&rdquo;
+                    {item.packQty && item.packQty > 1
+                      ? ` (pacote com ${item.packQty}?)`
+                      : " (unidade?)"}{" "}
+                    — confira na embalagem.
+                  </p>
+                )}
+              </fieldset>
+            )}
+
+            {unit === "pct" && !ribbon && (
+              <Field label="Unidades no pacote">
+                <input
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={packText}
+                  onChange={(e) =>
+                    setPackText(e.target.value.replace(/\D/g, ""))
+                  }
+                  placeholder="Ex.: 100"
+                  className="h-12 w-full rounded-xl border border-slate-300 px-3 text-lg outline-none focus:border-purple-500"
+                />
+              </Field>
+            )}
+
+            <Field
+              label={
+                ribbon
+                  ? "Preço do rolo (etiqueta)"
+                  : unit
+                    ? PRICE_LABEL[unit]
+                    : "Preço (etiqueta)"
+              }
+            >
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+                  R$
+                </span>
+                <input
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={priceText}
+                  onChange={(e) =>
+                    setPriceText(e.target.value.replace(/[^\d.,]/g, ""))
+                  }
+                  placeholder="0,00"
+                  className="h-12 w-full rounded-xl border border-slate-300 pl-10 pr-3 text-lg outline-none focus:border-purple-500"
+                />
+              </div>
+              {(() => {
+                const price = parsePrice(priceText);
+                const each =
+                  unit === "pct" && price
+                    ? pricePerUnit(price, Number(packText))
+                    : null;
+                return each ? (
+                  <span className="text-xs text-slate-500">
+                    {brl(price!)} o pacote = {brl(each)} a unidade
+                  </span>
+                ) : null;
+              })()}
+            </Field>
+
+            {ribbon && (
+              <Field label="Metros no rolo">
+                <input
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={metersText}
+                  onChange={(e) =>
+                    setMetersText(e.target.value.replace(/[^\d.,]/g, ""))
+                  }
+                  placeholder="Ex.: 100"
+                  className="h-12 w-full rounded-xl border border-slate-300 px-3 text-lg outline-none focus:border-purple-500"
+                />
+              </Field>
+            )}
+
+            {group && (
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium text-slate-700">
+                  {group.attribute === "Cor" ? "Cores" : group.attribute === "Letra" ? "Letras" : "Números"} (
+                  {variants.filter((v) => v.include).length} de {variants.length})
+                </legend>
+                <p className="text-xs text-slate-500">
+                  Desmarque o que não vai para a loja. O nome de cada opção
+                  aparece para o cliente: dá para corrigir.
+                </p>
+                <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                  {variants.map((v, i) => (
+                    <li key={v.item.id} className="flex items-center gap-2 px-2">
+                      {/* Alvo de toque 44×44 (o campo de nome fica ao lado). */}
+                      <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
+                        <input
+                          type="checkbox"
+                          checked={v.include}
+                          onChange={(e) =>
+                            setVariants((list) =>
+                              list.map((x, j) => (j === i ? { ...x, include: e.target.checked } : x)),
+                            )
+                          }
+                          aria-label={`Incluir ${v.label}`}
+                          className="h-5 w-5 accent-purple-600"
+                        />
+                      </label>
+                      <input
+                        value={v.label}
+                        onChange={(e) =>
+                          setVariants((list) =>
+                            list.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)),
+                          )
+                        }
+                        aria-label="Nome da opção"
+                        disabled={!v.include}
+                        className="h-11 min-w-0 flex-1 bg-transparent text-base outline-none disabled:text-slate-400"
+                      />
+                      <span className="shrink-0 text-xs text-slate-500">
+                        {v.item.stock.toLocaleString("pt-BR")} un.
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </fieldset>
+            )}
+
+            <Field label="Nome na loja">
+              <textarea
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                rows={2}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-base outline-none focus:border-purple-500"
+              />
+            </Field>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Categoria">
+                <select
+                  value={categoryName}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setCategoryName(next);
+                    // Troca de categoria: reaplica a sugestão na nova (ou limpa).
+                    setSubcategoryName(
+                      matchSubcategory(classifySubcategory(item)?.subcategory ?? null, next, categories) ?? "",
+                    );
+                  }}
+                  className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base"
+                >
+                  <option value="">Escolha…</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {(() => {
+                const subs =
+                  categories.find((c) => c.name === categoryName)?.subcategories ?? [];
+                if (subs.length === 0) return null;
+                return (
+                  <Field label="Subcategoria">
+                    <select
+                      value={subcategoryName}
+                      onChange={(e) => setSubcategoryName(e.target.value)}
+                      className="h-12 w-full rounded-xl border border-slate-300 bg-white px-3 text-base"
+                    >
+                      <option value="">Nenhuma</option>
+                      {[...subs]
+                        .sort((a, b) => a.order - b.order)
+                        .map((s) => (
+                          <option key={s.id} value={s.name}>
+                            {s.name}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                );
+              })()}
+            </div>
+
+            <div className="space-y-2 pb-[env(safe-area-inset-bottom)] pt-2">
+              <Button
+                className="h-14 w-full text-base"
+                disabled={saving || processingPhoto}
+                onClick={publish}
+              >
+                {saving ? (
+                  <Loader2 className="animate-spin" size={20} />
+                ) : (
+                  "Publicar na loja"
+                )}
+              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  className="h-12"
+                  disabled={saving}
+                  onClick={() =>
+                    changeStatus(
+                      "pulado",
+                      "Pulado. Ele continua na lista de pulados.",
+                    )
+                  }
+                >
+                  Pular
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-12"
+                  disabled={saving}
+                  onClick={() =>
+                    changeStatus(
+                      "fora_da_loja",
+                      "Marcado para não vender online.",
+                    )
+                  }
+                >
+                  Não vender online
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="text-sm font-medium text-slate-700">{label}</span>
+      {children}
+    </label>
+  );
+}

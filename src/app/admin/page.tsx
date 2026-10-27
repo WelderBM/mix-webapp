@@ -9,9 +9,9 @@ import {
   orderBy,
   setDoc,
 } from "firebase/firestore";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { signOut, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Product, StoreSettings } from "@/types";
 import { BalloonConfig } from "@/types/balloon";
 import { Category } from "@/types/category";
@@ -24,6 +24,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -37,6 +38,8 @@ import { toast } from "sonner";
 import {
   LogOut,
   Package,
+  FileSpreadsheet,
+  ClipboardList,
   Save,
   Eye,
   Database,
@@ -54,7 +57,7 @@ import {
 } from "@/components/admin/SystemPasswordGate";
 
 import { OrdersTab } from "@/components/admin/OrdersTab";
-import { AdminLogin } from "@/components/admin/AdminLogin";
+import { AdminAuthGate } from "@/components/admin/AdminAuthGate";
 import { NaturaTab } from "@/components/admin/NaturaTab";
 import { ProductsTab } from "@/components/admin/ProductsTab";
 import { SectionsTab } from "@/components/admin/SectionsTab";
@@ -89,18 +92,31 @@ export default function AdminPage() {
         </div>
       }
     >
-      <AdminPageContent />
+      {/* Controle de acesso isolado em AdminAuthGate (alto risco no gate de
+          revisão); esta tela é área comum de trabalho. */}
+      <AdminAuthGate>
+        {(user) => <AdminPageContent currentUser={user} />}
+      </AdminAuthGate>
     </Suspense>
   );
 }
 
-function AdminPageContent() {
-  const router = useRouter();
+function AdminPageContent({ currentUser }: { currentUser: User }) {
   const searchParams = useSearchParams();
   const patchParams = useSearchParamsPatch();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
-  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  // Lançamentos com rascunho NESTE aparelho (#233): avisados antes de sair.
+  const [draftsOnDevice, setDraftsOnDevice] = useState(0);
+
+  async function askLogout() {
+    try {
+      const { draftIds } = await import("@/lib/intake/draft");
+      setDraftsOnDevice((await draftIds()).length);
+    } catch {
+      setDraftsOnDevice(0);
+    }
+    setConfirmLogout(true);
+  }
   // Defaults to orders since user emphasized it — `?view=estoque` abre direto em Gerenciar Estoque.
   const [viewMode, setViewMode] = useState<"orders" | "inventory">(() =>
     searchParams.get("view") === "estoque" ? "inventory" : "orders"
@@ -193,53 +209,6 @@ function AdminPageContent() {
   const [showSystemPasswordPrompt, setShowSystemPasswordPrompt] =
     useState(false);
 
-  // Auth & Data — com verificação de whitelist
-  useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        setCurrentUser(null);
-        setIsAdminUser(false);
-        setLoadingAuth(false);
-        return;
-      }
-
-      // Verifica se o email está verificado e na whitelist
-      if (!user.email || !user.emailVerified) {
-        toast.error("Acesso restrito. E-mail não verificado ou não autorizado.");
-        await signOut(auth);
-        router.replace("/");
-        setLoadingAuth(false);
-        return;
-      }
-
-      try {
-        const { doc: firestoreDoc, getDoc: firestoreGetDoc } = await import(
-          "firebase/firestore"
-        );
-        const staffDoc = await firestoreGetDoc(
-          firestoreDoc(db, "whitelisted_staff", user.email)
-        );
-        const isActive = staffDoc.exists() && staffDoc.data()?.active === true;
-
-        if (!isActive) {
-          toast.error("Seu e-mail não consta na lista de funcionários autorizados.");
-          await signOut(auth);
-          router.replace("/");
-          return;
-        }
-
-        setCurrentUser(user);
-        setIsAdminUser(true);
-      } catch (err) {
-        console.error("Erro ao verificar permissões:", err);
-        await signOut(auth);
-        router.replace("/");
-      } finally {
-        setLoadingAuth(false);
-      }
-    });
-    return () => unsubAuth();
-  }, [router]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -366,27 +335,6 @@ function AdminPageContent() {
     }
   };
 
-  if (loadingAuth) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-slate-100">
-        <Loader2 className="animate-spin text-purple-600 w-8 h-8" />
-      </div>
-    );
-  }
-
-  if (!currentUser) {
-    return <AdminLogin />;
-  }
-
-  // Proteção extra: usuário logado mas sem role de admin (estado transitório)
-  if (!isAdminUser) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-slate-100">
-        <Loader2 className="animate-spin text-purple-600 w-8 h-8" />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -397,6 +345,16 @@ function AdminPageContent() {
             <p className="text-xs text-slate-500">Gestão simplificada</p>
           </div>
           <div className="flex gap-2 flex-wrap justify-center md:justify-end">
+            {/* Tarefa principal das atendentes (#235): à vista, não no menu ⋯. */}
+            <Link href="/admin/lancamento" className="w-full md:w-auto">
+              <Button className="h-12 w-full gap-2 bg-purple-600 text-base hover:bg-purple-700 md:h-10 md:text-sm">
+                <ClipboardList size={18} /> Lançar produtos
+              </Button>
+            </Link>
+            {/* Salvar só onde há o que salvar (#242): em Pedidos/Produtos
+                ele não grava nada e confundia as atendentes. */}
+            {viewMode === "inventory" &&
+              ["config", "sections", "balloons", "ribbons"].includes(inventoryTab) && (
             <Button
               onClick={saveAllSettings}
               disabled={!settingsLoaded || !balloonsLoaded}
@@ -405,7 +363,7 @@ function AdminPageContent() {
                   ? "Carregando configurações atuais — aguarde antes de salvar"
                   : undefined
               }
-              className="bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-11 bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {!settingsLoaded || !balloonsLoaded ? (
                 <Loader2 size={18} className="animate-spin" />
@@ -414,23 +372,28 @@ function AdminPageContent() {
               )}
               Salvar Configurações
             </Button>
-            <Link href="/" className="flex-1 md:flex-none">
-              <Button variant="outline" className="w-full">
+            )}
+            <Button asChild variant="outline" className="h-11 flex-1 md:flex-none">
+              <Link href="/">
                 <Eye size={18} className="mr-2" /> Ver Loja
-              </Button>
-            </Link>
+              </Link>
+            </Button>
             <Button
-              onClick={() => {
-                signOut(auth);
-              }}
+              onClick={askLogout}
               variant="ghost"
+              className="h-11 gap-2"
             >
-              <LogOut size={16} />
+              <LogOut size={16} /> Sair
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-slate-400">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Mais opções"
+                  className="size-11 text-slate-400"
+                >
                   <MoreHorizontal size={18} />
                 </Button>
               </DropdownMenuTrigger>
@@ -438,6 +401,11 @@ function AdminPageContent() {
                 <DropdownMenuItem asChild>
                   <Link href="/admin/batch-import" className="gap-2 cursor-pointer">
                     <Package size={14} /> Importação em Lote (Fitas)
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/lancamento/importar" className="gap-2 cursor-pointer">
+                    <FileSpreadsheet size={14} /> Importar do Noturno
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -524,6 +492,9 @@ function AdminPageContent() {
                 <Settings2 className="text-red-500" /> Ferramentas de Sistema
                 (Danger Zone)
               </DialogTitle>
+              <DialogDescription className="sr-only">
+                Ferramentas avançadas de manutenção. Ações aqui podem afetar os dados da loja inteira.
+              </DialogDescription>
             </DialogHeader>
             <SuperAdminZone />
           </DialogContent>
@@ -547,6 +518,22 @@ function AdminPageContent() {
           categories={categories}
           tags={tags}
           customKitEnabled={settings.features?.customKitEnabled ?? false}
+        />
+
+        <ConfirmDialog
+          open={confirmLogout}
+          onOpenChange={setConfirmLogout}
+          title="Sair do sistema?"
+          description={
+            draftsOnDevice > 0
+              ? `Você tem ${draftsOnDevice} lançamento(s) começado(s) neste aparelho. Eles continuam guardados aqui e voltam quando você entrar de novo.`
+              : "Você vai precisar entrar de novo com e-mail e senha."
+          }
+          confirmLabel="Sair"
+          onConfirm={() => {
+            setConfirmLogout(false);
+            signOut(auth);
+          }}
         />
 
         <ConfirmDialog

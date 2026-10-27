@@ -11,7 +11,8 @@
     "seed:staging": "tsx scripts/seed-staging.ts",
     "audit:ribbon-prices": "tsx scripts/audit-ribbon-prices.ts",
     "sprint:plan": "node scripts/sprint-plan.mjs",
-    "export:production-catalog": "tsx scripts/export-production-catalog.ts"
+    "export:production-catalog": "tsx scripts/export-production-catalog.ts",
+    "promote:balloons": "tsx scripts/promote-balloons.ts"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -35,6 +36,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "eslint-plugin-react-compiler": "^19.1.0-rc.2",
+    "fflate": "0.8.2",
     "firebase": "^12.6.0",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.559.0",

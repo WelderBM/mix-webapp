@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
+import { BalloonCatalogFromNoturno } from "@/components/admin/BalloonCatalogFromNoturno";
+import { BalloonPackagePhotos } from "@/components/admin/BalloonPackagePhotos";
 import {
   Plus,
   Trash2,
@@ -45,6 +47,8 @@ export function BalloonsTab({
     useState<BalloonTypeConfig | null>(null);
   const [colorsSyncSource, setColorsSyncSource] =
     useState<BalloonTypeConfig | null>(null);
+  // "Montar pelo Noturno" (#236).
+  const [fromNoturnoOpen, setFromNoturnoOpen] = useState(false);
   const [balloonTypeToDelete, setBalloonTypeToDelete] =
     useState<BalloonTypeConfig | null>(null);
 
@@ -133,6 +137,20 @@ export function BalloonsTab({
             </p>
           </div>
 
+          <Button
+            variant="outline"
+            className="h-11 w-full gap-2 md:w-auto"
+            onClick={() => setFromNoturnoOpen(true)}
+          >
+            <Wand2 size={16} /> Montar pelo Noturno
+          </Button>
+          <BalloonCatalogFromNoturno
+            open={fromNoturnoOpen}
+            onOpenChange={setFromNoturnoOpen}
+            config={balloonConfig}
+            onApply={(next) => setBalloonConfig(next)}
+          />
+
           <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto">
             <button
               onClick={() => setBalloonTab("visual")}
@@ -161,6 +179,7 @@ export function BalloonsTab({
 
         {balloonTab === "edition" ? (
           <div className="space-y-6 animate-in fade-in duration-300">
+            <BalloonPackagePhotos config={balloonConfig} onChange={setBalloonConfig} />
             {/* Placeholder Global - Moved from SuperAdmin */}
             <div className="bg-purple-50 p-6 rounded-2xl border border-purple-100 flex flex-col md:flex-row items-center gap-6 shadow-sm">
               <div className="flex-1 space-y-2">
@@ -241,6 +260,11 @@ export function BalloonsTab({
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded">
                             {type.colors.length} cores
                           </span>
+                          {type.brand && (
+                            <span className="text-[10px] font-bold text-purple-700 uppercase tracking-widest bg-purple-50 px-1.5 py-0.5 rounded">
+                              {type.brand}
+                            </span>
+                          )}
                           {type.active === false && (
                             <Badge variant="outline" className="text-[9px] h-4 bg-red-50 text-red-600 border-red-200 uppercase font-black">
                               Inativo
@@ -272,6 +296,23 @@ export function BalloonsTab({
                                 });
                               }}
                               className="bg-white border-slate-200 h-10 font-bold text-slate-800"
+                            />
+                            {/* Marca: o cliente escolhe a marca primeiro na loja. */}
+                            <Input
+                              value={type.brand ?? ""}
+                              placeholder="Marca"
+                              aria-label="Marca"
+                              onChange={(e) => {
+                                const newTypes = [...balloonConfig.types];
+                                // Vazio: tira o campo (o Firestore recusa undefined).
+                                if (e.target.value) newTypes[typeIndex].brand = e.target.value;
+                                else delete newTypes[typeIndex].brand;
+                                setBalloonConfig({
+                                  ...balloonConfig,
+                                  types: newTypes,
+                                });
+                              }}
+                              className="bg-white border-slate-200 h-10 w-32 shrink-0 text-slate-800"
                             />
 
                             <div className="flex items-center gap-2 bg-white px-3 border border-slate-200 rounded-md shrink-0 h-10 shadow-sm">
@@ -305,6 +346,7 @@ export function BalloonsTab({
                           </Label>
                           <ImageUploadModal
                             value={type.imageUrl || ""}
+                            searchHint={type.name ? `balão ${type.name}` : undefined}
                             onChange={(url) => {
                               const newTypes = [...balloonConfig.types];
                               newTypes[typeIndex].imageUrl = url;

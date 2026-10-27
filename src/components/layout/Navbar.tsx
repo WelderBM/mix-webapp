@@ -174,7 +174,7 @@ const Navbar = () => {
         {/* Logo */}
         <Link
           href="/"
-          className="text-xl font-bold bg-linear-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
+          className="flex min-h-11 items-center text-xl font-bold bg-linear-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
         >
           {storeName}
         </Link>
@@ -363,6 +363,7 @@ const Navbar = () => {
             variant="ghost"
             size="icon"
             onClick={() => setIsMobileMenuOpen(true)}
+            aria-label="Abrir menu"
             className="md:hidden h-11 w-11 text-slate-700"
           >
             <Menu className="h-6 w-6" />
@@ -505,7 +506,9 @@ const Navbar = () => {
           </div>
 
           <div className="p-6 bg-white border-t text-center text-xs text-slate-400">
-            <p>Mix WebApp © 2024</p>
+            <p>
+              {storeName} © {new Date().getFullYear()}
+            </p>
           </div>
         </SheetContent>
       </Sheet>

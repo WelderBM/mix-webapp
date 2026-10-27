@@ -1,8 +1,17 @@
 "use client";
 
-import { Dispatch, SetStateAction, useState } from "react";
-import { doc, deleteDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { Dispatch, SetStateAction, useMemo, useState } from "react";
+import { doc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { deleteProducts } from "@/lib/intake/actions";
+import {
+  filterSortRibbons,
+  nextSort,
+  type RibbonSort,
+  type RibbonSortKey,
+  type RibbonStatusFilter,
+} from "@/lib/admin-ribbons";
+import { ribbonSections } from "@/lib/ribbon-sections";
 import { Product, StoreSettings, getModelSizeIds } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +27,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
 import { OpenRibbonRollModal } from "@/components/admin/OpenRibbonRollModal";
+import { RibbonLinesFromNoturno } from "@/components/admin/RibbonLinesFromNoturno";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
 import {
@@ -38,6 +48,8 @@ import {
   Ruler,
   Gift,
   AlertTriangle,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
@@ -62,6 +74,8 @@ export function RibbonsTab({
   onEditProduct,
 }: RibbonsTabProps) {
   const [ribbonTab, setRibbonTab] = useState<"edition" | "visual">("visual");
+  // "Cadastrar pelo Noturno" (#259).
+  const [fromNoturnoOpen, setFromNoturnoOpen] = useState(false);
   const [ribbonSearchTerm, setRibbonSearchTerm] = useState("");
   const [expandedTypes, setExpandedTypes] = useState<Record<string, boolean>>(
     {}
@@ -69,13 +83,100 @@ export function RibbonsTab({
   const [fitaToDelete, setFitaToDelete] = useState<Product | null>(null);
   const [deletingFita, setDeletingFita] = useState(false);
   const [fitaToOpen, setFitaToOpen] = useState<Product | null>(null);
+  // Edição (#366): filtro, ordenação e seleção para excluir em lote.
+  const [statusFilter, setStatusFilter] = useState<RibbonStatusFilter>("todos");
+  const [lineFilter, setLineFilter] = useState("");
+  const [sort, setSort] = useState<RibbonSort>({ key: "name", dir: "asc" });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkConfirm, setBulkConfirm] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<number | null>(null);
+  const [bulkTotal, setBulkTotal] = useState(0);
+
+  const ribbons = useMemo(() => allProducts.filter((p) => p.type === "RIBBON"), [allProducts]);
+  const lines = useMemo(() => ribbonSections(ribbons), [ribbons]);
+  const activeLine = lines.some((l) => l.key === lineFilter) ? lineFilter : "";
+  const tableRows = useMemo(
+    () =>
+      filterSortRibbons(ribbons, {
+        query: ribbonSearchTerm,
+        status: statusFilter,
+        line: activeLine,
+        sort,
+      }),
+    [ribbons, ribbonSearchTerm, statusFilter, activeLine, sort]
+  );
+  // Seleção só do que ainda existe (fita apagada em outro aparelho sai).
+  const selectedIds = useMemo(
+    () => ribbons.filter((p) => selected.has(p.id)).map((p) => p.id),
+    [ribbons, selected]
+  );
+  const visibleIds = useMemo(() => new Set(tableRows.map((p) => p.id)), [tableRows]);
+  const hiddenSelected = selectedIds.filter((id) => !visibleIds.has(id)).length;
+  const allVisibleSelected =
+    tableRows.length > 0 && tableRows.every((p) => selected.has(p.id));
+  const toggleOne = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  // "Selecionar as que aparecem": respeita filtro e busca.
+  const toggleVisible = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const p of tableRows) {
+        if (allVisibleSelected) next.delete(p.id);
+        else next.add(p.id);
+      }
+      return next;
+    });
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const total = selectedIds.length;
+    setBulkTotal(total);
+    setBulkProgress(0);
+    try {
+      const { reopened } = await deleteProducts(
+        selectedIds,
+        auth.currentUser?.email ?? null,
+        setBulkProgress
+      );
+      const what = total === 1 ? "1 fita excluída" : `${total} fitas excluídas`;
+      toast.success(
+        reopened > 0 ? `${what}. Os itens voltaram para a fila do Noturno.` : `${what}.`
+      );
+      setSelected(new Set());
+      setBulkConfirm(false);
+    } catch {
+      toast.error("Erro ao excluir. Parte das fitas pode ter saído; confira a lista.");
+    } finally {
+      setBulkProgress(null);
+    }
+  };
+
+  const sortHead = (key: RibbonSortKey, label: string) => (
+    <button
+      type="button"
+      onClick={() => setSort((cur) => nextSort(cur, key))}
+      className="inline-flex min-h-11 items-center gap-1 uppercase tracking-widest hover:text-slate-900"
+      aria-label={`Ordenar por ${label}`}
+    >
+      {label}
+      {sort.key === key &&
+        (sort.dir === "asc" ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+    </button>
+  );
 
   const handleDeleteFita = async () => {
     if (!fitaToDelete) return;
     setDeletingFita(true);
     try {
-      await deleteDoc(doc(db, "products", fitaToDelete.id));
-      toast.success("Fita excluída");
+      const { reopened } = await deleteProducts([fitaToDelete.id], auth.currentUser?.email ?? null);
+      toast.success(
+        reopened > 0 ? "Fita excluída. Ela voltou para a fila do Noturno." : "Fita excluída"
+      );
       setFitaToDelete(null);
     } catch {
       toast.error("Erro ao excluir fita.");
@@ -96,6 +197,15 @@ export function RibbonsTab({
               Controle de estoque de rolos e fitas por metro
             </p>
           </div>
+
+          <Button
+            variant="outline"
+            className="h-11 w-full gap-2 md:w-auto"
+            onClick={() => setFromNoturnoOpen(true)}
+          >
+            <Scissors size={16} /> Cadastrar pelo Noturno
+          </Button>
+          <RibbonLinesFromNoturno open={fromNoturnoOpen} onOpenChange={setFromNoturnoOpen} />
 
           <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
             <Button
@@ -184,7 +294,7 @@ export function RibbonsTab({
                 </Badge>
               </div>
 
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid max-h-[65vh] grid-cols-1 content-start gap-3 overflow-y-auto overscroll-contain pr-1 lg:h-[65vh]">
                 {allProducts
                   .filter(
                     (p) =>
@@ -322,7 +432,7 @@ export function RibbonsTab({
                 </Badge>
               </div>
 
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid max-h-[65vh] grid-cols-1 content-start gap-3 overflow-y-auto overscroll-contain pr-1 lg:h-[65vh]">
                 {allProducts
                   .filter(
                     (p) =>
@@ -496,33 +606,104 @@ export function RibbonsTab({
             </div>
           </div>
         ) : (
+          <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              Status
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as RibbonStatusFilter)}
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+              >
+                <option value="todos">Todos</option>
+                <option value="FECHADO">Fechado</option>
+                <option value="ABERTO">Aberto</option>
+              </select>
+            </label>
+            {lines.length > 1 && (
+              <label className="flex items-center gap-2 text-sm text-slate-600">
+                Linha
+                <select
+                  value={activeLine}
+                  onChange={(e) => setLineFilter(e.target.value)}
+                  className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm"
+                >
+                  <option value="">Todas</option>
+                  {lines.map((l) => (
+                    <option key={l.key} value={l.key}>
+                      {l.label} ({l.count})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <span className="text-sm text-slate-500">
+              {tableRows.length} {tableRows.length === 1 ? "fita" : "fitas"}
+            </span>
+            {selectedIds.length > 0 && (
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-slate-700">
+                  {selectedIds.length} {selectedIds.length === 1 ? "selecionada" : "selecionadas"}
+                  {hiddenSelected > 0 && (
+                    <span className="font-normal text-amber-700">
+                      {" "}({hiddenSelected} fora do filtro)
+                    </span>
+                  )}
+                </span>
+                <Button variant="outline" className="h-11" onClick={() => setSelected(new Set())}>
+                  Limpar seleção
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="h-11 gap-2"
+                  onClick={() => setBulkConfirm(true)}
+                >
+                  <Trash2 size={16} /> Excluir selecionadas
+                </Button>
+              </div>
+            )}
+          </div>
           <div className="border rounded-xl overflow-hidden shadow-sm">
             <Table>
               <TableHeader className="bg-slate-50 uppercase tracking-widest text-[10px] font-black">
                 <TableRow>
+                  <TableHead className="w-12">
+                    <label className="flex h-11 w-11 cursor-pointer items-center justify-center">
+                      <input
+                        type="checkbox"
+                        className="h-5 w-5 accent-primary"
+                        checked={allVisibleSelected}
+                        onChange={toggleVisible}
+                        aria-label="Selecionar as fitas que aparecem"
+                      />
+                    </label>
+                  </TableHead>
                   <TableHead className="w-[80px]">Foto</TableHead>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Preço Rolo</TableHead>
-                  <TableHead>Preço Metro</TableHead>
-                  <TableHead>Restante</TableHead>
+                  <TableHead>{sortHead("name", "Nome")}</TableHead>
+                  <TableHead>{sortHead("status", "Status")}</TableHead>
+                  <TableHead>{sortHead("rollPrice", "Preço Rolo")}</TableHead>
+                  <TableHead>{sortHead("meterPrice", "Preço Metro")}</TableHead>
+                  <TableHead>{sortHead("remaining", "Restante")}</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {allProducts
-                  .filter(
-                    (p) =>
-                      p.type === "RIBBON" &&
-                      p.name
-                        .toLowerCase()
-                        .includes(ribbonSearchTerm.toLowerCase())
-                  )
-                  .map((fita) => (
+                {tableRows.map((fita) => (
                     <TableRow
                       key={fita.id}
-                      className="hover:bg-slate-50/50"
+                      className={cn("hover:bg-slate-50/50", selected.has(fita.id) && "bg-primary/5")}
                     >
+                      <TableCell>
+                        <label className="flex h-11 w-11 cursor-pointer items-center justify-center">
+                          <input
+                            type="checkbox"
+                            className="h-5 w-5 accent-primary"
+                            checked={selected.has(fita.id)}
+                            onChange={() => toggleOne(fita.id)}
+                            aria-label={`Selecionar ${fita.name}`}
+                          />
+                        </label>
+                      </TableCell>
                       <TableCell>
                         <div className="w-10 h-10 rounded border overflow-hidden relative bg-white">
                           <SafeImage
@@ -613,6 +794,7 @@ export function RibbonsTab({
               </TableBody>
             </Table>
           </div>
+          </div>
         )}
 
         {/* ===== CONFIGURAÇÃO DO LAÇO ===== */}
@@ -667,6 +849,7 @@ export function RibbonsTab({
                     <ImageUploadModal
                       value={model.imageUrl}
                       folder="laco/models"
+                      searchHint={model.name ? `laço ${model.name}` : undefined}
                       onChange={(url) => {
                         const updated = [...(settings.bowModels || [])];
                         updated[idx] = { ...updated[idx], imageUrl: url };
@@ -844,6 +1027,24 @@ export function RibbonsTab({
         confirmLabel="Excluir"
         loading={deletingFita}
         onConfirm={handleDeleteFita}
+      />
+
+      <ConfirmDialog
+        open={bulkConfirm}
+        onOpenChange={(open) => !open && bulkProgress == null && setBulkConfirm(false)}
+        title={
+          bulkProgress != null
+            ? "Excluindo fitas…"
+            : `Excluir ${selectedIds.length} ${selectedIds.length === 1 ? "fita" : "fitas"}?`
+        }
+        description={
+          bulkProgress != null
+            ? `${bulkProgress} de ${bulkTotal}`
+            : "As fitas saem da loja e os itens delas voltam para a fila do Noturno, para cadastrar de novo se precisar."
+        }
+        confirmLabel="Excluir"
+        loading={bulkProgress != null}
+        onConfirm={handleBulkDelete}
       />
 
       <OpenRibbonRollModal

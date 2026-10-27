@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { BalloonBuilder } from "@/components/features/BalloonBuilder";
+import { CustomBalloonShelf } from "@/components/features/CustomBalloonShelf";
 import { StoreHeader } from "@/components/layout/StoreHeader";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -19,15 +20,16 @@ export default function BaloesPage() {
             {/* Header da Página igual Fitas */}
             <div className="p-6 sm:p-8 border-b bg-linear-to-r from-slate-50 to-white">
               <div className="flex items-center gap-2 mb-2">
-                <Link href="/" className="inline-flex md:hidden">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 -ml-2 text-slate-400"
-                  >
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon"
+                  className="size-11 -ml-3 text-slate-500 md:hidden"
+                >
+                  <Link href="/" aria-label="Voltar para a loja">
                     <ArrowLeft size={18} />
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
                 <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">
                   Orçamento de Balões 🎈
                 </h1>
@@ -42,6 +44,8 @@ export default function BaloesPage() {
             <div className="p-4 sm:p-8">
               <BalloonBuilder />
             </div>
+
+            <CustomBalloonShelf />
           </div>
 
           {/* Info Cards */}

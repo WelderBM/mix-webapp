@@ -7,7 +7,6 @@ import { useProductStore } from "@/store/productStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, Check, ShieldCheck } from "lucide-react";
-import { toast } from "sonner";
 import { ProductImageGallery } from "@/components/features/ProductImageGallery";
 import { ProductCard } from "@/components/features/ProductCard";
 import { BackButton } from "@/components/ui/BackButton";
@@ -421,7 +420,6 @@ export default function ProductPageClient({ product }: ProductPageClientProps) {
     };
     addItem(item);
     openCart();
-    toast.success("Adicionado ao carrinho!");
   };
 
   return (

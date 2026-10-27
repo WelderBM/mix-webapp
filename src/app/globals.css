@@ -128,8 +128,11 @@
   }
 
   /* Scroll Suave Global */
-  html {
-    scroll-behavior: smooth;
+  /* Só para quem não pediu movimento reduzido (#105). */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
   }
 
   body {

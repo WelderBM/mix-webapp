@@ -64,6 +64,11 @@ Um padrão comum neste admin: `useState` inicializado com um objeto default (`{ 
 
 ---
 
+### Dado salvo no navegador por uma versão antiga não pode derrubar a renderização
+Logo depois da promoção para produção (21/10/2026), a home quebrava inteira ("Algo deu errado") para quem tinha no `localStorage` um item de carrinho salvo pela versão anterior: o snapshot do produto não tinha preço efetivo, e `getCartItemTotal` lança de propósito (para nunca cobrar R$ 0) — mas era chamado durante a renderização do `CartSidebar`. Em navegador limpo nada aparecia; só reproduziu injetando o carrinho legado.
+
+**Padrão**: todo estado persistido (`zustand/persist`, `localStorage`) é dado não confiável vindo do passado. Valide e descarte o que não serve **na reidratação** (`merge` do `persist`, ver `dropUnpricedCartItems`), e use variantes que não lançam (`getCartItemTotalOrNull`) em telas que exibem dado já gravado. Para reproduzir bug "só na minha máquina", suspeite primeiro de storage antigo.
+
 ## Firebase / Firestore
 
 ### `request.resource` só existe em operações de escrita nas regras
@@ -93,11 +98,28 @@ Comparar conteúdo via `JSON.stringify(a) === JSON.stringify(b)` funciona só se
 
 ---
 
+### `allow read` cobre `get` **e** `list` — e coleção sem regra cai no deny-all
+`match /orders/{id} { allow read: if true; }` foi escrito para o cliente abrir o próprio pedido pelo ID, mas também liberava **listar a coleção inteira** sem login (nome, telefone e endereço de todos os clientes, confirmado em produção em 21/10/2026). Separar: `allow get: if true; allow list: if isAdmin();`.
+
+O inverso também morde: a coleção `tags` (TagManager, #68) nunca teve regra, caiu no `match /{document=**} { allow read, write: if false; }` e o `onSnapshot` do admin falhava com `permission-denied` para todo mundo, inclusive admin.
+
+**Padrão**: ao criar regra pública de leitura, decida `get` e `list` separadamente. Ao criar coleção nova no código, crie a regra no mesmo PR. Para testar regra publicada sem login: `curl -s -o /dev/null -w "%{http_code}" "https://firestore.googleapis.com/v1/projects/<projeto>/databases/(default)/documents/<colecao>"` (403 = negado).
+
+### `firestore.rules` só vale depois de publicado — e publicar de branch errada apaga regras
+As regras não sobem com o deploy da Vercel. Em 21/10/2026, publicar a partir de `dev` (que ainda não tinha as regras da fila de lançamento) apagou `intake_items`/`intake_meta` do staging. Desde o PR #213 a publicação é automática: push em `dev` → staging, push em `master` → produção (`.github/workflows/deploy-firestore-rules.yml`).
+
+**Padrão**: não rode `firebase deploy --only firestore:rules` à mão a partir de uma feature branch. Se precisar publicar fora de um merge, use **Actions → Deploy Firestore Rules → Run workflow** no branch certo.
+
 ## Vercel / Deploy
 
 Graduou para skill: ver `.claude/skills/deploy-vercel/SKILL.md` (env vars escopadas por branch, workaround da CLI pra `vercel env add`, cuidado com `vercel env rm` em escopo combinado, e o gotcha do `sitemap.ts` em build time).
 
 ---
+
+### Rota sem `revalidate` nem `force-dynamic` vira estática para sempre
+O PR #155 removeu `force-dynamic` da home (`src/app/page.tsx`) para ganhar performance, mas não declarou `revalidate`. A rota passou a ser gerada só no build: nome da loja, vitrine, produtos e preços editados no admin só apareciam no próximo deploy (descoberto em produção em 21/10/2026, com "(Em teste)" preso no logo). Em `dev` ninguém percebe, porque todo merge gera build novo.
+
+**Padrão**: página que lê dado editável do Firestore no servidor precisa de `export const revalidate = <segundos>` (a home e `/natura` usam 60) ou `force-dynamic`. Para conferir em produção: `curl -sI <url> | grep -i x-nextjs` — `X-Nextjs-Prerender: 1` com `X-Vercel-Cache: HIT` em página que deveria mudar é o sintoma.
 
 ## Processo / coordenação entre sessões
 
@@ -154,3 +176,42 @@ Dois gotchas do mesmo problema, achados na mesma sessão de orquestração multi
 Quando duas branches independentes (ex: duas threads da mesma orquestração) adicionam cada uma um `describe(...)` novo no FINAL do mesmo arquivo de teste, o merge de três vias do git não produz um conflito "tudo seu vs. tudo meu" limpo — ele interlaça os dois blocos pela proximidade textual de trechos parecidos (ex: o mesmo padrão de mock de `onSnapshot` presente nos dois `describe`s), deixando os marcadores `<<<<<<</=======/>>>>>>>` cortando NO MEIO de funções/blocos, com uma função de um lado ficando sem seu fechamento `});` porque ele "sobrou" do outro lado do marcador.
 
 **Padrão pra resolver**: não tente aceitar um lado inteiro (`--ours`/`--theirs`) nem editar só dentro dos marcadores linha a linha — primeiro leia o arquivo INTEIRO (contagem de linhas + `grep -n` dos marcadores) pra entender quantos blocos lógicos (describe/helper) cada lado contribuiu, reconstrua mentalmente onde cada um deveria abrir e fechar, e SÓ ENTÃO edite — geralmente reescrevendo os dois blocos completos em sequência (cada um com seu próprio helper), não tentando costurar as metades que o git deixou de cada lado. Rode o ritual completo (`tsc`/`vitest`/`build`) depois, nunca só "os marcadores sumiram" como critério de sucesso. Achado real: `OrdersTab.test.tsx`, PR #182 (issue #73) conflitando com o que a #160 já tinha mesclado em `dev`.
+
+### Passe da Vercel em `extraHTTPHeaders` quebra o Firebase (CORS) — mandar só para o domínio do preview
+No Playwright, `x-vercel-protection-bypass` em `extraHTTPHeaders` vai em **toda** requisição da página, inclusive nas do Firebase (`*.googleapis.com`). Cabeçalho customizado em requisição de outra origem dispara o preflight de CORS, e o Google recusa: login com e-mail/senha nunca completa e o Firestore não carrega dados. A página "abre", então o erro parece ser timeout de login ou tela vazia. Confirmado: a mesma chamada ao `signInWithPassword` responde HTTP 400 sem o cabeçalho e é bloqueada com ele. **Padrão:** injetar o cabeçalho com `ctx.route("**/*")` só quando `host` é o do preview (ver `scripts/ux/visual-check.mjs`). Achado real: PRs #237–#239, corrigido no #240.
+
+### `claude-code-action` não aceita `deployment_status`
+A action falha com *Unsupported event type: deployment_status*, que é o evento natural de "o preview da Vercel ficou pronto". Em `schedule`/`workflow_dispatch`/`pull_request`/`issue_comment` ela funciona. **Padrão:** em workflow disparado por deployment, rodar a CLI direto (`npm i -g @anthropic-ai/claude-code@<versão fixa>` + `claude -p "$PROMPT" --allowedTools ...`, com `CLAUDE_CODE_OAUTH_TOKEN` no env) e `continue-on-error`, para não derrubar os passos seguintes.
+
+### `h-*` não muda a altura do `SelectTrigger` (shadcn) — use `min-h-*`
+O `SelectTrigger` de `src/components/ui/select.tsx` aplica `data-size="default"` e a classe base `data-[size=default]:h-9`. No Tailwind v4 essa classe tem especificidade maior (seletor de atributo) que um `h-11` passado em `className`, e o `cn()`/tailwind-merge não remove a base (uma tem variante, a outra não). Resultado: `h-11` some e o seletor continua com 36px. **Padrão:** para altura mínima de toque (44px), `min-h-11` — `min-height` vence `height` seja qual for a especificidade. Achado real: PR #249 (revisor apontou como bloqueante; a mudança "h-8 → h-11" não teria efeito nenhum). Vale para qualquer componente shadcn que fixe altura via `data-[size=…]`.
+
+### Cadeia de revisão: falhas silenciosas que já aconteceram
+Três jeitos de a revisão automática "sumir" sem avisar, todos corrigidos em #241/#248 — reconhecer se reaparecerem:
+1. **Claude publicando o próprio comentário** com `gh pr comment --body "$(cat <<EOF…)"`: a substituição de comando às vezes é negada pela lista de permissões; revisão some, check verde. Hoje o workflow publica a resposta final.
+2. **Etapa 1 local que nunca comenta** (limite de uso da conta): a execução do GitHub esperava para sempre. Hoje espera 15 min e segue sozinha.
+3. **Gate lendo o veredito antigo** quando o PR é revisado de novo: o regex pegava o primeiro `<!-- veredito -->`. Hoje só a revisão mais recente vale.
+E: o token `CLAUDE_CODE_OAUTH_TOKEN` é da **assinatura** (divide o limite de uso com as sessões interativas); `gh secret set` via `!` no Claude Code grava valor VAZIO (sem stdin interativo) — atualizar pela página do GitHub.
+
+### Arquivo com blob CRLF no repositório: script que reescreve o arquivo infla o diff em centenas de linhas
+Alguns arquivos estão gravados no repositório com CRLF (ex.: `BalloonBuilder.tsx`, `BalloonBuilder.test.tsx`, `cart.ts`), a maioria com LF. Com `core.autocrlf=true`, script que lê, troca `\r\n` por `\n` e regrava (ou `sed -i`/`tr`) faz o `git add` gravar LF por cima de um blob CRLF: o PR mostra o arquivo inteiro trocado (#275 tinha "1162 linhas" para 136 reais) e estraga o `git blame`. **Padrão:** antes do commit, `git cat-file -p origin/dev:<arq> | tr -cd '\r' | wc -c`; se > 0, garantir CRLF na cópia de trabalho e `git -c core.autocrlf=false add <arq>`; se 0, `git add` normal. Conferir `git diff --stat` — diff maior que a mudança é quebra de linha.
+
+### PR mergeado antes do push da correção da revisão: o commit fica órfão na branch
+O dono pode mergear assim que o CI passa, antes de eu enviar a correção dos achados. O push vai para a branch já mergeada e nunca chega ao `dev` (aconteceu no #275 e no #278). **Padrão:** `gh pr view N --json state` antes de cada push de correção; se `MERGED`, branch nova de `origin/dev` + `git cherry-pick` + PR de acompanhamento (#276, #279).
+
+### Fila autônoma "vazia" não é motivo para parar
+Em 25/10, parei com trabalho disponível. Usei "independente = não toca os arquivos do PR aberto" ao pé da letra e deixei o #147 de lado, mas o #302 só mudava uma linha distante no mesmo arquivo. Também deixei de ver a #307, que estava em "sem pontuação" (fora das duas filas), e deixei dois PRs com 🟡 já corrigido esperando o dono, quando bastava a label `revisar`. **Padrão:** antes de parar, passar pelo checklist de `docs/fluxo/prioridade.md` § 6.
+
+### Firestore: no máximo 500 `increment()`/`serverTimestamp()` no MESMO documento por batch
+O limite de 500 gravações por batch é conhecido; o de **500 field transforms por documento** não. Cada `increment()` conta. Gravando o resumo (`intake_meta/summary`) item por item, ~6 transforms por fita × 84 cores = 504 → `cannot have more than 500 field transforms on a single document`, e o batch inteiro falha. **Padrão:** contador agregado num documento só = somar os ajustes por campo antes (`summaryDeltas`) e fazer **uma** atualização por batch/transação. Achado real: #316 (PR #325).
+
+### Duas telas que dividem um conjunto precisam da MESMA regra
+"Fila comum" e "fitas por linha" se completam: o que sai de uma tem de entrar na outra. Elas usavam regras diferentes (`isPlasticRibbon` × `isPlasticRibbon` + linha + metragem), e fitas sem metragem ou sem palavra de linha (ECOPACK, `FITA PLASTICA GLITTER … C/`) sumiam das duas. **Padrão:** um predicado só (`isLineRibbon`) usado pelos dois lados. Valor calculado na importação (`suggestedSubcategory`) também fica velho quando a regra muda: a tela calcula ao vivo (`classifySubcategory`). Achados reais: revisões do #326 e do #332 (PRs #332, #335).
+
+### `git -c core.autocrlf=false add -A` grava CRLF em TODOS os arquivos LF
+Complemento da lição do CRLF acima. Com `-A`, o `autocrlf=false` vale para a árvore inteira, e cada arquivo LF no repositório (CRLF na cópia de trabalho) entra como "modificado". O #348 subiu com 231 arquivos para 11 reais. **Padrão:** decidir arquivo por arquivo pelo `git ls-files --eol`:
+`git status --porcelain | sed 's/^...//' | while read f; do [ "$(git ls-files --eol "$f" | awk '{print $1}')" = i/crlf ] && git -c core.autocrlf=false add "$f" || git add "$f"; done`
+Também: `sed -i` no Git Bash tira o `\r` (o `BalloonBuilder.test.tsx` virou LF no #349), e o heredoc da ferramenta Bash às vezes come `\` (um `\b` de regex virou `\b`, que é backspace). Para editar código, usar a ferramenta Edit ou um script Node que preserve o fim de linha.
+
+### Worktree nova: sem `node_modules` e sem chaves do Firebase
+`git worktree add` não leva `node_modules`: rodar `npm ci` (~3 min) antes de `tsc`/`vitest`. Junção para o `node_modules` de outra worktree só serve se o `package-lock.json` for igual. O `.env.local` da pasta principal só tem `UX_ADMIN_*`, sem as `NEXT_PUBLIC_FIREBASE_*`, então `next build` local falha ao coletar dados de página. Nesse caso o build fica com o preview da Vercel no PR, e a descrição do PR diz isso.

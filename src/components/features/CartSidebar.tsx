@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCartStore } from "@/store/cartStore";
 import { useProductStore } from "@/store/productStore";
 import {
@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -30,6 +29,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
+import { balloonItemLabel } from "@/lib/balloonFoil";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/types";
@@ -40,10 +40,15 @@ import {
   getCartItemTotal,
   getCartItemUnavailableReason,
   sumCartItemTotals,
+  countCartItems,
+  isPerMeterCartItem,
 } from "@/lib/cart-pricing";
 import { isSealedRibbonRoll, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
 import { SafeImage } from "../ui/SafeImage";
 import { OrderSuccessModal } from "@/components/features/OrderSuccessModal";
+
+// Corrida do motoboy terceirizado: varia com a distância (#346).
+const DELIVERY_FEE_TEXT = "R$ 10 a R$ 15";
 
 // Componente CartIcon EXPORTADO para uso no Navbar
 export function CartIcon() {
@@ -55,12 +60,18 @@ export function CartIcon() {
   }, []);
 
   const count = isMounted
-    ? items.reduce((acc, item) => acc + item.quantity, 0)
+    ? countCartItems(items)
     : 0;
 
   return (
-    <Button variant="ghost" size="icon" className="relative" onClick={openCart}>
-      <ShoppingCart className="h-5 w-5 text-slate-700" />
+    <Button
+      variant="ghost"
+      size="icon"
+      className="relative h-11 w-11"
+      onClick={openCart}
+      aria-label={count > 0 ? `Abrir carrinho, ${count} ${count === 1 ? "item" : "itens"}` : "Abrir carrinho"}
+    >
+      <ShoppingCart className="h-5 w-5 text-slate-700" aria-hidden="true" />
       {count > 0 && (
         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
           {count}
@@ -83,6 +94,20 @@ export function CartSidebar() {
   } = useCartStore();
   const { getProductById, allProducts, isLoading: isLoadingProducts } =
     useProductStore();
+  // O catálogo da loja é carregado uma vez por visita (cópia da home de até
+  // 60 s). Produto publicado depois disso parecia "indisponível" no
+  // carrinho. Antes de acusar, recarrega o catálogo uma vez.
+  const refreshedRef = useRef(false);
+  useEffect(() => {
+    if (isLoadingProducts || refreshedRef.current) return;
+    const missing = items.some(
+      (i) => i.type === "SIMPLE" && i.product && !allProducts.some((p) => p.id === i.product!.id),
+    );
+    if (missing) {
+      refreshedRef.current = true;
+      useProductStore.getState().fetchProducts();
+    }
+  }, [items, allProducts, isLoadingProducts]);
 
   const [isMounted, setIsMounted] = useState(false);
 
@@ -118,15 +143,24 @@ export function CartSidebar() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [observation, setObservation] = useState("");
 
-  // "Para quem paga" só faz sentido em Entrega (moto-táxi). Na Retirada
-  // esse valor fica oculto na UI e precisa ficar travado em "store" pra não
-  // vazar um "carrier" residual (selecionado antes de voltar pra Retirar)
-  // nem na validação nem na mensagem de WhatsApp (#72).
+  // Regras da loja (#346): na Retirada vale qualquer forma de pagamento.
+  // Na Entrega o motoboy é terceirizado e só aceita Pix ou dinheiro:
+  // - Pix: o cliente paga à LOJA o pedido + a corrida, e a loja paga o motoboy;
+  // - Dinheiro: o cliente paga ao MOTOBOY o pedido + a corrida.
+  // Então "para quem paga" sai da forma de pagamento, sem pergunta na tela.
   useEffect(() => {
-    if (deliveryMethod === "pickup" && pixPaymentDestination !== "store") {
-      setPixPaymentDestination("store");
+    if (
+      deliveryMethod === "delivery" &&
+      (paymentMethod === "credit_card" || paymentMethod === "debit_card")
+    ) {
+      setPaymentMethod("pix");
     }
-  }, [deliveryMethod, pixPaymentDestination]);
+  }, [deliveryMethod, paymentMethod]);
+  useEffect(() => {
+    const want =
+      deliveryMethod === "delivery" && paymentMethod === "cash" ? "carrier" : "store";
+    if (pixPaymentDestination !== want) setPixPaymentDestination(want);
+  }, [deliveryMethod, paymentMethod, pixPaymentDestination]);
 
   // "Troco para quanto?" só existe quando o método é Dinheiro — limpa o
   // valor ao trocar de método pra não sobrar residual escondido no payload.
@@ -280,7 +314,7 @@ export function CartSidebar() {
       items.forEach((item) => {
         let name = "";
         if (item.type === "CUSTOM_BALLOON" && item.balloonDetails) {
-          name = `${item.balloonDetails.typeName} ${item.balloonDetails.size}" (${item.balloonDetails.color})`;
+          name = `${balloonItemLabel(item.balloonDetails)} (${item.balloonDetails.color})`;
         } else {
           name =
             item.type === "CUSTOM_KIT"
@@ -298,7 +332,11 @@ export function CartSidebar() {
         const itemPrice = getCartItemTotal(item);
 
         // Formato: 1x Nome (Variação) - R$ 10,00
-        message += `${item.quantity}x ${name}${variation} - ${formatCurrency(
+        message += `${
+          isPerMeterCartItem(item)
+            ? `${String(item.quantity).replace(".", ",")} m de`
+            : `${item.quantity}x`
+        } ${name}${variation} - ${formatCurrency(
           itemPrice
         )}\n`;
       });
@@ -313,12 +351,12 @@ export function CartSidebar() {
           : "Dinheiro"
       }`;
 
-      // Destino do PIX só é relevante em Entrega (loja x moto-táxi); na
-      // Retirada é sempre a loja e não precisa aparecer na mensagem.
-      if (paymentMethod === "pix" && deliveryMethod === "delivery") {
-        message += ` (Destino: ${
-          pixPaymentDestination === "store" ? "Loja" : "Moto Táxi"
-        })`;
+      // Entrega: quem recebe e o que inclui (#346). Na Retirada não precisa.
+      if (deliveryMethod === "delivery") {
+        message +=
+          paymentMethod === "cash"
+            ? " (ao motoboy na entrega: pedido + corrida)"
+            : " (para a loja: pedido + corrida)";
       }
 
       if (paymentMethod === "cash" && cashChangeFor.trim()) {
@@ -330,6 +368,7 @@ export function CartSidebar() {
       }\n`;
 
       if (deliveryMethod === "delivery") {
+        message += `Corrida do motoboy: ${DELIVERY_FEE_TEXT}, a confirmar\n`;
         message += `Endereço: ${street}, ${number} - ${neighborhood}\n`;
         if (addressReference.trim()) {
           message += `Referência: ${addressReference.trim()}\n`;
@@ -404,7 +443,8 @@ export function CartSidebar() {
                       ? 0
                       : getCartItemTotal(item);
 
-                    const isRibbon = item.product?.type === "RIBBON";
+                    const isBow = item.type === "CUSTOM_RIBBON";
+                    const isRibbon = !isBow && item.product?.type === "RIBBON";
                     const isSealed = isSealedRibbonRoll(item.product);
                     const unitLabel = item.product ? getEffectiveUnitLabel(item.product) : "un";
 
@@ -434,12 +474,17 @@ export function CartSidebar() {
                               {isSealed ? "Rolo Fechado" : "Fita Aberta"}
                             </div>
                           )}
+                          {isBow && (
+                            <div className="absolute bottom-0 inset-x-0 py-0.5 text-[9px] font-bold text-center truncate leading-none z-10 bg-pink-950/80 text-pink-100">
+                              Laço pronto
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0 pr-9">
                           <h4 className="font-medium text-slate-800 text-sm line-clamp-2">
                             {item.type === "CUSTOM_BALLOON" &&
                             item.balloonDetails
-                              ? `${item.balloonDetails.typeName} - ${item.balloonDetails.size}"`
+                              ? balloonItemLabel(item.balloonDetails)
                               : item.type === "CUSTOM_KIT"
                               ? `Kit: ${item.kitName}`
                               : item.product?.name}
@@ -456,6 +501,17 @@ export function CartSidebar() {
                               {isSealed
                                 ? `Rolo fechado (${item.product?.ribbonInventory?.totalRollMeters || 0}m)`
                                 : "Fita aberta (por metro)"}
+                            </p>
+                          )}
+                          {isBow && (
+                            <p className="text-xs font-semibold px-1.5 py-0.5 rounded-md inline-block mt-0.5 bg-pink-50 text-pink-800 border border-pink-200">
+                              {[
+                                "Laço",
+                                item.customizations?.style?.replace(/^\s*laço\s*/i, ""),
+                                item.customizations?.size,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
                             </p>
                           )}
                           {item.selectedVariant ? (
@@ -505,7 +561,9 @@ export function CartSidebar() {
                                     -
                                   </button>
                                   <span className="text-xs px-1">
-                                    {item.quantity}
+                                    {isPerMeterCartItem(item)
+                                      ? `${String(item.quantity).replace(".", ",")} m`
+                                      : item.quantity}
                                   </span>
                                   <button
                                     onClick={() =>
@@ -538,8 +596,9 @@ export function CartSidebar() {
 
                 <div className="px-6 pb-28 space-y-4">
                   <div className="space-y-2">
-                    <Label>Seu Nome</Label>
+                    <Label htmlFor="checkout-name">Seu Nome</Label>
                     <Input
+                      id="checkout-name"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                       placeholder="Digite seu nome"
@@ -547,8 +606,11 @@ export function CartSidebar() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Seu Telefone / WhatsApp *</Label>
+                    <Label htmlFor="checkout-phone">
+                      Seu Telefone / WhatsApp *
+                    </Label>
                     <Input
+                      id="checkout-phone"
                       value={customerPhone}
                       onChange={(e) => {
                         let value = e.target.value.replace(/\D/g, "");
@@ -639,9 +701,12 @@ export function CartSidebar() {
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="col-span-1">
-                            <Label className="text-xs">CEP</Label>
+                            <Label htmlFor="checkout-cep" className="text-xs">
+                              CEP
+                            </Label>
                             <div className="relative">
                               <Input
+                                id="checkout-cep"
                                 value={cep}
                                 onChange={(e) => {
                                   let value = e.target.value.replace(/\D/g, "");
@@ -670,8 +735,14 @@ export function CartSidebar() {
                             </div>
                           </div>
                           <div className="col-span-1">
-                            <Label className="text-xs">Número</Label>
+                            <Label
+                              htmlFor="checkout-number"
+                              className="text-xs"
+                            >
+                              Número
+                            </Label>
                             <Input
+                              id="checkout-number"
                               value={number}
                               onChange={(e) => setNumber(e.target.value)}
                               placeholder="Nº"
@@ -683,8 +754,11 @@ export function CartSidebar() {
                         </div>
 
                         <div>
-                          <Label className="text-xs">Rua</Label>
+                          <Label htmlFor="checkout-street" className="text-xs">
+                            Rua
+                          </Label>
                           <Input
+                            id="checkout-street"
                             value={street}
                             onChange={(e) => setStreet(e.target.value)}
                             placeholder="Nome da rua"
@@ -694,8 +768,14 @@ export function CartSidebar() {
                         </div>
 
                         <div>
-                          <Label className="text-xs">Bairro</Label>
+                          <Label
+                            htmlFor="checkout-neighborhood"
+                            className="text-xs"
+                          >
+                            Bairro
+                          </Label>
                           <Input
+                            id="checkout-neighborhood"
                             value={neighborhood}
                             onChange={(e) => setNeighborhood(e.target.value)}
                             placeholder="Bairro"
@@ -704,8 +784,11 @@ export function CartSidebar() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs">Cidade (Fixo)</Label>
+                          <Label htmlFor="checkout-city" className="text-xs">
+                            Cidade (Fixo)
+                          </Label>
                           <Input
+                            id="checkout-city"
                             value={`${city} - ${uf}`}
                             readOnly
                             className={cn(
@@ -715,10 +798,14 @@ export function CartSidebar() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs">
+                          <Label
+                            htmlFor="checkout-reference"
+                            className="text-xs"
+                          >
                             Ponto de referência (Opcional)
                           </Label>
                           <Input
+                            id="checkout-reference"
                             value={addressReference}
                             onChange={(e) =>
                               setAddressReference(e.target.value)
@@ -732,100 +819,69 @@ export function CartSidebar() {
                     )}
                   </div>
 
-                  {/* Só existe em Entrega — na Retirada não há moto-táxi,
-                      então a pergunta é ruído puro e o valor fica travado
-                      internamente em "store" (ver effect acima, #72).
-                      Vem ANTES de "Forma de Pagamento" porque é a decisão
-                      que restringe a outra: Moto Táxi só aceita PIX ou
-                      Dinheiro, então quem paga precisa ser escolhido
-                      primeiro pra essa restrição fazer sentido na tela
-                      (feedback de revisão do PR #148). */}
+                  {/* Entrega (#346): motoboy terceirizado, só Pix ou dinheiro.
+                      Quem recebe sai da forma de pagamento. */}
                   {deliveryMethod === "delivery" && (
-                    <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                      <Label className="text-blue-800">
-                        Para quem você vai realizar o pagamento?
-                      </Label>
-                      <RadioGroup
-                        value={pixPaymentDestination}
-                        onValueChange={(v: "store" | "carrier") => {
-                          setPixPaymentDestination(v);
-                          if (
-                            v === "carrier" &&
-                            paymentMethod !== "cash" &&
-                            paymentMethod !== "pix"
-                          ) {
-                            setPaymentMethod("pix");
-                          }
-                        }}
-                        className="flex flex-col gap-2 mt-1"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem
-                            value="store"
-                            id="pay-store"
-                            className="text-blue-600 border-blue-400"
-                          />
-                          <Label
-                            htmlFor="pay-store"
-                            className="font-normal cursor-pointer"
-                          >
-                            Pagar para a <b>Loja</b> (Chave da Loja)
-                          </Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem
-                            value="carrier"
-                            id="pay-carrier"
-                            className="text-blue-600 border-blue-400"
-                          />
-                          <Label
-                            htmlFor="pay-carrier"
-                            className="font-normal cursor-pointer"
-                          >
-                            Pagar para o <b>Moto Táxi</b> (Na entrega)
-                          </Label>
-                        </div>
-                      </RadioGroup>
+                    <div className="space-y-1.5 p-3 bg-blue-50 rounded-lg border border-blue-100 text-sm text-blue-900">
+                      <p className="font-semibold">
+                        Entrega por motoboy: corrida de {DELIVERY_FEE_TEXT}
+                      </p>
+                      <p className="text-xs">
+                        O valor depende da distância (quase sempre R$ 10) e a
+                        gente confirma pelo WhatsApp. Na entrega aceitamos só
+                        Pix ou dinheiro:
+                      </p>
+                      <ul className="text-xs list-disc pl-4 space-y-0.5">
+                        <li>
+                          <b>Pix:</b> você paga para a loja o pedido + a corrida.
+                        </li>
+                        <li>
+                          <b>Dinheiro:</b> você paga ao motoboy o pedido + a
+                          corrida, na entrega.
+                        </li>
+                      </ul>
                     </div>
                   )}
 
                   <div className="space-y-2">
-                    <Label>Forma de Pagamento</Label>
+                    <Label htmlFor="checkout-payment">Forma de Pagamento</Label>
                     <Select
                       value={paymentMethod}
                       onValueChange={(v: any) => setPaymentMethod(v)}
                     >
-                      <SelectTrigger className="bg-white">
+                      <SelectTrigger id="checkout-payment" className="bg-white">
                         <SelectValue placeholder="Selecione..." />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="pix">💠 PIX</SelectItem>
                         <SelectItem
                           value="credit_card"
-                          disabled={pixPaymentDestination === "carrier"}
+                          disabled={deliveryMethod === "delivery"}
                         >
                           💳 Cartão de Crédito
                         </SelectItem>
                         <SelectItem
                           value="debit_card"
-                          disabled={pixPaymentDestination === "carrier"}
+                          disabled={deliveryMethod === "delivery"}
                         >
                           💳 Cartão de Débito
                         </SelectItem>
                         <SelectItem value="cash">💵 Dinheiro</SelectItem>
                       </SelectContent>
                     </Select>
-                    {pixPaymentDestination === "carrier" && (
+                    {deliveryMethod === "delivery" && (
                       <p className="text-xs text-blue-600 mt-1">
-                        * Moto Táxi aceita apenas <b>PIX</b> ou <b>Dinheiro</b>.
+                        * Na entrega: só <b>Pix</b> ou <b>Dinheiro</b>. Cartão
+                        só na retirada.
                       </p>
                     )}
                     {paymentMethod === "cash" && (
                       <div className="space-y-1 mt-2">
-                        <Label className="text-xs">
+                        <Label htmlFor="checkout-change" className="text-xs">
                           Troco para quanto? (Opcional)
                         </Label>
                         <Input
+                          id="checkout-change"
                           value={cashChangeFor}
                           onChange={(e) => setCashChangeFor(e.target.value)}
                           placeholder="Ex: R$ 50"
@@ -837,8 +893,11 @@ export function CartSidebar() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Observação (Opcional)</Label>
+                    <Label htmlFor="checkout-observation">
+                      Observação (Opcional)
+                    </Label>
                     <Textarea
+                      id="checkout-observation"
                       placeholder="Ex: Deixar na portaria, embrulhar pra presente..."
                       value={observation}
                       onChange={(e) => setObservation(e.target.value)}
@@ -855,6 +914,11 @@ export function CartSidebar() {
                     {formatCurrency(sumCartItemTotals(items))}
                   </span>
                 </div>
+                {deliveryMethod === "delivery" && (
+                  <p className="-mt-2 mb-2 text-right text-xs text-slate-500">
+                    + corrida do motoboy ({DELIVERY_FEE_TEXT}, a confirmar)
+                  </p>
+                )}
                 <Button
                   onClick={handleCheckout}
                   disabled={isCheckingOut}

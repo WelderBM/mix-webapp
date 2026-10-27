@@ -25,6 +25,14 @@ import { LacoBuilder } from "@/components/features/LacoBuilder";
 import { getProductImage } from "@/lib/image-utils";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { getEffectiveUnitPrice } from "@/lib/ribbon-pricing";
+import { filterRibbons, ribbonSections } from "@/lib/ribbon-sections";
+import { useShowMore } from "@/hooks/useShowMore";
+import { ShowMoreButton } from "@/components/ui/ShowMoreButton";
+import { RibbonSectionFilter } from "@/components/features/RibbonSectionFilter";
+
+// Quantas fitas aparecem por vez (#345): celular simples sofre com 79 cards.
+const ROLLS_PAGE = 12;
+const METER_PAGE = 20;
 
 function FitasContent() {
   const { allProducts, fetchProducts } = useProductStore();
@@ -40,6 +48,9 @@ function FitasContent() {
   // damos scroll até ela ao montar. Some depois do primeiro highlight pra não
   // ficar reaplicando ao trocar de aba manualmente.
   const [highlightedRibbonId, setHighlightedRibbonId] = useState<string>("");
+  // Seção por linha e busca (#345), as mesmas nas duas abas.
+  const [ribbonSection, setRibbonSection] = useState("");
+  const [ribbonQuery, setRibbonQuery] = useState("");
   // Garante que o auto-scroll rode uma única vez para o deep-link inicial,
   // mesmo que o usuário troque de aba manualmente depois (o que também
   // dispara o mesmo efeito, já que ele depende de `activeTab`).
@@ -125,6 +136,30 @@ function FitasContent() {
     [ribbonProducts]
   );
 
+  // Filtro + página (#345). A fita do link da vitrine vem primeiro, para
+  // estar na primeira página e o scroll até ela funcionar.
+  const highlightFirst = <T extends { id: string }>(list: T[]) => {
+    const i = highlightedRibbonId ? list.findIndex((p) => p.id === highlightedRibbonId) : -1;
+    return i > 0 ? [list[i], ...list.slice(0, i), ...list.slice(i + 1)] : list;
+  };
+  const rollSections = useMemo(() => ribbonSections(closedRolls), [closedRolls]);
+  const meterSections = useMemo(() => ribbonSections(openRibbons), [openRibbons]);
+  // Seção que não existe nesta aba (veio da outra) vale como "Todas".
+  const rollSection = rollSections.some((x) => x.key === ribbonSection) ? ribbonSection : "";
+  const meterSection = meterSections.some((x) => x.key === ribbonSection) ? ribbonSection : "";
+  const filteredRolls = useMemo(
+    () => highlightFirst(filterRibbons(closedRolls, rollSection, ribbonQuery)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [closedRolls, rollSection, ribbonQuery, highlightedRibbonId]
+  );
+  const filteredOpen = useMemo(
+    () => highlightFirst(filterRibbons(openRibbons, meterSection, ribbonQuery)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [openRibbons, meterSection, ribbonQuery, highlightedRibbonId]
+  );
+  const rollsPage = useShowMore(filteredRolls, ROLLS_PAGE, `${rollSection}|${ribbonQuery}`);
+  const openPage = useShowMore(filteredOpen, METER_PAGE, `${meterSection}|${ribbonQuery}`);
+
   const handleAddRoll = (product: any) => {
     const rollPrice = getEffectiveUnitPrice(product);
     if (rollPrice == null) {
@@ -139,7 +174,6 @@ function FitasContent() {
       quantity: 1,
       kitTotalAmount: rollPrice,
     });
-    toast.success("Rolo fechado adicionado ao carrinho!");
   };
 
   const handleAddMeter = () => {
@@ -158,14 +192,6 @@ function FitasContent() {
       quantity: meterAmount,
       kitTotalAmount: totalPrice,
     });
-    toast.success(
-      <div className="flex flex-col">
-        <span className="font-bold">Adicionado!</span>
-        <span className="text-xs">
-          {meterAmount}m de {product.name}
-        </span>
-      </div>
-    );
     setSelectedRibbonId("");
     setMeterAmount(1);
 
@@ -200,8 +226,8 @@ function FitasContent() {
               Central de Fitas
             </h1>
             <p className="text-sm sm:text-base text-slate-500">
-              Gerencie seu estoque: Rolo Fechado para atacado, Aberto para corte
-              e laços personalizados.
+              Rolo fechado, fita por metro ou um laço feito por nós — escolha
+              como prefere levar.
             </p>
           </div>
 
@@ -215,7 +241,7 @@ function FitasContent() {
               <TabsList className="w-full md:w-auto grid grid-cols-3 h-auto p-1 bg-slate-100 rounded-xl">
                 <TabsTrigger
                   value="rolls"
-                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
+                  className="min-h-11 py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
                   <Lock className="w-4 h-4" />{" "}
                   <span className="md:inline">
@@ -224,14 +250,14 @@ function FitasContent() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="meter"
-                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
+                  className="min-h-11 py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
                   <Scissors className="w-4 h-4" />{" "}
                   <span className="md:inline">Por Metro</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="service"
-                  className="py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
+                  className="min-h-11 py-2.5 sm:py-3 gap-2 data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all text-xs sm:text-sm font-medium"
                 >
                   <Gift className="w-4 h-4" />{" "}
                   <span className="md:inline">Criar Laço</span>
@@ -248,19 +274,50 @@ function FitasContent() {
                 <h3 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
                   <Lock size={20} className="text-primary" /> Estoque Lacrado
                 </h3>
-                <span className="text-xs sm:text-sm text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
-                  {closedRolls.length} opções
+                <span className="text-xs sm:text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
+                  {filteredRolls.length} opções
                 </span>
               </div>
 
               {closedRolls.length === 0 ? (
-                <div className="text-center py-20 text-slate-400 bg-slate-50 rounded-xl border-2 border-dashed mx-4 sm:mx-0">
+                <div className="text-center py-20 text-slate-500 bg-slate-50 rounded-xl border-2 border-dashed mx-4 sm:mx-0">
                   <Package size={48} className="mx-auto mb-4 opacity-20" />
-                  <p>Nenhum rolo fechado disponível.</p>
+                  <p>Nenhum rolo fechado disponível agora.</p>
+                  {/* Estado vazio com saída: as outras abas (#285). */}
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("meter")}
+                      className="min-h-11 rounded-full border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:border-primary hover:text-primary"
+                    >
+                      Comprar por metro
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("service")}
+                      className="min-h-11 rounded-full border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:border-primary hover:text-primary"
+                    >
+                      Criar um laço
+                    </button>
+                  </div>
                 </div>
               ) : (
+                <>
+                <RibbonSectionFilter
+                  sections={rollSections}
+                  total={closedRolls.length}
+                  section={rollSection}
+                  onSection={setRibbonSection}
+                  query={ribbonQuery}
+                  onQuery={setRibbonQuery}
+                />
+                {filteredRolls.length === 0 && (
+                  <p className="py-10 text-center text-sm text-slate-500">
+                    {rollSection ? "Nenhuma fita com esse nome nesta linha." : "Nenhuma fita com esse nome."}
+                  </p>
+                )}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
-                  {closedRolls.map((product) => (
+                  {rollsPage.visible.map((product) => (
                     <div
                       key={product.id}
                       id={`ribbon-${product.id}`}
@@ -282,6 +339,12 @@ function FitasContent() {
                     </div>
                   ))}
                 </div>
+                <ShowMoreButton
+                  remaining={rollsPage.remaining}
+                  pageSize={ROLLS_PAGE}
+                  onClick={rollsPage.showMore}
+                />
+                </>
               )}
             </TabsContent>
 
@@ -311,9 +374,23 @@ function FitasContent() {
                         </div>
                       </div>
                     ) : (
-                      // Grid responsivo ajustado para mobile e desktop
+                      <>
+                      <RibbonSectionFilter
+                        sections={meterSections}
+                        total={openRibbons.length}
+                        section={meterSection}
+                        onSection={setRibbonSection}
+                        query={ribbonQuery}
+                        onQuery={setRibbonQuery}
+                      />
+                      {filteredOpen.length === 0 && (
+                        <p className="py-6 text-center text-sm text-slate-500">
+                          {meterSection ? "Nenhuma fita com esse nome nesta linha." : "Nenhuma fita com esse nome."}
+                        </p>
+                      )}
+                      {/* Grid responsivo ajustado para mobile e desktop */}
                       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-[50vh] sm:max-h-[400px] overflow-y-auto p-1 custom-scrollbar">
-                        {openRibbons.map((ribbon) => {
+                        {openPage.visible.map((ribbon) => {
                           const imgUrl = getProductImage(
                             ribbon.imageUrl,
                             ribbon.type
@@ -364,6 +441,12 @@ function FitasContent() {
                           );
                         })}
                       </div>
+                      <ShowMoreButton
+                        remaining={openPage.remaining}
+                        pageSize={METER_PAGE}
+                        onClick={openPage.showMore}
+                      />
+                      </>
                     )}
                   </section>
 
@@ -441,12 +524,12 @@ function FitasContent() {
                             <p className="text-sm font-bold text-primary line-clamp-2 leading-tight px-2">
                               {selectedMeterProduct?.name}
                             </p>
-                            <p className="text-xs text-slate-400 mt-1">
+                            <p className="text-xs text-slate-500 mt-1">
                               {meterAmount} metros
                             </p>
                           </div>
                         ) : (
-                          <div className="text-slate-400 flex flex-col items-center">
+                          <div className="text-slate-500 flex flex-col items-center">
                             <Ruler size={32} className="opacity-40 mb-2" />
                             <p className="text-sm">Selecione uma fita</p>
                           </div>
