@@ -221,7 +221,7 @@ export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
                             type="checkbox"
                             checked={!s.skip[m.item.id]}
                             onChange={(e) => patch(line.key, { skip: { ...s.skip, [m.item.id]: !e.target.checked } })}
-                            aria-label={`Incluir ${m.label}`}
+                            aria-label={`Incluir ${m.label || m.item.name}`}
                             className="h-5 w-5 accent-purple-600"
                           />
                         </label>
@@ -229,6 +229,7 @@ export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
                           value={s.labels[m.item.id] ?? m.label}
                           onChange={(e) => patch(line.key, { labels: { ...s.labels, [m.item.id]: e.target.value } })}
                           aria-label="Nome da cor"
+                          placeholder="sem cor no nome"
                           className="h-11 min-w-0 flex-1 bg-transparent text-base outline-none"
                         />
                         <span className="shrink-0 pr-1 text-xs text-slate-500">{m.item.stock} un.</span>

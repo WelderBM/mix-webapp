@@ -78,7 +78,9 @@ export function ribbonModel(name: string, brand?: string | null): string | null 
   const up = name
     .toUpperCase()
     .replace(/\bPAPER LOOK\b/g, "PAPERLOOK")
-    .replace(/\bFM ?(\d+[A-Z])\b/g, "FM $1");
+    .replace(/\bFM ?(\d+[A-Z])\b/g, "FM $1")
+    // "32MM X 100M" → "32MMX100M": a medida vira uma palavra só.
+    .replace(/(\d)\s*(MM)?\s*X\s*(?=\d)/g, "$1$2X");
   const tokens = up.split(/\s+/);
   const at = tokens.findIndex((t) => LINE_WORDS.includes(t));
   if (at < 0) return null;
@@ -111,7 +113,9 @@ function colorLabel(label: string, model: string | null, brand: string | null): 
   if (model === "Listrada") drop.add("listrado");
   if (model === "Nacarada") drop.add("nacarado");
   const kept = label.split(" ").filter((w) => !drop.has(normalizeText(w)));
-  return kept.join(" ") || "Lisa";
+  // Sem cor no nome ("FITA MAXI URSO NATAL 32MMX100M"): o modelo já diz
+  // tudo. Não chama de "Lisa" uma estampada (revisão do #380).
+  return kept.join(" ");
 }
 
 // O que sobra do nome tirando "FITA", a linha e as medidas: cor/estampa.

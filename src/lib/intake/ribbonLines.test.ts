@@ -70,6 +70,14 @@ describe("fitas de plástico por linha (nomes reais do Noturno)", () => {
     expect(ribbonModel("FITA PLASTICA 32MMX100M XINGO FLORAL LARANJA", "XINGO")).toBe("Floral");
     expect(ribbonModel("FITA PLASTICA GLITTER OURO 18MMX25M C/1 UN")).toBe("Glitter");
     expect(ribbonModel("FITA PLASTICA VERMELHO 32MMX25M C/1 UN")).toBe("Lisa");
+    expect(ribbonModel("FITA MAXI MODERN LOVE 32MM X 100M ROSE")).toBe("Modern Love");
+
+    // Estampada sem cor no nome: a cor fica vazia, não "Lisa" (revisão do #380).
+    const [urso] = groupRibbonLines([fita("FITA MAXI PAPERLOOK URSO NATAL 32MMX100M")]);
+    expect(urso.members[0].label).toBe("");
+    expect(buildRibbonProduct({ sourceCode: "1", stock: 1 }, urso, "", { rollPrice: 10, meterPrice: 1 }, null).name).toBe(
+      "Fita Maxi Paperlook Urso Natal 32mm",
+    );
 
     const lines = groupRibbonLines([
       { ...fita("FITA MAXI PAPER LOOK 32MMX100M AMEIXA"), brand: "ALBANO" },
