@@ -363,6 +363,7 @@ export default function NoturnoImportPage() {
             size="icon"
             asChild
             aria-label="Voltar ao admin"
+            className="size-11 shrink-0"
           >
             <Link href="/admin">
               <ArrowLeft size={20} />

@@ -363,7 +363,7 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
                   ? "Carregando configurações atuais — aguarde antes de salvar"
                   : undefined
               }
-              className="bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-11 bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {!settingsLoaded || !balloonsLoaded ? (
                 <Loader2 size={18} className="animate-spin" />
@@ -373,15 +373,15 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
               Salvar Configurações
             </Button>
             )}
-            <Link href="/" className="flex-1 md:flex-none">
-              <Button variant="outline" className="w-full">
+            <Button asChild variant="outline" className="h-11 flex-1 md:flex-none">
+              <Link href="/">
                 <Eye size={18} className="mr-2" /> Ver Loja
-              </Button>
-            </Link>
+              </Link>
+            </Button>
             <Button
               onClick={askLogout}
               variant="ghost"
-              className="gap-2"
+              className="h-11 gap-2"
             >
               <LogOut size={16} /> Sair
             </Button>
@@ -392,7 +392,7 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
                   variant="ghost"
                   size="icon"
                   aria-label="Mais opções"
-                  className="text-slate-400"
+                  className="size-11 text-slate-400"
                 >
                   <MoreHorizontal size={18} />
                 </Button>
