@@ -19,17 +19,15 @@ export function StoreStatusBadge() {
       const minutes = now.getMinutes();
       const currentTime = hour + minutes / 60;
 
-      // HORÁRIOS (Baseado na sua imagem)
-      // Seg(1) a Sáb(6): 08:00 - 19:00
-      // Dom(0): 08:00 - 12:00
+      // Horário de atendimento: todos os dias, 09:00 - 13:00 (dono, 28/10).
       const schedule: Record<number, { open: number; close: number }> = {
-        0: { open: 8, close: 12 }, // Domingo
-        1: { open: 8, close: 19 }, // Segunda
-        2: { open: 8, close: 19 },
-        3: { open: 8, close: 19 },
-        4: { open: 8, close: 19 },
-        5: { open: 8, close: 19 },
-        6: { open: 8, close: 19 }, // Sábado
+        0: { open: 9, close: 13 }, // Domingo
+        1: { open: 9, close: 13 }, // Segunda
+        2: { open: 9, close: 13 },
+        3: { open: 9, close: 13 },
+        4: { open: 9, close: 13 },
+        5: { open: 9, close: 13 },
+        6: { open: 9, close: 13 }, // Sábado
       };
 
       const today = schedule[day];
@@ -139,12 +137,8 @@ export function StoreStatusBadge() {
         </p>
         <div className="space-y-1">
           <div className="flex justify-between text-xs">
-            <span>Seg - Sáb</span>
-            <span className="font-bold text-white">08:00 - 19:00</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span>Domingo</span>
-            <span className="font-bold text-white">08:00 - 12:00</span>
+            <span>Todos os dias</span>
+            <span className="font-bold text-white">09:00 - 13:00</span>
           </div>
         </div>
       </div>
