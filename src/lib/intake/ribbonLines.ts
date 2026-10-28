@@ -33,12 +33,8 @@ export interface RibbonLineMember<T> {
 
 export interface RibbonLine<T> {
   key: string;
-  label: string; // "Albano · Maxi Modern Love 32mm × 100m"
+  label: string; // "Maxi 32mm × 100m"
   line: string;
-  // Modelo do fabricante ("Modern Love", "FM 03D", "Glitter"): cada modelo
-  // tem preço próprio, e a estampada não divide preço com a lisa (#324).
-  model: string | null;
-  brand: string | null;
   widthMm: number | null;
   meters: number;
   stock: number;
@@ -118,6 +114,17 @@ function colorLabel(label: string, model: string | null, brand: string | null): 
   return kept.join(" ");
 }
 
+// Nome da cor na loja: marca (fora da Albano, que é a própria linha Maxi),
+// modelo (fora "Lisa") e cor. "Xingo Listrada Laranja", "FM 03D Vermelho".
+function memberLabel(name: string, model: string | null, brand: string | null, line: string): string {
+  const showBrand = brand && line !== "MAXI" && !/^(Albano|Diversos)$/i.test(brand);
+  const color = colorLabel(ribbonLabel(name), model, brand);
+  return [showBrand ? brand : null, model && model !== "Lisa" ? model : null, color]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+}
+
 // O que sobra do nome tirando "FITA", a linha e as medidas: cor/estampa.
 export function ribbonLabel(name: string): string {
   const rest = name
@@ -158,24 +165,25 @@ export function groupRibbonLines<T extends Item>(items: T[]): RibbonLine<T>[] {
     const line = RE_LINE.exec(i.name.toUpperCase())![1];
     const meters = extractRollMeters(i.name)!;
     const w = widthMm(i.name);
+    // Um preço por medida (dono, 27/10: "todos que têm a mesma medida são o
+    // mesmo valor"): agrupa por linha × largura × metragem. Modelo e marca
+    // vão para o nome de cada cor, para a estampa continuar identificável.
     const model = ribbonModel(i.name, i.brand);
     const brand = i.brand ? titleCase(i.brand) : null;
-    const key = `${brand ?? "?"}|${line}|${model ?? "?"}|${w ?? "?"}|${meters}`;
+    const key = `${line}|${w ?? "?"}|${meters}`;
     const g =
       map.get(key) ??
       ({
         key,
-        label: `${brand ? `${brand} · ` : ""}${LINE_LABEL[line]}${model ? ` ${model}` : ""}${w ? ` ${w}mm` : ""} × ${meters}m`,
+        label: `${LINE_LABEL[line]}${w ? ` ${w}mm` : ""} × ${meters}m`,
         line,
-        model,
-        brand,
         widthMm: w,
         meters,
         stock: 0,
         members: [],
       } as RibbonLine<T>);
     g.stock += Math.max(0, i.stock);
-    g.members.push({ item: i, label: colorLabel(ribbonLabel(i.name), model, brand) });
+    g.members.push({ item: i, label: memberLabel(i.name, model, brand, line) });
     map.set(key, g);
   }
   for (const g of map.values()) {
@@ -200,12 +208,15 @@ export interface RibbonLinePrices {
 // Produto RIBBON de uma cor da linha. Rolo FECHADO, cheio.
 export function buildRibbonProduct(
   item: Pick<IntakeItem, "sourceCode" | "stock">,
-  line: Pick<RibbonLine<unknown>, "line" | "widthMm" | "meters"> & Partial<Pick<RibbonLine<unknown>, "model">>,
+  line: Pick<RibbonLine<unknown>, "line" | "widthMm" | "meters">,
   label: string,
   prices: RibbonLinePrices,
-  imageUrl: string | null,
+  // Uma foto ou várias (foto real do fabricante/busca, relatório 27/10);
+  // a primeira é a capa.
+  imageUrl: string | string[] | null,
 ): Omit<Product, "id" | "createdAt"> {
-  const name = `Fita ${LINE_LABEL[line.line]}${line.model ? ` ${line.model}` : ""}${line.widthMm ? ` ${line.widthMm}mm` : ""} ${label}`.trim();
+  const urls = (Array.isArray(imageUrl) ? imageUrl : imageUrl ? [imageUrl] : []).filter(Boolean);
+  const name = `Fita ${LINE_LABEL[line.line]}${line.widthMm ? ` ${line.widthMm}mm` : ""} ${label}`.trim();
   return {
     name,
     type: "RIBBON",
@@ -218,8 +229,8 @@ export function buildRibbonProduct(
     isAvailableForCustomBow: true,
     ribbonInventory: { status: "FECHADO", remainingMeters: line.meters, totalRollMeters: line.meters },
     width: line.widthMm ?? undefined,
-    images: imageUrl ? [{ id: "cover", url: imageUrl, isCover: true }] : [],
-    imageUrl: imageUrl ?? "",
+    images: urls.map((url, i) => ({ id: i === 0 ? "cover" : `foto-${i + 1}`, url, isCover: i === 0 })),
+    imageUrl: urls[0] ?? "",
     inStock: item.stock > 0,
     disabled: false,
     sourceCode: item.sourceCode,
