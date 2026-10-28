@@ -12,6 +12,7 @@ describe("refreshCandidates", () => {
       p({ name: "Fita C" }),
       p({ name: "Com fotos", images: [{ id: "cover", url: "u", isCover: true }, { id: "foto-2", url: "v", isCover: false }] }),
       p({ name: "Sem Noturno", sourceCode: undefined }),
+      p({ name: "Já conferida", photoChecked: true }),
       p({ name: "Balão", type: "STANDARD_ITEM" }),
     ]);
     expect(list.map((x) => x.name)).toEqual(["Fita A", "Fita B", "Fita C"]);

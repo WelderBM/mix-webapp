@@ -55,13 +55,17 @@ export function RibbonPhotoRefresh({ open, onOpenChange, products }: Props) {
   async function search() {
     setBusy("Lendo os nomes do Noturno…");
     try {
-      // Nome original do Noturno (com EAN e marca) casa melhor que o do produto.
-      const snap = await getDocs(query(collection(db, "intake_items"), where("family", "==", "FITA")));
+      // Nome original do Noturno (com EAN e marca) casa melhor que o do
+      // produto. Lê só os itens destas fitas (30 por consulta).
       const byProduct = new Map<string, IntakeItem>();
-      snap.forEach((d) => {
-        const it = d.data() as IntakeItem;
-        if (it.productId) byProduct.set(it.productId, it);
-      });
+      const ids = candidates.map((p) => p.id);
+      for (let i = 0; i < ids.length; i += 30) {
+        const snap = await getDocs(query(collection(db, "intake_items"), where("productId", "in", ids.slice(i, i + 30))));
+        snap.forEach((d) => {
+          const it = d.data() as IntakeItem;
+          if (it.productId) byProduct.set(it.productId, it);
+        });
+      }
       const { findRibbonPhotos } = await import("@/lib/imageSearch/client");
       const res = await findRibbonPhotos(
         candidates.map((p) => {
@@ -82,35 +86,52 @@ export function RibbonPhotoRefresh({ open, onOpenChange, products }: Props) {
   const chosen = candidates.filter((p) => pick[p.id] && found?.[p.id]?.urls.length);
 
   async function apply() {
-    const [{ fetchChosenImage }, { uploadIntakePhoto }] = await Promise.all([
-      import("@/lib/imageSearch/client"),
-      import("@/lib/intake/actions"),
-    ]);
     let ok = 0;
-    // Levas de 4: o celular não trava e o servidor não engasga.
-    for (let i = 0; i < chosen.length; i += 4) {
-      setBusy(`Trocando fotos ${i + 1}–${Math.min(i + 4, chosen.length)} de ${chosen.length}…`);
-      const done = await Promise.all(
-        chosen.slice(i, i + 4).map(async (p, j) => {
-          const urls: string[] = [];
-          for (const [k, url] of (found?.[p.id]?.urls ?? []).entries()) {
+    try {
+      const [{ fetchChosenImage }, { uploadIntakePhoto }] = await Promise.all([
+        import("@/lib/imageSearch/client"),
+        import("@/lib/intake/actions"),
+      ]);
+      // Levas de 4: o celular não trava e o servidor não engasga.
+      for (let i = 0; i < chosen.length; i += 4) {
+        setBusy(`Trocando fotos ${i + 1}–${Math.min(i + 4, chosen.length)} de ${chosen.length}…`);
+        const done = await Promise.all(
+          chosen.slice(i, i + 4).map(async (p, j) => {
             try {
-              const blob = await fetchChosenImage(url);
-              urls.push(await uploadIntakePhoto({ sourceCode: p.sourceCode } as IntakeItem, blob, (i + j) * 10 + k));
+              const urls: string[] = [];
+              for (const [k, url] of (found?.[p.id]?.urls ?? []).entries()) {
+                try {
+                  const blob = await fetchChosenImage(url);
+                  urls.push(await uploadIntakePhoto({ sourceCode: p.sourceCode } as IntakeItem, blob, (i + j) * 10 + k));
+                } catch {
+                  // foto que não baixou: segue com as outras
+                }
+              }
+              if (!urls.length) return false;
+              await updateDoc(doc(db, "products", p.id), {
+                ...imagesFrom(urls),
+                photoChecked: true,
+                previousImageUrl: p.images?.[0]?.url ?? p.imageUrl ?? "",
+              });
+              return true;
             } catch {
-              // foto que não baixou: segue com as outras
+              return false; // gravação recusada: a fita fica como estava
             }
-          }
-          if (!urls.length) return false;
-          await updateDoc(doc(db, "products", p.id), imagesFrom(urls));
-          return true;
-        }),
-      );
-      ok += done.filter(Boolean).length;
+          }),
+        );
+        ok += done.filter(Boolean).length;
+      }
+      // Desmarcadas de propósito e sem foto encontrada: conferidas, saem da
+      // lista (não gastam busca de novo). A imagem delas não muda.
+      const kept = candidates.filter((p) => found?.[p.id] && !chosen.includes(p));
+      await Promise.all(kept.map((p) => updateDoc(doc(db, "products", p.id), { photoChecked: true }).catch(() => {})));
+    } catch {
+      toast.error("Não deu para terminar a troca. Confira a conexão e tente de novo.");
+    } finally {
+      setBusy(null);
     }
-    setBusy(null);
     if (ok === chosen.length) toast.success(`${ok} fitas com foto real.`);
-    else toast.warning(`${ok} de ${chosen.length} fitas trocadas; as outras não baixaram e ficaram como estavam.`);
+    else toast.warning(`${ok} de ${chosen.length} fitas trocadas; as outras ficaram como estavam e continuam na lista.`);
     onOpenChange(false);
   }
 

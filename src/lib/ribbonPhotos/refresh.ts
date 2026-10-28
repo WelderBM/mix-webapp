@@ -7,7 +7,7 @@ import type { Product, ProductImage } from "@/types";
 
 export function refreshCandidates(products: Product[]): Product[] {
   return products
-    .filter((p) => p.type === "RIBBON" && !!p.sourceCode)
+    .filter((p) => p.type === "RIBBON" && !!p.sourceCode && !p.photoChecked)
     .filter((p) => (p.images?.length ?? (p.imageUrl ? 1 : 0)) <= 1)
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }

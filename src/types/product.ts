@@ -103,6 +103,12 @@ export interface Product {
   // Noturno ao produto publicado (estoque, #202).
   sourceCode?: string;
 
+  // Fita já conferida em "Trocar desenhos por fotos" (trocada ou mantida de
+  // propósito): sai da lista e não gasta busca de novo. A imagem de antes
+  // fica em `previousImageUrl` para dar para voltar atrás.
+  photoChecked?: boolean;
+  previousImageUrl?: string;
+
   // Unidades dentro do pacote quando `unit === "pct"` (ex.: saco "PT C/100"
   // → 100). Sem isto a loja só mostra "pct", e o revendedor não sabe quanto
   // vem. Ausente = pacote de quantidade não informada (produto legado).
