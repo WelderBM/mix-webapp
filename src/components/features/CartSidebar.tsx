@@ -37,6 +37,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { rememberOrder } from "@/lib/orderTracking";
 import { waPhone } from "@/lib/orderMessage";
+import { maskPhone } from "@/lib/phoneMask";
 import { getProductImage } from "@/lib/image-utils";
 import {
   getCartItemTotal,
@@ -541,18 +542,7 @@ export function CartSidebar() {
                     <Input
                       id="checkout-phone"
                       value={customerPhone}
-                      onChange={(e) => {
-                        let value = e.target.value.replace(/\D/g, "");
-                        if (value.length > 11) value = value.slice(0, 11);
-
-                        if (value.length > 2) {
-                          value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
-                        }
-                        if (value.length > 9) {
-                          value = `${value.slice(0, 10)}-${value.slice(10)}`;
-                        }
-                        setCustomerPhone(value);
-                      }}
+                      onChange={(e) => setCustomerPhone(maskPhone(e.target.value))}
                       placeholder="(99) 99999-9999"
                       className="bg-white"
                       maxLength={15}
