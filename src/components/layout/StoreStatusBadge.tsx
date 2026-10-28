@@ -13,10 +13,22 @@ export function StoreStatusBadge() {
 
   useEffect(() => {
     const checkStatus = () => {
-      const now = new Date();
-      const day = now.getDay(); // 0 = Domingo, 1 = Segunda...
-      const hour = now.getHours();
-      const minutes = now.getMinutes();
+      // Hora de Boa Vista, não a do celular: quem está em outro fuso via
+      // "Fechado" com a loja aberta.
+      const parts = Object.fromEntries(
+        new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/Boa_Vista",
+          weekday: "short",
+          hour: "numeric",
+          minute: "numeric",
+          hourCycle: "h23",
+        })
+          .formatToParts(new Date())
+          .map((p) => [p.type, p.value]),
+      );
+      const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(parts.weekday); // 0 = Domingo
+      const hour = Number(parts.hour);
+      const minutes = Number(parts.minute);
       const currentTime = hour + minutes / 60;
 
       // Horário de atendimento: todos os dias, 09:00 - 13:00 (dono, 28/10).
@@ -39,7 +51,7 @@ export function StoreStatusBadge() {
       if (currentTime >= today.open && currentTime < today.close) {
         isOpen = true;
 
-        // Formata hora de fechamento (ex: 19:00)
+        // Formata hora de fechamento (ex: 13:00)
         const closeHour = Math.floor(today.close);
         const closeMin = (today.close % 1) * 60;
         const closeStr = `${closeHour.toString().padStart(2, "0")}:${closeMin
