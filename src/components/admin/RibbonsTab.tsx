@@ -28,6 +28,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
 import { OpenRibbonRollModal } from "@/components/admin/OpenRibbonRollModal";
 import { RibbonLinesFromNoturno } from "@/components/admin/RibbonLinesFromNoturno";
+import { RibbonPhotoRefresh } from "@/components/admin/RibbonPhotoRefresh";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { PRODUCT_TYPE_META } from "@/components/ui/status-badge";
 import {
@@ -50,6 +51,7 @@ import {
   AlertTriangle,
   ArrowUp,
   ArrowDown,
+  Image as ImageIcon,
 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
@@ -76,6 +78,7 @@ export function RibbonsTab({
   const [ribbonTab, setRibbonTab] = useState<"edition" | "visual">("visual");
   // "Cadastrar pelo Noturno" (#259).
   const [fromNoturnoOpen, setFromNoturnoOpen] = useState(false);
+  const [photoRefreshOpen, setPhotoRefreshOpen] = useState(false);
   const [ribbonSearchTerm, setRibbonSearchTerm] = useState("");
   const [expandedTypes, setExpandedTypes] = useState<Record<string, boolean>>(
     {}
@@ -206,6 +209,18 @@ export function RibbonsTab({
             <Scissors size={16} /> Cadastrar pelo Noturno
           </Button>
           <RibbonLinesFromNoturno open={fromNoturnoOpen} onOpenChange={setFromNoturnoOpen} />
+          <Button
+            variant="outline"
+            className="h-11 w-full gap-2 md:w-auto"
+            onClick={() => setPhotoRefreshOpen(true)}
+          >
+            <ImageIcon size={16} /> Trocar desenhos por fotos
+          </Button>
+          <RibbonPhotoRefresh
+            open={photoRefreshOpen}
+            onOpenChange={setPhotoRefreshOpen}
+            products={allProducts}
+          />
 
           <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
             <Button
