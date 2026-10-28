@@ -109,13 +109,9 @@ export function Footer() {
             <div className="text-sm mt-1">
               <p>
                 <span className="font-semibold text-purple-400">
-                  Seg - Sáb:
+                  Todos os dias:
                 </span>{" "}
-                08:00 às 19:00
-              </p>
-              <p>
-                <span className="font-semibold text-purple-400">Domingo:</span>{" "}
-                08:00 às 12:00
+                09:00 às 13:00
               </p>
             </div>
           </div>

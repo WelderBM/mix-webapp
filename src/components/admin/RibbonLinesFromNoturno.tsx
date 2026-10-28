@@ -99,27 +99,59 @@ export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
     const members = line.members.filter((m) => !s.skip[m.item.id]);
     if (members.length === 0) return toast.error("Marque pelo menos uma cor.");
     try {
-      const [{ ribbonSvg }, { renderBalloonImage }, { uploadIntakePhoto, publishRibbonLine }] =
+      const [{ ribbonSvg }, { renderBalloonImage }, { uploadIntakePhoto, publishRibbonLine }, search] =
         await Promise.all([
           import("@/lib/intake/ribbonArt"),
           import("@/lib/intake/balloonArt"),
           import("@/lib/intake/actions"),
+          import("@/lib/imageSearch/client"),
         ]);
-      // Artes (geradas e enviadas em levas de 6, para não travar o celular).
-      const urls: string[] = [];
-      for (let i = 0; i < members.length; i += 6) {
-        setBusy({ key: line.key, step: `Gerando imagens ${i + 1}–${Math.min(i + 6, members.length)} de ${members.length}…` });
+      // Fotos reais (relatório 27/10): a oficial do fabricante ou, se não
+      // houver, até 3 da busca. Só para quem a atendente não fotografou.
+      const toFind = members.filter((m) => !s.photos[m.item.id]);
+      let found: Record<string, { urls: string[] }> = {};
+      if (toFind.length) {
+        try {
+          found = await search.findRibbonPhotos(
+            toFind.map((m) => ({ id: m.item.id, name: m.item.name, ean: m.item.ean, brand: m.item.brand })),
+            (done, total) => setBusy({ key: line.key, step: `Procurando fotos reais (${done} de ${total})…` }),
+          );
+        } catch {
+          toast.warning("Não deu para buscar as fotos agora; as fitas vão com o desenho do rolo.");
+        }
+      }
+      // Baixa e envia em levas de 4 (celular não trava, servidor não engasga).
+      const urls: string[][] = [];
+      let real = 0;
+      for (let i = 0; i < members.length; i += 4) {
+        setBusy({ key: line.key, step: `Enviando fotos ${i + 1}–${Math.min(i + 4, members.length)} de ${members.length}…` });
         const part = await Promise.all(
-          members.slice(i, i + 6).map(async (m, j) => {
-            // Cor do rolo pelo nome CORRIGIDO (se a atendente trocou), senão o do Noturno.
-            const edited = s.labels[m.item.id];
+          members.slice(i, i + 4).map(async (m, j) => {
+            const n = (i + j) * 10;
             const picked = s.photos[m.item.id];
-            if (picked) return uploadIntakePhoto(m.item, picked, i + j);
+            if (picked) {
+              real++;
+              return [await uploadIntakePhoto(m.item, picked, n)];
+            }
+            const got: string[] = [];
+            for (const [k, url] of (found[m.item.id]?.urls ?? []).entries()) {
+              try {
+                got.push(await uploadIntakePhoto(m.item, await search.fetchChosenImage(url), n + k));
+              } catch {
+                // foto que não baixou: segue com as outras
+              }
+            }
+            if (got.length) {
+              real++;
+              return got;
+            }
+            // Sem foto real: o desenho do rolo na cor, como antes.
+            const edited = s.labels[m.item.id];
             const blob = await renderBalloonImage(
               ribbonSvg(edited ? `FITA ${edited}` : m.item.name, line.label),
               600,
             );
-            return uploadIntakePhoto(m.item, blob, i + j);
+            return [await uploadIntakePhoto(m.item, blob, n)];
           }),
         );
         urls.push(...part);
@@ -138,7 +170,10 @@ export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
         })),
         auth.currentUser?.email ?? null,
       );
-      toast.success(`${members.length} fitas de ${line.label} cadastradas.`);
+      toast.success(
+        `${members.length} fitas de ${line.label} cadastradas` +
+          (real < members.length ? ` (${members.length - real} com o desenho do rolo, sem foto real).` : ", todas com foto real."),
+      );
       // Some da lista: os itens viraram "publicado".
       const done = new Set(members.map((m) => m.item.id));
       setItems((list) => list?.map((i) => (done.has(i.id) ? { ...i, status: "publicado" } : i)) ?? list);
@@ -158,7 +193,8 @@ export function RibbonLinesFromNoturno({ open, onOpenChange }: Props) {
           <DialogDescription>
             Uma linha por vez: digite o preço do rolo fechado e o do metro
             (etiqueta) e todas as cores da linha viram fitas personalizadas,
-            com imagem de rolo na cor.
+            com a foto real do fabricante (ou da busca) e, se não houver,
+            o desenho do rolo na cor.
           </DialogDescription>
         </DialogHeader>
 
