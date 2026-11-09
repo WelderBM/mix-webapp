@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   countCategoryProducts,
+  countSellableByCategory,
   countSubcategoryProducts,
   filterProductsByCategory,
   getVisibleCategories,
@@ -195,5 +196,41 @@ describe("getVisibleCategories", () => {
 
   it("returns an empty array when there are no categories", () => {
     expect(getVisibleCategories([], [])).toEqual([]);
+  });
+});
+
+describe("countSellableByCategory (#399)", () => {
+  it("conta só vendáveis, por categoria e subcategoria", () => {
+    const products = [
+      makeProduct({ subcategory: "Cetim" }),
+      makeProduct({ subcategory: "Cetim" }),
+      makeProduct({ subcategory: "Gorgurão", inStock: false }),
+      makeProduct({ category: "Balões", subcategory: undefined }),
+      makeProduct({ category: "Balões", disabled: true }),
+    ];
+    expect(countSellableByCategory(products)).toEqual({
+      "Fitas & Laços": { total: 2, subs: { Cetim: 2 } },
+      Balões: { total: 1, subs: {} },
+    });
+  });
+
+  it("o menu sai igual a partir da contagem ou da lista de produtos", () => {
+    const categories = [
+      makeCategory({
+        subcategories: [
+          { id: "cetim", name: "Cetim", order: 0 },
+          { id: "gorgurao", name: "Gorgurão", order: 1 },
+        ] as Category["subcategories"],
+      }),
+      makeCategory({ id: "baloes", name: "Balões", order: 1 }),
+    ];
+    const products = [
+      makeProduct({ subcategory: "Cetim" }),
+      makeProduct({ subcategory: "Gorgurão", inStock: false }),
+    ];
+    const fromList = getVisibleCategories(categories, products);
+    expect(getVisibleCategories(categories, countSellableByCategory(products))).toEqual(fromList);
+    expect(fromList.map((c) => c.name)).toEqual(["Fitas & Laços"]);
+    expect(fromList[0].visibleSubcategories.map((s) => s.name)).toEqual(["Cetim"]);
   });
 });

@@ -3,7 +3,8 @@
 import { create } from "zustand";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Product, AssembledKitProduct, KitRecipe } from "@/types";
+import { Product, AssembledKitProduct } from "@/types";
+import { customerCatalog } from "@/lib/customerCatalog";
 import { useKitStore } from "./kitStore";
 
 interface ProductState {
@@ -18,6 +19,8 @@ interface ProductState {
   visibleCount: number;
 
   fetchProducts: () => Promise<void>;
+  // Baixa o catálogo só se ainda não está carregado nem a caminho (#399).
+  ensureProducts: () => Promise<void>;
   setCategory: (category: string) => void;
   setSort: (option: "name_asc" | "price_asc" | "price_desc") => void;
   loadMore: () => void;
@@ -25,34 +28,8 @@ interface ProductState {
   getProductById: (id: string) => Product | undefined;
 }
 
-// Lógica de Validação da Regra da Venda Garantida
-const isKitAvailable = (
-  kit: AssembledKitProduct,
-  recipe: KitRecipe,
-  allProducts: Product[]
-): boolean => {
-  if (kit.disabled || recipe.disabled) return false;
-
-  const availableProductIds = new Set(
-    allProducts.filter((p) => !p.disabled).map((p) => p.id)
-  );
-
-  // Verifica se todos os componentes obrigatórios (BASE ou FILLER) estão em estoque
-  const allRequiredItemsInStock = recipe.components
-    .filter((c) => c.required && (c.type === "BASE" || c.type === "FILLER"))
-    .every((comp) => availableProductIds.has(comp.componentId));
-
-  if (!allRequiredItemsInStock) return false;
-
-  // Simplificação da lógica do laço: Se tiver opção de serviço ou pronto, está ok
-  const hasLacoOption = recipe.components.some(
-    (c) =>
-      c.type === "RIBBON_SERVICE" ||
-      (c.type === "LAÇO_PRONTO" && availableProductIds.has(c.componentId))
-  );
-
-  return hasLacoOption;
-};
+// Leitura em andamento: duas telas pedindo o catálogo juntas fazem UMA só.
+let inflight: Promise<void> | null = null;
 
 export const useProductStore = create<ProductState>((set, get) => ({
   allProducts: [],
@@ -65,58 +42,45 @@ export const useProductStore = create<ProductState>((set, get) => ({
   sortOption: "name_asc",
   visibleCount: 12,
 
-  fetchProducts: async () => {
-    // Carrega as receitas (assumindo que useKitStore está implementado)
-    await useKitStore.getState().fetchRecipes();
-    const recipes = useKitStore.getState().recipes;
+  fetchProducts: () => {
+    if (inflight) return inflight;
+    inflight = (async () => {
+      // Receitas antes: a regra dos kits depende delas.
+      await useKitStore.getState().fetchRecipes();
+      const recipes = useKitStore.getState().recipes;
 
-    set({ isLoading: true });
-    try {
-      const querySnapshot = await getDocs(collection(db, "products"));
-      const productsData: Product[] = querySnapshot.docs.map(
-        (doc) => ({ id: doc.id, ...doc.data() } as Product)
-      );
+      set({ isLoading: true });
+      try {
+        const querySnapshot = await getDocs(collection(db, "products"));
+        const productsData: Product[] = querySnapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() } as Product)
+        );
 
-      // 1. Separar os tipos de produtos
-      const kits: AssembledKitProduct[] = productsData.filter(
-        (p) => p.type === "ASSEMBLED_KIT"
-      ) as AssembledKitProduct[];
-      // `disabled` já bloqueava um produto de entrar como componente de kit
-      // (isKitAvailable, abaixo) mas nunca era checado aqui — um produto
-      // avulso marcado disabled continuava aparecendo normalmente pro
-      // cliente. Esta store é só o catálogo voltado pro cliente (o admin usa
-      // seu próprio onSnapshot em admin/page.tsx, sem passar por aqui), então
-      // filtrar aqui não esconde nada do admin.
-      const nonKitProducts = productsData.filter(
-        (p) => p.type !== "ASSEMBLED_KIT" && !p.disabled
-      );
+        // Só o catálogo do cliente (o admin usa seu próprio onSnapshot em
+        // admin/page.tsx): sem desativados, só kits vendáveis.
+        const { products, kits } = customerCatalog(productsData, recipes);
 
-      // 2. Aplicar a Regra da Venda Garantida nos Kits
-      const availableKits: AssembledKitProduct[] = kits.filter((kit) => {
-        const recipe = recipes.find((r) => r.id === kit.recipeId);
-        if (!recipe) return false;
+        set({
+          allProducts: products,
+          ribbonProducts: products.filter((p) => p.type === "RIBBON"),
+          assembledKits: kits,
+          isLoading: false,
+        });
 
-        return isKitAvailable(kit, recipe, productsData);
-      });
+        get().applyFilters();
+      } catch (error) {
+        console.error("Erro ao buscar produtos:", error);
+        set({ error: "Falha ao carregar produtos.", isLoading: false });
+      }
+    })().finally(() => {
+      inflight = null;
+    });
+    return inflight;
+  },
 
-      // 3. Organizar os estados
-      const allProductsFiltered = [...nonKitProducts, ...availableKits];
-      const ribbonProductsFiltered = allProductsFiltered.filter(
-        (p) => p.type === "RIBBON"
-      );
-
-      set({
-        allProducts: allProductsFiltered,
-        ribbonProducts: ribbonProductsFiltered,
-        assembledKits: availableKits,
-        isLoading: false,
-      });
-
-      get().applyFilters();
-    } catch (error) {
-      console.error("Erro ao buscar produtos:", error);
-      set({ error: "Falha ao carregar produtos.", isLoading: false });
-    }
+  ensureProducts: () => {
+    if (get().allProducts.length > 0) return Promise.resolve();
+    return get().fetchProducts();
   },
 
   setCategory: (category) => {

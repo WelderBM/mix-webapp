@@ -103,6 +103,9 @@ vi.mock("@/store/productStore", () => {
 describe("Navbar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Contagem do menu (/catalogo/menu, #399): sem servidor no teste, o
+    // menu sai da lista de produtos da store.
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: false })));
     mockCategoryState.categories = [];
     mockProductState.allProducts = [];
   });

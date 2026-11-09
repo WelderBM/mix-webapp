@@ -517,3 +517,24 @@ describe("useProductStore", () => {
     });
   });
 });
+
+describe("ensureProducts (#399)", () => {
+  it("não lê de novo se o catálogo já está carregado", async () => {
+    useProductStore.setState({ allProducts: [makeProduct()] });
+    vi.mocked(getDocs).mockClear();
+    await useProductStore.getState().ensureProducts();
+    expect(getDocs).not.toHaveBeenCalled();
+  });
+
+  it("dois pedidos ao mesmo tempo fazem uma leitura só", async () => {
+    useProductStore.setState({ allProducts: [] });
+    vi.mocked(getDocs).mockClear();
+    vi.mocked(getDocs).mockResolvedValue(mockSnapshot([makeProduct()]) as any);
+    await Promise.all([
+      useProductStore.getState().ensureProducts(),
+      useProductStore.getState().fetchProducts(),
+    ]);
+    expect(getDocs).toHaveBeenCalledTimes(1);
+    expect(useProductStore.getState().allProducts).toHaveLength(1);
+  });
+});
