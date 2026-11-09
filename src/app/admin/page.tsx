@@ -346,11 +346,16 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
           </div>
           <div className="flex gap-2 flex-wrap justify-center md:justify-end">
             {/* Tarefa principal das atendentes (#235): à vista, não no menu ⋯. */}
-            <Link href="/admin/lancamento" className="w-full md:w-auto">
-              <Button className="h-12 w-full gap-2 bg-purple-600 text-base hover:bg-purple-700 md:h-10 md:text-sm">
+            {/* Button asChild, não <Link><Button>: o link inline em volta do
+                botão media quase 0px no axe (target-size, #357). */}
+            <Button
+              asChild
+              className="h-12 w-full gap-2 bg-purple-600 text-base hover:bg-purple-700 md:h-11 md:w-auto md:text-sm"
+            >
+              <Link href="/admin/lancamento">
                 <ClipboardList size={18} /> Lançar produtos
-              </Button>
-            </Link>
+              </Link>
+            </Button>
             {/* Salvar só onde há o que salvar (#242): em Pedidos/Produtos
                 ele não grava nada e confundia as atendentes. */}
             {viewMode === "inventory" &&
@@ -363,7 +368,7 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
                   ? "Carregando configurações atuais — aguarde antes de salvar"
                   : undefined
               }
-              className="h-11 bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-11 bg-green-700 hover:bg-green-800 text-white gap-2 flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {!settingsLoaded || !balloonsLoaded ? (
                 <Loader2 size={18} className="animate-spin" />

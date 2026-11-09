@@ -441,7 +441,7 @@ ${paymentInstruction}`;
   const getPaymentIcon = (method: string) => {
     if (method === "pix")
       return (
-        <div className="flex items-center gap-1 text-green-600">
+        <div className="flex items-center gap-1 text-green-700">
           <span className="font-bold text-xs">PIX</span>
         </div>
       );
@@ -653,7 +653,13 @@ ${paymentInstruction}`;
                   onClick={() => toggleExpand(order.id)}
                 >
                   <TableCell>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      aria-expanded={!!expandedOrders[order.id]}
+                      aria-label={`${expandedOrders[order.id] ? "Fechar" : "Abrir"} pedido de ${order.customerName}`}
+                    >
                       {expandedOrders[order.id] ? (
                         <ChevronUp size={16} />
                       ) : (
@@ -704,7 +710,9 @@ ${paymentInstruction}`;
                           updateStatus(order.id, v as OrderStatus)
                         }
                       >
+                        {/* combobox não tira o nome do texto de dentro (axe button-name, #220) */}
                         <SelectTrigger
+                          aria-label={`Status do pedido de ${order.customerName}`}
                           className={cn(
                             "h-7 w-[140px] text-xs font-bold border rounded-md shadow-sm focus:ring-0 transition-colors pl-3 pr-4",
                             getStatusColor(order.status)
@@ -900,6 +908,7 @@ ${paymentInstruction}`;
                   }
                 >
                   <SelectTrigger
+                    aria-label={`Status do pedido de ${order.customerName}`}
                     className={cn(
                       // 44px: alvo de toque mínimo no celular (#247). min-h, não h:
                       // o SelectTrigger força data-[size=default]:h-9, que vence h-*.
@@ -935,7 +944,7 @@ ${paymentInstruction}`;
                     <p className="text-xs font-bold text-slate-500 uppercase">
                       {paymentLabel(order.paymentMethod)}
                     </p>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[10px] text-slate-500">
                       {order.deliveryMethod === "delivery"
                         ? "Entrega"
                         : "Retirada"}
@@ -943,7 +952,7 @@ ${paymentInstruction}`;
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-slate-400">Total</p>
+                  <p className="text-xs text-slate-500">Total</p>
                   <p className="text-lg font-bold text-green-700">
                     {formatCurrency(order.total)}
                   </p>

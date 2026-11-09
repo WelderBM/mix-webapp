@@ -247,7 +247,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
               setSelectedTemplate("product_shelf");
               setIsModalOpen(true);
             }}
-            className="bg-green-600 hover:bg-green-700 text-white flex-1 md:flex-none"
+            className="bg-green-700 hover:bg-green-800 text-white flex-1 md:flex-none"
           >
             <Plus size={16} className="mr-2" /> Nova Seção
           </Button>
@@ -620,7 +620,7 @@ export function NaturaTab({ allProducts }: NaturaTabProps) {
             </Button>
             <Button
               onClick={handleSaveSection}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-green-700 hover:bg-green-800 text-white"
             >
               Salvar Seção
             </Button>

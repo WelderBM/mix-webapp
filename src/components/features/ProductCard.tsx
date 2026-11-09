@@ -198,7 +198,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 </Link>
               ) : (
                 <Button
-                  className="w-full bg-green-600 hover:bg-green-700 text-white gap-2 font-bold shadow-green-200 shadow-md h-11 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
+                  className="w-full bg-green-700 hover:bg-green-800 text-white gap-2 font-bold shadow-green-200 shadow-md h-11 transition-all hover:scale-[1.02] disabled:opacity-50 disabled:hover:scale-100"
                   onClick={handleAction}
                   disabled={priceUnavailable}
                 >

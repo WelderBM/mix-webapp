@@ -817,7 +817,7 @@ function AreaGrid({
               >
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="font-medium text-slate-800">
-                    <span className="text-slate-400">{a.id}.</span> {a.name}
+                    <span className="text-slate-500">{a.id}.</span> {a.name}
                   </span>
                   <span className="shrink-0 text-xs text-slate-500">
                     {pending > 0

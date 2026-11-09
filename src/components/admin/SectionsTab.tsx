@@ -1051,7 +1051,7 @@ export function SectionsTab({
             </div>
           </div>
           <DialogFooter className="p-4 border-t bg-white">
-            <Button onClick={handleSaveSection} className="bg-green-600">
+            <Button onClick={handleSaveSection} className="bg-green-700">
               Salvar Seção
             </Button>
           </DialogFooter>

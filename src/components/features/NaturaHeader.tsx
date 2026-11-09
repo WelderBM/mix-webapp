@@ -18,7 +18,7 @@ export function NaturaHeader() {
 
   return (
     <header className="sticky top-0 z-50 bg-white shadow-sm border-b border-green-100">
-      <div className="bg-green-600 text-white text-xs py-1 text-center font-medium">
+      <div className="bg-green-700 text-white text-xs py-1 text-center font-medium">
         🌿 Produtos Originais Natura | Entrega Rápida em Boa Vista
       </div>
 
