@@ -8,6 +8,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -333,6 +334,10 @@ export function CartSidebar() {
             <SheetTitle className="flex items-center gap-2 text-xl">
               <ShoppingCart className="text-purple-600" /> Seu Carrinho
             </SheetTitle>
+            {/* Só para leitor de tela: sem descrição o Radix avisa no console. */}
+            <SheetDescription className="sr-only">
+              Itens escolhidos, seus dados, entrega e forma de pagamento.
+            </SheetDescription>
           </SheetHeader>
 
           {items.length === 0 ? (
