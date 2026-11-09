@@ -201,6 +201,33 @@ export function nextArea(
   return null;
 }
 
+// Área em destaque na grade (#404). `last` é a última área em que EU
+// entrei (guardada no aparelho: a reserva some quando a atendente volta
+// para a grade). Depois, uma reserva minha ainda gravada; senão, a
+// primeira livre com pendência. `resume` diz se é continuação ou começo.
+export function suggestedArea(
+  progress: Record<number, AreaProgress>,
+  claims: Record<string, AreaClaim | undefined>,
+  me: string,
+  now: number,
+  last: number | null = null,
+): { id: number; resume: boolean } | null {
+  const ok = (id: number) => {
+    if ((progress[id]?.pending ?? 0) === 0) return false;
+    const c = activeClaim(claims[String(id)], now);
+    return !c || c.email === me;
+  };
+  if (last != null && areaById(last) && ok(last)) return { id: last, resume: true };
+  const mine = STORE_AREAS.map((a) => ({ id: a.id, c: claims[String(a.id)] }))
+    .filter((x) => x.c?.email === me)
+    .sort((a, b) => b.c!.at - a.c!.at);
+  for (const { id } of mine) {
+    if (ok(id)) return { id, resume: true };
+  }
+  const first = STORE_AREAS.find((a) => ok(a.id));
+  return first ? { id: first.id, resume: false } : null;
+}
+
 export function firstName(emailOrName: string): string {
   const base = emailOrName.split("@")[0].split(/[\s._-]+/)[0] ?? emailOrName;
   return base.charAt(0).toUpperCase() + base.slice(1);
