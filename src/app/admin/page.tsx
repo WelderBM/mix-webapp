@@ -341,8 +341,9 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-xl shadow-sm gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Painel Mix Novidades</h1>
-            <p className="text-xs text-slate-500">Gestão simplificada</p>
+            {/* Mesmo padrão de título/subtítulo de /admin/lancamento (#409). */}
+            <h1 className="text-xl font-bold text-slate-800 md:text-2xl">Painel Mix Novidades</h1>
+            <p className="text-sm text-slate-600">Gestão simplificada</p>
           </div>
           <div className="flex gap-2 flex-wrap justify-center md:justify-end">
             {/* Tarefa principal das atendentes (#235): à vista, não no menu ⋯. */}
