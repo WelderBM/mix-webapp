@@ -63,7 +63,7 @@ export function GroupInvite() {
           </p>
           <p className="text-sm text-slate-600">Novidades e ofertas exclusivas, direto no seu WhatsApp.</p>
           <Button
-            className="h-11 w-full gap-2 bg-green-600 text-white hover:bg-green-700"
+            className="h-11 w-full gap-2 bg-green-700 text-white hover:bg-green-800"
             onClick={() => window.open(link, "_blank", "noopener")}
           >
             Entrar no grupo

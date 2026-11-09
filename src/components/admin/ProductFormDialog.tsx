@@ -1123,7 +1123,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
               <Button
                 type="button"
                 onClick={() => handleSubmit()}
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-700 hover:bg-green-800"
                 disabled={loading}
               >
                 {loading ? (
