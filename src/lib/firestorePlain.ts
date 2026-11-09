@@ -2,7 +2,10 @@
 // Documento do Firestore traz `Timestamp` (classe com toJSON): em dev o
 // React acusa "Only plain objects can be passed to Client Components", e em
 // produção ele vira {seconds, nanoseconds} sem ninguém perceber. Converte
-// para texto ISO, o mesmo formato do `createdAt` dos pedidos.
+// para texto ISO, o mesmo formato do `createdAt` dos pedidos; quem lê data
+// de produto no cliente (`toEpochMillis`, productTags.ts) aceita esse texto.
+// Só converte Timestamp: outra classe do Firestore (DocumentReference,
+// GeoPoint) passaria direto — hoje nenhum produto/config tem esses campos.
 
 type TimestampLike = { toDate: () => Date; seconds: number; nanoseconds: number };
 
