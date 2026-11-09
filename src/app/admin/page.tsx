@@ -397,7 +397,8 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
                   variant="ghost"
                   size="icon"
                   aria-label="Mais opções"
-                  className="size-11 text-slate-400"
+                  // slate-400 ficava quase invisível (2,6:1; ícone pede 3:1) — #384
+                  className="size-11 text-slate-600"
                 >
                   <MoreHorizontal size={18} />
                 </Button>
