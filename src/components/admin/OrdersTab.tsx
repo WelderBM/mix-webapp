@@ -413,7 +413,9 @@ ${paymentInstruction}`;
       case "delivered":
         return "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200";
       case "cancelled":
-        return "bg-gray-100 text-gray-500 border-gray-200 decoration-line-through";
+        // Riscado e borda tracejada: não pode parecer "Entregue" (#384).
+        // `decoration-line-through` sozinho não riscava nada.
+        return "bg-white text-slate-600 border-dashed border-slate-400 line-through";
       default:
         return "bg-white border-slate-200";
     }
@@ -764,12 +766,13 @@ ${paymentInstruction}`;
                         size="sm"
                         variant="outline"
                         className="h-7 px-2 text-xs gap-1 bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100"
+                        title="Copia endereço e itens para mandar ao motoboy (só pedidos com entrega)"
                         onClick={(e) => {
                           e.stopPropagation();
                           copyDeliveryInfo(order);
                         }}
                       >
-                        <Copy size={12} /> Copiar Moto
+                        <Copy size={12} /> Copiar p/ Motoboy
                       </Button>
                     )}
                   </TableCell>
@@ -872,12 +875,14 @@ ${paymentInstruction}`;
             className="bg-white border rounded-xl shadow-sm overflow-hidden"
           >
             {/* Header do Card */}
-            <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="font-bold text-sm flex items-center gap-1.5">
-                  {order.customerName}
+            {/* gap + min-w-0: nome comprido quebra linha em vez de encostar
+                no seletor de status (revisão visual do #380, #384). */}
+            <div className="p-4 border-b bg-slate-50 flex justify-between items-center gap-3">
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="font-bold text-sm flex items-start gap-1.5">
+                  <span className="min-w-0 break-words">{order.customerName}</span>
                   {order.observation && (
-                    <StickyNote size={12} className="text-amber-500 shrink-0">
+                    <StickyNote size={12} className="text-amber-500 shrink-0 mt-1">
                       <title>Tem observação do cliente</title>
                     </StickyNote>
                   )}
@@ -900,7 +905,7 @@ ${paymentInstruction}`;
                   })()}
                 </span>
               </div>
-              <div>
+              <div className="shrink-0">
                 <Select
                   defaultValue={order.status}
                   onValueChange={(v) =>
@@ -1060,13 +1065,16 @@ ${paymentInstruction}`;
               )}
             </div>
 
+            {/* Só a seta não dizia que o card abre (#384): texto + botão de verdade. */}
             {!expandedOrders[order.id] && (
-              <div
-                className="bg-slate-50 p-2 text-center"
+              <button
+                type="button"
+                aria-expanded={false}
+                className="flex min-h-11 w-full items-center justify-center gap-1 bg-slate-50 text-xs font-medium text-slate-600"
                 onClick={() => toggleExpand(order.id)}
               >
-                <ChevronDown className="mx-auto text-slate-400" size={16} />
-              </div>
+                Ver detalhes <ChevronDown size={16} />
+              </button>
             )}
           </div>
         ))}
