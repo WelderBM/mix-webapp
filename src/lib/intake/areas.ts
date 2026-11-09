@@ -201,6 +201,29 @@ export function nextArea(
   return null;
 }
 
+// Área em destaque na grade (#404): onde EU entrei por último, se ainda
+// tem o que lançar e ninguém mais está lá; senão, a primeira livre com
+// pendência. A reserva vencida também conta como "minha última".
+export function suggestedArea(
+  progress: Record<number, AreaProgress>,
+  claims: Record<string, AreaClaim | undefined>,
+  me: string,
+  now: number,
+): number | null {
+  const pending = (id: number) => (progress[id]?.pending ?? 0) > 0;
+  const takenByOther = (id: number) => {
+    const c = activeClaim(claims[String(id)], now);
+    return !!c && c.email !== me;
+  };
+  const mine = STORE_AREAS.map((a) => ({ id: a.id, c: claims[String(a.id)] }))
+    .filter((x) => x.c?.email === me)
+    .sort((a, b) => b.c!.at - a.c!.at);
+  for (const { id } of mine) {
+    if (pending(id) && !takenByOther(id)) return id;
+  }
+  return STORE_AREAS.find((a) => pending(a.id) && !takenByOther(a.id))?.id ?? null;
+}
+
 export function firstName(emailOrName: string): string {
   const base = emailOrName.split("@")[0].split(/[\s._-]+/)[0] ?? emailOrName;
   return base.charAt(0).toUpperCase() + base.slice(1);

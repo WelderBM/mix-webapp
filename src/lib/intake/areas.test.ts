@@ -11,6 +11,7 @@ import {
   nextArea,
   NO_AREA,
   STORE_AREAS,
+  suggestedArea,
 } from "./areas";
 
 const item = (family: string | null, name = "X", suggestedType = "STANDARD_ITEM") =>
@@ -125,4 +126,26 @@ it("áreas numeradas de 1 a 16 e nomes curtos", () => {
   expect(areaForItem(item("CARREGADOR"))).toBe(16);
   expect(areaForItem(item("FONE"))).toBe(16);
   expect(firstName("maria.silva@gmail.com")).toBe("Maria");
+});
+
+describe("suggestedArea", () => {
+  const now = 10 * CLAIM_TTL_MS;
+  const p = (pending: number) => ({ total: 5, pending, families: [] });
+  it("volta para a última área minha com pendência, mesmo com reserva vencida", () => {
+    const progress = { 3: p(2), 5: p(1), 8: p(4) };
+    const claims = {
+      3: { email: "ana@x", name: "Ana", at: now - 2 * CLAIM_TTL_MS },
+      8: { email: "ana@x", name: "Ana", at: now - 3 * CLAIM_TTL_MS },
+    };
+    expect(suggestedArea(progress, claims, "ana@x", now)).toBe(3);
+  });
+  it("pula área concluída ou ocupada por outra pessoa", () => {
+    const progress = { 3: p(0), 5: p(1), 8: p(4) };
+    const claims = {
+      3: { email: "ana@x", name: "Ana", at: now - 1000 },
+      5: { email: "bia@x", name: "Bia", at: now - 1000 },
+    };
+    expect(suggestedArea(progress, claims, "ana@x", now)).toBe(8);
+    expect(suggestedArea({ 3: p(0) }, claims, "ana@x", now)).toBeNull();
+  });
 });
