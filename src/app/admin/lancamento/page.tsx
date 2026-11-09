@@ -101,6 +101,7 @@ export default function IntakeQueuePage() {
   );
   const [family, setFamily] = useState<string | null>(null);
   const [area, setArea] = useState<number | null>(null);
+  const [lastArea, setLastArea] = useState<number | null>(null);
   const [meta, setMeta] = useState<AreasMeta>({ claims: {}, overrides: {} });
   // Área ocupada por outra atendente: pede confirmação antes de entrar.
   const [busyArea, setBusyArea] = useState<{ id: number; name: string } | null>(null);
@@ -231,10 +232,20 @@ export default function IntakeQueuePage() {
     setText("");
     const fams = id == null ? [] : (progress[id]?.families ?? []);
     setFamily(fams[0] ?? null);
+    if (id != null && id !== NO_AREA && me) {
+      writeLastArea(me, id);
+      setLastArea(id);
+    }
     if (claim && id != null && id !== NO_AREA && me) {
       claimArea(id, me, firstName(user?.displayName || me)).catch(() => {});
     }
   }
+
+  // Última área desta atendente neste aparelho: o voltar apaga a reserva,
+  // então a sugestão "Continuar aqui" não pode depender só dela (#404).
+  useEffect(() => {
+    if (me) setLastArea(readLastArea(me));
+  }, [me]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(text), 300);
@@ -497,6 +508,7 @@ export default function IntakeQueuePage() {
             claims={meta.claims}
             me={me}
             now={now}
+            last={lastArea}
             onPick={pickArea}
           />
         )}
@@ -759,6 +771,27 @@ function Chip({
   );
 }
 
+// Guardado por e-mail: duas atendentes no mesmo celular não se misturam.
+// Valor antigo ou estranho vira "sem última área", nunca erro.
+const lastAreaKey = (email: string) => `lancamento:ultimaArea:${email}`;
+
+function readLastArea(email: string): number | null {
+  try {
+    const id = Number(localStorage.getItem(lastAreaKey(email)));
+    return areaById(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastArea(email: string, id: number) {
+  try {
+    localStorage.setItem(lastAreaKey(email), String(id));
+  } catch {
+    // modo privado / armazenamento cheio: a sugestão só fica menos precisa
+  }
+}
+
 function Scoreboard({
   summary,
   email,
@@ -814,16 +847,18 @@ function AreaGrid({
   claims,
   me,
   now,
+  last,
   onPick,
 }: {
   progress: Record<number, AreaProgress>;
   claims: AreasMeta["claims"];
   me: string;
   now: number;
+  last: number | null;
   onPick: (id: number) => void;
 }) {
   const unassigned = progress[NO_AREA];
-  const suggested = suggestedArea(progress, claims, me, now);
+  const suggested = suggestedArea(progress, claims, me, now, last);
   return (
     <section aria-label="Áreas da loja" className="space-y-2">
       <h2 className="text-lg font-bold text-slate-800">
@@ -837,10 +872,11 @@ function AreaGrid({
           const p = progress[a.id];
           const total = p?.total ?? 0;
           const pending = p?.pending ?? 0;
-          const pct = total > 0 ? Math.round(((total - pending) / total) * 100) : 100;
+          // floor: com 1 pendente nunca mostra 100%.
+          const pct = total > 0 ? Math.floor(((total - pending) / total) * 100) : 100;
           const c = activeClaim(claims[String(a.id)], now);
           const other = c && c.email !== me ? c : null;
-          const isSuggested = a.id === suggested;
+          const isSuggested = a.id === suggested?.id;
           return (
             <li key={a.id}>
               <button
@@ -848,7 +884,7 @@ function AreaGrid({
                 onClick={() => onPick(a.id)}
                 className={`flex min-h-16 w-full flex-col gap-1.5 rounded-xl border bg-white p-3 text-left active:bg-slate-50 ${
                   isSuggested
-                    ? "border-2 border-purple-600"
+                    ? "border-purple-600 ring-1 ring-purple-600"
                     : other
                       ? "border-amber-300"
                       : "border-slate-200"
@@ -856,7 +892,7 @@ function AreaGrid({
               >
                 {isSuggested && (
                   <span className="self-start rounded-full bg-purple-600 px-2 py-0.5 text-xs font-medium text-white">
-                    Continuar aqui
+                    {suggested?.resume ? "Continuar aqui" : "Comece aqui"}
                   </span>
                 )}
                 <span className="flex items-baseline justify-between gap-2">
@@ -876,7 +912,7 @@ function AreaGrid({
                       style={{ width: `${pct}%` }}
                     />
                   </span>
-                  <span className="shrink-0 text-xs text-slate-600">{pct}% lançado</span>
+                  <span className="shrink-0 text-xs text-slate-600">{pct}% conferido</span>
                 </span>
                 <span className="text-xs text-slate-500">
                   {other ? (
@@ -899,13 +935,13 @@ function AreaGrid({
           className="flex min-h-16 w-full items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-3 text-left text-sm active:bg-slate-50"
         >
           <span className="min-w-0 space-y-1">
-            <span className="block font-medium text-slate-700">Sem área definida</span>
+            <span className="block font-medium text-slate-700">Produtos ainda sem área</span>
             <span className="block text-xs text-slate-500">
-              Diga uma vez em que área fica cada família
+              Diga uma vez em que área fica cada grupo de produtos
             </span>
           </span>
-          <span className="shrink-0 text-xs text-slate-500">
-            {unassigned.families.length.toLocaleString("pt-BR")} grupos sem área
+          <span className="shrink-0 text-xs text-slate-600">
+            {unassigned.families.length.toLocaleString("pt-BR")} grupos
           </span>
         </button>
       )}
