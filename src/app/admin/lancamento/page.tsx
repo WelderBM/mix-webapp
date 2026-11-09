@@ -412,7 +412,8 @@ export default function IntakeQueuePage() {
             {/* Mesmo título/subtítulo de /admin e o ícone roxo do botão
                 "Lançar produtos" de lá (#409). A barra continua fixa no
                 topo: a busca fica sempre à mão no celular. */}
-            <h1 className="flex items-center gap-2 text-xl font-bold text-slate-800 md:text-2xl">
+            {/* text-lg no celular: a barra fixa divide a linha com o voltar. */}
+            <h1 className="flex items-center gap-2 text-lg font-bold text-slate-800 md:text-2xl">
               <ClipboardList size={20} className="shrink-0 text-purple-600" aria-hidden />
               Lançamento de produtos
             </h1>
