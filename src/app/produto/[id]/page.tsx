@@ -66,6 +66,9 @@ export async function generateMetadata({
   return {
     title: product.name,
     description,
+    // Desativado some da loja e do sitemap; o link direto ainda abre, mas o
+    // Google não indexa (#400).
+    ...(product.disabled === true ? { robots: { index: false, follow: true } } : {}),
     openGraph: {
       title: `${product.name} | Mix Novidades`,
       description,
