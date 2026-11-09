@@ -80,6 +80,26 @@ vi.mock("@/store/productStore", () => ({
     selector({ ...productStoreState, fetchProducts: fetchProductsMock }),
 }));
 
+// Leituras recortadas (useProductNeighbors, #399): a consulta por `in`
+// devolve `recent`; a por categoria, `related`.
+const firestoreDocs: { related: Product[]; recent: Product[] } = { related: [], recent: [] };
+vi.mock("@/lib/firebase", () => ({ db: {} }));
+vi.mock("firebase/firestore", () => ({
+  collection: vi.fn(() => ({})),
+  documentId: vi.fn(() => "__id__"),
+  limit: vi.fn(() => ({ kind: "limit" })),
+  where: vi.fn((field: string) => ({ kind: "where", field })),
+  query: vi.fn((_c: unknown, ...cs: { kind: string; field?: string }[]) => ({
+    byId: cs.some((c) => c.field === "__id__"),
+  })),
+  getDocs: vi.fn(async (q: { byId: boolean }) => ({
+    docs: (q.byId ? firestoreDocs.recent : firestoreDocs.related).map((p) => ({
+      id: p.id,
+      data: () => p,
+    })),
+  })),
+}));
+
 // useRecentlyViewed (issue #168) — controlado por `setRecentlyViewedState`.
 let recentlyViewedState: { recentIds: string[] } = { recentIds: [] };
 const recordVisitMock = vi.fn();
@@ -346,18 +366,21 @@ describe("ProductPageClient", () => {
     });
   });
 
-  it("fetches products from the store when it is empty and still loading, without crashing either new section", () => {
-    const current = makeProduct({ id: "prod-1" });
+  it("store vazia: lê só relacionados e vistos, sem baixar o catálogo inteiro (#399)", async () => {
+    const current = makeProduct({ id: "prod-1", category: "Cestas" });
+    const sibling = makeProduct({ id: "prod-2", name: "Cesta Irmã", category: "Cestas" });
+    const seen = makeProduct({ id: "prod-9", name: "Kit Visto", category: "Kits" });
+    const off = makeProduct({ id: "prod-3", name: "Desativada", category: "Cestas", disabled: true });
     setProductStoreState({ allProducts: [], isLoading: true });
+    setRecentlyViewedState(["prod-9", "prod-1"]);
+    firestoreDocs.related = [current, sibling, off];
+    firestoreDocs.recent = [seen];
 
     render(<ProductPageClient product={current} />);
 
-    expect(fetchProductsMock).toHaveBeenCalled();
-    expect(
-      screen.queryByText("Você também pode gostar")
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Vistos recentemente")
-    ).not.toBeInTheDocument();
+    expect(await screen.findByText("Cesta Irmã")).toBeInTheDocument();
+    expect(screen.getByText("Kit Visto")).toBeInTheDocument();
+    expect(screen.queryByText("Desativada")).not.toBeInTheDocument();
+    expect(fetchProductsMock).not.toHaveBeenCalled();
   });
 });
