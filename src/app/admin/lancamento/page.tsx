@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { ArrowLeft, ArrowRight, Loader2, MapPin, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ClipboardList, Loader2, MapPin, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type {
   IntakeFlag,
@@ -409,7 +409,14 @@ export default function IntakeQueuePage() {
             </Link>
           </Button>
           <div className="min-w-0">
-            <h1 className="font-bold text-slate-800">Lançamento de produtos</h1>
+            {/* Mesmo título/subtítulo de /admin e o ícone roxo do botão
+                "Lançar produtos" de lá (#409). A barra continua fixa no
+                topo: a busca fica sempre à mão no celular. */}
+            {/* text-lg no celular: a barra fixa divide a linha com o voltar. */}
+            <h1 className="flex items-center gap-2 text-lg font-bold text-slate-800 md:text-2xl">
+              <ClipboardList size={20} className="shrink-0 text-purple-600" aria-hidden />
+              Lançamento de produtos
+            </h1>
             {summary && (
               <p className="text-sm text-slate-600">
                 {summary.byStatus.publicado.toLocaleString("pt-BR")} já na loja
