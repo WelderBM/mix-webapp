@@ -10,6 +10,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { toPlain } from "@/lib/firestorePlain";
 import { Product, StoreSection } from "@/types";
 import { SectionRenderer } from "@/components/sections/SectionRenderer";
 import { Button } from "@/components/ui/button";
@@ -71,13 +72,13 @@ async function getNaturaData() {
       getDoc(doc(db, "settings", "natura")),
     ]);
 
-    const products = productsSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Product[];
+    // toPlain: Timestamp do Firestore não pode ir para Client Component.
+    const products = productsSnap.docs.map((doc) =>
+      toPlain({ id: doc.id, ...doc.data() })
+    ) as Product[];
 
     const settings = settingsSnap.exists()
-      ? (settingsSnap.data() as NaturaPageSettings)
+      ? (toPlain(settingsSnap.data()) as NaturaPageSettings)
       : { sections: [] };
 
     return { products, settings };
