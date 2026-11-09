@@ -1,44 +1,20 @@
 import { MetadataRoute } from "next";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-
-const BASE_URL =
-  process.env.NEXT_PUBLIC_BASE_URL || "https://mixnovidades.com.br";
+import { STATIC_PAGES, productEntries } from "@/lib/sitemapEntries";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // Buscar todos os produtos para gerar URLs dinâmicas
+  const now = new Date();
   let productsUrls: MetadataRoute.Sitemap = [];
   try {
     const productsSnap = await getDocs(collection(db, "products"));
-    productsUrls = productsSnap.docs.map((doc) => ({
-      url: `${BASE_URL}/produto/${doc.id}`,
-      lastModified: new Date(),
-      changeFrequency: "weekly" as const,
-      priority: 0.7,
-    }));
+    productsUrls = productEntries(
+      productsSnap.docs.map((d) => ({ id: d.id, disabled: d.data().disabled })),
+      now
+    );
   } catch (error) {
     console.error("Erro ao gerar sitemap de produtos:", error);
   }
 
-  return [
-    {
-      url: BASE_URL,
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 1,
-    },
-    {
-      url: `${BASE_URL}/fitas`,
-      lastModified: new Date(),
-      changeFrequency: "daily",
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/baloes`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.9,
-    },
-    ...productsUrls,
-  ];
+  return [...STATIC_PAGES.map((p) => ({ ...p, lastModified: now })), ...productsUrls];
 }

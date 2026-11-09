@@ -32,7 +32,7 @@ export const revalidate = 60;
 
 export const metadata: Metadata = {
   title:
-    "Natura em Boa Vista RR | Perfumes, Cosméticos e Maquiagem | Mix Novidades",
+    "Natura em Boa Vista RR | Perfumes, Cosméticos e Maquiagem",
   description:
     "Procurando produtos Natura em Boa Vista - Roraima? A Mix Novidades tem perfumes, cosméticos, maquiagem e kits exclusivos com entrega rápida no Sen. Hélio Campos. Compre online!",
   keywords: [
@@ -46,7 +46,8 @@ export const metadata: Metadata = {
     "consultoria natura sen helio campos",
   ],
   alternates: {
-    canonical: "https://mixnovidades.com.br/natura",
+    // Relativo: o metadataBase do layout completa com o domínio certo (#400).
+    canonical: "/natura",
   },
 };
 

@@ -12,15 +12,14 @@ import { CartSidebar } from "@/components/features/CartSidebar";
 // como este layout, por isso o dynamic() mora num Client Component dedicado.
 import { KitBuilderModalLoader } from "@/components/features/KitBuilderModalLoader";
 import OrganizationJsonLd from "@/components/seo/OrganizationJsonLd";
+import { SITE_URL } from "@/lib/siteUrl";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_BASE_URL || "https://www.mixnovidades.com"
-  ),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Mix Novidades | Presentes e Festas em Boa Vista",
     template: "%s | Mix Novidades",
