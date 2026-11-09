@@ -78,13 +78,18 @@ vi.mock("@/store/cartStore", () => ({
 
 // Catálogo da loja trocável por teste (ex.: produto recém-publicado que
 // ainda não está na cópia carregada).
-const { productState, fetchProductsMock } = vi.hoisted(() => ({
+const { productState, fetchProductsMock, ensureProductsMock } = vi.hoisted(() => ({
   productState: { allProducts: [] as unknown[], isLoading: false },
   fetchProductsMock: vi.fn(),
+  ensureProductsMock: vi.fn(async () => {}),
 }));
 vi.mock("@/store/productStore", () => {
   const useProductStore = () => ({ getProductById: vi.fn(), ...productState });
-  useProductStore.getState = () => ({ fetchProducts: fetchProductsMock });
+  useProductStore.getState = () => ({
+    fetchProducts: fetchProductsMock,
+    ensureProducts: ensureProductsMock,
+    allProducts: productState.allProducts,
+  });
   return { useProductStore };
 });
 
@@ -441,5 +446,50 @@ describe("CartSidebar — produto publicado depois de a loja abrir", () => {
   it("produto já no catálogo: não recarrega", () => {
     render(<CartSidebar />);
     expect(fetchProductsMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("CartSidebar — finalizar antes de o catálogo chegar (#399)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    (window as any).open = vi.fn();
+  });
+
+  it("espera a leitura e barra item que saiu de venda", async () => {
+    const sonner = await import("sonner");
+    productState.allProducts = [];
+    productState.isLoading = true;
+    // a leitura termina sem o produto do carrinho (desativado nesse meio tempo)
+    ensureProductsMock.mockImplementationOnce(async () => {
+      productState.allProducts = [];
+      productState.isLoading = false;
+    });
+    render(<CartSidebar />);
+    fillContact();
+    fireEvent.click(screen.getByText("Finalizar Pedido"));
+
+    await waitFor(() => expect(ensureProductsMock).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(sonner.toast.error).toHaveBeenCalledWith(
+        expect.stringContaining("não está mais disponível")
+      )
+    );
+    expect(addDocMock).not.toHaveBeenCalled();
+  });
+
+  it("espera a leitura e segue quando o item continua à venda", async () => {
+    productState.allProducts = [];
+    productState.isLoading = true;
+    ensureProductsMock.mockImplementationOnce(async () => {
+      productState.allProducts = [cartItem.product];
+      productState.isLoading = false;
+    });
+    render(<CartSidebar />);
+    fillContact();
+    fireEvent.click(screen.getByText("Finalizar Pedido"));
+
+    await waitFor(() => expect(addDocMock).toHaveBeenCalledTimes(1));
+    productState.isLoading = false;
   });
 });

@@ -217,14 +217,19 @@ export function CartSidebar() {
     // localStorage) com um item que ficou indisponível nesse meio tempo —
     // barra aqui, antes de gravar o pedido, em vez de deixar estourar depois
     // do addDoc (pedido já criado, mensagem de WhatsApp que quebra no meio).
-    if (!isLoadingProducts) {
-      const reason = items
-        .map((item) => getCartItemUnavailableReason(item, allProducts))
-        .find((r) => r != null);
-      if (reason) {
-        toast.error(`${reason} Remova esse item para continuar.`);
-        return;
-      }
+    // O catálogo só começa a descer quando o carrinho abre (#399): se o
+    // cliente tocar antes de ele chegar, espera a leitura e confere com ela.
+    let liveProducts = allProducts;
+    if (isLoadingProducts) {
+      await useProductStore.getState().ensureProducts();
+      liveProducts = useProductStore.getState().allProducts;
+    }
+    const reason = items
+      .map((item) => getCartItemUnavailableReason(item, liveProducts))
+      .find((r) => r != null);
+    if (reason) {
+      toast.error(`${reason} Remova esse item para continuar.`);
+      return;
     }
 
     if (!customerName.trim()) {

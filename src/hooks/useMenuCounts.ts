@@ -10,17 +10,22 @@ let request: Promise<CategoryCounts | null> | null = null;
 function loadMenuCounts(): Promise<CategoryCounts | null> {
   request ??= fetch("/catalogo/menu")
     .then((r) => (r.ok ? r.json() : null))
-    .then((j: { counts?: CategoryCounts | null } | null) => j?.counts ?? null)
+    .then((j: { counts?: CategoryCounts | null } | null) => {
+      if (!j?.counts) throw new Error("sem contagem");
+      return j.counts;
+    })
     .catch(() => {
-      request = null; // deixa tentar de novo na próxima montagem
+      request = null; // falha ou resposta vazia: tenta de novo na próxima montagem
       return null;
     });
   return request;
 }
 
 // Contagem do menu "Loja" sem baixar o catálogo (#399). Se a página já
-// carregou os produtos (home, /fitas), conta a partir deles; senão, usa a
-// contagem pronta do servidor.
+// carregou os produtos, conta a partir deles; senão, usa a contagem pronta
+// do servidor. Em página que lê o catálogo ao abrir (/fitas, /baloes) a
+// leitura ainda não terminou no microtask, então a contagem (~1 KB, CDN)
+// também é pedida; quando o catálogo chega, ele passa a valer.
 export function useMenuCounts(): CategoryCounts | null {
   const hasCatalog = useProductStore((s) => s.allProducts.length > 0);
   const [counts, setCounts] = useState<CategoryCounts | null>(null);

@@ -28,6 +28,10 @@ export async function GET() {
     return Response.json({ counts });
   } catch (error) {
     console.error("Erro ao contar o menu:", (error as Error)?.message);
+    // Fora do build, relança: numa revalidação com falha o Next mantém a
+    // última contagem boa em vez de guardar `null` por 5 min. No build não
+    // há versão anterior, então sai `null` (o menu tenta de novo no cliente).
+    if (process.env.NEXT_PHASE !== "phase-production-build") throw error;
     return Response.json({ counts: null });
   }
 }
