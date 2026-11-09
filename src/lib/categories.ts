@@ -40,32 +40,55 @@ export interface VisibleCategory extends Category {
   visibleSubcategories: VisibleSubcategory[];
 }
 
+// Vendáveis por categoria e subcategoria (por nome). É o que o menu precisa
+// saber — o servidor manda só isto (/catalogo/menu) em vez do catálogo
+// inteiro (#399).
+export type CategoryCounts = Record<
+  string,
+  { total: number; subs: Record<string, number> }
+>;
+
+export const countSellableByCategory = (products: Product[]): CategoryCounts => {
+  const out: CategoryCounts = {};
+  for (const p of products) {
+    if (!p.category || !isSellable(p)) continue;
+    const c = (out[p.category] ??= { total: 0, subs: {} });
+    c.total += 1;
+    if (p.subcategory) c.subs[p.subcategory] = (c.subs[p.subcategory] ?? 0) + 1;
+  }
+  return out;
+};
+
 // Categorias ativas, ordenadas por `order`, com pelo menos 1 produto
 // vendável — pronto pro mega-menu "Loja" e pra página /categoria/[slug]
 // decidir se a categoria existe.
 export const getVisibleCategories = (
   categories: Category[],
-  products: Product[]
-): VisibleCategory[] =>
-  categories
+  products: Product[] | CategoryCounts
+): VisibleCategory[] => {
+  const counts = Array.isArray(products)
+    ? countSellableByCategory(products)
+    : products;
+  return categories
     .filter((c) => c.active)
     .map((c) => {
       const visibleSubcategories = [...c.subcategories]
         .sort((a, b) => a.order - b.order)
         .map((s) => ({
           ...s,
-          productCount: countSubcategoryProducts(products, c.name, s.name),
+          productCount: counts[c.name]?.subs[s.name] ?? 0,
         }))
         .filter((s) => s.productCount > 0);
 
       return {
         ...c,
-        productCount: countCategoryProducts(products, c.name),
+        productCount: counts[c.name]?.total ?? 0,
         visibleSubcategories,
       };
     })
     .filter((c) => c.productCount > 0)
     .sort((a, b) => a.order - b.order);
+};
 
 // Produtos de uma categoria (por nome), opcionalmente restritos a uma
 // subcategoria (por nome) — usado pela página /categoria/[slug]. Não filtra
