@@ -841,7 +841,7 @@ export function CartSidebar() {
                 <Button
                   onClick={handleCheckout}
                   disabled={isCheckingOut}
-                  className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700"
+                  className="w-full h-12 text-lg font-bold bg-green-700 hover:bg-green-800"
                 >
                   {isCheckingOut ? (
                     <Loader2 className="animate-spin" />
