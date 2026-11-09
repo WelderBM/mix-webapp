@@ -131,6 +131,8 @@ describe("ProductPageClient", () => {
     vi.clearAllMocks();
     setProductStoreState({});
     setRecentlyViewedState([]);
+    firestoreDocs.related = [];
+    firestoreDocs.recent = [];
   });
 
   it("renders product name, price and description from the resolved prop", () => {
