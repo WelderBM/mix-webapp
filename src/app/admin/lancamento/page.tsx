@@ -185,11 +185,15 @@ export default function IntakeQueuePage() {
   }, [router]);
 
   const [summaryVersion, setSummaryVersion] = useState(0);
+  // Falha de rede não é "fila vazia": antes caía no aviso de importar o
+  // Noturno, e a atendente pedia uma importação à toa.
+  const [summaryFailed, setSummaryFailed] = useState(false);
   useEffect(() => {
     if (!user) return;
+    setSummaryFailed(false);
     getDoc(doc(db, "intake_meta", "summary"))
       .then((s) => setSummary(s.exists() ? (s.data() as IntakeSummary) : null))
-      .catch(() => setSummary(null));
+      .catch(() => setSummaryFailed(true));
   }, [user, summaryVersion]);
 
   useEffect(() => {
@@ -442,6 +446,31 @@ export default function IntakeQueuePage() {
       </header>
 
       <div className="mx-auto max-w-3xl space-y-4 p-4">
+        {/* Sem isto a tela ficava em branco abaixo dos filtros enquanto o
+            resumo carregava (vistoria de 02/11, celular). */}
+        {summary === undefined && !summaryFailed && (
+          <div
+            role="status"
+            className="flex flex-col items-center gap-2 py-12 text-sm text-slate-500"
+          >
+            <Loader2 className="animate-spin text-slate-400" size={28} />
+            Carregando as áreas da loja…
+          </div>
+        )}
+
+        {summaryFailed && (
+          <div className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <p>Não consegui carregar a fila. Confira a internet e tente de novo.</p>
+            <Button
+              variant="outline"
+              className="h-11"
+              onClick={() => setSummaryVersion((v) => v + 1)}
+            >
+              Tentar de novo
+            </Button>
+          </div>
+        )}
+
         {summary === null && (
           <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             A fila ainda está vazia. Peça para o administrador importar o

@@ -766,7 +766,7 @@ ${paymentInstruction}`;
                         size="sm"
                         variant="outline"
                         className="h-7 px-2 text-xs gap-1 bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100"
-                        title="Copia endereço e itens para mandar ao motoboy (só pedidos com entrega)"
+                        title="Copia endereço, telefone e pagamento para mandar ao motoboy (só pedidos com entrega)"
                         onClick={(e) => {
                           e.stopPropagation();
                           copyDeliveryInfo(order);
@@ -1065,17 +1065,25 @@ ${paymentInstruction}`;
               )}
             </div>
 
-            {/* Só a seta não dizia que o card abre (#384): texto + botão de verdade. */}
-            {!expandedOrders[order.id] && (
-              <button
-                type="button"
-                aria-expanded={false}
-                className="flex min-h-11 w-full items-center justify-center gap-1 bg-slate-50 text-xs font-medium text-slate-600"
-                onClick={() => toggleExpand(order.id)}
-              >
-                Ver detalhes <ChevronDown size={16} />
-              </button>
-            )}
+            {/* Só a seta não dizia que o card abre (#384): texto + botão de
+                verdade. Fica nos dois estados para o foco do teclado/TalkBack
+                não se perder ao abrir, e para dar como fechar (revisão #403). */}
+            <button
+              type="button"
+              aria-expanded={!!expandedOrders[order.id]}
+              className="flex min-h-11 w-full items-center justify-center gap-1 border-t bg-slate-50 text-xs font-medium text-slate-600"
+              onClick={() => toggleExpand(order.id)}
+            >
+              {expandedOrders[order.id] ? (
+                <>
+                  Ocultar detalhes <ChevronUp size={16} />
+                </>
+              ) : (
+                <>
+                  Ver detalhes <ChevronDown size={16} />
+                </>
+              )}
+            </button>
           </div>
         ))}
 
