@@ -658,7 +658,7 @@ ${paymentInstruction}`;
                       size="sm"
                       className="h-8 w-8 p-0"
                       aria-expanded={!!expandedOrders[order.id]}
-                      aria-label={`${expandedOrders[order.id] ? "Fechar" : "Abrir"} pedido de ${order.customerName}`}
+                      aria-label={`Pedido de ${order.customerName}`}
                     >
                       {expandedOrders[order.id] ? (
                         <ChevronUp size={16} />
@@ -1149,7 +1149,7 @@ ${paymentInstruction}`;
               {fallbackItem.kitComponents &&
                 fallbackItem.kitComponents.length > 0 && (
                   <div>
-                    <p className="text-xs text-slate-400 font-bold uppercase mb-1">
+                    <p className="text-xs text-slate-500 font-bold uppercase mb-1">
                       Componentes do kit
                     </p>
                     <ul className="list-disc list-inside space-y-0.5">
@@ -1161,7 +1161,7 @@ ${paymentInstruction}`;
                 )}
               {fallbackItem.balloonDetails && (
                 <div>
-                  <p className="text-xs text-slate-400 font-bold uppercase mb-1">
+                  <p className="text-xs text-slate-500 font-bold uppercase mb-1">
                     Balão
                   </p>
                   <p>
@@ -1172,7 +1172,7 @@ ${paymentInstruction}`;
               )}
               {fallbackItem.ribbonDetails && (
                 <div>
-                  <p className="text-xs text-slate-400 font-bold uppercase mb-1">
+                  <p className="text-xs text-slate-500 font-bold uppercase mb-1">
                     Laço/fita personalizada
                   </p>
                   <p>
@@ -1186,7 +1186,7 @@ ${paymentInstruction}`;
               )}
               {fallbackItem.customizations && (
                 <div>
-                  <p className="text-xs text-slate-400 font-bold uppercase mb-1">
+                  <p className="text-xs text-slate-500 font-bold uppercase mb-1">
                     Personalização
                   </p>
                   <p>
