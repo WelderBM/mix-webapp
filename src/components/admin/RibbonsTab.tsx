@@ -1,7 +1,12 @@
 "use client";
 
 import { Dispatch, SetStateAction, useMemo, useState } from "react";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, updateDoc } from "firebase/firestore";
+import {
+  activePerMeterFor,
+  closePerMeterPatch,
+  hasSoldFromRoll,
+} from "@/lib/ribbonOpenRoll";
 import { auth, db } from "@/lib/firebase";
 import { deleteProducts } from "@/lib/intake/actions";
 import {
@@ -84,6 +89,37 @@ export function RibbonsTab({
     {}
   );
   const [fitaToDelete, setFitaToDelete] = useState<Product | null>(null);
+  // "p/ metro" (#413): encerrar (acabou ou sobra que não rende) ou devolver
+  // ao rolo fechado (desfaz a abertura; raro).
+  const [perMeterAction, setPerMeterAction] = useState<{
+    fita: Product;
+    kind: "encerrar" | "devolver";
+  } | null>(null);
+  const [perMeterSaving, setPerMeterSaving] = useState(false);
+  const handlePerMeterAction = async () => {
+    if (!perMeterAction) return;
+    setPerMeterSaving(true);
+    try {
+      await updateDoc(
+        doc(db, "products", perMeterAction.fita.id),
+        closePerMeterPatch(
+          perMeterAction.fita,
+          new Date(),
+          perMeterAction.kind === "devolver"
+        )
+      );
+      toast.success(
+        perMeterAction.kind === "encerrar"
+          ? "Rolo encerrado. Já dá para abrir o próximo."
+          : "Abertura desfeita. Lembre de devolver o rolo no Noturno."
+      );
+      setPerMeterAction(null);
+    } catch {
+      toast.error("Não foi possível salvar. Tente de novo.");
+    } finally {
+      setPerMeterSaving(false);
+    }
+  };
   const [deletingFita, setDeletingFita] = useState(false);
   const [fitaToOpen, setFitaToOpen] = useState<Product | null>(null);
   // Edição (#366): filtro, ordenação e seleção para excluir em lote.
@@ -353,14 +389,22 @@ export function RibbonsTab({
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setFitaToOpen(fita)}
-                            className="h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-white hover:bg-blue-50 text-blue-600 border-blue-200 rounded-full"
-                          >
-                            Abrir Rolo
-                          </Button>
+                          {activePerMeterFor(fita.id, allProducts) ? (
+                            // Um aberto por vez (#413): o próximo só depois de
+                            // encerrar o atual.
+                            <span className="rounded-full border border-purple-200 bg-purple-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-tight text-purple-700">
+                              Rolo aberto
+                            </span>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setFitaToOpen(fita)}
+                              className="h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-white hover:bg-blue-50 text-blue-600 border-blue-200 rounded-full"
+                            >
+                              Abrir Rolo
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -441,7 +485,8 @@ export function RibbonsTab({
                     allProducts.filter(
                       (p) =>
                         p.type === "RIBBON" &&
-                        p.ribbonInventory?.status === "ABERTO"
+                        p.ribbonInventory?.status === "ABERTO" &&
+                        p.disabled !== true
                     ).length
                   }
                 </Badge>
@@ -453,6 +498,7 @@ export function RibbonsTab({
                     (p) =>
                       p.type === "RIBBON" &&
                       p.ribbonInventory?.status === "ABERTO" &&
+                      p.disabled !== true &&
                       p.name
                         .toLowerCase()
                         .includes(ribbonSearchTerm.toLowerCase())
@@ -506,52 +552,73 @@ export function RibbonsTab({
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            title={
-                              isPartiallyOpenedRoll(fita)
-                                ? "Rolo com sobra: \"Fechar Manual\" só reverte uma abertura indevida quando o rolo está intacto. Venda de sobra avulsa ainda não tem fluxo próprio (#66)."
-                                : undefined
-                            }
-                            onClick={async () => {
-                              // #66: "Fechar Manual" com sobra reaplicaria o
-                              // rollPrice CHEIO a uma metragem parcial —
-                              // cobrando o preço do rolo inteiro por um rolo
-                              // que só tem parte dele. Até existir um fluxo
-                              // próprio pra vender a sobra avulsa (ou um
-                              // modelo de preço parcial), restringimos este
-                              // botão a reverter só uma abertura indevida
-                              // (rolo ainda intacto).
-                              if (isPartiallyOpenedRoll(fita)) {
-                                toast.error(
-                                  "Esse rolo já tem sobra vendida — \"Fechar Manual\" cobraria o preço do rolo cheio por uma metragem parcial. Sem fluxo de venda de sobra avulsa ainda (issue #66)."
-                                );
-                                return;
+                          {fita.openedFromId ? (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setPerMeterAction({ fita, kind: "encerrar" })}
+                                className="h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-white hover:bg-purple-50 text-purple-700 border-purple-200 rounded-full"
+                              >
+                                Encerrar rolo
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setPerMeterAction({ fita, kind: "devolver" })}
+                                className="h-8 px-2 text-[10px] font-bold uppercase tracking-tight text-slate-600"
+                              >
+                                Devolver
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              title={
+                                isPartiallyOpenedRoll(fita)
+                                  ? "Rolo com sobra: \"Fechar Manual\" só reverte uma abertura indevida quando o rolo está intacto. Venda de sobra avulsa ainda não tem fluxo próprio (#66)."
+                                  : undefined
                               }
-                              const updated = {
-                                ...fita,
-                                ribbonInventory: {
-                                  ...fita.ribbonInventory,
-                                  status: "FECHADO",
-                                },
-                              };
-                              await setDoc(
-                                doc(db, "products", fita.id),
-                                updated
-                              );
-                              toast.success(
-                                "Fita movida para rolos fechados"
-                              );
-                            }}
-                            className={cn(
-                              "h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-slate-50 hover:bg-slate-100 text-slate-500 border-slate-200 rounded-full",
-                              isPartiallyOpenedRoll(fita) &&
-                                "opacity-50 hover:bg-slate-50"
-                            )}
-                          >
-                            Fechar Manual
-                          </Button>
+                              onClick={async () => {
+                                // #66: "Fechar Manual" com sobra reaplicaria o
+                                // rollPrice CHEIO a uma metragem parcial —
+                                // cobrando o preço do rolo inteiro por um rolo
+                                // que só tem parte dele. Até existir um fluxo
+                                // próprio pra vender a sobra avulsa (ou um
+                                // modelo de preço parcial), restringimos este
+                                // botão a reverter só uma abertura indevida
+                                // (rolo ainda intacto).
+                                if (isPartiallyOpenedRoll(fita)) {
+                                  toast.error(
+                                    "Esse rolo já tem sobra vendida — \"Fechar Manual\" cobraria o preço do rolo cheio por uma metragem parcial. Sem fluxo de venda de sobra avulsa ainda (issue #66)."
+                                  );
+                                  return;
+                                }
+                                const updated = {
+                                  ...fita,
+                                  ribbonInventory: {
+                                    ...fita.ribbonInventory,
+                                    status: "FECHADO",
+                                  },
+                                };
+                                await setDoc(
+                                  doc(db, "products", fita.id),
+                                  updated
+                                );
+                                toast.success(
+                                  "Fita movida para rolos fechados"
+                                );
+                              }}
+                              className={cn(
+                                "h-8 px-3 text-[10px] font-bold uppercase tracking-tight bg-slate-50 hover:bg-slate-100 text-slate-500 border-slate-200 rounded-full",
+                                isPartiallyOpenedRoll(fita) &&
+                                  "opacity-50 hover:bg-slate-50"
+                              )}
+                            >
+                              Fechar Manual
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -1062,7 +1129,30 @@ export function RibbonsTab({
         onConfirm={handleBulkDelete}
       />
 
+      <ConfirmDialog
+        open={!!perMeterAction}
+        onOpenChange={(open) => !open && !perMeterSaving && setPerMeterAction(null)}
+        title={
+          perMeterAction?.kind === "devolver"
+            ? `Devolver "${perMeterAction.fita.name}" ao rolo fechado?`
+            : `Encerrar "${perMeterAction?.fita.name}"?`
+        }
+        description={
+          perMeterAction == null
+            ? undefined
+            : perMeterAction.kind === "devolver"
+              ? `A fita sai da venda por metro. ${hasSoldFromRoll(perMeterAction.fita) ? "Já foram vendidos metros deste rolo: a sobra deixa de ser controlada no site. " : ""}Lembre de devolver 1 rolo no Noturno.`
+              : (perMeterAction.fita.ribbonInventory?.remainingMeters ?? 0) > 0
+                ? `Encerrar com ${perMeterAction.fita.ribbonInventory?.remainingMeters} m restantes? A sobra fica registrada no produto e já dá para abrir o próximo rolo.`
+                : "O rolo acabou. Já dá para abrir o próximo."
+        }
+        confirmLabel={perMeterAction?.kind === "devolver" ? "Devolver" : "Encerrar"}
+        loading={perMeterSaving}
+        onConfirm={handlePerMeterAction}
+      />
+
       <OpenRibbonRollModal
+        products={allProducts}
         fita={fitaToOpen}
         onOpenChange={(open) => !open && setFitaToOpen(null)}
         onOpened={() => setFitaToOpen(null)}
