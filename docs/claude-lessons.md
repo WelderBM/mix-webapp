@@ -221,3 +221,6 @@ Com `beforeEach(() => mock.mockReset())` e um teste em que o mock rejeita (`mock
 
 ### Rota `GET` com `force-static` + `revalidate`: não devolver 200 no `catch`
 Uma resposta de erro com status 200 vira a versão em cache até a próxima revalidação. Na revalidação, relançar o erro faz o Next manter a última versão boa. Só no build, quando ainda não há versão anterior, faz sentido devolver um valor neutro (`process.env.NEXT_PHASE === "phase-production-build"`). E quem consome trata o valor neutro como falha, para tentar de novo. Achado real: revisão do #408.
+
+### Zustand no servidor devolve SEMPRE o estado inicial da store
+No HTML do servidor, `useStore()` usa o `getInitialState()` da store (snapshot do servidor do `useSyncExternalStore`), e nenhum `setState` feito num `useEffect` roda ali. Um teste do tipo `store.x.id ? store.x : propDoServidor` sempre escolhe a store se o estado inicial já tiver `id`. A home caiu nisso: `DEFAULT_SETTINGS` nasce com `id: "general"` e `homeSections: []`, e o HTML que o Google lê saía "Sua vitrine está vazia", mesmo com seções ativas no Firestore. **Padrão:** só preferir a store quando ela estiver carregada de fato (`isLoading === false`). Até lá, usar a prop que veio do Server Component. Teste com `renderToString`, que reproduz o servidor. Achado real: `HomeClient.tsx` (27/11).
