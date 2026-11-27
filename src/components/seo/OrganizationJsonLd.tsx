@@ -1,4 +1,5 @@
 import { SITE_URL } from "@/lib/siteUrl";
+import { openingHoursSpecification } from "@/lib/storeHours";
 
 export default function OrganizationJsonLd() {
   const jsonLd = {
@@ -23,22 +24,7 @@ export default function OrganizationJsonLd() {
       latitude: 2.818, // Approximate, update with real coordinates if possible
       longitude: -60.671,
     },
-    openingHoursSpecification: [
-      {
-        "@type": "OpeningHoursSpecification",
-        dayOfWeek: [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ],
-        opens: "09:00",
-        closes: "13:00",
-      },
-    ],
+    openingHoursSpecification: openingHoursSpecification(),
     sameAs: ["https://instagram.com/mixnovidades_rr"],
   };
 
