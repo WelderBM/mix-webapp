@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { useProductStore } from "@/store/productStore";
+import type { Product } from "@/types";
+import { useSubcategoryProducts } from "@/hooks/useCatalogQueries";
 import { ProductCard } from "@/components/features/ProductCard";
 import { normalizeText } from "@/lib/intake/search";
 import { CUSTOM_BALLOON_SUBCATEGORY } from "@/lib/intake/subcategories";
@@ -11,21 +11,12 @@ import { CUSTOM_BALLOON_SUBCATEGORY } from "@/lib/intake/subcategories";
 // juntos. São produtos comuns da subcategoria "Balões personalizados".
 const SUB = normalizeText(CUSTOM_BALLOON_SUBCATEGORY);
 
+const isCustomBalloon = (p: Product) =>
+  !!p.subcategory && normalizeText(p.subcategory) === SUB;
+
 export function CustomBalloonShelf() {
-  const allProducts = useProductStore((s) => s.allProducts);
-  const loading = useProductStore((s) => s.isLoading);
-  const fetchProducts = useProductStore((s) => s.fetchProducts);
-
-  // Visitante que chega direto em /baloes: catálogo ainda não carregado.
-  useEffect(() => {
-    if (allProducts.length === 0 && loading) fetchProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const products = useMemo(
-    () => allProducts.filter((p) => p.subcategory && normalizeText(p.subcategory) === SUB),
-    [allProducts],
-  );
+  // Só a subcategoria, não o catálogo inteiro (#399).
+  const products = useSubcategoryProducts(CUSTOM_BALLOON_SUBCATEGORY, isCustomBalloon);
 
   if (products.length === 0) return null;
   return (

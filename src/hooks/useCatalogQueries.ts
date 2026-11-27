@@ -203,3 +203,33 @@ export function useRibbonProducts(): { products: Product[]; loading: boolean } {
   if (hasCatalog) return { products: fromStore, loading: false };
   return { products: loaded ?? [], loading: loaded == null };
 }
+
+// Produtos de uma subcategoria pelo nome exato (#399): a vitrine de balões
+// personalizados em /baloes. Catálogo já carregado: filtra a store com o
+// comparador tolerante (acento/maiúscula). Senão lê só a subcategoria, com o
+// nome que o Lançamento grava.
+export function useSubcategoryProducts(
+  subcategory: string,
+  matches: (p: Product) => boolean
+): Product[] {
+  const allProducts = useProductStore((s) => s.allProducts);
+  const hasCatalog = allProducts.length > 0;
+  const [loaded, setLoaded] = useState<Product[]>([]);
+
+  useEffect(() => {
+    if (hasCatalog) return;
+    let alive = true;
+    (async () =>
+      toProducts(
+        await getDocs(query(collection(db, "products"), where("subcategory", "==", subcategory)))
+      ))()
+      .then((products) => alive && setLoaded(products))
+      .catch((error) => console.error("Erro ao buscar a subcategoria:", error));
+    return () => {
+      alive = false;
+    };
+  }, [hasCatalog, subcategory]);
+
+  const fromStore = useMemo(() => allProducts.filter(matches), [allProducts, matches]);
+  return hasCatalog ? fromStore : loaded;
+}

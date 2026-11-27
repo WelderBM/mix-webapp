@@ -36,7 +36,7 @@ vi.mock("firebase/firestore", () => ({
   }),
 }));
 
-import { useCategoryProducts, useProductNeighbors, useRibbonProducts } from "./useCatalogQueries";
+import { useCategoryProducts, useProductNeighbors, useRibbonProducts, useSubcategoryProducts } from "./useCatalogQueries";
 
 const p = (over: Partial<Product>): Product =>
   ({ id: "x", name: "P", price: 1, type: "STANDARD_ITEM", unit: "un", inStock: true, ...over }) as Product;
@@ -112,6 +112,27 @@ describe("useRibbonProducts (#399, fatia 3)", () => {
     const { result } = renderHook(() => useRibbonProducts());
     expect(result.current.loading).toBe(false);
     expect(result.current.products.map((x) => x.id)).toEqual(["f1"]);
+    expect(whereMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("useSubcategoryProducts (#399, /baloes)", () => {
+  const isCustom = (x: Product) => x.subcategory === "Balões personalizados";
+
+  it("store vazia: lê só a subcategoria e tira desativados", async () => {
+    docs.slice = [
+      p({ id: "b1", subcategory: "Balões personalizados" }),
+      p({ id: "b2", subcategory: "Balões personalizados", disabled: true }),
+    ];
+    const { result } = renderHook(() => useSubcategoryProducts("Balões personalizados", isCustom));
+    await waitFor(() => expect(result.current.map((x) => x.id)).toEqual(["b1"]));
+    expect(whereMock).toHaveBeenCalledWith("subcategory", "==", "Balões personalizados");
+  });
+
+  it("catálogo carregado: filtra a store e não lê nada", () => {
+    store.allProducts = [p({ id: "b1", subcategory: "Balões personalizados" }), p({ id: "x" })];
+    const { result } = renderHook(() => useSubcategoryProducts("Balões personalizados", isCustom));
+    expect(result.current.map((x) => x.id)).toEqual(["b1"]);
     expect(whereMock).not.toHaveBeenCalled();
   });
 });
