@@ -658,7 +658,7 @@ ${paymentInstruction}`;
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0"
+                      className="size-11 p-0"
                       aria-expanded={!!expandedOrders[order.id]}
                       aria-label={`Pedido de ${order.customerName}`}
                     >
