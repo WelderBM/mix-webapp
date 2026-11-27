@@ -145,7 +145,11 @@ function FitasContent() {
     autoTabRef.current = true;
     if (searchParams.get("aba")) return;
     const closedInStock = closedRolls.some((p) => p.inStock !== false);
-    if (!closedInStock && openRibbons.length > 0) setActiveTab("meter");
+    // Só troca se a cliente ainda está na aba de entrada: se ela já tocou em
+    // outra enquanto carregava, fica onde escolheu (revisão do #434).
+    if (!closedInStock && openRibbons.length > 0) {
+      setActiveTab((t) => (t === "rolls" ? "meter" : t));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ribbonsLoading, closedRolls, openRibbons]);
 

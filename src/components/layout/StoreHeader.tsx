@@ -15,7 +15,7 @@ export function StoreHeader({ compact = false }: { compact?: boolean }) {
     <div className={compact ? "max-w-6xl mx-auto px-4 mt-4 mb-6 md:mt-6 md:mb-8" : "max-w-6xl mx-auto px-4 mt-6 mb-8"}>
       {/* VOLTOU PARA O FUNDO NEUTRO (bg-slate-900) */}
       <div
-        className={`relative ${compact ? "h-[150px] md:h-[260px]" : "h-[280px] md:h-[350px]"} w-full overflow-hidden rounded-3xl shadow-xl flex justify-center items-center bg-slate-900`}
+        className={`relative ${compact ? "h-[170px] md:h-[260px]" : "h-[280px] md:h-[350px]"} w-full overflow-hidden rounded-3xl shadow-xl flex justify-center items-center bg-slate-900`}
       >
         {/* A imagem continua contida para não perder qualidade */}
         <div className="relative h-full w-full max-w-5xl">
@@ -44,7 +44,9 @@ export function StoreHeader({ compact = false }: { compact?: boolean }) {
               href="https://maps.google.com/?q=Rua+Pedro+Aldemar+Bantim,+945,+Doutor+Silvio+Botelho,+Boa+Vista+-+RR"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex min-h-11 items-center gap-2 hover:text-purple-400 transition-colors bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10"
+              // Compacto no celular: o endereço sai (já está no rodapé) para o
+              // nome e o horário caberem sem cobrir a foto (revisão do #434).
+              className={`${compact ? "hidden sm:flex" : "flex"} min-h-11 items-center gap-2 hover:text-purple-400 transition-colors bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10`}
             >
               <MapPin size={16} className="text-purple-400" />
               Dr. Silvio Botelho, Boa Vista - RR
