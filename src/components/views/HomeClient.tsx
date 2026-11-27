@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 // Stores
 import { useProductStore } from "@/store/productStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -12,35 +12,44 @@ import { EmptyStoreState } from "@/components/views/EmptyStoreState";
 import { useStoreHydration } from "@/hooks/useStoreHydration";
 import { useThemeStyles } from "@/hooks/useThemeStyles";
 // Types & Utils
-import { Product, StoreSettings, StoreSection, KitRecipe } from "@/types";
+import { StoreSettings, StoreSection } from "@/types";
+import type { ShelfProducts } from "@/lib/shelves";
 import { cn } from "@/lib/utils";
 
 interface HomeClientProps {
-  initialProducts: Product[];
   initialSettings: StoreSettings;
-  initialRecipes: KitRecipe[];
+  // Produtos de cada vitrine, já resolvidos no servidor (#399): a home não
+  // recebe nem carrega o catálogo inteiro.
+  initialShelves: ShelfProducts;
 }
 
 export default function HomeClient({
-  initialProducts,
   initialSettings,
-  initialRecipes,
+  initialShelves,
 }: HomeClientProps) {
   // 1. Hook de Hidratação
-  useStoreHydration(initialProducts, initialSettings, initialRecipes);
+  useStoreHydration(initialSettings);
 
   // 2. Acesso às Stores
-  const { allProducts } = useProductStore();
   const { settings, isLoading: settingsLoading } = useSettingsStore();
+  // Servidor sem dados (só acontece no build: fora dele a página relança e o
+  // ISR mantém a última versão boa): as vitrines são resolvidas aqui, com o
+  // catálogo do navegador (revisão do #429).
+  const serverFailed = !initialSettings?.id;
+  const allProducts = useProductStore((s) => s.allProducts);
+  useEffect(() => {
+    if (serverFailed) useProductStore.getState().ensureProducts();
+  }, [serverFailed]);
 
   // 3. Dados Computados
-  const productsToRender =
-    allProducts.length > 0 ? allProducts : initialProducts;
   // A store nasce com DEFAULT_SETTINGS (já com id "general" e sem seções):
   // só vale depois de carregada. Antes disso — inclusive no HTML do servidor,
   // que é o que o Google lê — usa as configurações reais que vieram do
   // Firestore. Sem isso a home saía como "vitrine vazia" no primeiro render.
   const settingsToRender = settingsLoading ? initialSettings : settings;
+  // Servidor falhou ({} sem id) e o navegador ainda está buscando: não
+  // mostra o aviso de vitrine vazia antes de saber.
+  const awaitingSettings = settingsLoading && !initialSettings?.id;
   const activeSections = (settingsToRender.homeSections ?? []).filter(
     (s: StoreSection) => s.isActive
   );
@@ -70,14 +79,19 @@ export default function HomeClient({
               >
                 <SectionRenderer
                   section={section}
-                  products={productsToRender}
+                  products={
+                    serverFailed ? allProducts : (initialShelves[section.id] ?? [])
+                  }
+                  preResolved={!serverFailed}
                   onScrollRequest={handleScrollToShelves}
                   inGrid
                 />
               </div>
             ))}
 
-          {activeSections.length === 0 && <EmptyStoreState />}
+          {activeSections.length === 0 && !awaitingSettings && (
+            <EmptyStoreState />
+          )}
         </div>
       </div>
     </main>

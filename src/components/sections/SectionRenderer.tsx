@@ -58,6 +58,8 @@ interface SectionRendererProps {
   onScrollRequest?: () => void;
   /** Seção dentro do grid de 2 colunas da home (define o `sizes` do banner). */
   inGrid?: boolean;
+  /** `products` já é a lista desta prateleira, resolvida no servidor (#399). */
+  preResolved?: boolean;
 }
 
 export const SectionRenderer = ({
@@ -65,11 +67,18 @@ export const SectionRenderer = ({
   products,
   onScrollRequest,
   inGrid,
+  preResolved,
 }: SectionRendererProps) => {
   const renderContent = () => {
     switch (section.type) {
       case "product_shelf":
-        return <SectionProductShelf section={section} allProducts={products} />;
+        return (
+          <SectionProductShelf
+            section={section}
+            allProducts={products}
+            preResolved={preResolved}
+          />
+        );
 
       case "banner_kit":
         return <SectionBannerKit />;

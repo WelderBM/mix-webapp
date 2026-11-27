@@ -11,7 +11,9 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toPlain } from "@/lib/firestorePlain";
-import { Product, StoreSection } from "@/types";
+import { Category, KitRecipe, Product, StoreSection } from "@/types";
+import { customerCatalog } from "@/lib/customerCatalog";
+import { resolveShelves, type ShelfProducts } from "@/lib/shelves";
 import { SectionRenderer } from "@/components/sections/SectionRenderer";
 import { Button } from "@/components/ui/button";
 import { SafeImage } from "@/components/ui/SafeImage";
@@ -65,35 +67,56 @@ interface NaturaPageSettings {
 // padrão de fallback silencioso já usado em src/app/page.tsx (home) — só
 // que ali já existia desde antes de #113, aqui faltava porque a rota nunca
 // tinha sido prerenderizada em build antes.
-async function getNaturaData() {
+async function getNaturaData(): Promise<{
+  settings: NaturaPageSettings;
+  shelves: ShelfProducts;
+}> {
   try {
-    const [productsSnap, settingsSnap] = await Promise.all([
-      getDocs(query(collection(db, "products"), orderBy("name"))),
-      getDoc(doc(db, "settings", "natura")),
-    ]);
+    const [productsSnap, settingsSnap, recipesSnap, categoriesSnap] =
+      await Promise.all([
+        getDocs(query(collection(db, "products"), orderBy("name"))),
+        getDoc(doc(db, "settings", "natura")),
+        getDocs(collection(db, "kit_recipes")),
+        getDocs(query(collection(db, "categories"), orderBy("order"))),
+      ]);
 
     // toPlain: Timestamp do Firestore não pode ir para Client Component.
-    const products = productsSnap.docs.map((doc) =>
-      toPlain({ id: doc.id, ...doc.data() })
+    const products = productsSnap.docs.map((d) =>
+      toPlain({ id: d.id, ...d.data() })
     ) as Product[];
+    const recipes = recipesSnap.docs.map((d) =>
+      toPlain({ id: d.id, ...d.data() })
+    ) as KitRecipe[];
+    const categories = categoriesSnap.docs.map((d) =>
+      toPlain({ id: d.id, ...d.data() })
+    ) as Category[];
 
     const settings = settingsSnap.exists()
       ? (toPlain(settingsSnap.data()) as NaturaPageSettings)
       : { sections: [] };
 
-    return { products, settings };
+    // Cada vitrine leva só os próprios produtos (#399), já no HTML.
+    const catalog = customerCatalog(products, recipes).products;
+    const shelves = resolveShelves(settings.sections, catalog, categories);
+
+    return { settings, shelves };
   } catch (error) {
+    // Fora do build, relança: numa revalidação com falha o Next mantém a
+    // última página boa em vez de guardar uma home sem vitrine por 60 s. No
+    // build não há versão anterior, então sai o fallback e o navegador
+    // resolve as vitrines sozinho (revisão do #429).
+    if (process.env.NEXT_PHASE !== "phase-production-build") throw error;
     console.error(
       `Erro ao buscar dados da página Natura: ${
         (error as any)?.message || "Erro desconhecido"
       }`
     );
-    return { products: [] as Product[], settings: { sections: [] } };
+    return { settings: { sections: [] }, shelves: {} };
   }
 }
 
 export default async function NaturaPage() {
-  const { products, settings } = await getNaturaData();
+  const { settings, shelves } = await getNaturaData();
 
   const activeSections = settings.sections?.filter((s) => s.isActive) || [];
 
@@ -257,7 +280,8 @@ export default async function NaturaPage() {
                 <SectionRenderer
                   key={section.id}
                   section={section}
-                  products={products}
+                  products={shelves[section.id] ?? []}
+                  preResolved
                   onScrollRequest={() => {}}
                 />
               ))}

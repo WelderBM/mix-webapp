@@ -8,7 +8,9 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toPlain } from "@/lib/firestorePlain";
-import { Product, StoreSettings, KitRecipe } from "@/types"; // Import atualizado
+import { Category, Product, StoreSettings, KitRecipe } from "@/types";
+import { customerCatalog } from "@/lib/customerCatalog";
+import { resolveShelves, type ShelfProducts } from "@/lib/shelves";
 import HomeClient from "@/components/views/HomeClient";
 
 // ISR: home servida do cache (rápida em celular fraco), mas refeita no
@@ -18,51 +20,56 @@ import HomeClient from "@/components/views/HomeClient";
 // de /natura.
 export const revalidate = 60;
 
-async function getInitialData() {
+async function getInitialData(): Promise<{
+  settings: StoreSettings;
+  shelves: ShelfProducts;
+}> {
   try {
-    // Executa as 3 buscas em paralelo para performance máxima
-    const [productsSnap, settingsSnap, recipesSnap] = await Promise.all([
-      getDocs(query(collection(db, "products"), orderBy("name"))),
-      getDoc(doc(db, "settings", "general")),
-      getDocs(collection(db, "kit_recipes")),
-    ]);
+    const [productsSnap, settingsSnap, recipesSnap, categoriesSnap] =
+      await Promise.all([
+        getDocs(query(collection(db, "products"), orderBy("name"))),
+        getDoc(doc(db, "settings", "general")),
+        getDocs(collection(db, "kit_recipes")),
+        getDocs(query(collection(db, "categories"), orderBy("order"))),
+      ]);
 
     // toPlain: Timestamp do Firestore não pode ir para o HomeClient.
     const products = productsSnap.docs.map(
-      (doc) => toPlain({ id: doc.id, ...doc.data() }) as Product
+      (d) => toPlain({ id: d.id, ...d.data() }) as Product
     );
-
+    const recipes = recipesSnap.docs.map(
+      (d) => toPlain({ id: d.id, ...d.data() }) as KitRecipe
+    );
+    const categories = categoriesSnap.docs.map(
+      (d) => toPlain({ id: d.id, ...d.data() }) as Category
+    );
     const settings = settingsSnap.exists()
       ? (toPlain(settingsSnap.data()) as StoreSettings)
       : ({} as StoreSettings);
 
-    const recipes = recipesSnap.docs.map(
-      (doc) => toPlain({ id: doc.id, ...doc.data() }) as KitRecipe
-    );
+    // Só o que o cliente pode ver (sem desativado, kit só se vendável) e só
+    // o que cada vitrine mostra: o HTML não cresce com o catálogo (#399).
+    const catalog = customerCatalog(products, recipes).products;
+    const shelves = resolveShelves(settings.homeSections, catalog, categories);
 
-    return { products, settings, recipes };
+    return { settings, shelves };
   } catch (error) {
+    // Fora do build, relança: numa revalidação com falha o Next mantém a
+    // última página boa em vez de guardar uma home sem vitrine por 60 s. No
+    // build não há versão anterior, então sai o fallback e o navegador
+    // resolve as vitrines sozinho (revisão do #429).
+    if (process.env.NEXT_PHASE !== "phase-production-build") throw error;
     console.error(
       `Erro ao buscar dados iniciais: ${
         (error as any)?.message || "Erro desconhecido"
       }`
     );
-    return {
-      products: [],
-      settings: {} as StoreSettings,
-      recipes: [],
-    };
+    return { settings: {} as StoreSettings, shelves: {} };
   }
 }
 
 export default async function Page() {
-  const { products, settings, recipes } = await getInitialData();
+  const { settings, shelves } = await getInitialData();
 
-  return (
-    <HomeClient
-      initialProducts={products}
-      initialSettings={settings}
-      initialRecipes={recipes}
-    />
-  );
+  return <HomeClient initialSettings={settings} initialShelves={shelves} />;
 }
