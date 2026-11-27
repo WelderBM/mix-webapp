@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, setDoc } from "firebase/firestore";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Product } from "@/types/product";
 import { Button } from "@/components/ui/button";
@@ -19,9 +19,16 @@ import { toast } from "sonner";
 import { Loader2, Scissors } from "lucide-react";
 import { suggestMeterPrice, hasMeterPrice } from "@/lib/ribbon-pricing";
 import { formatCurrency } from "@/lib/utils";
+import {
+  activePerMeterFor,
+  buildPerMeterProduct,
+  perMeterName,
+} from "@/lib/ribbonOpenRoll";
 
 interface OpenRibbonRollModalProps {
   fita: Product | null;
+  // Catálogo do admin: trava de um "p/ metro" ativo por rolo (#413).
+  products: Product[];
   onOpenChange: (open: boolean) => void;
   onOpened: () => void;
 }
@@ -32,16 +39,19 @@ interface OpenRibbonRollModalProps {
 // não dois fluxos divergentes.
 export function OpenRibbonRollModal({
   fita,
+  products,
   onOpenChange,
   onOpened,
 }: OpenRibbonRollModalProps) {
   const [priceInput, setPriceInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!fita) return;
     const prefill = hasMeterPrice(fita) ? fita.price : suggestMeterPrice(fita);
     setPriceInput(prefill != null ? String(prefill) : "");
+    setNameInput(perMeterName(fita));
   }, [fita]);
 
   if (!fita) return null;
@@ -52,24 +62,20 @@ export function OpenRibbonRollModal({
   const totalMeters = fita.ribbonInventory?.totalRollMeters || 0;
   const impliedRollTotal = priceValid ? price * totalMeters : null;
 
+  const nameValid = nameInput.trim() !== "";
+  const alreadyOpen = activePerMeterFor(fita.id, products);
+
   const handleConfirm = async () => {
-    if (!priceValid) return;
+    if (!priceValid || !nameValid || alreadyOpen) return;
     setSaving(true);
     try {
-      // remainingMeters NÃO é resetado pro total aqui — se esse rolo já foi
-      // aberto antes e fechado manualmente com sobra, reabrir preservando o
-      // que sobrou evita fabricar estoque que não existe fisicamente.
-      const updated: Product = {
-        ...fita,
-        price,
-        ribbonInventory: {
-          status: "ABERTO",
-          remainingMeters: fita.ribbonInventory?.remainingMeters ?? 0,
-          totalRollMeters: fita.ribbonInventory?.totalRollMeters ?? 0,
-        },
-      };
-      await setDoc(doc(db, "products", fita.id), updated);
-      toast.success("Rolo aberto para venda por metro!");
+      // Cria o "p/ metro" e NÃO mexe no rolo fechado (#413): o estoque de
+      // rolos lacrados continua vindo do Noturno.
+      await addDoc(collection(db, "products"), {
+        ...buildPerMeterProduct(fita, nameInput, price),
+        createdAt: serverTimestamp(),
+      });
+      toast.success("Rolo aberto: a fita já está à venda por metro.");
       onOpened();
       onOpenChange(false);
     } catch {
@@ -91,12 +97,27 @@ export function OpenRibbonRollModal({
             {fita.name}
           </DialogTitle>
           <DialogDescription>
-            Confirme o preço por metro antes de liberar essa fita pra venda ao
-            metro/laço.
+            Cria a fita por metro deste rolo. O rolo fechado continua como
+            está (o Noturno já dá a baixa de 1 rolo).
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-2">
+          {alreadyOpen && (
+            <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+              Já existe um rolo aberto desta fita ({alreadyOpen.name}, com{" "}
+              {alreadyOpen.ribbonInventory?.remainingMeters} m). Encerre ele
+              antes de abrir outro.
+            </p>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="open-roll-name">Nome na loja</Label>
+            <Input
+              id="open-roll-name"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="open-roll-price">Preço por Metro</Label>
             <Input
@@ -105,7 +126,7 @@ export function OpenRibbonRollModal({
               step="0.01"
               value={priceInput}
               onChange={(e) => setPriceInput(e.target.value)}
-              autoFocus
+              inputMode="decimal"
             />
           </div>
           {priceValid && (
@@ -126,7 +147,7 @@ export function OpenRibbonRollModal({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!priceValid || saving}
+            disabled={!priceValid || !nameValid || !!alreadyOpen || saving}
             className="gap-2"
           >
             {saving ? (
