@@ -89,7 +89,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {product.originalPrice != null &&
             finalPrice != null &&
             product.originalPrice > finalPrice && (
-              <div className="absolute left-2 top-2 rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white shadow-md z-10">
+              <div className="absolute left-2 top-2 rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white shadow-md z-10">
                 Oferta
               </div>
             )}
@@ -111,7 +111,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {product.originalPrice != null &&
             finalPrice != null &&
             product.originalPrice > finalPrice && (
-              <div className="absolute left-2 top-2 rounded-full bg-red-500 px-3 py-1 text-xs font-bold text-white shadow-md z-10">
+              <div className="absolute left-2 top-2 rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white shadow-md z-10">
                 Oferta
               </div>
             )}

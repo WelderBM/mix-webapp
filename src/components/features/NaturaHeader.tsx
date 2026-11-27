@@ -43,11 +43,11 @@ export function NaturaHeader() {
           {/* Cart Button */}
           <Button
             onClick={toggleCart}
-            className="relative bg-orange-500 hover:bg-orange-600 text-white rounded-full h-12 w-12 p-0 shadow-lg shadow-orange-200 transition-all hover:scale-105"
+            className="relative bg-orange-600 hover:bg-orange-700 text-white rounded-full h-12 w-12 p-0 shadow-lg shadow-orange-200 transition-all hover:scale-105"
           >
             <ShoppingCart size={22} />
             {itemCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold border-2 border-white">
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold border-2 border-white">
                 {itemCount}
               </span>
             )}
