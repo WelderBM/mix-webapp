@@ -303,6 +303,21 @@ describe("CartSidebar — progressive disclosure do checkout (#72)", () => {
     const credit = await screen.findByRole("option", { name: /Cartão de Crédito/ });
     expect(credit.getAttribute("aria-disabled")).toBe("true");
   });
+
+  it("com \"O motoboy tem maquininha\" ligado, Entrega oferece cartão (#56)", async () => {
+    const { useSettingsStore } = await import("@/store/settingsStore");
+    const before = useSettingsStore.getState().settings;
+    useSettingsStore.setState({ settings: { ...before, payment: { cardOnDelivery: true } } });
+    try {
+      render(<CartSidebar />);
+      fireEvent.click(screen.getByRole("radio", { name: "Entrega" }));
+      fireEvent.click(screen.getByRole("combobox"));
+      const credit = await screen.findByRole("option", { name: /Cartão de Crédito/ });
+      expect(credit.getAttribute("aria-disabled")).not.toBe("true");
+    } finally {
+      useSettingsStore.setState({ settings: before });
+    }
+  });
 });
 
 describe("CartSidebar — sugestão de Retirada em CEP fora de Boa Vista (#161)", () => {

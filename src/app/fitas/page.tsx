@@ -37,7 +37,7 @@ const METER_PAGE = 20;
 
 function FitasContent() {
   // Só as fitas, não o catálogo inteiro (#399).
-  const { products: allProducts } = useRibbonProducts();
+  const { products: allProducts, loading: ribbonsLoading } = useRibbonProducts();
   const { addItem } = useCartStore();
   const { settings, fetchSettings } = useSettingsStore();
   const searchParams = useSearchParams();
@@ -137,6 +137,22 @@ function FitasContent() {
     [ribbonProducts]
   );
 
+  // Sem rolo fechado em estoque, a aba "Rolos" abriria vazia: começa em
+  // "Por Metro" (#307). Só na primeira carga e só sem `?aba=` no link.
+  const autoTabRef = useRef(false);
+  useEffect(() => {
+    if (autoTabRef.current || ribbonsLoading) return;
+    autoTabRef.current = true;
+    if (searchParams.get("aba")) return;
+    const closedInStock = closedRolls.some((p) => p.inStock !== false);
+    // Só troca se a cliente ainda está na aba de entrada: se ela já tocou em
+    // outra enquanto carregava, fica onde escolheu (revisão do #434).
+    if (!closedInStock && openRibbons.length > 0) {
+      setActiveTab((t) => (t === "rolls" ? "meter" : t));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ribbonsLoading, closedRolls, openRibbons]);
+
   // Filtro + página (#345). A fita do link da vitrine vem primeiro, para
   // estar na primeira página e o scroll até ela funcionar.
   const highlightFirst = <T extends { id: string }>(list: T[]) => {
@@ -223,7 +239,7 @@ function FitasContent() {
       className="min-h-screen bg-slate-50 pb-32 lg:pb-20 transition-colors"
       style={themeStyles}
     >
-      <StoreHeader />
+      <StoreHeader compact />
 
       {/* Container Principal */}
       <div className="max-w-6xl mx-auto px-0 sm:px-4 -mt-4 relative z-10">

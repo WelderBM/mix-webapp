@@ -122,4 +122,9 @@ export interface StoreSettings {
   noturnoImport?: {
     periodDays?: number;
   };
+  // Pagamento (#56). `cardOnDelivery`: o motoboy leva maquininha, então o
+  // cartão vale também na entrega. Ausente/false = só Pix ou dinheiro.
+  payment?: {
+    cardOnDelivery?: boolean;
+  };
 }

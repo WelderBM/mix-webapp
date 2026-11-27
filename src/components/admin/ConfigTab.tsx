@@ -103,6 +103,34 @@ export function ConfigTab({ settings, setSettings }: ConfigTabProps) {
               depois desse prazo. Vazio = {DEFAULT_IMPORT_PERIOD_DAYS} dias.
             </p>
           </div>
+          <div className="space-y-2 md:col-span-2">
+            <label
+              htmlFor="card-on-delivery"
+              className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-slate-200 p-3"
+            >
+              <input
+                id="card-on-delivery"
+                type="checkbox"
+                className="size-5 accent-purple-700"
+                checked={settings.payment?.cardOnDelivery === true}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    payment: { ...settings.payment, cardOnDelivery: e.target.checked },
+                  })
+                }
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-800">
+                  O motoboy tem maquininha
+                </span>
+                <span className="block text-xs text-slate-600">
+                  Ligado: o cliente pode pagar com cartão também na entrega.
+                  Desligado: na entrega só Pix ou dinheiro (cartão só na retirada).
+                </span>
+              </span>
+            </label>
+          </div>
         </div>
       </div>
     </div>
