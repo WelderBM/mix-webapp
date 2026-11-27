@@ -27,3 +27,19 @@ export function productEntries(
       priority: 0.7,
     }));
 }
+
+// Categorias ativas da loja (/categoria/{id}): eram páginas sem entrada no
+// sitemap (vistoria de SEO, 27/11).
+export function categoryEntries(
+  categories: { id: string; active?: boolean }[],
+  now: Date
+): MetadataRoute.Sitemap {
+  return categories
+    .filter((c) => c.active === true)
+    .map((c) => ({
+      url: `${SITE_URL}/categoria/${c.id}`,
+      lastModified: now,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    }));
+}

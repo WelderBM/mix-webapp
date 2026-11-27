@@ -1,14 +1,16 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Central de Fitas",
+  title: "Fitas em Boa Vista: por metro ou rolo",
   description:
-    "Compre fitas em metro ou rolo fechado. Diversas cores e modelos para seus presentes e artesanato.",
+    "Fitas de cetim, decorativas, metalizadas e para laço em Boa Vista - RR. Compre por metro ou rolo fechado e monte seu laço na Mix Novidades.",
+  alternates: { canonical: "/fitas" },
+  // Sem `images`: usa a capa da loja (app/opengraph-image). O /og-fitas.jpg
+  // que estava aqui não existe e deixava o link compartilhado sem foto.
   openGraph: {
-    title: "Central de Fitas | Mix Novidades",
+    title: "Fitas em Boa Vista | Mix Novidades",
     description:
-      "Fitas de cetim, decorativas e muito mais. Venda por metro ou atacado.",
-    images: ["/og-fitas.jpg"], // Placeholder
+      "Fitas de cetim, decorativas e para laço, por metro ou rolo fechado.",
   },
 };
 
