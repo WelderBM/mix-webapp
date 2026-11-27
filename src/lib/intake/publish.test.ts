@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   appendGroupVariants,
+  brandForProduct,
   buildGroupProductFromIntake,
   validateGroup,
   buildProductFromIntake,
@@ -239,5 +240,15 @@ describe("appendGroupVariants (#253)", () => {
   it("nome repetido com código diferente é erro", () => {
     const r = appendGroupVariants(existing, [{ item: item({ sourceCode: "9" }), label: " azul " }]);
     expect("error" in r && r.error).toMatch(/^O produto já tem uma opção "azul"./);
+  });
+});
+
+describe("brandForProduct (#55)", () => {
+  it("leva a marca do Noturno com inicial maiúscula", () => {
+    expect(brandForProduct({ brand: "SAO ROQUE", flags: [] })).toBe("Sao Roque");
+  });
+  it("marca genérica ou vazia fica de fora", () => {
+    expect(brandForProduct({ brand: "DIVERSOS", flags: ["marca_generica"] })).toBeUndefined();
+    expect(brandForProduct({ brand: null, flags: [] })).toBeUndefined();
   });
 });

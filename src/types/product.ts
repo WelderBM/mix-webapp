@@ -102,6 +102,9 @@ export interface Product {
   // produto nasce da fila de lançamento (#200). Vincula reimportações do
   // Noturno ao produto publicado (estoque, #202).
   sourceCode?: string;
+  // Marca do produto (do Noturno, #55). Ausente quando o Noturno traz uma
+  // marca genérica ("DIVERSOS"). Vai para os dados do Google (JSON-LD).
+  brand?: string;
 
   // Fita já conferida em "Trocar desenhos por fotos" (trocada ou mantida de
   // propósito): sai da lista e não gasta busca de novo. A imagem de antes

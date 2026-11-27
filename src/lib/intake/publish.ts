@@ -102,6 +102,16 @@ export function parsePrice(raw: string): number | null {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 }
 
+// "CROMUS" → "Cromus", "SAO ROQUE" → "Sao Roque". Marca genérica fica de
+// fora: não diz nada ao cliente nem ao Google.
+export function brandForProduct(
+  item: Pick<IntakeItem, "brand" | "flags">,
+): string | undefined {
+  const b = item.brand?.trim();
+  if (!b || item.flags?.includes("marca_generica")) return undefined;
+  return b.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+}
+
 // Produto sem `id` e sem `createdAt` (preenchidos na gravação).
 export function buildProductFromIntake(
   item: IntakeItem,
@@ -122,6 +132,8 @@ export function buildProductFromIntake(
     inStock: item.stock > 0,
     disabled: false,
     sourceCode: item.sourceCode,
+    // Marca do Noturno (#55), menos a genérica ("DIVERSOS").
+    brand: brandForProduct(item),
   };
   if (isRibbonItem(item)) {
     const meters = input.rollMeters ?? 0;
