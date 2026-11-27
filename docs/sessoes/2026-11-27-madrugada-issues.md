@@ -78,4 +78,9 @@ Estão todas no checklist (bloco Madrugada). As principais:
 
 ## PRs ainda abertos ao fim desta passagem
 
-#437, #441, #442 e #443, todos com base `dev`. O agente faz o merge assim que o CI ficar verde.
+- #437, #441, #442, #443 e #444 já entraram no `dev`.
+- **Abertos no fim da madrugada:**
+  - #445: cartão da loja para o Google com formas de pagamento e área atendida;
+  - #446: /baloes lê só os balões personalizados (#399);
+  - #447: esta correção, e falha passageira não desindexa a categoria.
+- Os três são pequenos e entram sozinhos pela revisão automática. Se algum ficar marcado "precisa de você", é só fazer o merge no `dev`.

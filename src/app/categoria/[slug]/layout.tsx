@@ -20,7 +20,10 @@ export async function generateMetadata({
     const snap = await getDoc(doc(db, "categories", slug));
     category = snap.exists() ? ({ id: snap.id, ...snap.data() } as Category) : null;
   } catch {
-    // Sem Firestore (build do CI com credencial falsa): metadado padrão.
+    // Falha de leitura (rede, cota, build do CI): título neutro, SEM noindex.
+    // Senão uma falha passageira desindexava a categoria pelo ISR de 1 h
+    // (revisão do #443). noindex só quando ela de fato não existe/está inativa.
+    return { title: "Categoria" };
   }
   if (!category || !category.active) {
     return { title: "Categoria", robots: { index: false, follow: true } };
