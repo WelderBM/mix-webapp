@@ -45,7 +45,14 @@ Pedido ──► Planejar ──► Construir ──► Conferir ──► PR �
 
 ---
 
-## 3. Ajustes que proponho (decidir juntos)
+## 3. Ajustes (decididos em 27/11/2026, #288)
+
+> As 6 propostas abaixo foram **aceitas como estão**. A decisão foi tomada pelo
+> agente na madrugada de 27/11, com autorização do dono para decidir a fila
+> dele. Os itens 4 a 6 dependem de um passo depois:
+> - **4:** entra depois de 2 ou 3 PRs de tela com a skill.
+> - **5:** ação do dono, numa conversa nova.
+> - **6:** só quando a #203 entrar.
 
 1. **Onde salvar os planos** — a skill quer `docs/superpowers/plans/`. Proponho
    `docs/planos/AAAA-MM-DD-<assunto>.md`, versionado, para você ler no GitHub.
