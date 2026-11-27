@@ -243,13 +243,11 @@ export function CartSidebar() {
       await useProductStore.getState().fetchProducts();
       liveProducts = useProductStore.getState().allProducts;
     }
-    if (failed()) {
-      // Sem catálogo não dá para conferir: o pedido segue com o preço do
-      // carrinho e a atendente confirma no WhatsApp (#419).
-      toast.info(
-        "Não consegui conferir o estoque agora. A atendente confirma tudo pelo WhatsApp."
-      );
-    } else {
+    // Sem catálogo não dá para conferir: o pedido segue com o preço do
+    // carrinho e a atendente confirma no WhatsApp (#419). O aviso só sai
+    // depois de o formulário passar, logo antes de gravar.
+    const stockUnchecked = failed();
+    if (!stockUnchecked) {
       const reason = items
         .map((item) => getCartItemUnavailableReason(item, liveProducts))
         .find((r) => r != null);
@@ -293,6 +291,11 @@ export function CartSidebar() {
       }
     }
 
+    if (stockUnchecked) {
+      toast.info(
+        "Não consegui conferir o estoque agora. A atendente confirma tudo pelo WhatsApp."
+      );
+    }
     setIsCheckingOut(true);
 
     try {
@@ -394,8 +397,8 @@ export function CartSidebar() {
                     );
                     const unavailableReason =
                       isLoadingProducts || catalogFailed
-                      ? null
-                      : getCartItemUnavailableReason(item, allProducts);
+                        ? null
+                        : getCartItemUnavailableReason(item, allProducts);
                     const itemPrice = unavailableReason
                       ? 0
                       : getCartItemTotal(item);

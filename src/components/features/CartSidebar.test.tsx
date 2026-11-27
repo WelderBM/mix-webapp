@@ -532,6 +532,19 @@ describe("CartSidebar — leitura do catálogo falhou (#419)", () => {
     );
   });
 
+  it("com nome vazio, avisa só do nome (o aviso de estoque espera o formulário)", async () => {
+    const sonner = await import("sonner");
+    productState.allProducts = [];
+    productState.error = "Falha ao carregar produtos.";
+    render(<CartSidebar />);
+    fireEvent.click(screen.getByText("Finalizar Pedido"));
+    await waitFor(() =>
+      expect(sonner.toast.warning).toHaveBeenCalledWith("Por favor, digite seu nome.")
+    );
+    expect(sonner.toast.info).not.toHaveBeenCalled();
+    expect(addDocMock).not.toHaveBeenCalled();
+  });
+
   it("se a nova leitura der certo, volta a conferir e barra item fora de venda", async () => {
     const sonner = await import("sonner");
     productState.allProducts = [];
