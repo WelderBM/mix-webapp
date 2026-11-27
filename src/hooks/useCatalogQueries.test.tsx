@@ -36,7 +36,7 @@ vi.mock("firebase/firestore", () => ({
   }),
 }));
 
-import { useCategoryProducts, useProductNeighbors } from "./useCatalogQueries";
+import { useCategoryProducts, useProductNeighbors, useRibbonProducts } from "./useCatalogQueries";
 
 const p = (over: Partial<Product>): Product =>
   ({ id: "x", name: "P", price: 1, type: "STANDARD_ITEM", unit: "un", inStock: true, ...over }) as Product;
@@ -93,5 +93,25 @@ describe("useProductNeighbors (#399)", () => {
     );
     expect(result.current.recentlyViewedProducts).toEqual([]);
     expect(whereMock).toHaveBeenCalledWith("__id__", "in", ["v1"]);
+  });
+});
+
+describe("useRibbonProducts (#399, fatia 3)", () => {
+  it("store vazia: lê só type == RIBBON e tira desativadas", async () => {
+    docs.slice = [p({ id: "f1", type: "RIBBON" }), p({ id: "f2", type: "RIBBON", disabled: true })];
+    const { result } = renderHook(() => useRibbonProducts());
+    expect(result.current.loading).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.products.map((x) => x.id)).toEqual(["f1"]);
+    expect(whereMock).toHaveBeenCalledWith("type", "==", "RIBBON");
+    expect(store.fetchProducts).not.toHaveBeenCalled();
+  });
+
+  it("catálogo já carregado: filtra a store e não lê nada", () => {
+    store.allProducts = [p({ id: "f1", type: "RIBBON" }), p({ id: "s1" })];
+    const { result } = renderHook(() => useRibbonProducts());
+    expect(result.current.loading).toBe(false);
+    expect(result.current.products.map((x) => x.id)).toEqual(["f1"]);
+    expect(whereMock).not.toHaveBeenCalled();
   });
 });

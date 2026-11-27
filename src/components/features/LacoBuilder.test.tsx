@@ -22,8 +22,8 @@ const ribbon: Product = {
 
 let mockSettings: StoreSettings;
 
-vi.mock("@/store/productStore", () => ({
-  useProductStore: () => ({ allProducts: [ribbon] }),
+vi.mock("@/hooks/useCatalogQueries", () => ({
+  useRibbonProducts: () => ({ products: [ribbon], loading: false }),
 }));
 
 vi.mock("@/store/cartStore", () => ({

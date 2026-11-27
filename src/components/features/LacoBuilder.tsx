@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useProductStore } from "@/store/productStore";
+import { useRibbonProducts } from "@/hooks/useCatalogQueries";
 import { useCartStore } from "@/store/cartStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { getModelSizeIds } from "@/types";
@@ -45,7 +45,7 @@ function stripLacoPrefix(styleName: string) {
 }
 
 export function LacoBuilder() {
-  const { allProducts } = useProductStore();
+  const { products: allProducts } = useRibbonProducts();
   const { addItem, openCart } = useCartStore();
   const { settings } = useSettingsStore();
 
