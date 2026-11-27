@@ -25,6 +25,14 @@ export default function OrganizationJsonLd() {
       longitude: -60.671,
     },
     openingHoursSpecification: openingHoursSpecification(),
+    // Formas de pagamento e área atendida (vistoria de SEO, 27/11). O CEP e as
+    // coordenadas acima ainda são provisórios: o dono confirma qual é o certo
+    // (Noturno: 69314-543, Dr. Silvio Botelho; Google Maps: 69316-544, Sen.
+    // Hélio Campos).
+    priceRange: "$",
+    currenciesAccepted: "BRL",
+    paymentAccepted: "Pix, Dinheiro, Cartão de crédito, Cartão de débito",
+    areaServed: { "@type": "City", name: "Boa Vista" },
     sameAs: ["https://instagram.com/mixnovidades_rr"],
   };
 
