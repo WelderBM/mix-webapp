@@ -40,12 +40,14 @@ beforeEach(() => {
 
 describe("baixa da metragem no status do pedido (#415)", () => {
   it("decide pelo pedido em memória", () => {
-    expect(ribbonStockChange({ items } as never, "ready")).toBe("apply");
+    expect(ribbonStockChange({ items, status: "preparing" } as never, "ready")).toBe("apply");
+    // pedido antigo já entregue (sem a marca) não baixa ao trocar entre status que consomem
+    expect(ribbonStockChange({ items, status: "delivered" } as never, "out_for_delivery")).toBeNull();
     expect(ribbonStockChange({ items, stockApplied: { pm: 3 } } as never, "delivered")).toBeNull();
     expect(ribbonStockChange({ items, stockApplied: { pm: 3 }, stockAppliedAt: "x" } as never, "cancelled")).toBe("revert");
     // sem a data da baixa (pedido forjado), não estorna
     expect(ribbonStockChange({ items, stockApplied: { pm: 3 } } as never, "cancelled")).toBeNull();
-    expect(ribbonStockChange({ items: [] } as never, "ready")).toBeNull();
+    expect(ribbonStockChange({ items: [], status: "pending" } as never, "ready")).toBeNull();
   });
 
   it("Pronto desconta uma vez só; cancelar devolve", async () => {

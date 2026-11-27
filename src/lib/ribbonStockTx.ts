@@ -10,11 +10,14 @@ import {
 // A troca de status mexe na metragem? Decide com o pedido em memória; a
 // transação confere de novo antes de gravar (#415).
 export function ribbonStockChange(
-  order: Pick<Order, "items" | "stockApplied" | "stockAppliedAt">,
+  order: Pick<Order, "items" | "stockApplied" | "stockAppliedAt" | "status">,
   newStatus: OrderStatus
 ): "apply" | "revert" | null {
   const consumes = statusConsumesRibbon(newStatus);
-  if (consumes && !order.stockApplied) {
+  // Só baixa ao ENTRAR num status que consome fita. Pedido que já estava
+  // Pronto/Entregue antes desta regra (sem a marca) e troca entre esses
+  // status não baixa de novo o que o Noturno já controlava (revisão #437).
+  if (consumes && !order.stockApplied && !statusConsumesRibbon(order.status)) {
     return Object.keys(ribbonMetersByProduct(order.items)).length > 0 ? "apply" : null;
   }
   // Só estorna baixa feita pelo admin (tem a data); a regra do Firestore
