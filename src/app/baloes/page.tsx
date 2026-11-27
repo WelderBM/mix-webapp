@@ -12,7 +12,7 @@ export default function BaloesPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
       <main className="min-h-screen bg-slate-50 pb-20">
-        <StoreHeader />
+        <StoreHeader compact />
 
         {/* Container Principal ajustado igual à página de Fitas */}
         <div className="max-w-6xl mx-auto px-0 sm:px-4 -mt-4 relative z-10">

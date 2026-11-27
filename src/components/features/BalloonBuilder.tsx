@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo, useRef, type SyntheticEvent } from "react
 import { useCartStore } from "@/store/cartStore";
 import { Button } from "@/components/ui/button";
 import {
-  PartyPopper,
   Minus,
   Plus,
   ShoppingCart,
@@ -387,20 +386,9 @@ export function BalloonBuilder() {
 
   return (
     <div className="max-w-4xl mx-auto p-3 sm:p-6 space-y-6">
-      {/* Header */}
-      <div className="text-center">
-        <div className="flex justify-center mb-4">
-          <div className="bg-purple-100 p-4 rounded-full">
-            <PartyPopper className="text-purple-600" size={32} />
-          </div>
-        </div>
-        <h2 className="text-3xl font-black text-slate-800 mb-2">
-          Monte seu Pacote de Balões
-        </h2>
-        <p className="text-slate-600">
-          Escolha o tipo, tamanho, cor e quantidade
-        </p>
-      </div>
+      {/* Sem título próprio: o h1 "Orçamento de Balões" da página já diz o
+          que é, e dois títulos seguidos empurravam o montador para baixo
+          no celular (#307). */}
 
       {/* Progress Bar */}
       <div className="flex items-center justify-center gap-2">
