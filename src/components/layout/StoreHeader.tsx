@@ -5,12 +5,18 @@ import { StoreStatusBadge } from "./StoreStatusBadge";
 import { SafeImage } from "../ui/SafeImage";
 import { useSettingsStore } from "@/store/settingsStore";
 
-export function StoreHeader() {
+// `compact`: telas internas (/fitas, /baloes, /categoria). No celular o
+// banner fica baixo para a ação da página aparecer sem rolar, e o nome da
+// loja deixa de ser <h1> (a página tem o seu) — #307.
+export function StoreHeader({ compact = false }: { compact?: boolean }) {
   const storeName = useSettingsStore((state) => state.settings.storeName);
+  const Title = compact ? "p" : "h1";
   return (
-    <div className="max-w-6xl mx-auto px-4 mt-6 mb-8">
+    <div className={compact ? "max-w-6xl mx-auto px-4 mt-4 mb-6 md:mt-6 md:mb-8" : "max-w-6xl mx-auto px-4 mt-6 mb-8"}>
       {/* VOLTOU PARA O FUNDO NEUTRO (bg-slate-900) */}
-      <div className="relative h-[280px] md:h-[350px] w-full overflow-hidden rounded-3xl shadow-xl flex justify-center items-center bg-slate-900">
+      <div
+        className={`relative ${compact ? "h-[150px] md:h-[260px]" : "h-[280px] md:h-[350px]"} w-full overflow-hidden rounded-3xl shadow-xl flex justify-center items-center bg-slate-900`}
+      >
         {/* A imagem continua contida para não perder qualidade */}
         <div className="relative h-full w-full max-w-5xl">
           <SafeImage
@@ -26,10 +32,12 @@ export function StoreHeader() {
 
         <div className="absolute inset-0 bg-linear-to-t from-slate-900/95 via-slate-900/40 to-transparent pointer-events-none" />
 
-        <div className="absolute bottom-0 left-0 w-full p-6 md:p-8 z-20 text-white">
-          <h1 className="text-3xl md:text-5xl font-extrabold mb-3 tracking-tight drop-shadow-md">
+        <div className={`absolute bottom-0 left-0 w-full ${compact ? "p-4 md:p-8" : "p-6 md:p-8"} z-20 text-white`}>
+          <Title
+            className={`${compact ? "text-xl md:text-4xl mb-2" : "text-3xl md:text-5xl mb-3"} font-extrabold tracking-tight drop-shadow-md`}
+          >
             {storeName}
-          </h1>
+          </Title>
 
           <div className="flex flex-col sm:flex-row gap-3 text-sm font-medium text-slate-100">
             <a

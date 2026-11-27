@@ -97,7 +97,7 @@ function CategoriaContent() {
 
   return (
     <main className="min-h-screen bg-slate-50 pb-20">
-      <StoreHeader />
+      <StoreHeader compact />
 
       <div className="max-w-6xl mx-auto px-0 sm:px-4 -mt-4 relative z-10">
         <div className="bg-white sm:rounded-3xl shadow-sm border-t sm:border border-slate-100 overflow-hidden min-h-[400px]">
