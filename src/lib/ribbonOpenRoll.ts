@@ -61,14 +61,18 @@ export function buildPerMeterProduct(
 }
 
 // "Encerrar rolo": vale com sobra também; a sobra fica registrada.
+// "Devolver" (`returned`): desfaz a abertura; a sobra volta para a
+// prateleira e o histórico mostra que não foi perda.
 export function closePerMeterPatch(
   product: Product,
-  now: Date
-): Pick<Product, "disabled" | "closedWithMeters" | "closedAt"> {
+  now: Date,
+  returned = false
+): Pick<Product, "disabled" | "closedWithMeters" | "closedAt" | "returnedToRoll"> {
   return {
     disabled: true,
     closedWithMeters: Math.max(0, product.ribbonInventory?.remainingMeters ?? 0),
     closedAt: now.toISOString(),
+    returnedToRoll: returned,
   };
 }
 

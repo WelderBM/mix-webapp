@@ -59,7 +59,9 @@ describe("ribbonOpenRoll (#413)", () => {
       disabled: true,
       closedWithMeters: 10,
       closedAt: "2026-11-27T10:00:00.000Z",
+      returnedToRoll: false,
     });
+    expect(closePerMeterPatch(open({}), now, true).returnedToRoll).toBe(true);
   });
 
   it("sabe se já vendeu parte do rolo", () => {

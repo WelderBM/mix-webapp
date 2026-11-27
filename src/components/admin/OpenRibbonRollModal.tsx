@@ -63,10 +63,13 @@ export function OpenRibbonRollModal({
   const impliedRollTotal = priceValid ? price * totalMeters : null;
 
   const nameValid = nameInput.trim() !== "";
+  // Sem metragem total o "p/ metro" nasceria esgotado e a trava de um aberto
+  // por vez não valeria (revisão do #435).
+  const hasTotal = totalMeters > 0;
   const alreadyOpen = activePerMeterFor(fita.id, products);
 
   const handleConfirm = async () => {
-    if (!priceValid || !nameValid || alreadyOpen) return;
+    if (!priceValid || !nameValid || !hasTotal || alreadyOpen) return;
     setSaving(true);
     try {
       // Cria o "p/ metro" e NÃO mexe no rolo fechado (#413): o estoque de
@@ -103,6 +106,12 @@ export function OpenRibbonRollModal({
         </DialogHeader>
 
         <div className="space-y-3 py-2">
+          {!hasTotal && (
+            <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+              Este rolo está sem metragem total. Edite a fita e informe quantos
+              metros o rolo tem antes de abrir.
+            </p>
+          )}
           {alreadyOpen && (
             <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
               Já existe um rolo aberto desta fita ({alreadyOpen.name}, com{" "}
@@ -147,7 +156,7 @@ export function OpenRibbonRollModal({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!priceValid || !nameValid || !!alreadyOpen || saving}
+            disabled={!priceValid || !nameValid || !hasTotal || !!alreadyOpen || saving}
             className="gap-2"
           >
             {saving ? (

@@ -53,4 +53,11 @@ describe("OpenRibbonRollModal (#413)", () => {
     expect(screen.getByRole("alert").textContent).toContain("12 m");
     expect((screen.getByText("Confirmar abertura").closest("button") as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("rolo sem metragem total: avisa e não deixa abrir", () => {
+    const semTotal = { ...roll, ribbonInventory: { status: "FECHADO", remainingMeters: 0, totalRollMeters: 0 } } as Product;
+    render(<OpenRibbonRollModal fita={semTotal} products={[semTotal]} onOpenChange={() => {}} onOpened={() => {}} />);
+    expect(screen.getByRole("alert").textContent).toContain("sem metragem total");
+    expect((screen.getByText("Confirmar abertura").closest("button") as HTMLButtonElement).disabled).toBe(true);
+  });
 });

@@ -102,7 +102,11 @@ export function RibbonsTab({
     try {
       await updateDoc(
         doc(db, "products", perMeterAction.fita.id),
-        closePerMeterPatch(perMeterAction.fita, new Date())
+        closePerMeterPatch(
+          perMeterAction.fita,
+          new Date(),
+          perMeterAction.kind === "devolver"
+        )
       );
       toast.success(
         perMeterAction.kind === "encerrar"
