@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { CartSidebar } from "./CartSidebar";
 import * as firestore from "firebase/firestore";
@@ -39,6 +39,7 @@ vi.mock("sonner", () => ({
     success: vi.fn(),
     error: vi.fn(),
     warning: vi.fn(),
+    info: vi.fn(),
   },
 }));
 
@@ -79,7 +80,11 @@ vi.mock("@/store/cartStore", () => ({
 // Catálogo da loja trocável por teste (ex.: produto recém-publicado que
 // ainda não está na cópia carregada).
 const { productState, fetchProductsMock, ensureProductsMock } = vi.hoisted(() => ({
-  productState: { allProducts: [] as unknown[], isLoading: false },
+  productState: {
+    allProducts: [] as unknown[],
+    isLoading: false,
+    error: null as string | null,
+  },
   fetchProductsMock: vi.fn(),
   ensureProductsMock: vi.fn(async () => {}),
 }));
@@ -89,6 +94,7 @@ vi.mock("@/store/productStore", () => {
     fetchProducts: fetchProductsMock,
     ensureProducts: ensureProductsMock,
     allProducts: productState.allProducts,
+    error: productState.error,
   });
   return { useProductStore };
 });
@@ -491,5 +497,58 @@ describe("CartSidebar — finalizar antes de o catálogo chegar (#399)", () => {
 
     await waitFor(() => expect(addDocMock).toHaveBeenCalledTimes(1));
     productState.isLoading = false;
+  });
+});
+
+describe("CartSidebar — leitura do catálogo falhou (#419)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    (window as any).open = vi.fn();
+  });
+  afterEach(() => {
+    productState.error = null;
+    productState.isLoading = false;
+  });
+
+  it("não marca o item como indisponível e grava o pedido mesmo assim", async () => {
+    const sonner = await import("sonner");
+    productState.allProducts = [];
+    productState.isLoading = false;
+    productState.error = "Falha ao carregar produtos.";
+    render(<CartSidebar />);
+    expect(screen.queryByText(/não está mais disponível/)).toBeNull();
+    fillContact();
+    fireEvent.click(screen.getByText("Finalizar Pedido"));
+
+    // tenta ler de novo antes de desistir de conferir
+    await waitFor(() => expect(fetchProductsMock).toHaveBeenCalled());
+    await waitFor(() => expect(addDocMock).toHaveBeenCalledTimes(1));
+    expect(sonner.toast.info).toHaveBeenCalledWith(
+      expect.stringContaining("Não consegui conferir o estoque")
+    );
+    expect(sonner.toast.error).not.toHaveBeenCalledWith(
+      expect.stringContaining("não está mais disponível")
+    );
+  });
+
+  it("se a nova leitura der certo, volta a conferir e barra item fora de venda", async () => {
+    const sonner = await import("sonner");
+    productState.allProducts = [];
+    productState.error = "Falha ao carregar produtos.";
+    fetchProductsMock.mockImplementationOnce(async () => {
+      productState.error = null;
+      productState.allProducts = [{ id: "outro", name: "Outro", price: 5 }];
+    });
+    render(<CartSidebar />);
+    fillContact();
+    fireEvent.click(screen.getByText("Finalizar Pedido"));
+
+    await waitFor(() =>
+      expect(sonner.toast.error).toHaveBeenCalledWith(
+        expect.stringContaining("não está mais disponível")
+      )
+    );
+    expect(addDocMock).not.toHaveBeenCalled();
   });
 });
