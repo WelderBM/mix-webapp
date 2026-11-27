@@ -4,6 +4,7 @@ import { renderToString } from "react-dom/server";
 import { render, screen } from "@testing-library/react";
 import HomeClient from "./HomeClient";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useProductStore } from "@/store/productStore";
 import type { StoreSettings } from "@/types";
 
 vi.mock("@/lib/firebase", () => ({ db: {} }));
@@ -79,6 +80,19 @@ describe("HomeClient — HTML do servidor (vitrine vazia)", () => {
       />
     );
     expect(html).toContain("Fita Cetim Rosa");
+  });
+
+  it("servidor sem dados: resolve as vitrines no navegador com o catálogo da store", () => {
+    useSettingsStore.setState({ settings: real, isLoading: false } as never);
+    useProductStore.setState({
+      allProducts: [{ id: "9", name: "Fita do navegador" }] as never,
+      isLoading: false,
+      ensureProducts: async () => {},
+    } as never);
+    render(
+      <HomeClient initialSettings={{} as StoreSettings} initialShelves={{}} />
+    );
+    expect(screen.getByText(/Fita do navegador/)).toBeTruthy();
   });
 
   it("no navegador, depois de montar, continua mostrando as seções reais", () => {

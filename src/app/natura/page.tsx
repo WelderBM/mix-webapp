@@ -101,6 +101,11 @@ async function getNaturaData(): Promise<{
 
     return { settings, shelves };
   } catch (error) {
+    // Fora do build, relança: numa revalidação com falha o Next mantém a
+    // última página boa em vez de guardar uma home sem vitrine por 60 s. No
+    // build não há versão anterior, então sai o fallback e o navegador
+    // resolve as vitrines sozinho (revisão do #429).
+    if (process.env.NEXT_PHASE !== "phase-production-build") throw error;
     console.error(
       `Erro ao buscar dados da página Natura: ${
         (error as any)?.message || "Erro desconhecido"

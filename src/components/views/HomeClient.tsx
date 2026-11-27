@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 // Stores
+import { useProductStore } from "@/store/productStore";
 import { useSettingsStore } from "@/store/settingsStore";
 // Components Layout & Features
 import { StoreHeader } from "@/components/layout/StoreHeader";
@@ -31,6 +32,14 @@ export default function HomeClient({
 
   // 2. Acesso às Stores
   const { settings, isLoading: settingsLoading } = useSettingsStore();
+  // Servidor sem dados (só acontece no build: fora dele a página relança e o
+  // ISR mantém a última versão boa): as vitrines são resolvidas aqui, com o
+  // catálogo do navegador (revisão do #429).
+  const serverFailed = !initialSettings?.id;
+  const allProducts = useProductStore((s) => s.allProducts);
+  useEffect(() => {
+    if (serverFailed) useProductStore.getState().ensureProducts();
+  }, [serverFailed]);
 
   // 3. Dados Computados
   // A store nasce com DEFAULT_SETTINGS (já com id "general" e sem seções):
@@ -70,15 +79,19 @@ export default function HomeClient({
               >
                 <SectionRenderer
                   section={section}
-                  products={initialShelves[section.id] ?? []}
-                  preResolved
+                  products={
+                    serverFailed ? allProducts : (initialShelves[section.id] ?? [])
+                  }
+                  preResolved={!serverFailed}
                   onScrollRequest={handleScrollToShelves}
                   inGrid
                 />
               </div>
             ))}
 
-          {activeSections.length === 0 && !awaitingSettings && <EmptyStoreState />}
+          {activeSections.length === 0 && !awaitingSettings && (
+            <EmptyStoreState />
+          )}
         </div>
       </div>
     </main>
