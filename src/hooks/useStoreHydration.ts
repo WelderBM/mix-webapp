@@ -14,8 +14,14 @@ export const useStoreHydration = (
   useEffect(() => {
     if (hydratedRef.current) return;
 
-    // 1. Injeta Configurações
-    useSettingsStore.setState({ settings: initialSettings, isLoading: false });
+    // 1. Injeta Configurações. Sem `id`, a leitura no servidor falhou
+    // (getInitialData devolve {}): busca de novo no navegador em vez de
+    // deixar a home sem vitrine até a próxima revalidação.
+    if (initialSettings?.id) {
+      useSettingsStore.setState({ settings: initialSettings, isLoading: false });
+    } else {
+      useSettingsStore.getState().fetchSettings();
+    }
 
     // 2. Injeta Receitas (CRÍTICO: Deve vir antes dos produtos para o cálculo de kits)
     if (initialRecipes && initialRecipes.length > 0) {

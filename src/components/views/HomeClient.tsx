@@ -31,12 +31,19 @@ export default function HomeClient({
 
   // 2. Acesso às Stores
   const { allProducts } = useProductStore();
-  const { settings } = useSettingsStore();
+  const { settings, isLoading: settingsLoading } = useSettingsStore();
 
   // 3. Dados Computados
   const productsToRender =
     allProducts.length > 0 ? allProducts : initialProducts;
-  const settingsToRender = settings.id ? settings : initialSettings;
+  // A store nasce com DEFAULT_SETTINGS (já com id "general" e sem seções):
+  // só vale depois de carregada. Antes disso — inclusive no HTML do servidor,
+  // que é o que o Google lê — usa as configurações reais que vieram do
+  // Firestore. Sem isso a home saía como "vitrine vazia" no primeiro render.
+  const settingsToRender = settingsLoading ? initialSettings : settings;
+  const activeSections = (settingsToRender.homeSections ?? []).filter(
+    (s: StoreSection) => s.isActive
+  );
 
   const themeStyles = useThemeStyles(settingsToRender);
 
@@ -53,9 +60,7 @@ export default function HomeClient({
       {/* GRID DE SEÇÕES */}
       <div ref={shelvesRef} className="max-w-6xl mx-auto px-4 mt-8 mb-12">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-          {settingsToRender.homeSections
-            ?.filter((s: StoreSection) => s.isActive)
-            .map((section: StoreSection) => (
+          {activeSections.map((section: StoreSection) => (
               <div
                 key={section.id}
                 className={cn(
@@ -72,8 +77,7 @@ export default function HomeClient({
               </div>
             ))}
 
-          {(!settingsToRender.homeSections ||
-            settingsToRender.homeSections.length === 0) && <EmptyStoreState />}
+          {activeSections.length === 0 && <EmptyStoreState />}
         </div>
       </div>
     </main>
