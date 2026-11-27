@@ -41,6 +41,9 @@ export default function HomeClient({
   // que é o que o Google lê — usa as configurações reais que vieram do
   // Firestore. Sem isso a home saía como "vitrine vazia" no primeiro render.
   const settingsToRender = settingsLoading ? initialSettings : settings;
+  // Servidor falhou ({} sem id) e o navegador ainda está buscando: não
+  // mostra o aviso de vitrine vazia antes de saber.
+  const awaitingSettings = settingsLoading && !initialSettings?.id;
   const activeSections = (settingsToRender.homeSections ?? []).filter(
     (s: StoreSection) => s.isActive
   );
@@ -77,7 +80,7 @@ export default function HomeClient({
               </div>
             ))}
 
-          {activeSections.length === 0 && <EmptyStoreState />}
+          {activeSections.length === 0 && !awaitingSettings && <EmptyStoreState />}
         </div>
       </div>
     </main>

@@ -56,6 +56,17 @@ describe("HomeClient — HTML do servidor (vitrine vazia)", () => {
     expect(html).not.toContain("Admin");
   });
 
+  it("leitura do servidor falhou: não mostra aviso enquanto o navegador busca", () => {
+    const html = renderToString(
+      <HomeClient
+        initialProducts={[]}
+        initialSettings={{} as StoreSettings}
+        initialRecipes={[]}
+      />
+    );
+    expect(html).not.toContain("Estamos arrumando a vitrine");
+  });
+
   it("no navegador, depois de montar, continua mostrando as seções reais", () => {
     render(<HomeClient initialProducts={[]} initialSettings={real} initialRecipes={[]} />);
     expect(screen.getByText("Fitas para seu laço")).toBeTruthy();
