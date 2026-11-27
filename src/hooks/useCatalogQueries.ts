@@ -156,3 +156,50 @@ export function useProductNeighbors(
 
   return { relatedProducts, recentlyViewedProducts };
 }
+
+// Fitas de /fitas e do montador de laço (#399, fatia 3): só `type == RIBBON`,
+// não a coleção inteira. Página e montador montam juntos e dividem a mesma
+// leitura; cada visita lê de novo (metragem do rolo aberto muda no dia).
+let ribbonRequest: Promise<Product[]> | null = null;
+
+function loadRibbons(): Promise<Product[]> {
+  ribbonRequest ??= getDocs(
+    query(collection(db, "products"), where("type", "==", "RIBBON"))
+  )
+    .then((snap) =>
+      snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }) as Product)
+        .filter((p) => !p.disabled)
+    )
+    .finally(() => {
+      ribbonRequest = null;
+    });
+  return ribbonRequest;
+}
+
+export function useRibbonProducts(): { products: Product[]; loading: boolean } {
+  const allProducts = useProductStore((s) => s.allProducts);
+  const hasCatalog = allProducts.length > 0;
+  const [loaded, setLoaded] = useState<Product[] | null>(null);
+
+  useEffect(() => {
+    if (hasCatalog) return;
+    let alive = true;
+    loadRibbons()
+      .then((ribbons) => alive && setLoaded(ribbons))
+      .catch((error) => {
+        console.error("Erro ao buscar as fitas:", error);
+        if (alive) setLoaded([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [hasCatalog]);
+
+  const fromStore = useMemo(
+    () => allProducts.filter((p) => p.type === "RIBBON"),
+    [allProducts]
+  );
+  if (hasCatalog) return { products: fromStore, loading: false };
+  return { products: loaded ?? [], loading: loaded == null };
+}

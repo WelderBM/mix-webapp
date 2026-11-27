@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useProductStore } from "@/store/productStore";
+import { useRibbonProducts } from "@/hooks/useCatalogQueries";
 import { useSettingsStore } from "@/store/settingsStore";
 import { StoreHeader } from "@/components/layout/StoreHeader";
 import { ProductCard } from "@/components/features/ProductCard";
@@ -36,7 +36,8 @@ const ROLLS_PAGE = 12;
 const METER_PAGE = 20;
 
 function FitasContent() {
-  const { allProducts, fetchProducts } = useProductStore();
+  // Só as fitas, não o catálogo inteiro (#399).
+  const { products: allProducts } = useRibbonProducts();
   const { addItem } = useCartStore();
   const { settings, fetchSettings } = useSettingsStore();
   const searchParams = useSearchParams();
@@ -58,9 +59,8 @@ function FitasContent() {
   const hasAutoScrolledRef = useRef(false);
 
   useEffect(() => {
-    fetchProducts();
     fetchSettings();
-  }, [fetchProducts, fetchSettings]);
+  }, [fetchSettings]);
 
   useEffect(() => {
     const tabParam = searchParams.get("aba");
