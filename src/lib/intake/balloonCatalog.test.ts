@@ -400,3 +400,20 @@ describe("foil: estoque por letra e número (dono, 23/10)", () => {
     expect(foilFit("666", 1, null)).toEqual({ text: "666", blocked: [] });
   });
 });
+
+describe("foil com o número no meio do nome (#287)", () => {
+  it("preto e candy entram em Números & Letras, com o caractere e a cor certos", () => {
+    const candy = "BALAO METALIZADO 16 40CM 0 AZUL TURQUESA CANDY";
+    expect(balloonTypeOf(candy)).toEqual({ typeId: "foil_numeros", size: "40cm" });
+    expect(foilCharOf(candy)).toBe("0");
+    expect(colorWords(candy)).toBe("AZUL TURQUESA");
+    const preto = "BALAO METALIZADO 16 40CM 3 PRETO";
+    expect(balloonTypeOf(preto)).toEqual({ typeId: "foil_numeros", size: "40cm" });
+    expect(foilCharOf(preto)).toBe("3");
+  });
+
+  it("não confunde o látex metalizado nem o foil de letra no fim", () => {
+    expect(balloonTypeOf("BALAO 16 METALLIC BALLOON C/10 PRETO")?.typeId).toBe("metalico");
+    expect(foilCharOf("BALAO METALIZADO 1640 CM ROSE 2")).toBe("2");
+  });
+});
