@@ -23,7 +23,7 @@ Loja de presentes/festas (Boa Vista - RR) com pedido digital-first: cliente mont
 - `master` é a branch de release/produção (atualizada por promoção `dev` → `master`).
 - **Validação Local Obrigatória**: `.env` local aponta pro projeto Firebase de **staging** (`mix-webapp-staging`), nunca pro de produção. Testes locais não podem sujar dados reais de clientes.
 - **Detecção de Concorrência & Worktree**: Antes de iniciar uma fatia, rodar `git branch --show-current` + `git status`. Se o diretório já estiver ocupado por outra sessão: PARAR, avisar, e propor worktree (`node scripts/wt-new.mjs <branch>`). Limpeza via `scripts/wt-clean.mjs`.
-- **Promoção**: Criar tag anotada `promo-YYYY-MM-DD` no HEAD de `dev` e dar push antes do merge `dev` → `master`.
+- **Promoção**: a tag anotada `promo-AAAA-MM-DD` (data de Boa Vista) é criada sozinha pelo workflow `promo-tag.yml` quando o PR `dev` → `master` é mergeado, no commit de `dev` que foi para o ar. Tags que faltarem: rodar o workflow à mão (Actions → "Tag da promoção") ou `scripts/promo-tags.sh`.
 
 ---
 
@@ -64,3 +64,13 @@ As skills do repositório estão centralizadas no ambiente global (`~/.agents/sk
   - **Na hora em que aparece**: achado de revisão que não vou corrigir agora, bug visto de passagem ou promessa ("corrijo depois") vira **issue** (passando pela triagem); pergunta ao dono sem resposta fica listada até ser respondida.
   - **Ao fechar a conversa**: documento de passagem em `docs/sessoes/AAAA-MM-DD-<assunto>.md` com o levantamento completo; onde guardar cada tipo de informação está em `docs/fluxo/guia-varias-conversas.md` §8.
 - **Prioridade (regra do dono, 23/10/2026)**: a próxima issue sai de `node scripts/prioridade.mjs` (fila autônoma, etiqueta `autonomo`); decisões ficam na fila do dono (`precisa-de-voce`). Toda issue nova nasce com os 6 eixos (`o:`, `s:`, `a:`, `e:`, `destrava`, `risco`) e uma `frente:`. Regra completa em `docs/fluxo/prioridade.md`.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

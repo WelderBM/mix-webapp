@@ -1,0 +1,42 @@
+name: Tag da promoção
+
+# Cria a tag promo-AAAA-MM-DD de cada promoção dev -> master (#422), no
+# commit de dev que foi para o ar. Antes era um passo manual e ficou de
+# fora de 7 promoções entre 14/07 e 27/11.
+#
+#   - pull_request closed em master: a promoção acabou de entrar;
+#   - workflow_dispatch: completa as que faltam desde uma data.
+#
+# A lógica mora em scripts/promo-tags.sh (idempotente: pula promoção que já
+# tem tag; duas no mesmo dia viram -2, -3).
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Completar tags de promoções desde (AAAA-MM-DD)"
+        default: "2026-07-14"
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Criar tags que faltam
+        env:
+          SINCE: ${{ github.event.inputs.since || '2026-07-14' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --tags origin master
+          bash scripts/promo-tags.sh "$SINCE"
+          git push origin --tags
