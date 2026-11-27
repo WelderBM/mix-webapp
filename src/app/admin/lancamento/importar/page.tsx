@@ -550,28 +550,33 @@ export default function NoturnoImportPage() {
               </div>
             )}
 
-            {m.writes.length === 0 && analysis.stockSync.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                Nada mudou desde a última importação.
+            {m.writes.length === 0 && analysis.stockSync.length === 0 && (
+              <p className="text-sm text-slate-600">
+                Nada mudou desde a última importação. Confirme para registrar
+                que o estoque está em dia.
               </p>
-            ) : (
-              <Button
-                className="h-12 w-full text-base"
-                disabled={importing}
-                onClick={runImport}
-              >
-                {importing ? (
-                  <>
-                    <Loader2 className="mr-2 animate-spin" size={18} />
-                    Gravando…
-                  </>
-                ) : m.writes.length > 0 ? (
-                  `Importar ${m.writes.length} alterações`
-                ) : (
-                  `Atualizar estoque de ${analysis.stockSync.length} produtos`
-                )}
-              </Button>
             )}
+            {/* Sempre há botão: um Excel novo sem mudança também é uma
+                importação em dia (some o aviso do painel, #416) e é o jeito de
+                refazer o estoque dos balões se a gravação dele falhou. */}
+            <Button
+              className="h-12 w-full text-base"
+              disabled={importing}
+              onClick={runImport}
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="mr-2 animate-spin" size={18} />
+                  Gravando…
+                </>
+              ) : m.writes.length > 0 ? (
+                `Importar ${m.writes.length} alterações`
+              ) : analysis.stockSync.length > 0 ? (
+                `Atualizar estoque de ${analysis.stockSync.length} produtos`
+              ) : (
+                "Confirmar importação"
+              )}
+            </Button>
           </section>
         )}
 
