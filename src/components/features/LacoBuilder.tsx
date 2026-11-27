@@ -1,5 +1,7 @@
 "use client";
 
+import type { BowSize } from "@/types/store";
+
 import { useState, useMemo, useEffect } from "react";
 import { useRibbonProducts } from "@/hooks/useCatalogQueries";
 import { useCartStore } from "@/store/cartStore";
@@ -53,7 +55,7 @@ export function LacoBuilder() {
     ? settings.bowModels
     : DEFAULT_BOW_STYLES;
 
-  const SIZES = (settings.bowSizes && settings.bowSizes.length > 0)
+  const SIZES: BowSize[] = (settings.bowSizes && settings.bowSizes.length > 0)
     ? settings.bowSizes
     : DEFAULT_SIZES;
 
@@ -115,7 +117,15 @@ export function LacoBuilder() {
       },
       quantity: 1,
       kitTotalAmount: finalPrice,
-      customizations: { style: selectedStyle.name, size: selectedSize.name },
+      customizations: {
+        style: selectedStyle.name,
+        size: selectedSize.name,
+        // Metragem do momento da venda (#415): o pedido desconta isto do
+        // rolo aberto quando fica Pronto. Sem metragem configurada, não leva.
+        ...(selectedSize.meters != null && selectedSize.meters > 0
+          ? { metersUsed: selectedSize.meters }
+          : {}),
+      },
     });
 
     openCart();

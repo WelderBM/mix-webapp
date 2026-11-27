@@ -25,6 +25,9 @@ export interface BowSize {
   id: string;
   name: string;
   price: number;
+  // Metros de fita que um laço deste tamanho gasta (#415). Configurável no
+  // admin. Ausente: o laço é vendido, mas não desconta o rolo aberto.
+  meters?: number;
 }
 
 export type SectionType =
