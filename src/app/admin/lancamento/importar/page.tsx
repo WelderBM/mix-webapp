@@ -315,13 +315,6 @@ export default function NoturnoImportPage() {
         ...summary,
         updatedAt: serverTimestamp(),
       });
-      // Some o alerta de importar no painel (#416): só importação concluída
-      // conta, por isso grava depois de toda a fila.
-      await setDoc(
-        doc(db, "intake_meta", "import"),
-        { lastImportedAt: serverTimestamp() },
-        { merge: true },
-      );
       // Estoque dos balões para o montador da loja (cor esgotada some).
       if (balloonConfig) {
         // chars: estoque de cada letra/número do foil, por cor.
@@ -332,6 +325,14 @@ export default function NoturnoImportPage() {
           updatedAt: serverTimestamp(),
         });
       }
+      // Some o alerta de importar no painel (#416): só importação concluída
+      // conta, por isso é a ÚLTIMA gravação: se o estoque dos balões
+      // falhar antes dela, o aviso continua no painel (revisão do #428).
+      await setDoc(
+        doc(db, "intake_meta", "import"),
+        { lastImportedAt: serverTimestamp() },
+        { merge: true },
+      );
       setDone({
         ...merge,
         soldOut: stockSync.filter((u) => !u.inStock).length,
