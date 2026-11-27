@@ -1,7 +1,7 @@
 import { MetadataRoute } from "next";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { STATIC_PAGES, productEntries } from "@/lib/sitemapEntries";
+import { STATIC_PAGES, categoryEntries, productEntries } from "@/lib/sitemapEntries";
 
 // Sem isto a rota é gerada no build e fica congelada até o próximo deploy
 // (docs/claude-lessons.md, "Rota sem revalidate"). Um dia basta para o
@@ -21,5 +21,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     console.error("Erro ao gerar sitemap de produtos:", error);
   }
 
-  return [...STATIC_PAGES.map((p) => ({ ...p, lastModified: now })), ...productsUrls];
+  let categoryUrls: MetadataRoute.Sitemap = [];
+  try {
+    const categoriesSnap = await getDocs(collection(db, "categories"));
+    categoryUrls = categoryEntries(
+      categoriesSnap.docs.map((d) => ({ id: d.id, active: d.data().active })),
+      now
+    );
+  } catch (error) {
+    console.error("Erro ao gerar sitemap de categorias:", error);
+  }
+
+  return [
+    ...STATIC_PAGES.map((p) => ({ ...p, lastModified: now })),
+    ...categoryUrls,
+    ...productsUrls,
+  ];
 }
