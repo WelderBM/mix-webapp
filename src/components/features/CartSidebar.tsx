@@ -37,6 +37,7 @@ import { DeliveryMethod, PaymentMethod, PaymentTiming } from "@/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { rememberOrder } from "@/lib/orderTracking";
+import { useSettingsStore } from "@/store/settingsStore";
 import { waPhone } from "@/lib/orderMessage";
 import { maskPhone } from "@/lib/phoneMask";
 import { getProductImage } from "@/lib/image-utils";
@@ -160,14 +161,20 @@ export function CartSidebar() {
   // - Pix: o cliente paga à LOJA o pedido + a corrida, e a loja paga o motoboy;
   // - Dinheiro: o cliente paga ao MOTOBOY o pedido + a corrida.
   // Então "para quem paga" sai da forma de pagamento, sem pergunta na tela.
+  // Configurações › "O motoboy tem maquininha" (#56): libera cartão também
+  // na entrega. Desligado (padrão) é a regra acima.
+  const cardOnDelivery = useSettingsStore(
+    (s) => s.settings.payment?.cardOnDelivery === true
+  );
   useEffect(() => {
     if (
+      !cardOnDelivery &&
       deliveryMethod === "delivery" &&
       (paymentMethod === "credit_card" || paymentMethod === "debit_card")
     ) {
       setPaymentMethod("pix");
     }
-  }, [deliveryMethod, paymentMethod]);
+  }, [cardOnDelivery, deliveryMethod, paymentMethod]);
   useEffect(() => {
     const want =
       deliveryMethod === "delivery" && paymentMethod === "cash" ? "carrier" : "store";
@@ -787,8 +794,8 @@ export function CartSidebar() {
                       </p>
                       <p className="text-xs">
                         O valor depende da distância (quase sempre R$ 10) e a
-                        gente confirma pelo WhatsApp. Na entrega aceitamos só
-                        Pix ou dinheiro:
+                        gente confirma pelo WhatsApp. Na entrega aceitamos
+                        {cardOnDelivery ? " Pix, dinheiro ou cartão:" : " só Pix ou dinheiro:"}
                       </p>
                       <ul className="text-xs list-disc pl-4 space-y-0.5">
                         <li>
@@ -798,6 +805,11 @@ export function CartSidebar() {
                           <b>Dinheiro:</b> você paga ao motoboy o pedido + a
                           corrida, na entrega.
                         </li>
+                        {cardOnDelivery && (
+                          <li>
+                            <b>Cartão:</b> na maquininha do motoboy, na entrega.
+                          </li>
+                        )}
                       </ul>
                     </div>
                   )}
@@ -815,20 +827,20 @@ export function CartSidebar() {
                         <SelectItem value="pix">💠 PIX</SelectItem>
                         <SelectItem
                           value="credit_card"
-                          disabled={deliveryMethod === "delivery"}
+                          disabled={deliveryMethod === "delivery" && !cardOnDelivery}
                         >
                           💳 Cartão de Crédito
                         </SelectItem>
                         <SelectItem
                           value="debit_card"
-                          disabled={deliveryMethod === "delivery"}
+                          disabled={deliveryMethod === "delivery" && !cardOnDelivery}
                         >
                           💳 Cartão de Débito
                         </SelectItem>
                         <SelectItem value="cash">💵 Dinheiro</SelectItem>
                       </SelectContent>
                     </Select>
-                    {deliveryMethod === "delivery" && (
+                    {deliveryMethod === "delivery" && !cardOnDelivery && (
                       <p className="text-xs text-blue-600 mt-1">
                         * Na entrega: só <b>Pix</b> ou <b>Dinheiro</b>. Cartão
                         só na retirada.
