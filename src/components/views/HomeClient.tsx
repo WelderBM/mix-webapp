@@ -2,7 +2,6 @@
 
 import { useRef } from "react";
 // Stores
-import { useProductStore } from "@/store/productStore";
 import { useSettingsStore } from "@/store/settingsStore";
 // Components Layout & Features
 import { StoreHeader } from "@/components/layout/StoreHeader";
@@ -12,30 +11,28 @@ import { EmptyStoreState } from "@/components/views/EmptyStoreState";
 import { useStoreHydration } from "@/hooks/useStoreHydration";
 import { useThemeStyles } from "@/hooks/useThemeStyles";
 // Types & Utils
-import { Product, StoreSettings, StoreSection, KitRecipe } from "@/types";
+import { StoreSettings, StoreSection } from "@/types";
+import type { ShelfProducts } from "@/lib/shelves";
 import { cn } from "@/lib/utils";
 
 interface HomeClientProps {
-  initialProducts: Product[];
   initialSettings: StoreSettings;
-  initialRecipes: KitRecipe[];
+  // Produtos de cada vitrine, já resolvidos no servidor (#399): a home não
+  // recebe nem carrega o catálogo inteiro.
+  initialShelves: ShelfProducts;
 }
 
 export default function HomeClient({
-  initialProducts,
   initialSettings,
-  initialRecipes,
+  initialShelves,
 }: HomeClientProps) {
   // 1. Hook de Hidratação
-  useStoreHydration(initialProducts, initialSettings, initialRecipes);
+  useStoreHydration(initialSettings);
 
   // 2. Acesso às Stores
-  const { allProducts } = useProductStore();
   const { settings, isLoading: settingsLoading } = useSettingsStore();
 
   // 3. Dados Computados
-  const productsToRender =
-    allProducts.length > 0 ? allProducts : initialProducts;
   // A store nasce com DEFAULT_SETTINGS (já com id "general" e sem seções):
   // só vale depois de carregada. Antes disso — inclusive no HTML do servidor,
   // que é o que o Google lê — usa as configurações reais que vieram do
@@ -73,7 +70,8 @@ export default function HomeClient({
               >
                 <SectionRenderer
                   section={section}
-                  products={productsToRender}
+                  products={initialShelves[section.id] ?? []}
+                  preResolved
                   onScrollRequest={handleScrollToShelves}
                   inGrid
                 />

@@ -15,8 +15,16 @@ vi.mock("firebase/firestore", () => ({
 }));
 vi.mock("@/components/layout/StoreHeader", () => ({ StoreHeader: () => null }));
 vi.mock("@/components/sections/SectionRenderer", () => ({
-  SectionRenderer: ({ section }: { section: { title: string } }) => (
-    <section>{section.title}</section>
+  SectionRenderer: ({
+    section,
+    products,
+  }: {
+    section: { title: string };
+    products: { name: string }[];
+  }) => (
+    <section>
+      {section.title}: {products.map((p) => p.name).join(", ")}
+    </section>
   ),
 }));
 
@@ -36,7 +44,7 @@ describe("HomeClient — HTML do servidor (vitrine vazia)", () => {
 
   it("usa as configurações do servidor enquanto a store não carregou", () => {
     const html = renderToString(
-      <HomeClient initialProducts={[]} initialSettings={real} initialRecipes={[]} />
+      <HomeClient initialSettings={real} initialShelves={{}} />
     );
     expect(html).toContain("Fitas para seu laço");
     expect(html).not.toContain("Banner desligado");
@@ -46,9 +54,7 @@ describe("HomeClient — HTML do servidor (vitrine vazia)", () => {
   it("sem seção ativa, leva o cliente para as páginas da loja (sem falar de admin)", () => {
     const html = renderToString(
       <HomeClient
-        initialProducts={[]}
-        initialSettings={{ id: "general", homeSections: [] } as unknown as StoreSettings}
-        initialRecipes={[]}
+        initialSettings={{ id: "general", homeSections: [] } as unknown as StoreSettings} initialShelves={{}}
       />
     );
     expect(html).toContain("Estamos arrumando a vitrine");
@@ -59,17 +65,25 @@ describe("HomeClient — HTML do servidor (vitrine vazia)", () => {
   it("leitura do servidor falhou: não mostra aviso enquanto o navegador busca", () => {
     const html = renderToString(
       <HomeClient
-        initialProducts={[]}
-        initialSettings={{} as StoreSettings}
-        initialRecipes={[]}
+        initialSettings={{} as StoreSettings} initialShelves={{}}
       />
     );
     expect(html).not.toContain("Estamos arrumando a vitrine");
   });
 
+  it("cada vitrine recebe os produtos resolvidos no servidor (#399)", () => {
+    const html = renderToString(
+      <HomeClient
+        initialSettings={real}
+        initialShelves={{ a: [{ id: "1", name: "Fita Cetim Rosa" } as never] }}
+      />
+    );
+    expect(html).toContain("Fita Cetim Rosa");
+  });
+
   it("no navegador, depois de montar, continua mostrando as seções reais", () => {
-    render(<HomeClient initialProducts={[]} initialSettings={real} initialRecipes={[]} />);
-    expect(screen.getByText("Fitas para seu laço")).toBeTruthy();
+    render(<HomeClient initialSettings={real} initialShelves={{}} />);
+    expect(screen.getByText(/Fitas para seu laço/)).toBeTruthy();
     expect(screen.queryByText("Estamos arrumando a vitrine.")).toBeNull();
   });
 });

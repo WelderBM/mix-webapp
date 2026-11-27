@@ -10,11 +10,14 @@ import { resolveSectionProducts } from "@/lib/sections";
 interface SectionProductShelfProps {
   section: StoreSection;
   allProducts: Product[];
+  /** `allProducts` já é a lista desta prateleira (resolvida no servidor). */
+  preResolved?: boolean;
 }
 
 export const SectionProductShelf = ({
   section,
   allProducts,
+  preResolved,
 }: SectionProductShelfProps) => {
   const { openCart, addItem } = useCartStore();
   // `source: { mode: "category" }` precisa resolver categoryId -> nome
@@ -25,16 +28,14 @@ export const SectionProductShelf = ({
   const subscribeToCategories = useCategoryStore((state) => state.subscribe);
 
   useEffect(() => {
-    subscribeToCategories();
-  }, [subscribeToCategories]);
+    if (!preResolved) subscribeToCategories();
+  }, [preResolved, subscribeToCategories]);
 
   // Resolve os produtos desta seção a partir de `source` (curadoria manual
   // OU vitrine autodidata por categoria/tag/estoque baixo — issue #71).
-  const sectionProducts = resolveSectionProducts(
-    section,
-    allProducts,
-    categories
-  );
+  const sectionProducts = preResolved
+    ? allProducts
+    : resolveSectionProducts(section, allProducts, categories);
 
   if (sectionProducts.length === 0) return null;
 

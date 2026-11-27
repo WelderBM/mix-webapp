@@ -1,47 +1,23 @@
 import { useEffect, useRef } from "react";
 import { useSettingsStore } from "@/store/settingsStore";
-import { useProductStore } from "@/store/productStore";
-import { useKitStore } from "@/store/kitStore";
-import { Product, StoreSettings, KitRecipe } from "@/types";
+import { StoreSettings } from "@/types";
 
-export const useStoreHydration = (
-  initialProducts: Product[],
-  initialSettings: StoreSettings,
-  initialRecipes: KitRecipe[]
-) => {
+// Leva para a store as configurações que a home leu no servidor. O catálogo
+// NÃO é hidratado aqui (#399): a home recebe só os produtos de cada vitrine,
+// e quem precisa do catálogo inteiro (carrinho, montador, /fitas) o pede.
+export const useStoreHydration = (initialSettings: StoreSettings) => {
   const hydratedRef = useRef(false);
 
   useEffect(() => {
     if (hydratedRef.current) return;
-
-    // 1. Injeta Configurações. Sem `id`, a leitura no servidor falhou
-    // (getInitialData devolve {}): busca de novo no navegador em vez de
-    // deixar a home sem vitrine até a próxima revalidação.
+    // Sem `id`, a leitura no servidor falhou (getInitialData devolve {}):
+    // busca de novo no navegador em vez de deixar a home sem vitrine até a
+    // próxima revalidação.
     if (initialSettings?.id) {
       useSettingsStore.setState({ settings: initialSettings, isLoading: false });
     } else {
       useSettingsStore.getState().fetchSettings();
     }
-
-    // 2. Injeta Receitas (CRÍTICO: Deve vir antes dos produtos para o cálculo de kits)
-    if (initialRecipes && initialRecipes.length > 0) {
-      useKitStore.setState({ recipes: initialRecipes, isLoading: false });
-    } else {
-      useKitStore.getState().fetchRecipes();
-    }
-
-    // 3. Injeta Produtos
-    if (initialProducts && initialProducts.length > 0) {
-      useProductStore.setState({
-        allProducts: initialProducts,
-        isLoading: false,
-      });
-      // Aplica filtros para disparar o cálculo de "assembledKits" com as receitas já carregadas
-      useProductStore.getState().applyFilters();
-    } else {
-      useProductStore.getState().fetchProducts();
-    }
-
     hydratedRef.current = true;
-  }, [initialProducts, initialSettings, initialRecipes]);
+  }, [initialSettings]);
 };
