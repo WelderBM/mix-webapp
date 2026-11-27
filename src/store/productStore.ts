@@ -49,7 +49,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
       await useKitStore.getState().fetchRecipes();
       const recipes = useKitStore.getState().recipes;
 
-      set({ isLoading: true });
+      // Limpa o erro da tentativa anterior: o carrinho usa `error` para saber
+      // se a leitura falhou (#419).
+      set({ isLoading: true, error: null });
       try {
         const querySnapshot = await getDocs(collection(db, "products"));
         const productsData: Product[] = querySnapshot.docs.map(

@@ -96,8 +96,17 @@ export function CartSidebar() {
     getCartTotal,
     clearCart,
   } = useCartStore();
-  const { getProductById, allProducts, isLoading: isLoadingProducts } =
-    useProductStore();
+  const {
+    getProductById,
+    allProducts,
+    isLoading: isLoadingProducts,
+    error: productsError,
+  } = useProductStore();
+  // Leitura do catálogo falhou (rede, cota do Firestore): sem catálogo não dá
+  // para dizer que um item saiu de venda, então nada é marcado indisponível e
+  // o pedido segue — a atendente confere tudo no WhatsApp (#419).
+  const catalogFailed =
+    !isLoadingProducts && productsError != null && allProducts.length === 0;
   // O catálogo da loja é carregado uma vez por visita (cópia da home de até
   // 60 s). Produto publicado depois disso parecia "indisponível" no
   // carrinho. Antes de acusar, recarrega o catálogo uma vez.
@@ -225,12 +234,27 @@ export function CartSidebar() {
       await useProductStore.getState().ensureProducts();
       liveProducts = useProductStore.getState().allProducts;
     }
-    const reason = items
-      .map((item) => getCartItemUnavailableReason(item, liveProducts))
-      .find((r) => r != null);
-    if (reason) {
-      toast.error(`${reason} Remova esse item para continuar.`);
-      return;
+    // Leitura falhou: tenta mais uma vez antes de desistir de conferir.
+    const failed = () => {
+      const s = useProductStore.getState();
+      return s.error != null && s.allProducts.length === 0;
+    };
+    if (failed()) {
+      await useProductStore.getState().fetchProducts();
+      liveProducts = useProductStore.getState().allProducts;
+    }
+    // Sem catálogo não dá para conferir: o pedido segue com o preço do
+    // carrinho e a atendente confirma no WhatsApp (#419). O aviso só sai
+    // depois de o formulário passar, logo antes de gravar.
+    const stockUnchecked = failed();
+    if (!stockUnchecked) {
+      const reason = items
+        .map((item) => getCartItemUnavailableReason(item, liveProducts))
+        .find((r) => r != null);
+      if (reason) {
+        toast.error(`${reason} Remova esse item para continuar.`);
+        return;
+      }
     }
 
     if (!customerName.trim()) {
@@ -267,6 +291,11 @@ export function CartSidebar() {
       }
     }
 
+    if (stockUnchecked) {
+      toast.info(
+        "Não consegui conferir o estoque agora. A atendente confirma tudo pelo WhatsApp."
+      );
+    }
     setIsCheckingOut(true);
 
     try {
@@ -366,9 +395,10 @@ export function CartSidebar() {
                         item.product?.imageUrl,
                       item.product?.type || "DEFAULT"
                     );
-                    const unavailableReason = isLoadingProducts
-                      ? null
-                      : getCartItemUnavailableReason(item, allProducts);
+                    const unavailableReason =
+                      isLoadingProducts || catalogFailed
+                        ? null
+                        : getCartItemUnavailableReason(item, allProducts);
                     const itemPrice = unavailableReason
                       ? 0
                       : getCartItemTotal(item);
