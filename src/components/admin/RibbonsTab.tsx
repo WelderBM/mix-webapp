@@ -32,6 +32,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ImageUploadModal } from "@/components/admin/ImageUploadModal";
 import { OpenRibbonRollModal } from "@/components/admin/OpenRibbonRollModal";
+import { BowMetersInput } from "@/components/admin/BowMetersInput";
 import { RibbonLinesFromNoturno } from "@/components/admin/RibbonLinesFromNoturno";
 import { RibbonPhotoRefresh } from "@/components/admin/RibbonPhotoRefresh";
 import { SafeImage } from "@/components/ui/SafeImage";
@@ -1049,7 +1050,7 @@ export function RibbonsTab({
             <div className="space-y-3">
               {(settings.bowSizes || []).map((size, idx) => (
                 <div key={size.id} className="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                  <div className="flex-1 grid grid-cols-3 gap-2">
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <Input
                       placeholder="Nome (ex: Pequeno)"
                       value={size.name}
@@ -1074,27 +1075,17 @@ export function RibbonsTab({
                         className="pl-9 text-sm"
                       />
                     </div>
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        step="0.05"
-                        min={0}
-                        placeholder="Metros"
-                        aria-label={`Metros de fita do laço ${size.name}`}
-                        value={size.meters ?? ""}
-                        onChange={(e) => {
-                          const updated = [...(settings.bowSizes || [])];
-                          const n = Number.parseFloat(e.target.value);
-                          // Vazio tira o campo (o Firestore recusa undefined).
-                          const { meters: _old, ...rest } = updated[idx];
-                          updated[idx] = Number.isFinite(n) && n > 0 ? { ...rest, meters: n } : rest;
-                          setSettings((prev: StoreSettings) => ({ ...prev, bowSizes: updated }));
-                        }}
-                        className="pr-7 text-sm"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">m</span>
-                    </div>
+                    <BowMetersInput
+                      meters={size.meters}
+                      label={`Metros de fita do laço ${size.name}`}
+                      onChange={(m) => {
+                        const updated = [...(settings.bowSizes || [])];
+                        // Sem metragem tira o campo (o Firestore recusa undefined).
+                        const { meters: _old, ...rest } = updated[idx];
+                        updated[idx] = m != null ? { ...rest, meters: m } : rest;
+                        setSettings((prev: StoreSettings) => ({ ...prev, bowSizes: updated }));
+                      }}
+                    />
                   </div>
                   {size.meters == null && (
                     <p className="basis-full text-xs text-amber-800">

@@ -53,7 +53,11 @@ service cloud.firestore {
     //   - Atualizar/Deletar: somente admin
     // ─────────────────────────────────────────────────────────────────────
     match /orders/{orderId} {
-      allow create: if true;
+      // Pedido nasce sem a marca de baixa de metragem (#415): só o admin a
+      // grava, ao passar para "Pronto". Senão um pedido forjado poderia
+      // "devolver" metragem que nunca saiu.
+      allow create: if !('stockApplied' in request.resource.data)
+                    && !('stockAppliedAt' in request.resource.data);
       allow get:    if true;
       allow list:   if isAdmin();
       allow update: if isAdmin();

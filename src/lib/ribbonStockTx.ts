@@ -10,14 +10,16 @@ import {
 // A troca de status mexe na metragem? Decide com o pedido em memória; a
 // transação confere de novo antes de gravar (#415).
 export function ribbonStockChange(
-  order: Pick<Order, "items" | "stockApplied">,
+  order: Pick<Order, "items" | "stockApplied" | "stockAppliedAt">,
   newStatus: OrderStatus
 ): "apply" | "revert" | null {
   const consumes = statusConsumesRibbon(newStatus);
   if (consumes && !order.stockApplied) {
     return Object.keys(ribbonMetersByProduct(order.items)).length > 0 ? "apply" : null;
   }
-  if (!consumes && order.stockApplied) return "revert";
+  // Só estorna baixa feita pelo admin (tem a data); a regra do Firestore
+  // também impede o pedido de nascer com a marca.
+  if (!consumes && order.stockApplied && order.stockAppliedAt) return "revert";
   return null;
 }
 

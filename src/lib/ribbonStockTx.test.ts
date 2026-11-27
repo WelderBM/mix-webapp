@@ -42,7 +42,9 @@ describe("baixa da metragem no status do pedido (#415)", () => {
   it("decide pelo pedido em memória", () => {
     expect(ribbonStockChange({ items } as never, "ready")).toBe("apply");
     expect(ribbonStockChange({ items, stockApplied: { pm: 3 } } as never, "delivered")).toBeNull();
-    expect(ribbonStockChange({ items, stockApplied: { pm: 3 } } as never, "cancelled")).toBe("revert");
+    expect(ribbonStockChange({ items, stockApplied: { pm: 3 }, stockAppliedAt: "x" } as never, "cancelled")).toBe("revert");
+    // sem a data da baixa (pedido forjado), não estorna
+    expect(ribbonStockChange({ items, stockApplied: { pm: 3 } } as never, "cancelled")).toBeNull();
     expect(ribbonStockChange({ items: [] } as never, "ready")).toBeNull();
   });
 
