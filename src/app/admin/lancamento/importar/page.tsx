@@ -315,13 +315,6 @@ export default function NoturnoImportPage() {
         ...summary,
         updatedAt: serverTimestamp(),
       });
-      // Some o alerta de importar no painel (#416): só importação concluída
-      // conta, por isso grava depois de toda a fila.
-      await setDoc(
-        doc(db, "intake_meta", "import"),
-        { lastImportedAt: serverTimestamp() },
-        { merge: true },
-      );
       // Estoque dos balões para o montador da loja (cor esgotada some).
       if (balloonConfig) {
         // chars: estoque de cada letra/número do foil, por cor.
@@ -332,6 +325,14 @@ export default function NoturnoImportPage() {
           updatedAt: serverTimestamp(),
         });
       }
+      // Some o alerta de importar no painel (#416): só importação concluída
+      // conta, por isso é a ÚLTIMA gravação: se o estoque dos balões
+      // falhar antes dela, o aviso continua no painel (revisão do #428).
+      await setDoc(
+        doc(db, "intake_meta", "import"),
+        { lastImportedAt: serverTimestamp() },
+        { merge: true },
+      );
       setDone({
         ...merge,
         soldOut: stockSync.filter((u) => !u.inStock).length,
@@ -549,28 +550,33 @@ export default function NoturnoImportPage() {
               </div>
             )}
 
-            {m.writes.length === 0 && analysis.stockSync.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                Nada mudou desde a última importação.
+            {m.writes.length === 0 && analysis.stockSync.length === 0 && (
+              <p className="text-sm text-slate-600">
+                Nada mudou desde a última importação. Confirme para registrar
+                que o estoque está em dia.
               </p>
-            ) : (
-              <Button
-                className="h-12 w-full text-base"
-                disabled={importing}
-                onClick={runImport}
-              >
-                {importing ? (
-                  <>
-                    <Loader2 className="mr-2 animate-spin" size={18} />
-                    Gravando…
-                  </>
-                ) : m.writes.length > 0 ? (
-                  `Importar ${m.writes.length} alterações`
-                ) : (
-                  `Atualizar estoque de ${analysis.stockSync.length} produtos`
-                )}
-              </Button>
             )}
+            {/* Sempre há botão: um Excel novo sem mudança também é uma
+                importação em dia (some o aviso do painel, #416) e é o jeito de
+                refazer o estoque dos balões se a gravação dele falhou. */}
+            <Button
+              className="h-12 w-full text-base"
+              disabled={importing}
+              onClick={runImport}
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="mr-2 animate-spin" size={18} />
+                  Gravando…
+                </>
+              ) : m.writes.length > 0 ? (
+                `Importar ${m.writes.length} alterações`
+              ) : analysis.stockSync.length > 0 ? (
+                `Atualizar estoque de ${analysis.stockSync.length} produtos`
+              ) : (
+                "Confirmar importação"
+              )}
+            </Button>
           </section>
         )}
 

@@ -339,7 +339,11 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <NoturnoImportBanner periodDays={settings.noturnoImport?.periodDays} />
+        {/* Só depois da leitura real: antes disso `settings` ainda não tem o
+            período salvo e o aviso piscaria com o padrão (revisão do #428). */}
+        {settingsLoaded && (
+          <NoturnoImportBanner periodDays={settings.noturnoImport?.periodDays} />
+        )}
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-xl shadow-sm gap-4">
           <div>
