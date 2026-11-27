@@ -55,8 +55,8 @@ Sem isso, os testes 6-9 abaixo (tudo que envolve o painel admin) não vão funci
 - [ ] Em paralelo, manter `/meu-pedido?id=<idDoPedido>` aberto **numa aba anônima** (sem estar logado)
 - **Esperado:** a barra de progresso no rastreamento avança em tempo real a cada mudança de status no admin, sem precisar recarregar a página. Esse é o teste que valida o fix da Fase 1 (regra de leitura anônima).
 
-## 8. Admin — "Copiar Moto"
-- [ ] Num pedido de entrega, clicar em "Copiar Moto"
+## 8. Admin — "Copiar p/ Motoboy"
+- [ ] Num pedido de entrega, clicar em "Copiar p/ Motoboy"
 - [ ] Colar o texto copiado em qualquer lugar (bloco de notas, WhatsApp)
 - **Esperado:** texto traz endereço da loja, dados do cliente, endereço de entrega, telefone e instrução de pagamento corretos
 

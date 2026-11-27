@@ -35,15 +35,28 @@ const NOVIDADES_THRESHOLD_MS = NOVIDADES_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
 // Exportado pra reuso em ordenação por data (ex: `sort: "newest"` de
 // StoreSection, ver src/lib/sections.ts) sem duplicar a lógica de parsing
 // de Timestamp/Date/number aqui documentada.
+// Também aceita texto ISO (o que `toPlain` manda do servidor para o
+// cliente, #406) e `{seconds, nanoseconds}` (Timestamp serializado sem
+// conversão, formato antigo de produção).
 export const toEpochMillis = (value: unknown): number | null => {
   if (value == null) return null;
   if (value instanceof Date) return value.getTime();
   if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const t = Date.parse(value);
+    return Number.isNaN(t) ? null : t;
+  }
   if (
     typeof value === "object" &&
     typeof (value as { toMillis?: unknown }).toMillis === "function"
   ) {
     return (value as { toMillis: () => number }).toMillis();
+  }
+  if (
+    typeof value === "object" &&
+    typeof (value as { seconds?: unknown }).seconds === "number"
+  ) {
+    return (value as { seconds: number }).seconds * 1000;
   }
   return null;
 };

@@ -1,10 +1,9 @@
 // src/app/categoria/[slug]/page.tsx
 //
-// Página de listagem por categoria (issue #70). Segue o mesmo padrão
-// client-side de /fitas e /produto/[id]: sem fetch server-side, dados vêm
-// dos stores Zustand já compartilhados com a Navbar (useCategoryStore via
-// onSnapshot, useProductStore via getDocs) — sem query extra por categoria,
-// só filtra em memória o catálogo que a Navbar/outras páginas já carregam.
+// Página de listagem por categoria (issue #70). Client-side: categorias
+// via onSnapshot (useCategoryStore); produtos lidos só desta categoria, ou
+// filtrados da store se o catálogo já veio da home (useCategoryProducts,
+// #399).
 "use client";
 
 import { Suspense, useEffect, useMemo } from "react";
@@ -12,7 +11,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PackageSearch } from "lucide-react";
 import { useCategoryStore } from "@/store/categoryStore";
-import { useProductStore } from "@/store/productStore";
+import { useCategoryProducts } from "@/hooks/useCatalogQueries";
 import { StoreHeader } from "@/components/layout/StoreHeader";
 import { ProductCard } from "@/components/features/ProductCard";
 import { BackButton } from "@/components/ui/BackButton";
@@ -34,20 +33,9 @@ function CategoriaContent() {
   const categoriesLoading = useCategoryStore((state) => state.isLoading);
   const subscribeToCategories = useCategoryStore((state) => state.subscribe);
 
-  const allProducts = useProductStore((state) => state.allProducts);
-  const productsLoading = useProductStore((state) => state.isLoading);
-  const fetchProducts = useProductStore((state) => state.fetchProducts);
-
   useEffect(() => {
     subscribeToCategories();
   }, [subscribeToCategories]);
-
-  useEffect(() => {
-    if (allProducts.length === 0 && productsLoading) {
-      fetchProducts();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Categoria inativa se comporta como "não encontrada" — não deve ficar
   // navegável por link direto se o admin desativou.
@@ -55,6 +43,10 @@ function CategoriaContent() {
     () => categories.find((c) => c.id === slug && c.active) ?? null,
     [categories, slug]
   );
+
+  // Só os produtos desta categoria, não o catálogo inteiro (#399).
+  const { products: allProducts, loading: productsLoading } =
+    useCategoryProducts(category?.name ?? null);
 
   const activeSubcategory = useMemo(
     () =>

@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Product, ProductVariant, ProductImage, CartItem } from "@/types";
 import { useCartStore } from "@/store/cartStore";
-import { useProductStore } from "@/store/productStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, Check, ShieldCheck } from "lucide-react";
@@ -12,9 +11,8 @@ import { ProductCard } from "@/components/features/ProductCard";
 import { BackButton } from "@/components/ui/BackButton";
 import { cn } from "@/lib/utils";
 import { getEffectiveUnitPrice, getEffectiveUnitLabel } from "@/lib/ribbon-pricing";
-import { filterProductsByCategory } from "@/lib/categories";
 import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
-import { resolveRecentlyViewedProducts } from "@/lib/recentlyViewed";
+import { useProductNeighbors } from "@/hooks/useCatalogQueries";
 
 // Cap de exibição das duas vitrines novas (issue #168) — mesma ordem de
 // grandeza de MAX_RECENTLY_VIEWED (useRecentlyViewed.ts), o bastante pra
@@ -103,23 +101,6 @@ export default function ProductPageClient({ product }: ProductPageClientProps) {
   const [animateButton, setAnimateButton] = useState(false);
   const { addItem, openCart } = useCartStore();
 
-  // Catálogo completo pras duas vitrines novas (issue #168). Esta rota é
-  // Server Component desde a #111 e busca só o produto atual — não hidrata
-  // `useProductStore` (diferente de HomeClient, que recebe `initialProducts`
-  // via useStoreHydration). Mesmo padrão de /categoria/[slug]/page.tsx:
-  // busca sob demanda se a store ainda estiver vazia (visitante chegou
-  // direto por link, sem passar pela home antes).
-  const allProducts = useProductStore((state) => state.allProducts);
-  const productsLoading = useProductStore((state) => state.isLoading);
-  const fetchProducts = useProductStore((state) => state.fetchProducts);
-
-  useEffect(() => {
-    if (allProducts.length === 0 && productsLoading) {
-      fetchProducts();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Item 1 — "vistos recentemente" (client-side puro, localStorage, sem
   // conta/login — ver useRecentlyViewed.ts). Registra a visita ATUAL a cada
   // troca de produto (navegação client-side entre duas páginas de produto
@@ -132,29 +113,14 @@ export default function ProductPageClient({ product }: ProductPageClientProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id]);
 
-  // Exclui o produto atual da lista exibida — ele acabou de entrar em
-  // `recentIds` pela chamada acima, mas "vistos recentemente" aqui significa
-  // os OUTROS produtos que o visitante já viu, não o que ele está vendo
-  // agora.
-  const recentlyViewedProducts = useMemo(
-    () => resolveRecentlyViewedProducts(recentIds, allProducts, product.id),
-    [recentIds, allProducts, product.id]
+  // "Vistos recentemente" (sem o produto atual) e "relacionados" por
+  // categoria/subcategoria. Sem baixar o catálogo inteiro: lê só esses
+  // produtos, ou filtra a store se ela já estiver carregada (#399).
+  const { recentlyViewedProducts, relatedProducts } = useProductNeighbors(
+    product,
+    recentIds,
+    RELATED_PRODUCTS_LIMIT
   );
-
-  // Item 2 — "relacionados" por categoria/subcategoria (independente do
-  // item 1, funciona pra visitante novo sem histórico nenhum). Reaproveita
-  // `filterProductsByCategory` (mesma função de /categoria/[slug]), exclui
-  // o próprio produto da lista.
-  const relatedProducts = useMemo(() => {
-    if (!product.category) return [];
-    return filterProductsByCategory(
-      allProducts,
-      product.category,
-      product.subcategory
-    )
-      .filter((p) => p.id !== product.id)
-      .slice(0, RELATED_PRODUCTS_LIMIT);
-  }, [allProducts, product]);
 
   // Deriva a seleção inicial a partir do produto já resolvido no servidor.
   // Mantém as dependências em `product.id` (equivalente ao antigo `[id]` do

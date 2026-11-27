@@ -341,16 +341,22 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-xl shadow-sm gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Painel Mix Novidades</h1>
-            <p className="text-xs text-slate-500">Gestão simplificada</p>
+            {/* Mesmo padrão de título/subtítulo de /admin/lancamento (#409). */}
+            <h1 className="text-xl font-bold text-slate-800 md:text-2xl">Painel Mix Novidades</h1>
+            <p className="text-sm text-slate-600">Gestão simplificada</p>
           </div>
           <div className="flex gap-2 flex-wrap justify-center md:justify-end">
             {/* Tarefa principal das atendentes (#235): à vista, não no menu ⋯. */}
-            <Link href="/admin/lancamento" className="w-full md:w-auto">
-              <Button className="h-12 w-full gap-2 bg-purple-600 text-base hover:bg-purple-700 md:h-10 md:text-sm">
+            {/* Button asChild, não <Link><Button>: o link inline em volta do
+                botão media quase 0px no axe (target-size, #357). */}
+            <Button
+              asChild
+              className="h-12 w-full gap-2 bg-purple-600 text-base hover:bg-purple-700 md:h-11 md:w-auto md:text-sm"
+            >
+              <Link href="/admin/lancamento">
                 <ClipboardList size={18} /> Lançar produtos
-              </Button>
-            </Link>
+              </Link>
+            </Button>
             {/* Salvar só onde há o que salvar (#242): em Pedidos/Produtos
                 ele não grava nada e confundia as atendentes. */}
             {viewMode === "inventory" &&
@@ -363,7 +369,7 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
                   ? "Carregando configurações atuais — aguarde antes de salvar"
                   : undefined
               }
-              className="h-11 bg-green-600 hover:bg-green-700 text-white gap-2 flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-11 bg-green-700 hover:bg-green-800 text-white gap-2 flex-1 md:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {!settingsLoaded || !balloonsLoaded ? (
                 <Loader2 size={18} className="animate-spin" />
@@ -392,7 +398,8 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
                   variant="ghost"
                   size="icon"
                   aria-label="Mais opções"
-                  className="size-11 text-slate-400"
+                  // slate-400 ficava quase invisível (2,6:1; ícone pede 3:1) — #384
+                  className="size-11 text-slate-600"
                 >
                   <MoreHorizontal size={18} />
                 </Button>

@@ -1,11 +1,14 @@
+import { SITE_URL } from "@/lib/siteUrl";
+
 export default function OrganizationJsonLd() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
     name: "Mix Novidades",
-    image: "https://mixnovidades.com.br/logo.png", // Ensure this exists or use a valid URL
-    "@id": "https://mixnovidades.com.br",
-    url: "https://mixnovidades.com.br",
+    // Domínio real (era mixnovidades.com.br, que não existe, e logo.png dava 404 — #400).
+    image: `${SITE_URL}/icon.png`,
+    "@id": SITE_URL,
+    url: SITE_URL,
     telephone: "+5595984244194",
     address: {
       "@type": "PostalAddress",

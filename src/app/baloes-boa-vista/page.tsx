@@ -6,7 +6,7 @@ import { MapPin, Phone, CheckCircle, Star, ArrowRight } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
 
 export const metadata: Metadata = {
-  title: "Balões em Boa Vista RR | Mix Novidades - Decoração de Festas",
+  title: "Balões em Boa Vista RR | Decoração de Festas",
   description:
     "Procurando balões em Boa Vista - Roraima? A Mix Novidades tem a maior variedade de cores e modelos da São Roque, Metalizados e muito mais. Faça seu orçamento online!",
   keywords: [
@@ -17,7 +17,8 @@ export const metadata: Metadata = {
     "loja de balões sen helio campos",
   ],
   alternates: {
-    canonical: "https://mixnovidades.com.br/baloes-boa-vista",
+    // Relativo: o metadataBase do layout completa com o domínio certo (#400).
+    canonical: "/baloes-boa-vista",
   },
 };
 

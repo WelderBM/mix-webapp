@@ -7,6 +7,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { toPlain } from "@/lib/firestorePlain";
 import { Product, StoreSettings, KitRecipe } from "@/types"; // Import atualizado
 import HomeClient from "@/components/views/HomeClient";
 
@@ -26,24 +27,17 @@ async function getInitialData() {
       getDocs(collection(db, "kit_recipes")),
     ]);
 
-    const products = productsSnap.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-      } as Product;
-    });
+    // toPlain: Timestamp do Firestore não pode ir para o HomeClient.
+    const products = productsSnap.docs.map(
+      (doc) => toPlain({ id: doc.id, ...doc.data() }) as Product
+    );
 
     const settings = settingsSnap.exists()
-      ? (settingsSnap.data() as StoreSettings)
+      ? (toPlain(settingsSnap.data()) as StoreSettings)
       : ({} as StoreSettings);
 
     const recipes = recipesSnap.docs.map(
-      (doc) =>
-        ({
-          id: doc.id,
-          ...doc.data(),
-        } as KitRecipe)
+      (doc) => toPlain({ id: doc.id, ...doc.data() }) as KitRecipe
     );
 
     return { products, settings, recipes };

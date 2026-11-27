@@ -93,7 +93,7 @@ export const ProductImageManager: React.FC<ProductImageManagerProps> = ({
                   size="sm"
                   variant={img.isCover ? "default" : "outline"}
                   className={`h-7 text-xs gap-1 ${
-                    img.isCover ? "bg-green-600 hover:bg-green-700" : ""
+                    img.isCover ? "bg-green-700 hover:bg-green-800" : ""
                   }`}
                   onClick={() => handleSetCover(img.id)}
                   disabled={disabled || img.isCover} // Disabled if already cover

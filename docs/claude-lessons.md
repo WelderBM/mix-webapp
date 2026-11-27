@@ -215,3 +215,9 @@ Também: `sed -i` no Git Bash tira o `\r` (o `BalloonBuilder.test.tsx` virou LF 
 
 ### Worktree nova: sem `node_modules` e sem chaves do Firebase
 `git worktree add` não leva `node_modules`: rodar `npm ci` (~3 min) antes de `tsc`/`vitest`. Junção para o `node_modules` de outra worktree só serve se o `package-lock.json` for igual. O `.env.local` da pasta principal só tem `UX_ADMIN_*`, sem as `NEXT_PUBLIC_FIREBASE_*`, então `next build` local falha ao coletar dados de página. Nesse caso o build fica com o preview da Vercel no PR, e a descrição do PR diz isso.
+
+### Vitest 4: `mockReset()` num `beforeEach` faz rejeição já tratada falhar o teste
+Com `beforeEach(() => mock.mockReset())` e um teste em que o mock rejeita (`mockImplementation(async () => { throw … })`), o código sob teste captura o erro (o `try/catch` do próprio teste confirma), e mesmo assim o Vitest 4.1 marca o teste como falho, com o erro do mock. Sem o `mockReset`, passa. **Padrão:** em teste de falha, cada teste define a própria implementação (`mockImplementation`), sem `mockReset` no `beforeEach`. Achado real: `src/app/catalogo/menu/route.test.ts` (PR #408).
+
+### Rota `GET` com `force-static` + `revalidate`: não devolver 200 no `catch`
+Uma resposta de erro com status 200 vira a versão em cache até a próxima revalidação. Na revalidação, relançar o erro faz o Next manter a última versão boa. Só no build, quando ainda não há versão anterior, faz sentido devolver um valor neutro (`process.env.NEXT_PHASE === "phase-production-build"`). E quem consome trata o valor neutro como falha, para tentar de novo. Achado real: revisão do #408.

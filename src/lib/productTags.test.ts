@@ -38,6 +38,14 @@ describe("isNovidade", () => {
     expect(isNovidade({ createdAt }, NOW)).toBe(true);
   });
 
+  it("aceita texto ISO (vindo do servidor via toPlain, #406) e {seconds}", () => {
+    const iso = new Date(NOW.getTime() - DAY_MS).toISOString();
+    expect(isNovidade({ createdAt: iso }, NOW)).toBe(true);
+    const seconds = Math.floor((NOW.getTime() - DAY_MS) / 1000);
+    expect(isNovidade({ createdAt: { seconds, nanoseconds: 0 } }, NOW)).toBe(true);
+    expect(isNovidade({ createdAt: "não é data" }, NOW)).toBe(false);
+  });
+
   it("aceita createdAt como objeto Timestamp-like do Firestore (toMillis())", () => {
     const createdAt = { toMillis: () => NOW.getTime() - 1 * DAY_MS };
     expect(isNovidade({ createdAt }, NOW)).toBe(true);

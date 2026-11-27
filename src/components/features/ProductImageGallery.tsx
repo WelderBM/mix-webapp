@@ -89,6 +89,11 @@ export function ProductImageGallery({
             name={productName}
             fill
             sizes="(min-width: 1024px) 50vw, 100vw"
+            // É o LCP da página de produto: carrega já, sem esperar o lazy
+            // (aviso do Next no teste de 09/11; doc do Next 16 recomenda isto
+            // em vez de `preload`).
+            loading="eager"
+            fetchPriority="high"
             className="object-cover transition-transform duration-150 ease-out pointer-events-none"
             style={{
               transform: isZooming ? "scale(2)" : "scale(1)",

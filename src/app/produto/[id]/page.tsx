@@ -3,6 +3,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { toPlain } from "@/lib/firestorePlain";
 import { Product } from "@/types";
 import { getEffectiveUnitPrice } from "@/lib/ribbon-pricing";
 import ProductPageClient from "@/components/features/ProductPageClient";
@@ -26,7 +27,8 @@ const getProduct = cache(async (id: string): Promise<Product | null> => {
     const docRef = doc(db, "products", id);
     const docSnap = await getDoc(docRef);
     if (!docSnap.exists()) return null;
-    return { id: docSnap.id, ...docSnap.data() } as Product;
+    // toPlain: Timestamp do Firestore não pode ir para o ProductPageClient.
+    return toPlain({ id: docSnap.id, ...docSnap.data() }) as Product;
   } catch (error) {
     console.error(
       `Erro ao carregar produto ${id}: ${
@@ -66,6 +68,9 @@ export async function generateMetadata({
   return {
     title: product.name,
     description,
+    // Desativado some da loja e do sitemap; o link direto ainda abre, mas o
+    // Google não indexa (#400).
+    ...(product.disabled === true ? { robots: { index: false, follow: true } } : {}),
     openGraph: {
       title: `${product.name} | Mix Novidades`,
       description,

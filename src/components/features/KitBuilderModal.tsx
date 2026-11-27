@@ -666,7 +666,7 @@ export function KitBuilderModal() {
             ) : (
               <Button
                 onClick={handleFinish}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold gap-2"
+                className="bg-green-700 hover:bg-green-800 text-white font-bold gap-2"
               >
                 <Check size={18} /> Finalizar e Comprar
               </Button>

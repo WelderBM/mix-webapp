@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { ArrowLeft, ArrowRight, Loader2, MapPin, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, ClipboardList, Loader2, MapPin, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type {
   IntakeFlag,
@@ -54,6 +54,7 @@ import {
   NO_AREA,
   RIBBON_FAMILY,
   STORE_AREAS,
+  suggestedArea,
   type AreaProgress,
 } from "@/lib/intake/areas";
 import {
@@ -100,6 +101,7 @@ export default function IntakeQueuePage() {
   );
   const [family, setFamily] = useState<string | null>(null);
   const [area, setArea] = useState<number | null>(null);
+  const [lastArea, setLastArea] = useState<number | null>(null);
   const [meta, setMeta] = useState<AreasMeta>({ claims: {}, overrides: {} });
   // Área ocupada por outra atendente: pede confirmação antes de entrar.
   const [busyArea, setBusyArea] = useState<{ id: number; name: string } | null>(null);
@@ -185,11 +187,15 @@ export default function IntakeQueuePage() {
   }, [router]);
 
   const [summaryVersion, setSummaryVersion] = useState(0);
+  // Falha de rede não é "fila vazia": antes caía no aviso de importar o
+  // Noturno, e a atendente pedia uma importação à toa.
+  const [summaryFailed, setSummaryFailed] = useState(false);
   useEffect(() => {
     if (!user) return;
+    setSummaryFailed(false);
     getDoc(doc(db, "intake_meta", "summary"))
       .then((s) => setSummary(s.exists() ? (s.data() as IntakeSummary) : null))
-      .catch(() => setSummary(null));
+      .catch(() => setSummaryFailed(true));
   }, [user, summaryVersion]);
 
   useEffect(() => {
@@ -226,10 +232,20 @@ export default function IntakeQueuePage() {
     setText("");
     const fams = id == null ? [] : (progress[id]?.families ?? []);
     setFamily(fams[0] ?? null);
+    if (id != null && id !== NO_AREA && me) {
+      writeLastArea(me, id);
+      setLastArea(id);
+    }
     if (claim && id != null && id !== NO_AREA && me) {
       claimArea(id, me, firstName(user?.displayName || me)).catch(() => {});
     }
   }
+
+  // Última área desta atendente neste aparelho: o voltar apaga a reserva,
+  // então a sugestão "Continuar aqui" não pode depender só dela (#404).
+  useEffect(() => {
+    if (me) setLastArea(readLastArea(me));
+  }, [me]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(text), 300);
@@ -393,11 +409,18 @@ export default function IntakeQueuePage() {
             </Link>
           </Button>
           <div className="min-w-0">
-            <h1 className="font-bold text-slate-800">Lançamento de produtos</h1>
+            {/* Mesmo título/subtítulo de /admin e o ícone roxo do botão
+                "Lançar produtos" de lá (#409). A barra continua fixa no
+                topo: a busca fica sempre à mão no celular. */}
+            {/* text-lg no celular: a barra fixa divide a linha com o voltar. */}
+            <h1 className="flex items-center gap-2 text-lg font-bold text-slate-800 md:text-2xl">
+              <ClipboardList size={20} className="shrink-0 text-purple-600" aria-hidden />
+              Lançamento de produtos
+            </h1>
             {summary && (
-              <p className="text-xs text-slate-500">
-                {summary.byStatus.publicado.toLocaleString("pt-BR")} publicados
-                · {summary.byStatus.pendente.toLocaleString("pt-BR")} pendentes
+              <p className="text-sm text-slate-600">
+                {summary.byStatus.publicado.toLocaleString("pt-BR")} já na loja
+                · {summary.byStatus.pendente.toLocaleString("pt-BR")} para lançar
               </p>
             )}
           </div>
@@ -442,6 +465,31 @@ export default function IntakeQueuePage() {
       </header>
 
       <div className="mx-auto max-w-3xl space-y-4 p-4">
+        {/* Sem isto a tela ficava em branco abaixo dos filtros enquanto o
+            resumo carregava (vistoria de 02/11, celular). */}
+        {summary === undefined && !summaryFailed && (
+          <div
+            role="status"
+            className="flex flex-col items-center gap-2 py-12 text-sm text-slate-500"
+          >
+            <Loader2 className="animate-spin text-slate-400" size={28} />
+            Carregando as áreas da loja…
+          </div>
+        )}
+
+        {summaryFailed && (
+          <div className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <p>Não consegui carregar a fila. Confira a internet e tente de novo.</p>
+            <Button
+              variant="outline"
+              className="h-11"
+              onClick={() => setSummaryVersion((v) => v + 1)}
+            >
+              Tentar de novo
+            </Button>
+          </div>
+        )}
+
         {summary === null && (
           <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             A fila ainda está vazia. Peça para o administrador importar o
@@ -467,6 +515,7 @@ export default function IntakeQueuePage() {
             claims={meta.claims}
             me={me}
             now={now}
+            last={lastArea}
             onPick={pickArea}
           />
         )}
@@ -729,6 +778,27 @@ function Chip({
   );
 }
 
+// Guardado por e-mail: duas atendentes no mesmo celular não se misturam.
+// Valor antigo ou estranho vira "sem última área", nunca erro.
+const lastAreaKey = (email: string) => `lancamento:ultimaArea:${email}`;
+
+function readLastArea(email: string): number | null {
+  try {
+    const id = Number(localStorage.getItem(lastAreaKey(email)));
+    return areaById(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastArea(email: string, id: number) {
+  try {
+    localStorage.setItem(lastAreaKey(email), String(id));
+  } catch {
+    // modo privado / armazenamento cheio: a sugestão só fica menos precisa
+  }
+}
+
 function Scoreboard({
   summary,
   email,
@@ -745,10 +815,10 @@ function Scoreboard({
       className="space-y-2 rounded-xl border border-slate-200 bg-white p-4"
     >
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-medium text-slate-800">Revenda</p>
+        <p className="text-sm font-medium text-slate-800">Revenda (foco agora)</p>
         <p className="text-sm text-slate-600">
           {done.toLocaleString("pt-BR")} de {total.toLocaleString("pt-BR")}{" "}
-          conferidos
+          já conferidos
         </p>
       </div>
       <div
@@ -757,7 +827,7 @@ function Scoreboard({
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="h-2 overflow-hidden rounded-full bg-slate-100"
+        className="h-2 overflow-hidden rounded-full bg-slate-200"
       >
         <div
           className="h-full rounded-full bg-purple-600"
@@ -784,57 +854,77 @@ function AreaGrid({
   claims,
   me,
   now,
+  last,
   onPick,
 }: {
   progress: Record<number, AreaProgress>;
   claims: AreasMeta["claims"];
   me: string;
   now: number;
+  last: number | null;
   onPick: (id: number) => void;
 }) {
   const unassigned = progress[NO_AREA];
+  const suggested = suggestedArea(progress, claims, me, now, last);
   return (
     <section aria-label="Áreas da loja" className="space-y-2">
       <h2 className="text-lg font-bold text-slate-800">
         Em que área da loja você está?
       </h2>
+      <p className="text-sm text-slate-600">
+        Toque na área onde você está e publique os produtos um a um.
+      </p>
       <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {STORE_AREAS.map((a) => {
           const p = progress[a.id];
           const total = p?.total ?? 0;
           const pending = p?.pending ?? 0;
-          const pct = total > 0 ? Math.round(((total - pending) / total) * 100) : 100;
+          // floor: com 1 pendente nunca mostra 100%.
+          const pct = total > 0 ? Math.floor(((total - pending) / total) * 100) : 100;
           const c = activeClaim(claims[String(a.id)], now);
           const other = c && c.email !== me ? c : null;
+          const isSuggested = a.id === suggested?.id;
           return (
             <li key={a.id}>
               <button
                 type="button"
                 onClick={() => onPick(a.id)}
                 className={`flex min-h-16 w-full flex-col gap-1.5 rounded-xl border bg-white p-3 text-left active:bg-slate-50 ${
-                  other ? "border-amber-200" : "border-slate-200"
+                  isSuggested
+                    ? "border-purple-600 ring-1 ring-purple-600"
+                    : other
+                      ? "border-amber-300"
+                      : "border-slate-200"
                 }`}
               >
+                {isSuggested && (
+                  <span className="self-start rounded-full bg-purple-600 px-2 py-0.5 text-xs font-medium text-white">
+                    {suggested?.resume ? "Continuar aqui" : "Comece aqui"}
+                  </span>
+                )}
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="font-medium text-slate-800">
-                    <span className="text-slate-400">{a.id}.</span> {a.name}
+                    <span className="text-slate-500">{a.id}.</span> {a.name}
                   </span>
-                  <span className="shrink-0 text-xs text-slate-500">
+                  <span className="shrink-0 text-xs text-slate-600">
                     {pending > 0
-                      ? `${pending.toLocaleString("pt-BR")} a lançar`
+                      ? `${pending.toLocaleString("pt-BR")} para lançar`
                       : "concluída"}
                   </span>
                 </span>
-                <span className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                  <span
-                    className="block h-full rounded-full bg-purple-600"
-                    style={{ width: `${pct}%` }}
-                  />
+                <span className="flex items-center gap-2">
+                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200">
+                    <span
+                      className="block h-full rounded-full bg-purple-600"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </span>
+                  <span className="shrink-0 text-xs text-slate-600">{pct}% conferido</span>
                 </span>
-                <span className="truncate text-xs text-slate-500">
+                <span className="text-xs text-slate-500">
                   {other ? (
-                    <span className="font-medium text-amber-700">
-                      Com {other.name} agora
+                    <span className="font-medium text-amber-800">
+                      {other.name} está nesta área — você pode ajudar também
                     </span>
                   ) : (
                     a.hint
@@ -852,13 +942,13 @@ function AreaGrid({
           className="flex min-h-16 w-full items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white p-3 text-left text-sm active:bg-slate-50"
         >
           <span className="min-w-0 space-y-1">
-            <span className="block font-medium text-slate-700">Sem área definida</span>
+            <span className="block font-medium text-slate-700">Produtos ainda sem área</span>
             <span className="block text-xs text-slate-500">
-              Diga uma vez em que área fica cada família
+              Diga uma vez em que área fica cada grupo de produtos
             </span>
           </span>
-          <span className="shrink-0 text-xs text-slate-500">
-            {unassigned.families.length.toLocaleString("pt-BR")} famílias
+          <span className="shrink-0 text-xs text-slate-600">
+            {unassigned.families.length.toLocaleString("pt-BR")} grupos
           </span>
         </button>
       )}
@@ -894,7 +984,7 @@ function AreaBar({
           </p>
           <p className="text-xs text-slate-600">
             {pending > 0
-              ? `${pending.toLocaleString("pt-BR")} a lançar nesta área`
+              ? `${pending.toLocaleString("pt-BR")} para lançar nesta área`
               : "Área concluída 🎉"}
           </p>
           {sharedWith && (

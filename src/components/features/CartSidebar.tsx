@@ -8,6 +8,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -217,14 +218,19 @@ export function CartSidebar() {
     // localStorage) com um item que ficou indisponível nesse meio tempo —
     // barra aqui, antes de gravar o pedido, em vez de deixar estourar depois
     // do addDoc (pedido já criado, mensagem de WhatsApp que quebra no meio).
-    if (!isLoadingProducts) {
-      const reason = items
-        .map((item) => getCartItemUnavailableReason(item, allProducts))
-        .find((r) => r != null);
-      if (reason) {
-        toast.error(`${reason} Remova esse item para continuar.`);
-        return;
-      }
+    // O catálogo só começa a descer quando o carrinho abre (#399): se o
+    // cliente tocar antes de ele chegar, espera a leitura e confere com ela.
+    let liveProducts = allProducts;
+    if (isLoadingProducts) {
+      await useProductStore.getState().ensureProducts();
+      liveProducts = useProductStore.getState().allProducts;
+    }
+    const reason = items
+      .map((item) => getCartItemUnavailableReason(item, liveProducts))
+      .find((r) => r != null);
+    if (reason) {
+      toast.error(`${reason} Remova esse item para continuar.`);
+      return;
     }
 
     if (!customerName.trim()) {
@@ -333,6 +339,10 @@ export function CartSidebar() {
             <SheetTitle className="flex items-center gap-2 text-xl">
               <ShoppingCart className="text-purple-600" /> Seu Carrinho
             </SheetTitle>
+            {/* Só para leitor de tela: sem descrição o Radix avisa no console. */}
+            <SheetDescription className="sr-only">
+              Itens escolhidos, seus dados, entrega e forma de pagamento.
+            </SheetDescription>
           </SheetHeader>
 
           {items.length === 0 ? (
@@ -841,7 +851,7 @@ export function CartSidebar() {
                 <Button
                   onClick={handleCheckout}
                   disabled={isCheckingOut}
-                  className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700"
+                  className="w-full h-12 text-lg font-bold bg-green-700 hover:bg-green-800"
                 >
                   {isCheckingOut ? (
                     <Loader2 className="animate-spin" />
