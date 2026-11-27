@@ -102,6 +102,9 @@ export interface Product {
   // produto nasce da fila de lançamento (#200). Vincula reimportações do
   // Noturno ao produto publicado (estoque, #202).
   sourceCode?: string;
+  // Marca do produto (do Noturno, #55). Ausente quando o Noturno traz uma
+  // marca genérica ("DIVERSOS"). Vai para os dados do Google (JSON-LD).
+  brand?: string;
   // Fita "p/ metro" criada ao abrir um rolo (#413): id do rolo fechado de
   // origem. O rolo fechado não muda; só um "p/ metro" ativo por rolo.
   openedFromId?: string;

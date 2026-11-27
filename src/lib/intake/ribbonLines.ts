@@ -1,7 +1,7 @@
 import type { Product } from "@/types";
 import type { IntakeItem } from "@/types/intake";
 import { classifySubcategory } from "./subcategories";
-import { extractRollMeters } from "./publish";
+import { brandForProduct, extractRollMeters } from "./publish";
 import { normalizeText } from "./search";
 
 // Fitas de plástico para laço por LINHA (#259, decisão de 22/10: o preço
@@ -207,7 +207,8 @@ export interface RibbonLinePrices {
 
 // Produto RIBBON de uma cor da linha. Rolo FECHADO, cheio.
 export function buildRibbonProduct(
-  item: Pick<IntakeItem, "sourceCode" | "stock">,
+  item: Pick<IntakeItem, "sourceCode" | "stock"> &
+    Partial<Pick<IntakeItem, "brand" | "flags">>,
   line: Pick<RibbonLine<unknown>, "line" | "widthMm" | "meters">,
   label: string,
   prices: RibbonLinePrices,
@@ -234,6 +235,8 @@ export function buildRibbonProduct(
     inStock: item.stock > 0,
     disabled: false,
     sourceCode: item.sourceCode,
+    // Marca do Noturno também nas fitas cadastradas por linha (revisão #442).
+    brand: brandForProduct(item),
   };
 }
 

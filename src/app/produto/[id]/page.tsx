@@ -7,6 +7,7 @@ import { toPlain } from "@/lib/firestorePlain";
 import { Product } from "@/types";
 import { getEffectiveUnitPrice } from "@/lib/ribbon-pricing";
 import ProductPageClient from "@/components/features/ProductPageClient";
+import { jsonLdString, productJsonLd } from "@/lib/productJsonLd";
 
 // Rota depende de dado que muda a qualquer momento (preço, estoque, imagem
 // escolhida pelo admin) e é acessada via link direto/compartilhado — mesma
@@ -87,5 +88,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
     notFound();
   }
 
-  return <ProductPageClient product={product} />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        // Preço e disponibilidade no resultado do Google (SEO).
+        dangerouslySetInnerHTML={{
+          __html: jsonLdString(productJsonLd(product, resolveOgImage(product))),
+        }}
+      />
+      <ProductPageClient product={product} />
+    </>
+  );
 }
