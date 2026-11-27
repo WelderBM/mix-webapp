@@ -67,3 +67,15 @@ describe("parseBalloon (nomes reais do Noturno)", () => {
     expect(parseBalloon("CANETA AZUL")).toBeNull();
   });
 });
+
+describe("foil com o número no meio do nome (#287, revisão do #438)", () => {
+  it("preto vira arte de número preto", () => {
+    const p = parseBalloon("BALAO METALIZADO 16 40CM 3 PRETO");
+    expect(p).toMatchObject({ shape: "numero", glyph: "3", metallic: true });
+    expect(p?.colors).toHaveLength(1);
+  });
+  it("candy fica sem arte (vai com foto), em vez de um número multicolorido", () => {
+    expect(parseBalloon("BALAO METALIZADO 16 40CM 0 AZUL TURQUESA CANDY")).toBeNull();
+    expect(parseBalloon("BALAO METALIZADO 16 40CM 9 ROSA BEBE CANDY")).toBeNull();
+  });
+});

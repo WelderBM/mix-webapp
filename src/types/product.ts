@@ -105,6 +105,15 @@ export interface Product {
   // Marca do produto (do Noturno, #55). Ausente quando o Noturno traz uma
   // marca genérica ("DIVERSOS"). Vai para os dados do Google (JSON-LD).
   brand?: string;
+  // Fita "p/ metro" criada ao abrir um rolo (#413): id do rolo fechado de
+  // origem. O rolo fechado não muda; só um "p/ metro" ativo por rolo.
+  openedFromId?: string;
+  // "Encerrar rolo" (#413): metragem que sobrou quando o rolo foi encerrado
+  // e quando (texto ISO). Registra a perda em vez de sumir em silêncio.
+  closedWithMeters?: number;
+  closedAt?: string;
+  // true quando foi "Devolver ao rolo fechado" (desfez a abertura), não perda.
+  returnedToRoll?: boolean;
 
   // Fita já conferida em "Trocar desenhos por fotos" (trocada ou mantida de
   // propósito): sai da lista e não gasta busca de novo. A imagem de antes

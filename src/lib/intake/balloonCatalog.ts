@@ -47,6 +47,11 @@ const COLOR_ALIAS: Record<string, string> = {
 
 export const FOIL_NX = /\bMETAL(?:IZADO)?\b.*?\bC?(40|70-75) ?CM\b.*\bN\. ?(\d)\b/;
 
+// Número foil com o algarismo logo depois da medida e a cor no fim (#287):
+// "BALAO METALIZADO 16 40CM 3 PRETO", "… 16 40CM 0 AZUL TURQUESA CANDY".
+// Sem isto os números preto e candy ficavam fora de "Números & Letras".
+export const FOIL_MID = /\bMETALIZADO\b.*\b(16 ?40 ?CM|1640 ?CM|32 ?75 ?CM)\s+(\d)\s+[A-Z]{3,}/;
+
 export function balloonTypeOf(name: string): { typeId: string; size: string | null } | null {
   const n = name.toUpperCase();
   if (/\b(16 ?40 ?CM|1640 ?CM)\b.*\s([A-Z0-9&]|INTERROGACAO)$/.test(n)) return { typeId: "foil_numeros", size: "40cm" };
@@ -56,6 +61,8 @@ export function balloonTypeOf(name: string): { typeId: string; size: string | nu
   // 40CM N.0". Sem isto caíam no "METAL" abaixo e o montador só tinha 40 cm.
   const nx = FOIL_NX.exec(n);
   if (nx) return { typeId: "foil_numeros", size: nx[1] === "40" ? "40cm" : "75cm" };
+  const mid = FOIL_MID.exec(n);
+  if (mid) return { typeId: "foil_numeros", size: /75/.test(mid[1]) ? "75cm" : "40cm" };
   if (/\bCANUDO\b|\b260\b/.test(n)) return { typeId: "canudo", size: "260" };
   // Bobo/bubble: balão transparente especial, não é o látex do catálogo.
   if (/\bBOBO\b|\bBUBBLE\b/.test(n)) return null;
@@ -189,7 +196,9 @@ export function matchBalloon(
   const words =
     // Foil "N.x": o colorWords já tira o "N.0"; a última palavra é cor
     // (talvez quebrada, "NACARAD O"), não o caractere.
-    t.typeId === "foil_numeros" && !FOIL_NX.test(name.toUpperCase())
+    t.typeId === "foil_numeros" &&
+    !FOIL_NX.test(name.toUpperCase()) &&
+    !FOIL_MID.test(name.toUpperCase())
       ? colorWords(name.toUpperCase().replace(/\s+([A-Z0-9&]|INTERROGACAO)$/, ""))
       : colorWords(name);
   return {
@@ -290,6 +299,8 @@ export function foilCharOf(name: string): string | null {
   // da última palavra, que pode ser um pedaço quebrado ("NACARAD O").
   const nx = FOIL_NX.exec(name.toUpperCase());
   if (nx) return nx[2];
+  const mid = FOIL_MID.exec(name.toUpperCase());
+  if (mid) return mid[2];
   const last = /\s(\S+)$/.exec(name.trim().toUpperCase())?.[1];
   if (!last) return null;
   if (last === "INTERROGACAO") return "?";

@@ -246,6 +246,8 @@ describe("appendGroupVariants (#253)", () => {
 describe("brandForProduct (#55)", () => {
   it("leva a marca do Noturno com inicial maiúscula", () => {
     expect(brandForProduct({ brand: "SAO ROQUE", flags: [] })).toBe("Sao Roque");
+    expect(brandForProduct({ brand: "3M", flags: [] })).toBe("3M");
+    expect(brandForProduct({ brand: "JBL", flags: [] })).toBe("JBL");
   });
   it("marca genérica ou vazia fica de fora", () => {
     expect(brandForProduct({ brand: "DIVERSOS", flags: ["marca_generica"] })).toBeUndefined();

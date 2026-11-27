@@ -105,10 +105,13 @@ export function parsePrice(raw: string): number | null {
 // "CROMUS" → "Cromus", "SAO ROQUE" → "Sao Roque". Marca genérica fica de
 // fora: não diz nada ao cliente nem ao Google.
 export function brandForProduct(
-  item: Pick<IntakeItem, "brand" | "flags">,
+  item: Partial<Pick<IntakeItem, "brand" | "flags">>,
 ): string | undefined {
   const b = item.brand?.trim();
   if (!b || item.flags?.includes("marca_generica")) return undefined;
+  // Sigla ("3M", "JBL", "LG", "VMP": até 3 letras ou com número) fica como
+  // veio; o resto ganha só a inicial maiúscula (revisão do #442).
+  if (b.length <= 3 || /\d/.test(b)) return b;
   return b.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 }
 
