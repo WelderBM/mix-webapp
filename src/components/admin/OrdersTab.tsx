@@ -12,6 +12,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { ribbonStockChange, updateStatusWithRibbonStock } from "@/lib/ribbonStockTx";
 import { Order, OrderStatus } from "@/types/order";
 import { CartItem } from "@/types/cart";
 import { ProductInfoModal } from "@/components/admin/ProductInfoModal";
@@ -333,7 +334,14 @@ export function OrdersTab() {
 
   const updateStatus = async (orderId: string, newStatus: OrderStatus) => {
     try {
-      await updateDoc(doc(db, "orders", orderId), { status: newStatus });
+      const order = orders.find((o) => o.id === orderId);
+      // Pronto/saiu/entregue desconta a metragem das fitas por metro e laços;
+      // voltar ou cancelar devolve (#415). Sem fita aberta, só o status.
+      if (order && ribbonStockChange(order, newStatus)) {
+        await updateStatusWithRibbonStock(db, orderId, newStatus, new Date());
+      } else {
+        await updateDoc(doc(db, "orders", orderId), { status: newStatus });
+      }
       toast.success("Status atualizado!");
     } catch (error) {
       console.error(error);

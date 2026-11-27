@@ -47,5 +47,10 @@ export interface Order {
   } | null;
   createdAt: string; // ISO String
   items: CartItem[]; // Itens completos do carrinho
+  // Metragem descontada dos rolos abertos quando o pedido ficou Pronto
+  // (#415): { productId: metros }. Some quando o pedido volta ou é cancelado
+  // (a metragem é devolvida). Garante que um pedido nunca baixa duas vezes.
+  stockApplied?: Record<string, number>;
+  stockAppliedAt?: string;
   timestamp?: any; // Firebase Server Timestamp
 }
