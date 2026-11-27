@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { STORE_HOURS, STORE_HOURS_DISPLAY } from "@/lib/storeHours";
 
 export function StoreStatusBadge() {
   const [status, setStatus] = useState<{
@@ -31,16 +32,8 @@ export function StoreStatusBadge() {
       const minutes = Number(parts.minute);
       const currentTime = hour + minutes / 60;
 
-      // Horário de atendimento: todos os dias, 09:00 - 13:00 (dono, 28/10).
-      const schedule: Record<number, { open: number; close: number }> = {
-        0: { open: 9, close: 13 }, // Domingo
-        1: { open: 9, close: 13 }, // Segunda
-        2: { open: 9, close: 13 },
-        3: { open: 9, close: 13 },
-        4: { open: 9, close: 13 },
-        5: { open: 9, close: 13 },
-        6: { open: 9, close: 13 }, // Sábado
-      };
+      // Fonte única do horário: src/lib/storeHours.ts.
+      const schedule = STORE_HOURS;
 
       const today = schedule[day];
       let isOpen = false;
@@ -148,10 +141,14 @@ export function StoreStatusBadge() {
           Horário de Funcionamento
         </p>
         <div className="space-y-1">
-          <div className="flex justify-between text-xs">
-            <span>Todos os dias</span>
-            <span className="font-bold text-white">09:00 - 13:00</span>
-          </div>
+          {STORE_HOURS_DISPLAY.map((row) => (
+            <div key={row.label} className="flex justify-between text-xs">
+              <span>{row.label}</span>
+              <span className="font-bold text-white">
+                {row.open} - {row.close}
+              </span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

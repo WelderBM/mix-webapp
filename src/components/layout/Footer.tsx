@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSettingsStore } from "@/store/settingsStore";
+import { STORE_HOURS_DISPLAY } from "@/lib/storeHours";
 
 export function Footer() {
   const storeName = useSettingsStore((state) => state.settings.storeName);
@@ -107,12 +108,14 @@ export function Footer() {
               <Clock className="text-white shrink-0" size={20} />
             </div>
             <div className="text-sm mt-1">
-              <p>
-                <span className="font-semibold text-purple-400">
-                  Todos os dias:
-                </span>{" "}
-                09:00 às 13:00
-              </p>
+              {STORE_HOURS_DISPLAY.map((row) => (
+                <p key={row.label}>
+                  <span className="font-semibold text-purple-400">
+                    {row.label}:
+                  </span>{" "}
+                  {row.open} às {row.close}
+                </p>
+              ))}
             </div>
           </div>
         </div>
