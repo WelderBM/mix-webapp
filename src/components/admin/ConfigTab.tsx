@@ -5,6 +5,7 @@ import { StoreSettings } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { DEFAULT_IMPORT_PERIOD_DAYS } from "@/lib/noturnoImport";
 
 interface ConfigTabProps {
   settings: StoreSettings;
@@ -72,6 +73,34 @@ export function ConfigTab({ settings, setSettings }: ConfigTabProps) {
             </div>
             <p className="text-xs text-slate-500">
               Este link será exibido no modal de agradecimento após a compra.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="noturno-period">
+              Lembrar de importar o Excel do Noturno a cada (dias)
+            </Label>
+            <Input
+              id="noturno-period"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              step={1}
+              placeholder={String(DEFAULT_IMPORT_PERIOD_DAYS)}
+              value={settings.noturnoImport?.periodDays ?? ""}
+              onChange={(e) => {
+                const n = Number.parseInt(e.target.value, 10);
+                // Vazio vira {} (não `undefined`): o Firestore recusa campo
+                // undefined no setDoc do "Salvar Configurações".
+                setSettings({
+                  ...settings,
+                  noturnoImport: Number.isFinite(n) && n >= 1 ? { periodDays: n } : {},
+                });
+              }}
+            />
+            <p className="text-xs text-slate-600">
+              O aviso no topo do painel some quando um Excel é importado e volta
+              depois desse prazo. Vazio = {DEFAULT_IMPORT_PERIOD_DAYS} dias.
             </p>
           </div>
         </div>

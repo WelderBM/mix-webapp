@@ -113,4 +113,10 @@ export interface StoreSettings {
   features?: {
     customKitEnabled?: boolean;
   };
+  // Lembrete de importar o Excel do Noturno (#416). Só o período mora aqui;
+  // a data da última importação fica em `intake_meta/import` (leitura só do
+  // admin e fora do "Salvar Configurações", que regrava este documento).
+  noturnoImport?: {
+    periodDays?: number;
+  };
 }
