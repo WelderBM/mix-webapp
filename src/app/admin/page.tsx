@@ -64,6 +64,7 @@ import { SectionsTab } from "@/components/admin/SectionsTab";
 import { BalloonsTab } from "@/components/admin/BalloonsTab";
 import { RibbonsTab } from "@/components/admin/RibbonsTab";
 import { ConfigTab } from "@/components/admin/ConfigTab";
+import { NoturnoImportBanner } from "@/components/admin/NoturnoImportBanner";
 import { useDraftPersistence } from "@/hooks/useDraftPersistence";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -338,6 +339,7 @@ function AdminPageContent({ currentUser }: { currentUser: User }) {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
+        <NoturnoImportBanner periodDays={settings.noturnoImport?.periodDays} />
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-xl shadow-sm gap-4">
           <div>
