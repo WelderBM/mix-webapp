@@ -94,7 +94,13 @@ export function parseBalloon(rawName: string): BalloonInfo | null {
   const nx = FOIL_NX.exec(n);
   if (nx) return { ...base, shape: "numero", glyph: nx[2], metallic: true };
   const mid = FOIL_MID.exec(n);
-  if (mid) return { ...base, shape: "numero", glyph: mid[2], metallic: true };
+  if (mid) {
+    // "…CANDY": a tabela de cores leria "Sortido" (multicolorido) e o tom
+    // candy (Azul Turquesa, Rosa Bebê) não tem cor própria nela. Sem arte, vai
+    // com foto, para não mostrar um número da cor errada (revisão do #438).
+    if (/\bCANDY\b/.test(n)) return null;
+    return { ...base, shape: "numero", glyph: mid[2], metallic: true };
+  }
   const metallic = /\bMETAL/.test(n) || /\bCROMO\b/.test(n);
   if (/\bCORACAO\b/.test(n)) return { ...base, shape: "coracao", glyph: null, metallic };
   if (/\bESTRELA\b/.test(n)) return { ...base, shape: "estrela", glyph: null, metallic };
