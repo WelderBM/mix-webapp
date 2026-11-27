@@ -32,6 +32,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { useCategoryStore } from "@/store/categoryStore";
 import { useProductStore } from "@/store/productStore";
 import { getVisibleCategories } from "@/lib/categories";
+import { useMenuCounts } from "@/hooks/useMenuCounts";
 import { cn } from "@/lib/utils";
 
 const Navbar = () => {
@@ -71,38 +72,22 @@ const Navbar = () => {
   // criar/renomear/reordenar categoria no admin sem precisar de deploy.
   const categories = useCategoryStore((state) => state.categories);
   const subscribeToCategories = useCategoryStore((state) => state.subscribe);
-  // Produtos: a Navbar fica montada no layout raiz (persiste entre
-  // navegações), então só dispara fetchProducts se nenhuma outra página já
-  // tiver carregado o catálogo — evita duplicar a query em toda troca de
-  // rota (não é por-categoria, é a mesma coleção que as páginas já buscam).
+  // Produtos: a Navbar fica em toda página, mas NÃO baixa o catálogo
+  // (#399). Usa o que a página já carregou ou a contagem pronta do
+  // servidor (useMenuCounts).
   const allProducts = useProductStore((state) => state.allProducts);
+  const menuCounts = useMenuCounts();
 
   useEffect(() => {
     subscribeToCategories();
   }, [subscribeToCategories]);
 
-  useEffect(() => {
-    // Adiado pra um microtask: a Navbar fica no layout raiz e roda ANTES de
-    // `children` no mesmo commit (ex: HomeClient/useStoreHydration, que
-    // hidrata o catálogo via SSR de forma síncrona). `fetchProducts()` só
-    // marca `isLoading: true` depois de um `await` interno (fetchRecipes),
-    // então checar `allProducts`/`isLoading` de forma síncrona aqui correria
-    // na frente da hidratação da página e disparava uma 2ª leitura
-    // redundante do Firestore (a store acabava sendo populada duas vezes na
-    // Home). Um microtask roda só depois que todos os effects deste commit
-    // (incluindo o da página) já terminaram de rodar de forma síncrona.
-    queueMicrotask(() => {
-      const state = useProductStore.getState();
-      if (state.allProducts.length === 0 && state.isLoading) {
-        state.fetchProducts();
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Guarda-corpo: só categoria ativa com >=1 produto vendável entra no
   // mega-menu (ver src/lib/categories.ts).
-  const visibleCategories = getVisibleCategories(categories, allProducts);
+  const visibleCategories = getVisibleCategories(
+    categories,
+    menuCounts ?? allProducts
+  );
 
   // Se a rota começar com "/admin", não renderiza nada
   if (pathname && pathname.startsWith("/admin")) {
